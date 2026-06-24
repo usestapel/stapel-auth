@@ -4,8 +4,6 @@ Covers JWT token claims (is_staff, is_superuser) across all auth methods.
 Also covers JWKS and OpenID Configuration endpoints.
 Also covers authenticator change flows (instant + delayed).
 """
-import jwt
-import json
 import uuid
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -1248,7 +1246,7 @@ class EmailVerificationEdgeCaseTests(APITestCase):
         from .services import EmailVerificationService
 
         # Create existing user
-        existing_user = User.objects.create_user(
+        User.objects.create_user(
             email='existing@example.com',
             username='existing',
             password='testpass123',
@@ -1363,7 +1361,7 @@ class MeEndpointTests(APITestCase):
         )
         self.client.force_authenticate(user=regular)
         # Attempt to PATCH ourselves to superuser via /me/
-        response = self.client.patch(
+        self.client.patch(
             reverse('me'),
             {'is_staff': True, 'is_superuser': True},
             format='json',
@@ -1618,7 +1616,7 @@ class PhoneVerificationEdgeCaseTests(APITestCase):
         from .services import PhoneVerificationService
 
         # Create existing user with phone
-        existing_user = User.objects.create_user(
+        User.objects.create_user(
             username='existing_phone_user',
             phone='+12345678906',
             auth_type='phone'
@@ -2021,7 +2019,7 @@ class AdminOTPSecurityTests(APITestCase):
         mock_generate.return_value = '5678'
 
         # Create admin user
-        admin = User.objects.create_user(
+        User.objects.create_user(
             email='adminotp_test@example.com',
             username='adminotp_test',
             is_staff=True
@@ -2041,7 +2039,7 @@ class AdminOTPSecurityTests(APITestCase):
         mock_generate.return_value = '5678'
 
         # Create admin user
-        admin = User.objects.create_user(
+        User.objects.create_user(
             username='phoneadmin',
             phone='+12345678950',
             is_staff=True
@@ -2060,7 +2058,7 @@ class AdminOTPSecurityTests(APITestCase):
         mock_generate.return_value = '5678'
 
         # Create superuser
-        superuser = User.objects.create_superuser(
+        User.objects.create_superuser(
             email='superuser@example.com',
             username='superuser',
             password='testpass123'

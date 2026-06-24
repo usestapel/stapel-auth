@@ -9,7 +9,6 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
-from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 from .models import Organization, OrgMembership, SSOConfig
@@ -268,7 +267,7 @@ class SSOUserServiceTests(TestCase):
         self.assertEqual(membership.sso_subject_id, 'sub-999')
 
     def test_syncs_name_on_existing_nameless_user(self):
-        existing = User.objects.create_user(
+        User.objects.create_user(
             email='noname@acmecorp.com', username='noname', password='x',
             first_name='', last_name='',
         )

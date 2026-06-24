@@ -36,7 +36,6 @@ from .dto import (
     LogoutResponse,
     OtpSentResponse,
     PasswordMethodsResponse,
-    PasswordMethodType,
     QRGenerateResponse,
     QRStatus,
     QRStatusResponse,
@@ -71,7 +70,6 @@ from .serializers import (
     OtpSentResponseSerializer,
     PasswordChangeDirectSerializer,
     PasswordLoginSerializer,
-    PasswordMethodSerializer,
     PasswordMethodsResponseSerializer,
     PasswordOtpRequestSerializer,
     PasswordOtpVerifySerializer,
@@ -92,7 +90,6 @@ from .serializers import (
     TOTPChallengeResponseSerializer,
     TOTPChallengeVerifySerializer,
     TOTPDisableSerializer,
-    TOTPDisableOtpRequestSerializer,
     TOTPSetupConfirmResponseSerializer,
     TOTPSetupConfirmSerializer,
     TOTPSetupResponseSerializer,
@@ -109,7 +106,6 @@ from .services import (
     PasswordService,
     PhoneVerificationService,
     QRAuthService,
-    TokenService,
 )
 
 logger = logging.getLogger(__name__)
@@ -1387,7 +1383,7 @@ class AuthViewSet(viewsets.GenericViewSet):
                                 )
                             else:
                                 logger.warning(
-                                    f"Access token already expired, not blacklisting"
+                                    "Access token already expired, not blacklisting"
                                 )
                 except Exception as e:
                     logger.warning(f"Failed to blacklist access token: {e}")
@@ -1411,7 +1407,7 @@ class AuthViewSet(viewsets.GenericViewSet):
                                 )
                             else:
                                 logger.warning(
-                                    f"Refresh token already expired, not blacklisting"
+                                    "Refresh token already expired, not blacklisting"
                                 )
                         # Revoke session in DB so it disappears from active list immediately
                         from .services import SessionService as _SS
@@ -2098,7 +2094,6 @@ class PasswordViewSet(viewsets.GenericViewSet):
         permission_classes=[permissions.AllowAny],
     )
     def login(self, request):
-        from stapel_core.django.jwt_provider import jwt_provider
         from stapel_core.django.utils import set_jwt_cookies
         from django.utils import timezone
 
@@ -2511,7 +2506,6 @@ class QRAuthViewSet(viewsets.GenericViewSet):
     def scan(self, request, key=None):
         from urllib.parse import urlencode
 
-        from stapel_core.django.jwt_provider import jwt_provider
         from stapel_core.django.utils import set_jwt_cookies
         from django.contrib.auth import get_user_model as _get_user_model
         from django.http import HttpResponseRedirect

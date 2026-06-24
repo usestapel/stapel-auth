@@ -13,15 +13,15 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ViewSet
 
 from stapel_core.django.errors import (
-    IronErrorResponse, IronErrorSerializer, IronResponse, error_500_internal,
+    IronErrorResponse, error_500_internal,
 )
 
 from .errors import (
-    ERR_400_SSO_INVALID_RESPONSE, ERR_400_SSO_NOT_CONFIGURED,
-    ERR_403_SSO_REQUIRED, ERR_404_SSO_ORG_NOT_FOUND,
+    ERR_400_SSO_NOT_CONFIGURED,
+    ERR_404_SSO_ORG_NOT_FOUND,
     ERR_409_SSO_ORG_SLUG_TAKEN,
 )
-from .models import Organization, OrgMembership, SSOConfig
+from .models import Organization, SSOConfig
 from .sso_service import OIDCService, SAMLService, SSOUserService
 
 logger = logging.getLogger(__name__)

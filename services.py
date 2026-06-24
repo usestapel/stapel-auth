@@ -19,14 +19,14 @@ class PhoneVerificationService:
     """
     Service for phone verification using Twilio
     """
-    
+
     def __init__(self):
         self.account_sid = settings.TWILIO_ACCOUNT_SID
         self.auth_token = settings.TWILIO_AUTH_TOKEN
         self.verify_service_sid = settings.TWILIO_VERIFY_SERVICE_SID
         self.use_mock_otp = getattr(settings, 'USE_MOCK_SMS_OTP', False)
         self.mock_code = getattr(settings, 'MOCK_OTP_CODE', '0000')
-    
+
     def generate_code(self, force_real=False):
         """
         Generate 4-digit verification code.
@@ -43,38 +43,38 @@ class PhoneVerificationService:
         try:
             # Check for rate limiting - 30 seconds window
             cutoff_time = timezone.now() - timedelta(seconds=30)
-            
+
             # Check recent requests by phone
             recent_by_phone = PhoneVerification.objects.filter(
                 phone=phone,
                 created_at__gte=cutoff_time
             ).exists()
-            
+
             if recent_by_phone:
                 logger.warning(f"Rate limit exceeded for phone {phone}")
                 return {'error': 'rate_limit', 'retry_after': 30}
-            
+
             # Check recent requests by device_id if provided
             if device_id:
                 recent_by_device = PhoneVerification.objects.filter(
                     device_id=device_id,
                     created_at__gte=cutoff_time
                 ).exists()
-                
+
                 if recent_by_device:
                     logger.warning(f"Rate limit exceeded for device {device_id}")
                     return {'error': 'rate_limit', 'retry_after': 30}
-            
+
             # Check if there's a blocked verification for this phone/device
             latest_verification = PhoneVerification.objects.filter(
                 phone=phone
             ).order_by('-created_at').first()
-            
+
             if latest_verification and latest_verification.is_blocked():
                 time_remaining = int((latest_verification.blocked_until - timezone.now()).total_seconds())
                 logger.warning(f"Phone {phone} is blocked until {latest_verification.blocked_until}")
                 return {'error': 'blocked', 'retry_after': max(time_remaining, 0)}
-            
+
             # Generate code (force real OTP for admin accounts)
             code = self.generate_code(force_real=force_real_otp)
 
@@ -90,7 +90,7 @@ class PhoneVerificationService:
             if self.use_mock_otp and not force_real_otp:
                 logger.info(f"Mock OTP mode - Verification code for {phone}: {code}")
                 return verification
-            
+
             # Send via notification service
             from stapel_core.notifications import request_notification
             sent = request_notification(
@@ -109,7 +109,7 @@ class PhoneVerificationService:
         except Exception as e:
             logger.error(f"Failed to send verification code: {e}")
             return None
-    
+
     def verify_code(self, phone, code):
         """Verify the code for phone number"""
         try:
@@ -118,37 +118,37 @@ class PhoneVerificationService:
                 phone=phone,
                 is_verified=False
             ).order_by('-created_at').first()
-            
+
             if not verification:
                 logger.warning(f"No verification found for {phone}")
                 return {'error': 'invalid_code'}
-            
+
             # Check if blocked
             if verification.is_blocked():
                 time_remaining = int((verification.blocked_until - timezone.now()).total_seconds())
                 logger.warning(f"Verification blocked for {phone}")
                 return {'error': 'blocked', 'retry_after': max(time_remaining, 0)}
-            
+
             # Check if expired (if expired and more than 5 minutes passed, generate new code)
             if verification.is_expired():
                 # If more than 5 minutes passed, allow new request
                 if timezone.now() > verification.expires_at + timedelta(minutes=5):
                     logger.info(f"Expired verification cleanup for {phone}, new request allowed")
                     return {'error': 'expired_retry_allowed'}
-                
+
                 logger.warning(f"Verification code expired for {phone}")
                 return {'error': 'expired'}
-            
+
             # Increment attempts before checking
             verification.attempts += 1
-            
+
             # Verify code
             if verification.code == code:
                 verification.is_verified = True
                 verification.blocked_until = None  # Clear block on success
                 verification.save()
                 return {'success': True}
-            
+
             # Check if max attempts reached (5 attempts max)
             if verification.attempts >= 5:
                 # Block for 10 minutes
@@ -156,10 +156,10 @@ class PhoneVerificationService:
                 verification.save()
                 logger.warning(f"Too many verification attempts for {phone}, blocked for 10 minutes")
                 return {'error': 'blocked', 'retry_after': 600}
-            
+
             # Save incremented attempts
             verification.save()
-            
+
             logger.warning(f"Invalid code for {phone}, attempt {verification.attempts}/5")
             return {'error': 'invalid_code', 'attempts_remaining': 5 - verification.attempts}
         except Exception as e:
@@ -171,11 +171,11 @@ class EmailVerificationService:
     """
     Service for email verification using OTP
     """
-    
+
     def __init__(self):
         self.use_mock_otp = getattr(settings, 'USE_MOCK_EMAIL_OTP', False)
         self.mock_code = getattr(settings, 'MOCK_OTP_CODE', '0000')
-    
+
     def generate_code(self, force_real=False):
         """
         Generate 4-digit verification code.
@@ -241,7 +241,7 @@ class EmailVerificationService:
             if self.use_mock_otp and not force_real_otp:
                 logger.info(f"Mock OTP mode - Verification code for {email}: {code}")
                 return verification
-            
+
             # Send via notification service
             from stapel_core.notifications import request_notification
             sent = request_notification(
@@ -261,48 +261,48 @@ class EmailVerificationService:
         except Exception as e:
             logger.error(f"Failed to send verification code: {e}")
             return None
-    
+
     def verify_code(self, email, code):
         """Verify the code for email address"""
         try:
             from .models import EmailVerification
-            
+
             # Get latest unverified verification
             verification = EmailVerification.objects.filter(
                 email=email,
                 is_verified=False
             ).order_by('-created_at').first()
-            
+
             if not verification:
                 logger.warning(f"No verification found for {email}")
                 return {'error': 'invalid_code'}
-            
+
             # Check if blocked
             if verification.is_blocked():
                 time_remaining = int((verification.blocked_until - timezone.now()).total_seconds())
                 logger.warning(f"Verification blocked for {email}")
                 return {'error': 'blocked', 'retry_after': max(time_remaining, 0)}
-            
+
             # Check if expired (if expired and more than 5 minutes passed, generate new code)
             if verification.is_expired():
                 # If more than 5 minutes passed, allow new request
                 if timezone.now() > verification.expires_at + timedelta(minutes=5):
                     logger.info(f"Expired verification cleanup for {email}, new request allowed")
                     return {'error': 'expired_retry_allowed'}
-                
+
                 logger.warning(f"Verification code expired for {email}")
                 return {'error': 'expired'}
-            
+
             # Increment attempts before checking
             verification.attempts += 1
-            
+
             # Verify code
             if verification.code == code:
                 verification.is_verified = True
                 verification.blocked_until = None  # Clear block on success
                 verification.save()
                 return {'success': True}
-            
+
             # Check if max attempts reached (7 attempts max for email)
             if verification.attempts >= 7:
                 # Block for 10 minutes
@@ -325,7 +325,7 @@ class OAuthService:
     """
     Service for OAuth authentication
     """
-    
+
     def get_user_data(self, provider, access_token):
         """Get user data from OAuth provider"""
         try:
@@ -343,7 +343,7 @@ class OAuthService:
         except Exception as e:
             logger.error(f"Failed to get user data from {provider}: {e}")
             return None
-    
+
     def _get_google_user_data(self, access_token):
         """Get user data from Google"""
         response = requests.get(
@@ -516,40 +516,40 @@ class SecurityService:
     """
     Service for security-related operations
     """
-    
+
     @staticmethod
     def check_login_attempts(identifier, time_window=timedelta(minutes=15), max_attempts=5):
         """Check if login attempts exceed threshold"""
         from .models import LoginAttempt
-        
+
         cutoff_time = timezone.now() - time_window
-        
+
         attempts = LoginAttempt.objects.filter(
             identifier=identifier,
             created_at__gte=cutoff_time,
             attempt_type='failed'
         ).count()
-        
+
         return attempts >= max_attempts
-    
+
     @staticmethod
     def cleanup_expired_anonymous_users():
         """Clean up expired anonymous users"""
         from django.contrib.auth import get_user_model
-        
+
         User = get_user_model()
-        
+
         expired_users = User.objects.filter(
             is_anonymous=True,
             anonymous_created_at__lt=timezone.now() - settings.ANONYMOUS_USER_LIFETIME
         )
-        
+
         count = expired_users.count()
         expired_users.delete()
-        
+
         logger.info(f"Cleaned up {count} expired anonymous users")
         return count
-    
+
     @staticmethod
     def cleanup_expired_verifications():
         """Clean up expired phone verifications"""
@@ -656,7 +656,6 @@ class AuthenticatorChangeService:
 
     def request_new_otp(self, user, change_type, new_value, change_token):
         """Validate change_token, check availability, send OTP to new_value."""
-        from .models import AuthenticatorChangeRequest, AuthenticatorChangeStatus
 
         request_obj = self._get_valid_change_request(user, change_type, change_token)
         if request_obj is None:
@@ -1000,7 +999,6 @@ class PasswordService:
 
     @classmethod
     def get_available_methods(cls, user) -> list:
-        from .dto import PasswordMethod
         methods = []
         if user.has_usable_password():
             methods.append(PasswordMethod(method=PasswordMethodType.PASSWORD))
@@ -1215,7 +1213,6 @@ class QRAuthService:
 # Session Service
 # =============================================================================
 
-import hashlib
 import re as _re
 
 
@@ -1710,7 +1707,6 @@ class LockoutService:
     def check(cls, identifier: str):
         """Returns (is_locked, retry_after_seconds)."""
         from django.core.cache import cache
-        from django.utils import timezone
         _, lock_key = cls._keys(identifier)
         val = cache.get(lock_key)
         if val is None:
@@ -1952,7 +1948,8 @@ class PasskeyService:
     @classmethod
     def authentication_begin(cls, user=None) -> tuple[str, dict]:
         """Returns (session_key, options_json). user=None for usernameless flow."""
-        import webauthn, secrets
+        import webauthn
+        import secrets
         from webauthn.helpers.structs import UserVerificationRequirement
         from django.core.cache import cache
         rp_id, _, _ = cls._rp_config()

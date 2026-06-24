@@ -18,30 +18,30 @@ urlpatterns = [
     # JWT Token endpoints
     path('token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', CustomTokenRefreshView.as_view({'post': 'refresh_post', 'get': 'refresh_get'}), name='token_refresh'),
-    
+
     # Email authentication (OTP-based)
     path('email/request/', AuthViewSet.as_view({'post': 'email_request'}), name='email_request'),
     path('email/verify/', AuthViewSet.as_view({'post': 'email_verify'}), name='email_verify'),
-    
+
     # Phone authentication (OTP-based)
     path('phone/request/', AuthViewSet.as_view({'post': 'phone_request'}), name='phone_request'),
     path('phone/verify/', AuthViewSet.as_view({'post': 'phone_verify'}), name='phone_verify'),
-    
+
     # OAuth authentication
     path('oauth/login/', AuthViewSet.as_view({'post': 'oauth_login'}), name='oauth_login'),
     path('oauth/<str:provider>/authorize/', AuthViewSet.as_view({'get': 'oauth_authorize'}), name='oauth_authorize'),
     path('oauth/<str:provider>/callback/', AuthViewSet.as_view({'get': 'oauth_callback'}), name='oauth_callback'),
     path('oauth/<str:provider>/callback', AuthViewSet.as_view({'get': 'oauth_callback'}), name='oauth_callback_noslash'),
-    
+
     # Anonymous authentication
     path('anonymous/', AuthViewSet.as_view({'post': 'anonymous'}), name='anonymous'),
     # User info and logout
     path('me/', AuthViewSet.as_view({'get': 'me'}), name='me'),
     path('logout/', AuthViewSet.as_view({'post': 'logout', 'get': 'logout_get'}), name='logout'),
-    
+
     # Token verification
     path('verify/', AuthViewSet.as_view({'post': 'verify_token'}), name='verify_token'),
-    
+
     # Router URLs
     path('', include(router.urls)),
 

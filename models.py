@@ -17,7 +17,7 @@ class PhoneVerification(models.Model):
     attempts = models.IntegerField(default=0)
     device_id = models.CharField(max_length=255, db_index=True, null=True, blank=True)
     blocked_until = models.DateTimeField(null=True, blank=True)
-    
+
     class Meta:
         db_table = 'phone_verifications'
         ordering = ['-created_at']
@@ -25,21 +25,21 @@ class PhoneVerification(models.Model):
             models.Index(fields=['phone', 'created_at']),
             models.Index(fields=['device_id', 'created_at']),
         ]
-    
+
     def save(self, *args, **kwargs):
         if not self.expires_at:
             self.expires_at = timezone.now() + timedelta(minutes=10)
         super().save(*args, **kwargs)
-    
+
     def is_expired(self):
         return timezone.now() > self.expires_at
-    
+
     def is_blocked(self):
         """Check if verification is currently blocked"""
         if self.blocked_until:
             return timezone.now() < self.blocked_until
         return False
-    
+
     def __str__(self):
         return f"{self.phone} - {self.code}"
 
@@ -56,7 +56,7 @@ class EmailVerification(models.Model):
     attempts = models.IntegerField(default=0)
     device_id = models.CharField(max_length=255, db_index=True, null=True, blank=True)
     blocked_until = models.DateTimeField(null=True, blank=True)
-    
+
     class Meta:
         db_table = 'email_verifications'
         ordering = ['-created_at']
@@ -64,21 +64,21 @@ class EmailVerification(models.Model):
             models.Index(fields=['email', 'created_at']),
             models.Index(fields=['device_id', 'created_at']),
         ]
-    
+
     def save(self, *args, **kwargs):
         if not self.expires_at:
             self.expires_at = timezone.now() + timedelta(minutes=10)
         super().save(*args, **kwargs)
-    
+
     def is_expired(self):
         return timezone.now() > self.expires_at
-    
+
     def is_blocked(self):
         """Check if verification is currently blocked"""
         if self.blocked_until:
             return timezone.now() < self.blocked_until
         return False
-    
+
     def __str__(self):
         return f"{self.email} - {self.code}"
 
@@ -93,18 +93,18 @@ class ServiceAPIKey(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_used_at = models.DateTimeField(null=True, blank=True)
-    
+
     # Permissions
     allowed_endpoints = models.JSONField(default=list, blank=True)
-    
+
     class Meta:
         db_table = 'service_api_keys'
         verbose_name = 'Service API Key'
         verbose_name_plural = 'Service API Keys'
-    
+
     def __str__(self):
         return f"{self.name} - {'Active' if self.is_active else 'Inactive'}"
-    
+
     @classmethod
     def generate_key(cls):
         """Generate a new API key"""
