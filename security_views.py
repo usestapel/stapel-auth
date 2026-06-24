@@ -4,7 +4,7 @@ Views for security phase 3 features: Audit Log, Magic Links, Passkeys.
 import json
 import logging
 
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, inline_serializer
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 from rest_framework import serializers, permissions
 from rest_framework.views import APIView
 from rest_framework.viewsets import ViewSet
@@ -12,10 +12,9 @@ from rest_framework.viewsets import ViewSet
 from stapel_core.django.errors import IronResponse, IronErrorResponse
 from .serializers import AuthResponseSerializer
 from .errors import (
-    ERR_400_MAGIC_LINK_INVALID, ERR_429_MAGIC_LINK_RATE,
+    ERR_429_MAGIC_LINK_RATE,
     ERR_400_PASSKEY_INVALID, ERR_400_PASSKEY_CHALLENGE_EXPIRED,
-    ERR_409_PASSKEY_ALREADY_REGISTERED, ERR_400_LAST_AUTH_METHOD, ERR_404_PASSKEY_NOT_FOUND,
-    retry_params,
+    ERR_400_LAST_AUTH_METHOD, ERR_404_PASSKEY_NOT_FOUND,
 )
 
 logger = logging.getLogger(__name__)
@@ -343,7 +342,7 @@ class PasskeyViewSet(ViewSet):
         from .services import PasskeyService
         try:
             options_json = PasskeyService.registration_begin(request.user)
-        except Exception as exc:
+        except Exception:
             logger.exception('passkey register_begin failed')
             return IronErrorResponse(400, ERR_400_PASSKEY_INVALID)
         options = json.loads(options_json) if isinstance(options_json, str) else options_json

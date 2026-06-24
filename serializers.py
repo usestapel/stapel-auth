@@ -4,14 +4,13 @@ from stapel_core.django.serializers import IronDataclassSerializer
 from stapel_core.django.errors import IronValidationError
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from .models import PhoneVerification, ServiceAPIKey
+from .models import ServiceAPIKey
 from .errors import (
     ERR_400_INVALID_PHONE_FORMAT, ERR_400_INVALID_PHONE, ERR_400_PHONE_TOO_LONG,
     ERR_400_PASSWORDS_DONT_MATCH, ERR_400_EMAIL_OR_PHONE_REQUIRED,
     ERR_400_EMAIL_OR_PHONE_NOT_BOTH,
 )
 from .dto import (
-    AuthStatus,
     TokenPairResponse,
     AuthResponse,
     TokenVerifyResponse,
@@ -123,7 +122,7 @@ class PhoneAuthRequestSerializer(serializers.Serializer):
     """Serializer for phone authentication request"""
     phone = serializers.CharField()
     device_id = serializers.CharField(max_length=255, required=False)
-    
+
     def validate_phone(self, value):
         return normalize_phone(value)
 
@@ -150,7 +149,7 @@ class OAuthSerializer(serializers.Serializer):
 
 class ServiceAPIKeySerializer(serializers.ModelSerializer):
     """Serializer for Service API Keys"""
-    
+
     class Meta:
         model = ServiceAPIKey
         fields = ['id', 'name', 'key', 'description', 'is_active', 'created_at', 'last_used_at', 'allowed_endpoints']
@@ -174,7 +173,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     token = serializers.CharField()
     new_password = serializers.CharField(write_only=True, validators=[validate_password])
     new_password2 = serializers.CharField(write_only=True)
-    
+
     def validate(self, attrs):
         if attrs['new_password'] != attrs['new_password2']:
             raise IronValidationError(ERR_400_PASSWORDS_DONT_MATCH)
@@ -184,8 +183,8 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 class TokenVerifySerializer(serializers.Serializer):
     """Serializer for token verification"""
     token = serializers.CharField()
-    
-    
+
+
 class ConvertAnonymousUserSerializer(serializers.Serializer):
     """Serializer for converting anonymous user to registered user via OTP"""
     email = serializers.EmailField(required=False)

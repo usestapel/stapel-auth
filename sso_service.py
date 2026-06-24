@@ -6,7 +6,7 @@ import secrets
 import uuid
 import zlib
 from datetime import datetime, timezone
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode
 
 from django.conf import settings
 
@@ -58,7 +58,6 @@ class SAMLService:
     @classmethod
     def build_authn_request(cls, org_slug: str, config) -> tuple[str, str]:
         """Returns (redirect_url, request_id) — caller should store request_id in Redis."""
-        from .models import SSOConfig
         request_id = f'_{uuid.uuid4().hex}'
         issue_instant = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
         entity_id = cls.sp_entity_id(org_slug)
@@ -116,7 +115,6 @@ class SAMLService:
 
     @staticmethod
     def _validate_conditions(assertion):
-        from lxml import etree
         conditions = assertion.find('saml:Conditions', _SAML_NS)
         if conditions is None:
             return
@@ -281,9 +279,11 @@ class SSOUserService:
             # Sync name if it came from IdP
             changed = False
             if attrs.get('first_name') and not user.first_name:
-                user.first_name = attrs['first_name']; changed = True
+                user.first_name = attrs['first_name']
+                changed = True
             if attrs.get('last_name') and not user.last_name:
-                user.last_name = attrs['last_name']; changed = True
+                user.last_name = attrs['last_name']
+                changed = True
             if changed:
                 user.save(update_fields=['first_name', 'last_name'])
 
@@ -301,7 +301,7 @@ class SSOUserService:
         from django.http import HttpResponseRedirect
         from stapel_core.django.utils import set_jwt_cookies
         from .views import _issue_session_tokens, _add_login_hints
-        from .services import AuditService, LoginNotificationService
+        from .services import LoginNotificationService
 
         access_token, refresh_token = _issue_session_tokens(user, request)
 

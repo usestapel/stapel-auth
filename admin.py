@@ -5,7 +5,7 @@ from .models import PhoneVerification, EmailVerification, ServiceAPIKey, Refresh
 @admin.register(PhoneVerification)
 class PhoneVerificationAdmin(admin.ModelAdmin):
     """Phone Verification admin"""
-    
+
     list_display = ['phone', 'code', 'is_verified', 'created_at', 'expires_at', 'attempts']
     list_filter = ['is_verified', 'created_at']
     search_fields = ['phone']
@@ -16,7 +16,7 @@ class PhoneVerificationAdmin(admin.ModelAdmin):
 @admin.register(EmailVerification)
 class EmailVerificationAdmin(admin.ModelAdmin):
     """Email Verification admin"""
-    
+
     list_display = ['email', 'code', 'is_verified', 'created_at', 'expires_at', 'attempts']
     list_filter = ['is_verified', 'created_at']
     search_fields = ['email']
@@ -27,13 +27,13 @@ class EmailVerificationAdmin(admin.ModelAdmin):
 @admin.register(ServiceAPIKey)
 class ServiceAPIKeyAdmin(admin.ModelAdmin):
     """Service API Key admin"""
-    
+
     list_display = ['name', 'key', 'is_active', 'created_at', 'last_used_at']
     list_filter = ['is_active', 'created_at']
     search_fields = ['name', 'key']
     ordering = ['-created_at']
     readonly_fields = ['key', 'created_at', 'last_used_at']
-    
+
     def save_model(self, request, obj, form, change):
         if not change:  # Only set key on creation
             obj.key = ServiceAPIKey.generate_key()
@@ -43,7 +43,7 @@ class ServiceAPIKeyAdmin(admin.ModelAdmin):
 @admin.register(RefreshTokenTracker)
 class RefreshTokenTrackerAdmin(admin.ModelAdmin):
     """Refresh Token Tracker admin"""
-    
+
     list_display = ['user', 'created_at', 'expires_at', 'is_revoked', 'device_info']
     list_filter = ['is_revoked', 'created_at']
     search_fields = ['user__username', 'user__email', 'device_info']
@@ -65,7 +65,7 @@ class AuthenticatorChangeRequestAdmin(admin.ModelAdmin):
 @admin.register(LoginAttempt)
 class LoginAttemptAdmin(admin.ModelAdmin):
     """Login Attempt admin"""
-    
+
     list_display = ['identifier', 'attempt_type', 'ip_address', 'created_at']
     list_filter = ['attempt_type', 'created_at']
     search_fields = ['identifier', 'ip_address']
