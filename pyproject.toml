@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "stapel-auth"
+version = "0.1.0"
+description = "Full-featured authentication Django app for the Stapel framework"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+keywords = ["django", "stapel", "authentication", "jwt", "passkey", "totp", "sso"]
+classifiers = [
+    "Framework :: Django",
+    "Framework :: Django :: 4.2",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+# Core auth — always installed
+dependencies = [
+    "stapel-core>=0.1.0",
+    "pyotp>=2.10",
+    "webauthn>=2.8",
+    "phonenumbers>=8.13",
+]
+
+[project.optional-dependencies]
+# SMS via Twilio
+phone = [
+    "twilio>=9.0",
+]
+# OAuth (Google, GitHub, Facebook, etc.)
+oauth = [
+    "social-auth-app-django>=5.4",
+]
+# SAML 2.0 SP
+saml = [
+    "lxml>=5.0",
+    "signxml>=3.2",
+]
+# All extras
+all = [
+    "stapel-auth[phone,oauth,saml]",
+]
+
+[tool.setuptools]
+package-dir = {"stapel_auth" = "."}
+packages = ["stapel_auth", "stapel_auth.migrations"]
+
+# Migrations are part of the package
+[tool.setuptools.package-data]
+stapel_auth = ["migrations/*.py", "migrations/**/*.py"]
