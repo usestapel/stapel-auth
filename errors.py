@@ -1,0 +1,164 @@
+"""Custom error keys for the auth service."""
+
+from stapel_core.django.errors import ErrorKeysView, register_service_errors, format_duration
+
+ERR_401_INVALID_CREDENTIALS = 'error.401.invalid_credentials'
+ERR_401_ACCOUNT_DISABLED = 'error.401.account_disabled'
+ERR_422_BLOCKED = 'error.422.blocked'
+ERR_400_CODE_EXPIRED = 'error.400.code_expired'
+ERR_400_INVALID_CODE = 'error.400.invalid_code'
+ERR_400_INVALID_CODE_ATTEMPTS = 'error.400.invalid_code_attempts'
+ERR_500_SEND_FAILED = 'error.500.send_failed'
+ERR_409_EMAIL_TAKEN = 'error.409.email_taken'
+ERR_409_EMAIL_RESERVED = 'error.409.email_reserved'
+ERR_409_PHONE_TAKEN = 'error.409.phone_taken'
+ERR_409_PHONE_RESERVED = 'error.409.phone_reserved'
+ERR_400_TOKEN_REQUIRED = 'error.400.token_required'
+ERR_401_TOKEN_REVOKED = 'error.401.token_revoked'
+ERR_401_TOKEN_INVALID = 'error.401.token_invalid'
+ERR_400_OAUTH_FAILED = 'error.400.oauth_failed'
+ERR_400_OAUTH_FIELDS_REQUIRED = 'error.400.oauth_fields_required'
+ERR_400_CREDENTIALS_REQUIRED = 'error.400.credentials_required'
+ERR_401_REFRESH_INVALID = 'error.401.refresh_invalid'
+ERR_401_REFRESH_NOT_PROVIDED = 'error.401.refresh_not_provided'
+ERR_401_REFRESH_REVOKED = 'error.401.refresh_revoked'
+ERR_401_USER_NOT_FOUND = 'error.401.user_not_found'
+ERR_400_NOT_AVAILABLE = 'error.400.not_available'
+ERR_400_NO_CURRENT_VALUE = 'error.400.no_current_value'
+ERR_400_INVALID_CHANGE_TOKEN = 'error.400.invalid_change_token'
+ERR_404_CHANGE_NOT_FOUND = 'error.404.change_not_found'
+ERR_400_PHONE_REQUIRED = 'error.400.phone_required'
+ERR_400_EMAIL_REQUIRED = 'error.400.email_required'
+ERR_400_INVALID_PHONE_FORMAT = 'error.400.invalid_phone_format'
+ERR_400_INVALID_PHONE = 'error.400.invalid_phone'
+ERR_400_PHONE_TOO_LONG = 'error.400.phone_too_long'
+ERR_400_PASSWORDS_DONT_MATCH = 'error.400.passwords_dont_match'
+ERR_400_EMAIL_OR_PHONE_REQUIRED = 'error.400.email_or_phone_required'
+ERR_400_EMAIL_OR_PHONE_NOT_BOTH = 'error.400.email_or_phone_not_both'
+# Password
+ERR_400_WRONG_PASSWORD = 'error.400.wrong_password'
+ERR_400_PASSWORD_ALREADY_SET = 'error.400.password_already_set'
+ERR_400_NO_PASSWORD = 'error.400.no_password'
+ERR_400_NO_VERIFIED_CONTACT = 'error.400.no_verified_contact'
+ERR_400_INVALID_METHOD = 'error.400.invalid_method'
+ERR_404_USER_FOR_RESET = 'error.404.user_for_reset'
+ERR_403_MOCK_OTP_ADMIN = 'error.403.mock_otp_admin'
+# QR auth
+ERR_404_QR_NOT_FOUND = 'error.404.qr_not_found'
+ERR_400_QR_EXPIRED = 'error.400.qr_expired'
+ERR_400_QR_FULFILLED = 'error.400.qr_fulfilled'
+ERR_400_QR_TYPE_REQUIRED = 'error.400.qr_type_required'
+ERR_401_QR_AUTH_REQUIRED = 'error.401.qr_auth_required'
+ERR_409_QR_ACCOUNT_CONFLICT = 'error.409.qr_account_conflict'
+# Sessions
+ERR_404_NOT_FOUND = 'error.404.not_found'
+# TOTP
+ERR_400_CODE_REQUIRED = 'error.400.code_required'
+ERR_400_TOTP_NOT_PENDING = 'error.400.totp_not_pending'
+ERR_403_STEP_UP_REQUIRED = 'error.403.step_up_required'
+# Lockout
+ERR_423_ACCOUNT_LOCKED = 'error.423.account_locked'
+# Magic links
+ERR_400_MAGIC_LINK_INVALID = 'error.400.magic_link_invalid'
+ERR_429_MAGIC_LINK_RATE = 'error.429.magic_link_rate'
+# Passkeys
+ERR_400_PASSKEY_INVALID = 'error.400.passkey_invalid'
+ERR_400_PASSKEY_CHALLENGE_EXPIRED = 'error.400.passkey_challenge_expired'
+ERR_409_PASSKEY_ALREADY_REGISTERED = 'error.409.passkey_already_registered'
+ERR_400_LAST_AUTH_METHOD = 'error.400.last_auth_method'
+ERR_404_PASSKEY_NOT_FOUND = 'error.404.passkey_not_found'
+# SSO
+ERR_404_SSO_ORG_NOT_FOUND = 'error.404.sso_org_not_found'
+ERR_400_SSO_NOT_CONFIGURED = 'error.400.sso_not_configured'
+ERR_400_SSO_INVALID_RESPONSE = 'error.400.sso_invalid_response'
+ERR_403_SSO_REQUIRED = 'error.403.sso_required'
+ERR_409_SSO_ORG_SLUG_TAKEN = 'error.409.sso_org_slug_taken'
+
+AUTH_ERRORS = {
+    ERR_401_INVALID_CREDENTIALS: 'Invalid credentials',
+    ERR_401_ACCOUNT_DISABLED: 'User account is disabled',
+    ERR_422_BLOCKED: 'Account temporarily blocked. Try again in {retry_after_minutes} minutes.',
+    ERR_400_CODE_EXPIRED: 'Verification code has expired. Please request a new one.',
+    ERR_400_INVALID_CODE: 'Invalid verification code',
+    ERR_400_INVALID_CODE_ATTEMPTS: 'Invalid verification code. {attempts_remaining} attempts remaining.',
+    ERR_500_SEND_FAILED: 'Failed to send verification code',
+    ERR_409_EMAIL_TAKEN: 'This email is already registered to another account.',
+    ERR_409_EMAIL_RESERVED: 'This email is reserved by another pending change request.',
+    ERR_409_PHONE_TAKEN: 'This phone number is already registered to another account.',
+    ERR_409_PHONE_RESERVED: 'This phone number is reserved by another pending change request.',
+    ERR_400_TOKEN_REQUIRED: 'Token is required',
+    ERR_401_TOKEN_REVOKED: 'Token has been revoked',
+    ERR_401_TOKEN_INVALID: 'Invalid token',
+    ERR_400_OAUTH_FAILED: 'Failed to authenticate with OAuth provider',
+    ERR_400_OAUTH_FIELDS_REQUIRED: 'Provider and access_token are required',
+    ERR_400_CREDENTIALS_REQUIRED: 'Username/email and password are required',
+    ERR_401_REFRESH_INVALID: 'Invalid or expired refresh token',
+    ERR_401_REFRESH_NOT_PROVIDED: 'Refresh token not provided',
+    ERR_401_REFRESH_REVOKED: 'Token has been revoked',
+    ERR_401_USER_NOT_FOUND: 'User not found',
+    ERR_400_NOT_AVAILABLE: 'This value is already registered or reserved.',
+    ERR_400_NO_CURRENT_VALUE: 'No current value on this account.',
+    ERR_400_INVALID_CHANGE_TOKEN: 'Invalid or expired change token.',
+    ERR_404_CHANGE_NOT_FOUND: 'Change request not found.',
+    ERR_400_PHONE_REQUIRED: 'Phone number is required.',
+    ERR_400_EMAIL_REQUIRED: 'Email is required.',
+    ERR_400_INVALID_PHONE_FORMAT: 'Invalid phone number format',
+    ERR_400_INVALID_PHONE: 'Invalid phone number',
+    ERR_400_PHONE_TOO_LONG: 'Phone number is too long',
+    ERR_400_PASSWORDS_DONT_MATCH: "Password fields didn't match",
+    ERR_400_EMAIL_OR_PHONE_REQUIRED: 'Either email or phone is required',
+    ERR_400_EMAIL_OR_PHONE_NOT_BOTH: 'Provide either email or phone, not both',
+    # Password
+    ERR_400_WRONG_PASSWORD: 'Wrong password.',
+    ERR_400_PASSWORD_ALREADY_SET: 'Password is already set. Use the change password flow.',
+    ERR_400_NO_PASSWORD: 'No password is set. Use set password first.',
+    ERR_400_NO_VERIFIED_CONTACT: 'No verified email or phone on this account.',
+    ERR_400_INVALID_METHOD: 'Invalid or unavailable method for this account.',
+    ERR_404_USER_FOR_RESET: 'No account found with this email or phone.',
+    ERR_403_MOCK_OTP_ADMIN: 'OTP-based auth is disabled for admin accounts in mock mode.',
+    # QR auth
+    ERR_404_QR_NOT_FOUND: 'QR code not found or expired.',
+    ERR_400_QR_EXPIRED: 'QR code has expired.',
+    ERR_400_QR_FULFILLED: 'QR code has already been used.',
+    ERR_400_QR_TYPE_REQUIRED: 'QR type is required (session_share or login_request).',
+    ERR_401_QR_AUTH_REQUIRED: 'Authentication required to generate a session_share QR code.',
+    ERR_409_QR_ACCOUNT_CONFLICT: 'A different account is already signed in on this device.',
+    # Sessions
+    ERR_404_NOT_FOUND: 'Not found.',
+    # TOTP
+    ERR_400_CODE_REQUIRED: 'A verification code is required.',
+    ERR_400_TOTP_NOT_PENDING: 'No pending TOTP setup. Call /totp/setup/ first.',
+    ERR_403_STEP_UP_REQUIRED: 'This action requires TOTP verification. Obtain a step-up token first.',
+    # Lockout
+    ERR_423_ACCOUNT_LOCKED: 'Account temporarily locked due to too many failed attempts. Try again in {retry_after_minutes} minutes.',
+    # Magic links
+    ERR_400_MAGIC_LINK_INVALID: 'Magic link is invalid or has expired.',
+    ERR_429_MAGIC_LINK_RATE: 'Too many magic link requests. Please try again later.',
+    # Passkeys
+    ERR_400_PASSKEY_INVALID: 'Passkey verification failed.',
+    ERR_400_PASSKEY_CHALLENGE_EXPIRED: 'Passkey challenge has expired. Please try again.',
+    ERR_409_PASSKEY_ALREADY_REGISTERED: 'This passkey is already registered.',
+    ERR_400_LAST_AUTH_METHOD: 'Cannot remove the last authentication method.',
+    ERR_404_PASSKEY_NOT_FOUND: 'Passkey not found.',
+    # SSO
+    ERR_404_SSO_ORG_NOT_FOUND: 'Organization not found.',
+    ERR_400_SSO_NOT_CONFIGURED: 'SSO is not configured for this organization.',
+    ERR_400_SSO_INVALID_RESPONSE: 'Invalid SSO response from identity provider.',
+    ERR_403_SSO_REQUIRED: 'This account must sign in via SSO. Use your organization SSO link.',
+    ERR_409_SSO_ORG_SLUG_TAKEN: 'An organization with this slug already exists.',
+}
+
+register_service_errors(AUTH_ERRORS)
+
+
+def retry_params(retry_after):
+    """Build params with retry_after (seconds), minutes, and display."""
+    import math
+    seconds = int(retry_after or 0)
+    minutes = max(1, math.ceil(seconds / 60))
+    return {'retry_after': seconds, 'retry_after_minutes': minutes, 'retry_after_display': format_duration(seconds)}
+
+
+class AuthErrorKeysView(ErrorKeysView):
+    def get_service_errors(self):
+        return AUTH_ERRORS

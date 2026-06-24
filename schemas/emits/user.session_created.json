@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "user.session_created",
+  "description": "User successfully authenticated and a new session was created.",
+  "type": "object",
+  "required": ["user_id", "session_id", "device_type", "created_at"],
+  "properties": {
+    "user_id":     { "type": "integer" },
+    "session_id":  { "type": "string" },
+    "device_type": { "type": "string" },
+    "ip_address":  { "type": "string" },
+    "created_at":  { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}
