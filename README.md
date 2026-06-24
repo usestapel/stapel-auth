@@ -26,10 +26,6 @@ INSTALLED_APPS = [
 | `user.session_created` | [schema](schemas/emits/user.session_created.json) | User successfully authenticated and a new session was created. |
 | `user.session_revoked` | [schema](schemas/emits/user.session_revoked.json) | A user session was revoked (logout or admin action). |
 
-## Contributing
-
-The source for this package lives inside the [the legacy backend](https://github.com/UCSoftworks) monorepo as a git submodule.
-
 ## License
 
 MIT — see [LICENSE](LICENSE)

@@ -51,3 +51,7 @@ packages = ["stapel_auth", "stapel_auth.migrations"]
 # Migrations are part of the package
 [tool.setuptools.package-data]
 stapel_auth = ["migrations/*.py", "migrations/**/*.py"]
+
+[tool.pytest.ini_options]
+django_find_project = false
+addopts = "--tb=short -q"
