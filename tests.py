@@ -4055,9 +4055,17 @@ class QRAuthGenerateTests(APITestCase):
         self._auth()
         response = self.client.post(reverse('qr_generate'), {
             'type': 'session_share',
-            'redirect_url': 'https://app.example.com/home',
+            'redirect_url': '/home',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_generate_absolute_redirect_url_rejected(self):
+        self._auth()
+        response = self.client.post(reverse('qr_generate'), {
+            'type': 'session_share',
+            'redirect_url': 'https://app.example.com/home',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_generate_invalid_type(self):
         response = self.client.post(reverse('qr_generate'), {'type': 'invalid'})
@@ -4182,7 +4190,7 @@ class QRAuthScanTests(APITestCase):
         c.credentials(HTTP_AUTHORIZATION=f'Bearer {self.owner_token}')
         resp = c.post(reverse('qr_generate'), {
             'type': 'session_share',
-            'redirect_url': 'https://app.example.com/',
+            'redirect_url': '/',
         })
         return resp.data['key']
 
@@ -4215,7 +4223,7 @@ class QRAuthScanTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
         response = self.client.get(reverse('qr_scan', kwargs={'key': key}), follow=False)
         self.assertIn(response.status_code, [301, 302])
-        self.assertIn('qr_status=account_conflict', response.get('Location', ''))
+        self.assertIn('error=account_conflict', response.get('Location', ''))
 
     def test_scan_login_request_authenticated_redirects_to_confirm(self):
         key = self._generate_login_request_key()
