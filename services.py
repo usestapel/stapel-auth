@@ -849,11 +849,12 @@ class AuthenticatorChangeService:
 
         # Publish user-contact-changed event for notifications service
         try:
-            from stapel_core.kafka import publish_event, Event, EventType
+            from stapel_core.bus import publish, Event
             from stapel_core.kafka.topics import TOPIC_USER_CONTACT_CHANGED
-            publish_event(
-                topic=TOPIC_USER_CONTACT_CHANGED,
-                event=Event(
+            from stapel_core.kafka.events import EventType
+            publish(
+                TOPIC_USER_CONTACT_CHANGED,
+                Event(
                     event_type=EventType.USER_CONTACT_CHANGED,
                     service="auth",
                     payload={
