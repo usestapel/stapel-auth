@@ -478,7 +478,7 @@ class QRGenerateSerializer(serializers.Serializer):
         default=None,
         help_text=(
             'Where to redirect the scanner after successful auth. '
-            'Must be a relative path (/app) or a full URL (https://…). '
+            'Must be a relative path starting with / (e.g. /home). '
             'For `session_share`: the scanning device lands here after receiving the session. '
             'For `login_request`: the confirming device lands here after approving. '
             'Defaults to `/` if omitted.'
