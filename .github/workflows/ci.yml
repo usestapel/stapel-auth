@@ -51,3 +51,4 @@ jobs:
         with:
           files: coverage.xml
           flags: stapel-auth
+          token: ${{ secrets.CODECOV_TOKEN }}
