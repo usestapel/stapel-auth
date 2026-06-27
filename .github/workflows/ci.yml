@@ -46,7 +46,8 @@ jobs:
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
-        if: always()
+        if: success()
+        continue-on-error: true
         with:
           files: coverage.xml
           flags: stapel-auth
