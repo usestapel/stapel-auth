@@ -27,7 +27,6 @@ def pytest_configure(config):
             "django.contrib.sessions",
             "django.contrib.messages",
             "django.contrib.staticfiles",
-            "corsheaders",
             "rest_framework",
             "drf_spectacular",
             "stapel_core.django.apps.CommonDjangoConfig",
@@ -39,7 +38,6 @@ def pytest_configure(config):
 
         MIDDLEWARE=[
             "django.middleware.security.SecurityMiddleware",
-            "corsheaders.middleware.CorsMiddleware",
             "django.contrib.sessions.middleware.SessionMiddleware",
             "django.middleware.common.CommonMiddleware",
             "stapel_core.django.middleware.CsrfExemptAPIMiddleware",
