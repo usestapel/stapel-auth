@@ -4,6 +4,7 @@ from .views import (
     AuthViewSet, ServiceAPIKeyViewSet, CustomTokenObtainPairView, CustomTokenRefreshView,
     AuthenticatorChangeViewSet, PasswordViewSet, QRAuthViewSet,
     SessionViewSet, SecurityStatusViewSet, TOTPViewSet,
+    JWKSView, OpenIDConfigurationView,
 )
 from .security_views import AuditLogViewSet, MagicLinkViewSet, PasskeyViewSet, RevokeSuspiciousView
 from .sso_views import (
@@ -132,4 +133,8 @@ urlpatterns = [
     path('sso/orgs/', SSOAdminViewSet.as_view({'get': 'list_orgs', 'post': 'create_org'}), name='sso_orgs'),
     path('sso/orgs/<slug:slug>/', SSOAdminViewSet.as_view({'get': 'get_org', 'patch': 'update_org', 'delete': 'delete_org'}), name='sso_org'),
     path('sso/orgs/<slug:slug>/config/', SSOAdminViewSet.as_view({'put': 'upsert_config', 'patch': 'upsert_config'}), name='sso_org_config'),
+
+    # ── OpenID / JWKS ────────────────────────────────────────────────────────
+    path('.well-known/jwks.json', JWKSView.as_view({'get': 'jwks'}), name='jwks'),
+    path('.well-known/openid-configuration', OpenIDConfigurationView.as_view({'get': 'openid_configuration'}), name='openid-configuration'),
 ]
