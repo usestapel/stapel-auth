@@ -42,6 +42,7 @@ class AuthGDPRProvider(GDPRProvider):
         }
 
     def delete(self, user_id: int) -> None:
+        from django.contrib.auth import get_user_model
         from .models import (
             AuthAuditLog, AuthenticatorChangeRequest, EmailVerification,
             LoginAttempt, OrgMembership, PasskeyCredential,
@@ -49,8 +50,16 @@ class AuthGDPRProvider(GDPRProvider):
         )
         self._store_reregistration_hashes(user_id)
 
-        PhoneVerification.objects.filter(user_id=user_id).delete()
-        EmailVerification.objects.filter(user_id=user_id).delete()
+        User = get_user_model()
+        try:
+            user = User.objects.get(pk=user_id)
+            if user.email:
+                EmailVerification.objects.filter(email=user.email).delete()
+            if hasattr(user, 'phone') and user.phone:
+                PhoneVerification.objects.filter(phone=str(user.phone)).delete()
+        except User.DoesNotExist:
+            pass
+
         RefreshTokenTracker.objects.filter(user_id=user_id).delete()
         UserSession.objects.filter(user_id=user_id).delete()
         TOTPDevice.objects.filter(user_id=user_id).delete()
@@ -107,13 +116,13 @@ class AuthGDPRProvider(GDPRProvider):
             ReRegistrationHash.objects.get_or_create(
                 hash_type=ReRegistrationHash.TYPE_EMAIL,
                 hash_value=_sha256(user.email),
-                defaults={'user_id_was': user_id, 'expires_at': expires_at},
+                defaults={'user_id_was': str(user_id), 'expires_at': expires_at},
             )
         if hasattr(user, 'phone') and user.phone:
             ReRegistrationHash.objects.get_or_create(
                 hash_type=ReRegistrationHash.TYPE_PHONE,
                 hash_value=_sha256(str(user.phone)),
-                defaults={'user_id_was': user_id, 'expires_at': expires_at},
+                defaults={'user_id_was': str(user_id), 'expires_at': expires_at},
             )
 
 
