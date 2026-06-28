@@ -8,7 +8,6 @@ import zlib
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,8 @@ _SAML_NS = {
 
 
 def _get_base_url() -> str:
-    return getattr(settings, 'BACKEND_URL', getattr(settings, 'FRONTEND_URL', 'https://app.ironmemo.com'))
+    from .conf import auth_settings
+    return auth_settings.BACKEND_URL or auth_settings.FRONTEND_URL or ''
 
 
 # =============================================================================
@@ -297,7 +297,6 @@ class SSOUserService:
     @staticmethod
     def issue_session_and_redirect(user, org, request):
         """Issue JWT session, set cookies, redirect to frontend."""
-        from django.conf import settings as _s
         from django.http import HttpResponseRedirect
         from stapel_core.django.utils import set_jwt_cookies
         from .views import _issue_session_tokens, _add_login_hints
@@ -317,7 +316,8 @@ class SSOUserService:
         if session:
             LoginNotificationService.check_and_notify(user, session)
 
-        frontend_url = getattr(_s, 'FRONTEND_URL', 'https://app.ironmemo.com')
+        from .conf import auth_settings
+        frontend_url = auth_settings.FRONTEND_URL or ''
         redirect_url = f'{frontend_url}/'
         response = HttpResponseRedirect(redirect_url)
         set_jwt_cookies(response, access_token, refresh_token)

@@ -2679,8 +2679,8 @@ class QRAuthViewSet(viewsets.GenericViewSet):
 
             # Different user — mark QR rejected, let the generator know, redirect scanner to conflict
             QRAuthService.reject(key)
-            from django.conf import settings as _s
-            _frontend = getattr(_s, 'FRONTEND_URL', 'https://app.ironmemo.com')
+            from .conf import auth_settings
+            _frontend = auth_settings.FRONTEND_URL or ''
             from urllib.parse import urlencode as _ue
             return HttpResponseRedirect(f"{_frontend}/login?{_ue({'error': 'account_conflict'})}")
 

@@ -199,11 +199,11 @@ def evaluate_login_notification(user_id: str, session_id: str):
 
 
 def _send_login_alert_email(user, session, is_suspicious: bool):
-    from django.conf import settings
     from stapel_core.notifications import request_notification
     from django.core.signing import TimestampSigner
 
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://app.ironmemo.com')
+    from .conf import auth_settings
+    frontend_url = auth_settings.FRONTEND_URL or ''
     secure_url = f'{frontend_url}/security/sessions'
 
     notification_type = 'suspicious_login' if is_suspicious else 'new_device_login'
@@ -211,7 +211,8 @@ def _send_login_alert_email(user, session, is_suspicious: bool):
     if is_suspicious:
         signer = TimestampSigner()
         token = signer.sign(f'{session.user_id}:{session.id}')
-        extra['revoke_url'] = f'{getattr(settings, "BACKEND_URL", "https://app.ironmemo.com")}/auth/api/security/revoke-suspicious/?token={token}'
+        backend_url = auth_settings.BACKEND_URL or frontend_url
+        extra['revoke_url'] = f'{backend_url}/auth/api/security/revoke-suspicious/?token={token}'
 
     if user.email:
         try:
