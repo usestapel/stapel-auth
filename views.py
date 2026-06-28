@@ -1428,8 +1428,8 @@ class AuthViewSet(viewsets.GenericViewSet):
             )
 
             # Check cookies
-            jwt_cookie = request.COOKIES.get("iron_jwt", "")
-            refresh_cookie = request.COOKIES.get("iron_refresh_jwt", "")
+            jwt_cookie = request.COOKIES.get(getattr(settings, "JWT_COOKIE_NAME", "iron_jwt"), "")
+            refresh_cookie = request.COOKIES.get(getattr(settings, "JWT_REFRESH_COOKIE_NAME", "iron_refresh_jwt"), "")
 
             # Log token info (last 10 chars for debugging without exposing full token)
             token_suffix = "no_token"
