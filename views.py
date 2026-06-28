@@ -1336,7 +1336,6 @@ class AuthViewSet(viewsets.GenericViewSet):
                 extract_jwt_from_request,
                 load_jwt_config_from_settings,
             )
-            from django.core.cache import cache
 
             # Extract tokens from cookies/headers
             access_token, refresh_token_cookie = extract_jwt_from_request(request)
@@ -1349,17 +1348,7 @@ class AuthViewSet(viewsets.GenericViewSet):
             # Use cookie refresh token if body not provided
             refresh_token = refresh_token_body or refresh_token_cookie
 
-            # Initialize Redis blacklist - use django-redis cache client
-            redis_client = None
-            try:
-                if hasattr(cache, "client"):
-                    redis_client = cache.client.get_client()
-                    logger.info(f"Redis client for logout: {type(redis_client)}")
-            except Exception as e:
-                logger.warning(f"Failed to get Redis client from cache: {e}")
-
-            blacklist = TokenBlacklist(redis_client)
-            logger.info(f"Blacklist enabled: {blacklist._enabled}")
+            blacklist = TokenBlacklist()
 
             config = load_jwt_config_from_settings()
             jwt_handler = JWTHandler(config)
