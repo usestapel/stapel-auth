@@ -56,7 +56,6 @@ stapel_auth = ["migrations/*.py", "migrations/**/*.py"]
 omit = [
     "*/migrations/*",
     "*/conftest.py",
-    "*/tests*.py",
 ]
 
 [tool.coverage.report]
