@@ -1026,3 +1026,201 @@ class AdminUserBrokerTests(APITestCase):
         mock_notify.assert_called_once()
         call_kwargs = mock_notify.call_args
         self.assertIn('welcome', str(call_kwargs))
+
+
+# =============================================================================
+# OAuth Server-Side Flow Tests (TestProvider)
+# =============================================================================
+
+_TEST_OAUTH_SETTINGS = {
+    'OAUTH_PROVIDERS': {'test': {'client_id': 'test-client-id', 'client_secret': 'test-secret'}},
+}
+
+
+@override_settings(URL_PREFIX='', DEBUG=True, STAPEL_AUTH=_TEST_OAUTH_SETTINGS)
+class OAuthAuthorizeTests(APITestCase):
+    """Tests for GET /oauth/test/authorize/ — server-side OAuth initiation."""
+
+    def setUp(self):
+        self.client = APIClient()
+        # Ensure TestProvider is in registry for DEBUG=True
+        from stapel_auth.oauth_providers import PROVIDER_REGISTRY, TestProvider
+        PROVIDER_REGISTRY.setdefault('test', TestProvider())
+        from stapel_auth.conf import auth_settings
+        auth_settings.reload()
+
+    def test_authorize_redirects_to_provider(self):
+        response = self.client.get(reverse('oauth_authorize', kwargs={'provider': 'test'}))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('test-provider.example.com', response['Location'])
+
+    def test_authorize_stores_state_in_cache(self):
+        from django.core.cache import cache
+        response = self.client.get(reverse('oauth_authorize', kwargs={'provider': 'test'}))
+        self.assertEqual(response.status_code, 302)
+        loc = response['Location']
+        # state is a query param in the redirect URL
+        from urllib.parse import urlparse, parse_qs
+        qs = parse_qs(urlparse(loc).query)
+        self.assertIn('state', qs)
+        state = qs['state'][0]
+        state_data = cache.get(f'oauth_state:{state}')
+        self.assertIsNotNone(state_data)
+        self.assertEqual(state_data['provider'], 'test')
+
+    def test_authorize_unknown_provider_returns_400(self):
+        response = self.client.get(reverse('oauth_authorize', kwargs={'provider': 'unknown-xyz'}))
+        self.assertEqual(response.status_code, 400)
+
+    def test_authorize_unconfigured_provider_returns_400(self):
+        # 'google' is in registry but not in OAUTH_PROVIDERS settings
+        response = self.client.get(reverse('oauth_authorize', kwargs={'provider': 'google'}))
+        self.assertEqual(response.status_code, 400)
+
+    def test_authorize_passes_redirect_uri_param(self):
+        response = self.client.get(
+            reverse('oauth_authorize', kwargs={'provider': 'test'}),
+            {'redirect_uri': '/dashboard'},
+        )
+        self.assertEqual(response.status_code, 302)
+
+
+@override_settings(URL_PREFIX='', DEBUG=True, STAPEL_AUTH=_TEST_OAUTH_SETTINGS)
+class OAuthCallbackTests(APITestCase):
+    """Tests for GET /oauth/test/callback/ — server-side OAuth code exchange."""
+
+    def setUp(self):
+        self.client = APIClient()
+        from stapel_auth.oauth_providers import PROVIDER_REGISTRY, TestProvider
+        PROVIDER_REGISTRY.setdefault('test', TestProvider())
+        from stapel_auth.conf import auth_settings
+        auth_settings.reload()
+
+    def _store_state(self, state='test-state-abc', redirect_after=''):
+        from django.core.cache import cache
+        cache.set(f'oauth_state:{state}', {
+            'provider': 'test',
+            'redirect_uri': 'http://localhost:8000/api/oauth/test/callback',
+            'redirect_after': redirect_after,
+        }, timeout=600)
+
+    def test_callback_creates_new_user_and_returns_tokens(self):
+        self._store_state()
+        response = self.client.get(
+            reverse('oauth_callback', kwargs={'provider': 'test'}),
+            {'code': 'valid-code', 'state': 'test-state-abc'},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('tokens', response.data)
+        self.assertTrue(User.objects.filter(email='test-oauth@example.com').exists())
+
+    def test_callback_returning_user_matched_by_oauth_id(self):
+        User.objects.create(
+            email='test-oauth@example.com',
+            oauth_provider='test',
+            oauth_id='test-oauth-user-1',
+            is_email_verified=True,
+        )
+        self._store_state()
+        response = self.client.get(
+            reverse('oauth_callback', kwargs={'provider': 'test'}),
+            {'code': 'valid-code', 'state': 'test-state-abc'},
+        )
+        self.assertEqual(response.status_code, 200)
+        # No duplicate user created
+        self.assertEqual(User.objects.filter(email='test-oauth@example.com').count(), 1)
+
+    def test_callback_merges_by_email_when_no_oauth_id_match(self):
+        User.objects.create(
+            email='test-oauth@example.com',
+            username='existing',
+            is_email_verified=True,
+        )
+        self._store_state()
+        response = self.client.get(
+            reverse('oauth_callback', kwargs={'provider': 'test'}),
+            {'code': 'valid-code', 'state': 'test-state-abc'},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(User.objects.filter(email='test-oauth@example.com').count(), 1)
+
+    def test_callback_invalid_code_returns_400(self):
+        self._store_state()
+        response = self.client.get(
+            reverse('oauth_callback', kwargs={'provider': 'test'}),
+            {'code': 'bad-code', 'state': 'test-state-abc'},
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_callback_missing_code_returns_400(self):
+        self._store_state()
+        response = self.client.get(
+            reverse('oauth_callback', kwargs={'provider': 'test'}),
+            {'state': 'test-state-abc'},
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_callback_invalid_state_returns_400(self):
+        response = self.client.get(
+            reverse('oauth_callback', kwargs={'provider': 'test'}),
+            {'code': 'valid-code', 'state': 'no-such-state'},
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_callback_wrong_provider_in_state_returns_400(self):
+        from django.core.cache import cache
+        cache.set('oauth_state:mismatch-state', {
+            'provider': 'google',
+            'redirect_uri': 'http://localhost/callback',
+            'redirect_after': '',
+        }, timeout=600)
+        response = self.client.get(
+            reverse('oauth_callback', kwargs={'provider': 'test'}),
+            {'code': 'valid-code', 'state': 'mismatch-state'},
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_callback_error_param_returns_400(self):
+        self._store_state()
+        response = self.client.get(
+            reverse('oauth_callback', kwargs={'provider': 'test'}),
+            {'error': 'access_denied', 'state': 'test-state-abc'},
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_callback_with_redirect_after_redirects_with_tokens(self):
+        self._store_state(redirect_after='https://app.example.com/dashboard')
+        response = self.client.get(
+            reverse('oauth_callback', kwargs={'provider': 'test'}),
+            {'code': 'valid-code', 'state': 'test-state-abc'},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('access_token', response['Location'])
+        self.assertIn('app.example.com', response['Location'])
+
+    def test_callback_sets_jwt_cookies(self):
+        self._store_state()
+        response = self.client.get(
+            reverse('oauth_callback', kwargs={'provider': 'test'}),
+            {'code': 'valid-code', 'state': 'test-state-abc'},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('iron_jwt', response.cookies)
+
+    def test_callback_totp_user_redirects_to_challenge(self):
+        User.objects.create(
+            email='test-oauth@example.com',
+            oauth_provider='test',
+            oauth_id='test-oauth-user-1',
+            is_email_verified=True,
+        )
+        from unittest.mock import patch
+        self._store_state()
+        with patch('stapel_auth.services.TOTPService.is_enabled', return_value=True), \
+             patch('stapel_auth.services.TOTPService.create_challenge', return_value='totp-challenge-tok'):
+            response = self.client.get(
+                reverse('oauth_callback', kwargs={'provider': 'test'}),
+                {'code': 'valid-code', 'state': 'test-state-abc'},
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('totp-challenge', response['Location'])

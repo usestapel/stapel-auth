@@ -246,6 +246,44 @@ class SberProvider(OAuthProvider):
         raise NotImplementedError("Sber provider is not yet implemented")
 
 
+class TestProvider(OAuthProvider):
+    """Deterministic provider for tests — never makes real HTTP calls.
+
+    Token semantics:
+        TEST_TOKEN_OK   → returns a fixed OAuthUserData (simulates success)
+        anything else   → returns None (simulates provider failure)
+
+    Code semantics:
+        "valid-code"    → exchanges to TEST_TOKEN_OK
+        anything else   → returns None (simulates exchange failure)
+    """
+
+    id = "test"
+    display_name = "Test"
+    auth_url = "https://test-provider.example.com/authorize"
+    token_url = "https://test-provider.example.com/token"
+    scope = "openid email"
+    extra_params = {}
+
+    TOKEN_OK = "test-token-ok"
+    FIXED_USER = OAuthUserData(
+        id="test-oauth-user-1",
+        email="test-oauth@example.com",
+        username="testoauthuser",
+        avatar=None,
+    )
+
+    def exchange_code(self, client_id, client_secret, code, redirect_uri):
+        if code == "valid-code":
+            return self.TOKEN_OK
+        return None
+
+    def get_user_data(self, access_token: str) -> OAuthUserData | None:
+        if access_token == self.TOKEN_OK:
+            return self.FIXED_USER
+        return None
+
+
 PROVIDER_REGISTRY: dict[str, OAuthProvider] = {
     "google": GoogleProvider(),
     "github": GitHubProvider(),
@@ -257,6 +295,14 @@ PROVIDER_REGISTRY: dict[str, OAuthProvider] = {
     "vk": VKProvider(),
     "sber": SberProvider(),
 }
+
+# TestProvider is only available when DEBUG=True (dev/test environments only).
+try:
+    from django.conf import settings as _django_settings
+    if getattr(_django_settings, "DEBUG", False):
+        PROVIDER_REGISTRY["test"] = TestProvider()
+except Exception:
+    pass
 
 
 def get_enabled_providers() -> list[OAuthProvider]:
