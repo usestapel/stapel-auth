@@ -52,6 +52,16 @@ packages = ["stapel_auth", "stapel_auth.migrations"]
 [tool.setuptools.package-data]
 stapel_auth = ["migrations/*.py", "migrations/**/*.py"]
 
+[tool.coverage.run]
+omit = ["*/migrations/*", "*/conftest.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
 [tool.pytest.ini_options]
 django_find_project = false
 addopts = "--tb=short -q"
