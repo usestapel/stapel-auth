@@ -2,7 +2,6 @@
 import json
 import logging
 
-from django.conf import settings
 from django.core.cache import cache
 from django.http import HttpResponse, HttpResponseRedirect
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -30,7 +29,8 @@ _OIDC_STATE_TTL = 600  # 10 min
 
 
 def _frontend_url():
-    return getattr(settings, 'FRONTEND_URL', 'https://app.example.com')
+    from .conf import auth_settings
+    return auth_settings.FRONTEND_URL or ''
 
 
 def _get_org(slug: str):

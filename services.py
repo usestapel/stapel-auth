@@ -1396,10 +1396,10 @@ class TOTPService:
         """
         import pyotp
         from .models import TOTPDevice
-        from django.conf import settings
 
         secret = pyotp.random_base32()
-        issuer = getattr(settings, 'TOTP_ISSUER', 'legacy')
+        from .conf import auth_settings
+        issuer = auth_settings.TOTP_ISSUER
         label = user.email or user.phone or str(user.id)
         totp = pyotp.TOTP(secret)
         uri = totp.provisioning_uri(name=label, issuer_name=issuer)
@@ -1719,11 +1719,11 @@ class MagicLinkService:
         token = cls.create(user, redirect_url=redirect_url)
         if token is None:
             return False
-        from django.conf import settings
         from stapel_core.notifications import request_notification
         # Link goes directly to the backend verify endpoint — sets cookies and redirects.
         # Backend URL is proxied at the same origin as the frontend under /auth/api/.
-        base_url = getattr(settings, 'FRONTEND_URL', 'https://app.example.com')
+        from .conf import auth_settings
+        base_url = auth_settings.FRONTEND_URL or ''
         link = f'{base_url}/auth/api/magic/verify/?token={token}'
         request_notification(
             notification_type='magic_link_login',
@@ -1780,11 +1780,11 @@ class LoginNotificationService:
 class PasskeyService:
     @staticmethod
     def _rp_config():
-        from django.conf import settings
+        from .conf import auth_settings
         return (
-            getattr(settings, 'PASSKEY_RP_ID', 'app.example.com'),
-            getattr(settings, 'PASSKEY_RP_NAME', 'legacy'),
-            getattr(settings, 'PASSKEY_ORIGIN', 'https://app.example.com'),
+            auth_settings.WEBAUTHN_RP_ID or 'localhost',
+            auth_settings.WEBAUTHN_RP_NAME,
+            auth_settings.WEBAUTHN_ORIGIN or auth_settings.FRONTEND_URL or 'http://localhost',
         )
 
     @classmethod

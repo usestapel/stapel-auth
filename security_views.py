@@ -181,13 +181,13 @@ class MagicLinkViewSet(ViewSet):
         responses={302: None},
     )
     def verify(self, request):
-        from django.conf import settings
         from django.shortcuts import redirect
         from stapel_core.django.utils import set_jwt_cookies
         from .services import MagicLinkService, AuditService, TOTPService
         from .views import _issue_session_tokens, _add_login_hints
 
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'https://app.example.com')
+        from .conf import auth_settings
+        frontend_url = auth_settings.FRONTEND_URL or ''
 
         token = request.query_params.get('token', '').strip()
         if not token:
@@ -250,7 +250,6 @@ class RevokeSuspiciousView(APIView):
     )
     def get(self, request):
         from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
-        from django.conf import settings
         from .models import UserSession, AuthEventType
         from .services import AuditService
         from stapel_core.notifications import request_notification
@@ -260,7 +259,8 @@ class RevokeSuspiciousView(APIView):
         try:
             value = signer.unsign(token, max_age=7 * 24 * 3600)
         except (BadSignature, SignatureExpired):
-            frontend_url = getattr(settings, 'FRONTEND_URL', 'https://app.example.com')
+            from .conf import auth_settings
+            frontend_url = auth_settings.FRONTEND_URL or ''
             from django.shortcuts import redirect
             return redirect(f'{frontend_url}/login?error=invalid_link')
 
@@ -287,7 +287,8 @@ class RevokeSuspiciousView(APIView):
             except Exception:
                 logger.exception('Failed to send all_sessions_revoked notification')
 
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'https://app.example.com')
+        from .conf import auth_settings
+        frontend_url = auth_settings.FRONTEND_URL or ''
         from django.shortcuts import redirect
         return redirect(f'{frontend_url}/login?notice=sessions_revoked')
 
