@@ -6,12 +6,28 @@ Configure via STAPEL_AUTH dict in Django settings:
     STAPEL_AUTH = {
         'FRONTEND_URL': 'https://app.example.com',
         'USE_MOCK_SMS_OTP': True,
+        'OAUTH_PROVIDERS': {
+            'google': {'client_id': '...', 'client_secret': '...'},
+        },
     }
 
 Each key falls back to: direct Django setting → env var → built-in default.
 """
 import os
+from dataclasses import dataclass
 from django.test.signals import setting_changed
+
+
+@dataclass
+class OAuthProviderConfig:
+    """Credentials for a single OAuth provider.
+
+    Attributes:
+        client_id: OAuth app client ID. Example: abc123
+        client_secret: OAuth app client secret. Example: secret
+    """
+    client_id: str
+    client_secret: str = ''
 
 DEFAULTS = {
     # URLs
@@ -58,6 +74,26 @@ DEFAULTS = {
 
     # Service-to-service
     'INTERNAL_SERVICE_KEY': None,   # Falls back to env INTERNAL_SERVICE_KEY
+
+    # OAuth provider credentials (parsed into dict[str, OAuthProviderConfig])
+    'OAUTH_PROVIDERS': {},
+
+    # Registration method gates
+    'AUTH_PHONE_REGISTRATION':    True,
+    'AUTH_EMAIL_REGISTRATION':    True,
+    'AUTH_OAUTH_REGISTRATION':    True,
+    'AUTH_SSO_REGISTRATION':      True,
+    'AUTH_PASSWORD_REGISTRATION': False,
+
+    # Login method gates
+    'AUTH_PHONE_LOGIN':      True,
+    'AUTH_EMAIL_LOGIN':      True,
+    'AUTH_OAUTH_LOGIN':      True,
+    'AUTH_SSO_LOGIN':        True,
+    'AUTH_PASSWORD_LOGIN':   False,
+    'AUTH_QR_LOGIN':         True,
+    'AUTH_PASSKEY_LOGIN':    True,
+    'AUTH_MAGIC_LINK_LOGIN': True,
 }
 
 # Env var fallbacks for settings that are commonly set via environment
@@ -107,11 +143,17 @@ class AuthSettings:
         else:
             value = DEFAULTS[name]
 
+        if name == 'OAUTH_PROVIDERS' and isinstance(value, dict):
+            value = {
+                pid: OAuthProviderConfig(**cfg) if isinstance(cfg, dict) else cfg
+                for pid, cfg in value.items()
+            }
+
         self._cache[name] = value
         return value
 
     def reload(self):
-        self._cache.clear()
+        self.__dict__['_cache'] = {}
 
 
 auth_settings = AuthSettings()

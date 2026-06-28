@@ -25,6 +25,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .dto import (
+    AdminUserCreateResponse,
     AuthResponse,
     AuthStatus,
     DelayedCancelResponse,
@@ -98,6 +99,10 @@ from .serializers import (
     SimpleStatusSerializer,
     SessionResponseSerializer,
     UserSerializer,
+    AuthCapabilitiesSerializer,
+    PasswordRegisterSerializer,
+    AdminUserCreateRequestSerializer,
+    AdminUserCreateResponseSerializer,
 )
 from .services import (
     AuthenticatorChangeService,
@@ -466,6 +471,10 @@ class AuthViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=["post"], url_path="email/request")
     def email_request(self, request):
         """Request email verification code"""
+        from .conf import auth_settings
+        from stapel_core.django.errors import error_403_forbidden
+        if not auth_settings.AUTH_EMAIL_LOGIN and not auth_settings.AUTH_EMAIL_REGISTRATION:
+            return error_403_forbidden()
         serializer = EmailAuthRequestSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
             email = serializer.validated_data["email"]
@@ -751,6 +760,10 @@ class AuthViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=["post"], url_path="phone/request")
     def phone_request(self, request):
         """Request phone verification code (OTP)"""
+        from .conf import auth_settings
+        from stapel_core.django.errors import error_403_forbidden
+        if not auth_settings.AUTH_PHONE_LOGIN and not auth_settings.AUTH_PHONE_REGISTRATION:
+            return error_403_forbidden()
         serializer = PhoneAuthRequestSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
             phone = serializer.validated_data["phone"]
@@ -1032,6 +1045,10 @@ class AuthViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=["post"])
     def oauth_login(self, request):
         """OAuth authentication"""
+        from .conf import auth_settings
+        from stapel_core.django.errors import error_403_forbidden
+        if not auth_settings.AUTH_OAUTH_LOGIN and not auth_settings.AUTH_OAUTH_REGISTRATION:
+            return error_403_forbidden()
         provider = request.data.get("provider")
         access_token = request.data.get("access_token")
 
@@ -1071,33 +1088,6 @@ class AuthViewSet(viewsets.GenericViewSet):
         set_jwt_cookies(response, access_token, refresh_token)
         return _add_login_hints(response)
 
-    _OAUTH_PROVIDERS = {
-        "google": {
-            "auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
-            "token_url": "https://oauth2.googleapis.com/token",
-            "client_id_setting": "SOCIAL_AUTH_GOOGLE_OAUTH2_KEY",
-            "client_secret_setting": "SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET",
-            "scope": "openid email profile",
-            "extra_params": {"access_type": "offline"},
-        },
-        "github": {
-            "auth_url": "https://github.com/login/oauth/authorize",
-            "token_url": "https://github.com/login/oauth/access_token",
-            "client_id_setting": "SOCIAL_AUTH_GITHUB_KEY",
-            "client_secret_setting": "SOCIAL_AUTH_GITHUB_SECRET",
-            "scope": "read:user user:email",
-            "extra_params": {},
-        },
-        "zoom": {
-            "auth_url": "https://zoom.us/oauth/authorize",
-            "token_url": "https://zoom.us/oauth/token",
-            "client_id_setting": "ZOOM_CLIENT_ID",
-            "client_secret_setting": "ZOOM_CLIENT_SECRET",
-            "scope": "user:read:user",
-            "extra_params": {},
-        },
-    }
-
     @extend_schema(
         description="Redirect browser to OAuth provider authorization page",
         responses={302: None},
@@ -1108,15 +1098,26 @@ class AuthViewSet(viewsets.GenericViewSet):
     def oauth_authorize(self, request, provider=None):
         """Initiate server-side OAuth flow"""
         import secrets
-        from urllib.parse import urlencode
 
         from django.core.cache import cache
         from django.shortcuts import redirect
 
-        if provider not in self._OAUTH_PROVIDERS:
+        from .conf import auth_settings
+        from .oauth_providers import PROVIDER_REGISTRY
+        from stapel_core.django.errors import error_403_forbidden
+
+        if not auth_settings.AUTH_OAUTH_LOGIN and not auth_settings.AUTH_OAUTH_REGISTRATION:
+            return error_403_forbidden()
+
+        p = PROVIDER_REGISTRY.get(provider)
+        if not p:
             return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
 
-        config = self._OAUTH_PROVIDERS[provider]
+        configs = auth_settings.OAUTH_PROVIDERS
+        cfg = configs.get(provider)
+        if not cfg or not cfg.client_id:
+            return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
+
         state = secrets.token_urlsafe(32)
         redirect_uri = self._build_callback_uri(request, provider)
 
@@ -1130,15 +1131,7 @@ class AuthViewSet(viewsets.GenericViewSet):
             timeout=600,
         )
 
-        params = {
-            "client_id": getattr(settings, config["client_id_setting"], ""),
-            "redirect_uri": redirect_uri,
-            "scope": config["scope"],
-            "state": state,
-            "response_type": "code",
-            **config["extra_params"],
-        }
-        return redirect(config["auth_url"] + "?" + urlencode(params))
+        return redirect(p.get_authorization_url(cfg.client_id, redirect_uri, state))
 
     @extend_schema(
         description="OAuth provider callback — exchanges code for JWT and redirects to frontend",
@@ -1151,9 +1144,11 @@ class AuthViewSet(viewsets.GenericViewSet):
         """Handle OAuth authorization code callback"""
         from urllib.parse import urlencode
 
-        import requests as http
         from django.core.cache import cache
         from django.shortcuts import redirect
+
+        from .conf import auth_settings
+        from .oauth_providers import PROVIDER_REGISTRY
 
         error = request.query_params.get("error")
         code = request.query_params.get("code")
@@ -1167,28 +1162,17 @@ class AuthViewSet(viewsets.GenericViewSet):
             return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
         cache.delete(f"oauth_state:{state}")
 
-        if provider not in self._OAUTH_PROVIDERS:
+        p = PROVIDER_REGISTRY.get(provider)
+        if not p:
             return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
 
-        config = self._OAUTH_PROVIDERS[provider]
+        configs = auth_settings.OAUTH_PROVIDERS
+        cfg = configs.get(provider)
+        if not cfg or not cfg.client_id:
+            return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
+
         redirect_uri = state_data["redirect_uri"]
-
-        # Exchange authorization code for access token
-        token_response = http.post(
-            config["token_url"],
-            data={
-                "code": code,
-                "client_id": getattr(settings, config["client_id_setting"], ""),
-                "client_secret": getattr(settings, config["client_secret_setting"], ""),
-                "redirect_uri": redirect_uri,
-                "grant_type": "authorization_code",
-            },
-            headers={"Accept": "application/json"},
-        )
-        if token_response.status_code != 200:
-            return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
-
-        access_token = token_response.json().get("access_token")
+        access_token = p.exchange_code(cfg.client_id, cfg.client_secret, code, redirect_uri)
         if not access_token:
             return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
 
@@ -1245,8 +1229,8 @@ class AuthViewSet(viewsets.GenericViewSet):
            user without overwriting their auth_type or existing OAuth link.
         3. Create a fresh user.
         """
-        oauth_id = str(user_data["id"])
-        email = user_data.get("email")
+        oauth_id = str(user_data.id)
+        email = user_data.email
 
         # 1. Exact provider match
         try:
@@ -1267,7 +1251,7 @@ class AuthViewSet(viewsets.GenericViewSet):
             oauth_provider=provider,
             oauth_id=oauth_id,
             auth_type="oauth",
-            avatar=user_data.get("avatar"),
+            avatar=user_data.avatar,
             is_email_verified=True,
         )
         self._bootstrap_personal_workspace(user)
@@ -2083,6 +2067,11 @@ class PasswordViewSet(viewsets.GenericViewSet):
         permission_classes=[permissions.AllowAny],
     )
     def login(self, request):
+        from .conf import auth_settings
+        from stapel_core.django.errors import error_403_forbidden
+        if not auth_settings.AUTH_PASSWORD_LOGIN:
+            return error_403_forbidden()
+
         from stapel_core.django.utils import set_jwt_cookies
         from django.utils import timezone
 
@@ -2355,6 +2344,165 @@ class PasswordViewSet(viewsets.GenericViewSet):
         response = Response(AuthResponseSerializer(dto).data)
         set_jwt_cookies(response, access_token, refresh_token)
         return response
+
+    @extend_schema(
+        description="Register a new account with email/phone/username and password. Disabled by default — enable via AUTH_PASSWORD_REGISTRATION setting.",
+        request=PasswordRegisterSerializer,
+        responses={200: AuthResponseSerializer, 400: IronErrorSerializer, 403: IronErrorSerializer},
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="register",
+        permission_classes=[permissions.AllowAny],
+    )
+    def register(self, request):
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+
+        from .conf import auth_settings
+        from stapel_core.django.errors import error_403_forbidden
+
+        if not auth_settings.AUTH_PASSWORD_REGISTRATION:
+            return error_403_forbidden()
+
+        serializer = PasswordRegisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Validate password strength via Django validators
+        try:
+            validate_password(data["password"])
+        except ValidationError:
+            return IronErrorResponse(400, ERR_400_BAD_REQUEST)
+
+        # Check uniqueness
+        email = data.get("email")
+        phone = data.get("phone")
+        username = data.get("username")
+
+        if email and User.objects.filter(email=email).exists():
+            return IronErrorResponse(409, ERR_409_EMAIL_TAKEN)
+        if phone and User.objects.filter(phone=phone).exists():
+            return IronErrorResponse(409, ERR_409_PHONE_TAKEN)
+        if username and User.objects.filter(username=username).exists():
+            return IronErrorResponse(409, ERR_409_USERNAME_TAKEN)
+
+        user = User.objects.create(
+            email=email,
+            phone=phone,
+            username=username or (email.split("@")[0] if email else phone),
+            is_email_verified=bool(email),
+            is_phone_verified=bool(phone),
+        )
+        user.set_password(data["password"])
+        user.save(update_fields=["password"])
+
+        self._bootstrap_personal_workspace(user)
+
+        access_token, refresh_token = _issue_session_tokens(user, request)
+        dto = AuthResponse(
+            status=AuthStatus.REGISTERED,
+            user=user,
+            tokens=TokenPairResponse(refresh=refresh_token, access=access_token),
+        )
+        from stapel_core.django.utils import set_jwt_cookies
+        response = IronResponse(AuthResponseSerializer(dto))
+        set_jwt_cookies(response, access_token, refresh_token)
+        return response
+
+    def _bootstrap_personal_workspace(self, user) -> None:
+        """Fire-and-forget: create personal workspace for newly registered users."""
+        try:
+            from stapel_core.django.workspaces import get_or_create_personal_workspace
+            get_or_create_personal_workspace(user.id)
+        except Exception:
+            logger.exception("Failed to bootstrap personal workspace for user %s", user.id)
+
+
+# ── Auth Capabilities ─────────────────────────────────────────────────────────
+
+
+class CapabilitiesView(APIView):
+    """Public endpoint returning enabled auth methods for this deployment."""
+
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    @extend_schema(
+        tags=["Auth"],
+        description="Return available authentication and registration methods for this deployment.",
+        responses={200: AuthCapabilitiesSerializer},
+    )
+    def get(self, request):
+        from .services import AuthCapabilitiesService
+        caps = AuthCapabilitiesService.get_capabilities()
+        return IronResponse(AuthCapabilitiesSerializer(caps))
+
+
+# ── Admin User Broker ─────────────────────────────────────────────────────────
+
+
+class AdminUserViewSet(viewsets.GenericViewSet):
+    """Admin broker for creating users without OTP verification."""
+
+    permission_classes = [permissions.AllowAny]
+
+    @extend_schema(
+        tags=["Admin"],
+        description="Create a user account without OTP, bypassing normal registration flow. Requires service API key or admin (staff) credentials.",
+        request=AdminUserCreateRequestSerializer,
+        responses={201: AdminUserCreateResponseSerializer, 400: IronErrorSerializer, 403: IronErrorSerializer},
+    )
+    @action(detail=False, methods=["post"])
+    def create_user(self, request):
+        from .permissions import IsServiceAPIKey
+        from stapel_core.django.errors import error_403_forbidden
+
+        # Allow either staff user or service API key
+        is_svc_key = IsServiceAPIKey().has_permission(request, self)
+        if not is_svc_key and not (request.user.is_authenticated and request.user.is_staff):
+            return error_403_forbidden()
+
+        serializer = AdminUserCreateRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        email = data.get("email")
+        phone = data.get("phone")
+        username = data.get("username")
+        display_name = data.get("display_name")
+        password = data.get("password")
+        mark_verified = data.get("mark_verified", True)
+        send_welcome = data.get("send_welcome", False)
+
+        user = User.objects.create(
+            email=email,
+            phone=phone,
+            username=username or (email.split("@")[0] if email else phone),
+            is_email_verified=mark_verified and bool(email),
+            is_phone_verified=mark_verified and bool(phone),
+        )
+        if display_name:
+            user.first_name = display_name
+        if password:
+            user.set_password(password)
+        user.save()
+
+        if send_welcome:
+            try:
+                from stapel_core.notifications import request_notification
+                request_notification(notification_type="welcome", user_id=str(user.id))
+            except Exception:
+                logger.exception("Failed to send welcome notification for user %s", user.id)
+
+        dto = AdminUserCreateResponse(
+            user_id=str(user.id),
+            email=user.email,
+            phone=user.phone,
+            username=user.username,
+        )
+        return IronResponse(AdminUserCreateResponseSerializer(dto), status=201)
 
 
 # ── QR Auth ViewSet ───────────────────────────────────────────────────────────

@@ -7,7 +7,6 @@ from datetime import timedelta
 import logging
 import secrets
 import uuid
-import requests
 from .models import PhoneVerification
 from .dto import PasswordMethodType, QRType, QRStatus, PasswordMethod
 from stapel_core.django.errors import IronServiceError, ERR_500_INTERNAL
@@ -322,113 +321,63 @@ class EmailVerificationService:
 
 
 class OAuthService:
-    """
-    Service for OAuth authentication
-    """
+    """Service for OAuth authentication — routes through provider registry."""
 
     def get_user_data(self, provider, access_token):
-        """Get user data from OAuth provider"""
+        """Fetch user data from the given OAuth provider."""
+        from .oauth_providers import PROVIDER_REGISTRY
+        p = PROVIDER_REGISTRY.get(provider)
+        if not p:
+            logger.error(f"Unsupported OAuth provider: {provider}")
+            return None
         try:
-            if provider == 'google':
-                return self._get_google_user_data(access_token)
-            elif provider == 'facebook':
-                return self._get_facebook_user_data(access_token)
-            elif provider == 'github':
-                return self._get_github_user_data(access_token)
-            elif provider == 'zoom':
-                return self._get_zoom_user_data(access_token)
-            else:
-                logger.error(f"Unsupported OAuth provider: {provider}")
-                return None
+            return p.get_user_data(access_token)
         except Exception as e:
             logger.error(f"Failed to get user data from {provider}: {e}")
             return None
 
-    def _get_google_user_data(self, access_token):
-        """Get user data from Google"""
-        response = requests.get(
-            'https://www.googleapis.com/oauth2/v2/userinfo',
-            headers={'Authorization': f'Bearer {access_token}'}
+
+class AuthCapabilitiesService:
+    """Builds the auth capabilities response based on current settings."""
+
+    @staticmethod
+    def get_capabilities():
+        from .conf import auth_settings
+        from .dto import (
+            AuthCapabilities,
+            LoginCapabilities,
+            OAuthProviderInfo,
+            RegistrationCapabilities,
         )
+        from .oauth_providers import get_enabled_providers
 
-        if response.status_code == 200:
-            data = response.json()
-            email = data.get('email', '')
-            return {
-                'id': data.get('id'),
-                'email': email,
-                'username': email.split('@')[0] or None,
-                'avatar': data.get('picture'),
-            }
-        return None
-
-    def _get_facebook_user_data(self, access_token):
-        """Get user data from Facebook"""
-        response = requests.get(
-            f'https://graph.facebook.com/me?fields=id,email,name,picture&access_token={access_token}'
+        s = auth_settings
+        phone_real = not s.USE_MOCK_SMS_OTP
+        email_real = not s.USE_MOCK_EMAIL_OTP
+        oauth_infos = [
+            OAuthProviderInfo(id=p.id, name=p.display_name)
+            for p in get_enabled_providers()
+        ]
+        return AuthCapabilities(
+            registration=RegistrationCapabilities(
+                phone=s.AUTH_PHONE_REGISTRATION and phone_real,
+                email=s.AUTH_EMAIL_REGISTRATION and email_real,
+                password=s.AUTH_PASSWORD_REGISTRATION,
+                oauth=oauth_infos if s.AUTH_OAUTH_REGISTRATION else [],
+                sso=s.AUTH_SSO_REGISTRATION,
+                anonymous=True,
+            ),
+            login=LoginCapabilities(
+                phone=s.AUTH_PHONE_LOGIN and phone_real,
+                email=s.AUTH_EMAIL_LOGIN and email_real,
+                password=s.AUTH_PASSWORD_LOGIN,
+                oauth=oauth_infos if s.AUTH_OAUTH_LOGIN else [],
+                sso=s.AUTH_SSO_LOGIN,
+                qr=s.AUTH_QR_LOGIN,
+                passkey=s.AUTH_PASSKEY_LOGIN,
+                magic_link=s.AUTH_MAGIC_LINK_LOGIN,
+            ),
         )
-
-        if response.status_code == 200:
-            data = response.json()
-            name = data.get('name', '')
-            return {
-                'id': data.get('id'),
-                'email': data.get('email'),
-                'username': name.lower().replace(' ', '_') or None,
-                'avatar': ((data.get('picture') or {}).get('data') or {}).get('url'),
-            }
-        return None
-
-    def _get_github_user_data(self, access_token):
-        """Get user data from GitHub"""
-        headers = {'Authorization': f'token {access_token}'}
-        response = requests.get('https://api.github.com/user', headers=headers)
-
-        if response.status_code != 200:
-            return None
-
-        data = response.json()
-        email = data.get('email')
-
-        # GitHub doesn't return private emails via /user — fetch from /user/emails
-        if not email:
-            emails_response = requests.get('https://api.github.com/user/emails', headers=headers)
-            if emails_response.status_code == 200:
-                emails = emails_response.json()
-                primary = next(
-                    (e['email'] for e in emails if e.get('primary') and e.get('verified')),
-                    None
-                )
-                email = primary or (emails[0]['email'] if emails else None)
-
-        return {
-            'id': str(data.get('id')),
-            'email': email,
-            'username': data.get('login'),
-            'avatar': data.get('avatar_url'),
-        }
-
-
-    def _get_zoom_user_data(self, access_token):
-        """Get user data from Zoom"""
-        response = requests.get(
-            'https://api.zoom.us/v2/users/me',
-            headers={'Authorization': f'Bearer {access_token}'}
-        )
-
-        if response.status_code != 200:
-            return None
-
-        data = response.json()
-        first = data.get('first_name', '')
-        last = data.get('last_name', '')
-        username = f"{first}_{last}".strip('_').lower().replace(' ', '_') or data.get('id')
-        return {
-            'id': data.get('id'),
-            'email': data.get('email'),
-            'username': username,
-            'avatar': data.get('pic_url'),
-        }
 
 
 class _TokenWrapper:

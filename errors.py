@@ -13,6 +13,7 @@ ERR_409_EMAIL_TAKEN = 'error.409.email_taken'
 ERR_409_EMAIL_RESERVED = 'error.409.email_reserved'
 ERR_409_PHONE_TAKEN = 'error.409.phone_taken'
 ERR_409_PHONE_RESERVED = 'error.409.phone_reserved'
+ERR_409_USERNAME_TAKEN = 'error.409.username_taken'
 ERR_400_TOKEN_REQUIRED = 'error.400.token_required'
 ERR_401_TOKEN_REVOKED = 'error.401.token_revoked'
 ERR_401_TOKEN_INVALID = 'error.401.token_invalid'
@@ -86,6 +87,7 @@ AUTH_ERRORS = {
     ERR_409_EMAIL_RESERVED: 'This email is reserved by another pending change request.',
     ERR_409_PHONE_TAKEN: 'This phone number is already registered to another account.',
     ERR_409_PHONE_RESERVED: 'This phone number is reserved by another pending change request.',
+    ERR_409_USERNAME_TAKEN: 'This username is already taken.',
     ERR_400_TOKEN_REQUIRED: 'Token is required',
     ERR_401_TOKEN_REVOKED: 'Token has been revoked',
     ERR_401_TOKEN_INVALID: 'Invalid token',

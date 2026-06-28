@@ -438,14 +438,14 @@ class OAuthServiceTests(TestCase):
 
     def test_facebook_non_200_returns_none(self):
         mock_resp = type('R', (), {'status_code': 401})()
-        with patch('requests.get', return_value=mock_resp):
-            result = self.svc._get_facebook_user_data('bad_token')
+        with patch('stapel_auth.oauth_providers.requests.get', return_value=mock_resp):
+            result = self.svc.get_user_data('facebook', 'bad_token')
         self.assertIsNone(result)
 
     def test_github_non_200_returns_none(self):
         mock_resp = type('R', (), {'status_code': 403})()
-        with patch('requests.get', return_value=mock_resp):
-            result = self.svc._get_github_user_data('bad_token')
+        with patch('stapel_auth.oauth_providers.requests.get', return_value=mock_resp):
+            result = self.svc.get_user_data('github', 'bad_token')
         self.assertIsNone(result)
 
 

@@ -12,8 +12,10 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.urls import reverse
 from django.utils import timezone
-from rest_framework.test import APITestCase
+from rest_framework import status
+from rest_framework.test import APITestCase, APIClient
 
 User = get_user_model()
 
@@ -700,3 +702,327 @@ class EvaluateLoginNotificationTaskTests(TestCase):
         mock_send.assert_called_once()
         session.refresh_from_db()
         self.assertTrue(session.is_suspicious)
+
+
+# =============================================================================
+# OAuth Provider Registry Tests
+# =============================================================================
+
+class ProviderRegistryTests(TestCase):
+    """Tests for PROVIDER_REGISTRY and get_enabled_providers()."""
+
+    def test_registry_contains_expected_providers(self):
+        from stapel_auth.oauth_providers import PROVIDER_REGISTRY
+        for pid in ('google', 'github', 'zoom', 'facebook', 'apple', 'twitter', 'yandex', 'vk', 'sber'):
+            self.assertIn(pid, PROVIDER_REGISTRY)
+
+    def test_get_enabled_providers_empty_when_no_credentials(self):
+        from stapel_auth.oauth_providers import get_enabled_providers
+        providers = get_enabled_providers()
+        self.assertEqual(providers, [])
+
+    @override_settings(STAPEL_AUTH={'OAUTH_PROVIDERS': {
+        'google': {'client_id': 'gid', 'client_secret': 'gsecret'},
+    }})
+    def test_get_enabled_providers_returns_configured(self):
+        from stapel_auth.oauth_providers import get_enabled_providers
+        from stapel_auth.conf import auth_settings
+        auth_settings.reload()
+        providers = get_enabled_providers()
+        self.assertEqual(len(providers), 1)
+        self.assertEqual(providers[0].id, 'google')
+
+    def test_unsupported_provider_returns_none(self):
+        from stapel_auth.services import OAuthService
+        result = OAuthService().get_user_data('tiktok', 'token')
+        self.assertIsNone(result)
+
+    @patch('stapel_auth.oauth_providers.requests.get')
+    def test_google_user_data_returns_dataclass(self, mock_get):
+        from stapel_auth.oauth_providers import GoogleProvider, OAuthUserData
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {
+            'id': 'g1', 'email': 'g@example.com', 'picture': 'https://pic.jpg'
+        }
+        result = GoogleProvider().get_user_data('tok')
+        self.assertIsInstance(result, OAuthUserData)
+        self.assertEqual(result.id, 'g1')
+        self.assertEqual(result.email, 'g@example.com')
+
+    @patch('stapel_auth.oauth_providers.requests.get')
+    def test_google_non_200_returns_none(self, mock_get):
+        from stapel_auth.oauth_providers import GoogleProvider
+        mock_get.return_value.status_code = 401
+        self.assertIsNone(GoogleProvider().get_user_data('bad'))
+
+    @patch('stapel_auth.oauth_providers.requests.get')
+    def test_github_user_data_username_and_email(self, mock_get):
+        from stapel_auth.oauth_providers import GitHubProvider, OAuthUserData
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {
+            'id': 42, 'login': 'ghuser', 'email': 'gh@example.com', 'avatar_url': 'https://av.jpg'
+        }
+        result = GitHubProvider().get_user_data('tok')
+        self.assertIsInstance(result, OAuthUserData)
+        self.assertEqual(result.id, '42')
+        self.assertEqual(result.username, 'ghuser')
+
+    @patch('stapel_auth.oauth_providers.requests.get')
+    def test_facebook_user_data(self, mock_get):
+        from stapel_auth.oauth_providers import FacebookProvider, OAuthUserData
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {
+            'id': 'fb1', 'name': 'John Doe', 'email': 'fb@example.com',
+            'picture': {'data': {'url': 'https://pic.jpg'}}
+        }
+        result = FacebookProvider().get_user_data('tok')
+        self.assertIsInstance(result, OAuthUserData)
+        self.assertEqual(result.id, 'fb1')
+        self.assertEqual(result.username, 'john_doe')
+
+
+# =============================================================================
+# Capabilities Endpoint Tests
+# =============================================================================
+
+@override_settings(URL_PREFIX='')
+class CapabilitiesViewTests(APITestCase):
+    """Tests for GET /capabilities/"""
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_public_no_auth_required(self):
+        response = self.client.get(reverse('capabilities'))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_response_structure(self):
+        response = self.client.get(reverse('capabilities'))
+        self.assertIn('registration', response.data)
+        self.assertIn('login', response.data)
+        for section in ('registration', 'login'):
+            self.assertIn('phone', response.data[section])
+            self.assertIn('email', response.data[section])
+            self.assertIn('oauth', response.data[section])
+
+    def test_mock_otp_disables_phone_and_email_in_capabilities(self):
+        # conftest sets USE_MOCK_SMS_OTP=True and USE_MOCK_EMAIL_OTP=True
+        response = self.client.get(reverse('capabilities'))
+        self.assertFalse(response.data['registration']['phone'])
+        self.assertFalse(response.data['registration']['email'])
+        self.assertFalse(response.data['login']['phone'])
+        self.assertFalse(response.data['login']['email'])
+
+    def test_password_disabled_by_default(self):
+        response = self.client.get(reverse('capabilities'))
+        self.assertFalse(response.data['registration']['password'])
+        self.assertFalse(response.data['login']['password'])
+
+    @override_settings(STAPEL_AUTH={'AUTH_PASSWORD_REGISTRATION': True, 'AUTH_PASSWORD_LOGIN': True})
+    def test_password_enabled_when_flag_set(self):
+        response = self.client.get(reverse('capabilities'))
+        self.assertTrue(response.data['registration']['password'])
+        self.assertTrue(response.data['login']['password'])
+
+    def test_oauth_list_empty_when_no_providers_configured(self):
+        response = self.client.get(reverse('capabilities'))
+        self.assertEqual(response.data['registration']['oauth'], [])
+        self.assertEqual(response.data['login']['oauth'], [])
+
+    @override_settings(STAPEL_AUTH={'OAUTH_PROVIDERS': {
+        'google': {'client_id': 'gid', 'client_secret': 'gsec'},
+    }})
+    def test_configured_oauth_provider_appears_in_list(self):
+        from stapel_auth.conf import auth_settings
+        auth_settings.reload()
+        response = self.client.get(reverse('capabilities'))
+        oauth_ids = [p['id'] for p in response.data['login']['oauth']]
+        self.assertIn('google', oauth_ids)
+
+    @override_settings(STAPEL_AUTH={'AUTH_PHONE_REGISTRATION': False})
+    def test_phone_disabled_by_flag(self):
+        response = self.client.get(reverse('capabilities'))
+        self.assertFalse(response.data['registration']['phone'])
+
+    def test_sso_and_qr_default_true(self):
+        response = self.client.get(reverse('capabilities'))
+        self.assertTrue(response.data['registration']['sso'])
+        self.assertTrue(response.data['login']['qr'])
+        self.assertTrue(response.data['login']['passkey'])
+        self.assertTrue(response.data['login']['magic_link'])
+
+
+# =============================================================================
+# Feature Flag Gate Tests
+# =============================================================================
+
+@override_settings(URL_PREFIX='')
+class FeatureFlagGateTests(APITestCase):
+    """Tests that feature flag gates block endpoints correctly."""
+
+    def setUp(self):
+        self.client = APIClient()
+
+    @override_settings(STAPEL_AUTH={'AUTH_PHONE_LOGIN': False, 'AUTH_PHONE_REGISTRATION': False})
+    def test_phone_request_blocked_when_disabled(self):
+        response = self.client.post(reverse('phone_request'), {'phone': '+79001234567'})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @override_settings(STAPEL_AUTH={'AUTH_EMAIL_LOGIN': False, 'AUTH_EMAIL_REGISTRATION': False})
+    def test_email_request_blocked_when_disabled(self):
+        response = self.client.post(reverse('email_request'), {'email': 'test@example.com'})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_password_login_blocked_by_default(self):
+        response = self.client.post(reverse('password_login'), {
+            'login': 'user@example.com', 'password': 'pass'
+        })
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_password_register_blocked_by_default(self):
+        response = self.client.post(reverse('password_register'), {
+            'email': 'new@example.com', 'password': 'secure_pass_123'
+        })
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+# =============================================================================
+# Password Registration Tests
+# =============================================================================
+
+@override_settings(URL_PREFIX='', STAPEL_AUTH={'AUTH_PASSWORD_REGISTRATION': True})
+class PasswordRegistrationTests(APITestCase):
+    """Tests for POST /password/register/"""
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_register_with_email_and_password(self):
+        response = self.client.post(reverse('password_register'), {
+            'email': 'newuser@example.com',
+            'password': 'secure_pass_123',
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('tokens', response.data)
+        self.assertEqual(response.data['status'], 'REGISTERED')
+
+    def test_register_blocked_when_flag_off(self):
+        with self.settings(STAPEL_AUTH={}):
+            response = self.client.post(reverse('password_register'), {
+                'email': 'x@example.com', 'password': 'secure_pass_123'
+            })
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_register_duplicate_email_returns_409(self):
+        User.objects.create(email='dup@example.com', username='dup')
+        response = self.client.post(reverse('password_register'), {
+            'email': 'dup@example.com',
+            'password': 'secure_pass_123',
+        })
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_register_requires_identifier(self):
+        response = self.client.post(reverse('password_register'), {
+            'password': 'secure_pass_123',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_register_with_username(self):
+        response = self.client.post(reverse('password_register'), {
+            'username': 'alice',
+            'password': 'secure_pass_123',
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(User.objects.filter(username='alice').exists())
+
+    def test_register_duplicate_username_returns_409(self):
+        User.objects.create(username='taken')
+        response = self.client.post(reverse('password_register'), {
+            'username': 'taken',
+            'password': 'secure_pass_123',
+        })
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+
+# =============================================================================
+# Admin User Broker Tests
+# =============================================================================
+
+@override_settings(URL_PREFIX='')
+class AdminUserBrokerTests(APITestCase):
+    """Tests for POST /admin/users/"""
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def _make_service_key(self):
+        from stapel_auth.models import ServiceAPIKey
+        key = ServiceAPIKey.objects.create(name='test-svc', key='svc-test-key-abc', is_active=True)
+        return key.key
+
+    def test_create_user_requires_auth(self):
+        response = self.client.post(reverse('admin-users'), {'email': 'u@example.com'})
+        self.assertIn(response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+
+    def test_create_user_with_service_key(self):
+        key = self._make_service_key()
+        response = self.client.post(
+            reverse('admin-users'),
+            {'email': 'broker@example.com'},
+            HTTP_X_API_KEY=key,
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn('user_id', response.data)
+        self.assertTrue(User.objects.filter(email='broker@example.com').exists())
+
+    def test_create_user_with_staff_user(self):
+        admin = User.objects.create_user(username='admin', password='pw', is_staff=True)
+        from stapel_auth.tests import create_token_for_user
+        access, _ = create_token_for_user(admin)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
+        response = self.client.post(reverse('admin-users'), {'email': 'staffcreated@example.com'})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_mark_verified_sets_email_verified(self):
+        key = self._make_service_key()
+        response = self.client.post(
+            reverse('admin-users'),
+            {'email': 'verified@example.com', 'mark_verified': True},
+            HTTP_X_API_KEY=key,
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(email='verified@example.com')
+        self.assertTrue(user.is_email_verified)
+
+    def test_mark_not_verified(self):
+        key = self._make_service_key()
+        response = self.client.post(
+            reverse('admin-users'),
+            {'email': 'unverified@example.com', 'mark_verified': False},
+            HTTP_X_API_KEY=key,
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(email='unverified@example.com')
+        self.assertFalse(user.is_email_verified)
+
+    def test_requires_at_least_one_identifier(self):
+        key = self._make_service_key()
+        response = self.client.post(
+            reverse('admin-users'),
+            {'display_name': 'No Identifier'},
+            HTTP_X_API_KEY=key,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_send_welcome_calls_notification(self):
+        key = self._make_service_key()
+        with patch('stapel_core.notifications.request_notification') as mock_notify:
+            response = self.client.post(
+                reverse('admin-users'),
+                {'email': 'welcome@example.com', 'send_welcome': True},
+                HTTP_X_API_KEY=key,
+            )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        mock_notify.assert_called_once()
+        call_kwargs = mock_notify.call_args
+        self.assertIn('welcome', str(call_kwargs))
