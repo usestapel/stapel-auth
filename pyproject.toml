@@ -53,7 +53,11 @@ packages = ["stapel_auth", "stapel_auth.migrations"]
 stapel_auth = ["migrations/*.py", "migrations/**/*.py"]
 
 [tool.coverage.run]
-omit = ["*/migrations/*", "*/conftest.py"]
+omit = [
+    "*/migrations/*",
+    "*/conftest.py",
+    "*/tests*.py",
+]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -65,4 +69,4 @@ exclude_lines = [
 [tool.pytest.ini_options]
 django_find_project = false
 addopts = "--tb=short -q"
-junit_family = "xunit2"
+junit_family = "legacy"

@@ -38,16 +38,17 @@ jobs:
 
       - name: Tests with coverage
         run: |
-          python -m pytest --pyargs stapel_auth.tests stapel_auth.tests_sso stapel_auth.tests_extra \
+          python -m pytest --pyargs stapel_auth.tests stapel_auth.tests_sso stapel_auth.tests_extra stapel_auth.tests_services \
             --cov=stapel_auth \
             --cov-report=term-missing \
             --cov-report=xml \
-            --junit-xml=test-results.xml \
+            --junitxml=junit.xml \
+            -o junit_family=legacy \
             -v
 
-      - name: Upload coverage
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
-        if: success()
+        if: ${{ !cancelled() }}
         continue-on-error: true
         with:
           files: coverage.xml
@@ -55,10 +56,8 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Upload test results to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/test-results-action@v1
         if: ${{ !cancelled() }}
         continue-on-error: true
         with:
-          files: test-results.xml
-          report_type: test_results
           token: ${{ secrets.CODECOV_TOKEN }}
