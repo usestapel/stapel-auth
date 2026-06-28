@@ -13,7 +13,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.utils import timezone
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
 User = get_user_model()
 
@@ -34,7 +34,6 @@ def _make_user(**kwargs):
 
 class MonitoringAuthCheckTests(APITestCase):
     def setUp(self):
-        from django.urls import path
         from .monitoring_proxy import MonitoringAuthCheckView
         # Hit the view directly via URL — add it to test-only urlconf if needed
         self.view = MonitoringAuthCheckView.as_view()
@@ -684,7 +683,7 @@ class EvaluateLoginNotificationTaskTests(TestCase):
         mock_send.assert_called_once()
 
     def test_suspicious_ip_marks_session_and_notifies(self):
-        from .models import UserSession, AuthEventType
+        from .models import UserSession
         from .tasks import evaluate_login_notification
         session = UserSession.objects.create(
             user=self.user,
