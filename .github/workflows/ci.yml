@@ -42,6 +42,7 @@ jobs:
             --cov=stapel_auth \
             --cov-report=term-missing \
             --cov-report=xml \
+            --junit-xml=test-results.xml \
             -v
 
       - name: Upload coverage
@@ -51,4 +52,10 @@ jobs:
         with:
           files: coverage.xml
           flags: stapel-auth
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
           token: ${{ secrets.CODECOV_TOKEN }}
