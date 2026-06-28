@@ -872,7 +872,6 @@ class AuthenticatorChangeService:
     def _invalidate_all_tokens(user):
         """Blacklist all refresh tokens for this user via RefreshTokenTracker + Redis."""
         from .models import RefreshTokenTracker
-        from django.core.cache import cache
 
         # Mark all tracked refresh tokens as revoked
         RefreshTokenTracker.objects.filter(user=user, is_revoked=False).update(is_revoked=True)
@@ -884,11 +883,7 @@ class AuthenticatorChangeService:
             from stapel_core.django.utils import load_jwt_config_from_settings
             from datetime import datetime, timezone as dt_timezone
 
-            redis_client = None
-            if hasattr(cache, 'client'):
-                redis_client = cache.client.get_client()
-
-            blacklist = TokenBlacklist(redis_client)
+            blacklist = TokenBlacklist()
             config = load_jwt_config_from_settings()
             jwt_handler = JWTHandler(config)
 
@@ -1331,10 +1326,8 @@ def _blacklist_jti(jti: str, expires_at) -> None:
         return
     try:
         import datetime as _dt
-        from django.core.cache import cache
         from stapel_core.core.token_blacklist import TokenBlacklist
-        redis_client = cache.client.get_client() if hasattr(cache, 'client') else None
-        blacklist = TokenBlacklist(redis_client)
+        blacklist = TokenBlacklist()
         if isinstance(expires_at, (int, float)):
             expires_at = _dt.datetime.fromtimestamp(expires_at, tz=_dt.timezone.utc)
         ttl = expires_at - _dt.datetime.now(_dt.timezone.utc)
