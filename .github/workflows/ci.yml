@@ -46,7 +46,7 @@ jobs:
             -v
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         if: success()
         continue-on-error: true
         with:
@@ -55,7 +55,10 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Upload test results to Codecov
+        uses: codecov/codecov-action@v5
         if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
+        continue-on-error: true
         with:
+          files: test-results.xml
+          report_type: test_results
           token: ${{ secrets.CODECOV_TOKEN }}
