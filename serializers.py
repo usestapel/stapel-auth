@@ -41,6 +41,11 @@ from .dto import (
     TOTPStepUpResponse,
     SimpleStatusResponse,
     SessionResponse,
+    OAuthProviderInfo,
+    RegistrationCapabilities,
+    LoginCapabilities,
+    AuthCapabilities,
+    AdminUserCreateResponse,
 )
 import phonenumbers
 
@@ -570,3 +575,83 @@ class SimpleStatusSerializer(IronDataclassSerializer):
 class SessionResponseSerializer(IronDataclassSerializer):
     class Meta:
         dataclass = SessionResponse
+
+
+# =============================================================================
+# Auth Capabilities Serializers
+# =============================================================================
+
+
+class OAuthProviderInfoSerializer(IronDataclassSerializer):
+    class Meta:
+        dataclass = OAuthProviderInfo
+
+
+class RegistrationCapabilitiesSerializer(IronDataclassSerializer):
+    oauth = OAuthProviderInfoSerializer(many=True)
+
+    class Meta:
+        dataclass = RegistrationCapabilities
+
+
+class LoginCapabilitiesSerializer(IronDataclassSerializer):
+    oauth = OAuthProviderInfoSerializer(many=True)
+
+    class Meta:
+        dataclass = LoginCapabilities
+
+
+class AuthCapabilitiesSerializer(IronDataclassSerializer):
+    registration = RegistrationCapabilitiesSerializer()
+    login = LoginCapabilitiesSerializer()
+
+    class Meta:
+        dataclass = AuthCapabilities
+
+
+# =============================================================================
+# Password Registration Serializers
+# =============================================================================
+
+
+class PasswordRegisterSerializer(serializers.Serializer):
+    password = serializers.CharField(min_length=8, write_only=True)
+    email = serializers.EmailField(required=False, allow_null=True, default=None)
+    phone = serializers.CharField(required=False, allow_null=True, default=None)
+    username = serializers.CharField(required=False, allow_null=True, default=None)
+
+    def validate(self, attrs):
+        if not any([attrs.get("email"), attrs.get("phone"), attrs.get("username")]):
+            from .errors import ERR_400_EMAIL_OR_PHONE_REQUIRED
+            raise IronValidationError(ERR_400_EMAIL_OR_PHONE_REQUIRED)
+        if attrs.get("phone"):
+            attrs["phone"] = normalize_phone(attrs["phone"])
+        return attrs
+
+
+# =============================================================================
+# Admin Broker Serializers
+# =============================================================================
+
+
+class AdminUserCreateRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=False, allow_null=True, default=None)
+    phone = serializers.CharField(required=False, allow_null=True, default=None)
+    username = serializers.CharField(required=False, allow_null=True, default=None)
+    display_name = serializers.CharField(required=False, allow_null=True, default=None)
+    password = serializers.CharField(required=False, allow_null=True, default=None, min_length=8)
+    send_welcome = serializers.BooleanField(default=False)
+    mark_verified = serializers.BooleanField(default=True)
+
+    def validate(self, attrs):
+        if not any([attrs.get("email"), attrs.get("phone"), attrs.get("username")]):
+            from .errors import ERR_400_EMAIL_OR_PHONE_REQUIRED
+            raise IronValidationError(ERR_400_EMAIL_OR_PHONE_REQUIRED)
+        if attrs.get("phone"):
+            attrs["phone"] = normalize_phone(attrs["phone"])
+        return attrs
+
+
+class AdminUserCreateResponseSerializer(IronDataclassSerializer):
+    class Meta:
+        dataclass = AdminUserCreateResponse

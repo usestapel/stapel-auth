@@ -5,6 +5,7 @@ from .views import (
     AuthenticatorChangeViewSet, PasswordViewSet, QRAuthViewSet,
     SessionViewSet, SecurityStatusViewSet, TOTPViewSet,
     JWKSView, OpenIDConfigurationView,
+    CapabilitiesView, AdminUserViewSet,
 )
 from .security_views import AuditLogViewSet, MagicLinkViewSet, PasskeyViewSet, RevokeSuspiciousView
 from .sso_views import (
@@ -78,6 +79,7 @@ urlpatterns = [
     path('password/reset/email/verify/', PasswordViewSet.as_view({'post': 'reset_email_verify'}), name='password_reset_email_verify'),
     path('password/reset/phone/request/', PasswordViewSet.as_view({'post': 'reset_phone_request'}), name='password_reset_phone_request'),
     path('password/reset/phone/verify/', PasswordViewSet.as_view({'post': 'reset_phone_verify'}), name='password_reset_phone_verify'),
+    path('password/register/', PasswordViewSet.as_view({'post': 'register'}), name='password_register'),
 
     # ── QR Auth ──────────────────────────────────────────────────────────────
     path('qr/generate/', QRAuthViewSet.as_view({'post': 'generate'}), name='qr_generate'),
@@ -137,4 +139,10 @@ urlpatterns = [
     # ── OpenID / JWKS ────────────────────────────────────────────────────────
     path('.well-known/jwks.json', JWKSView.as_view({'get': 'jwks'}), name='jwks'),
     path('.well-known/openid-configuration', OpenIDConfigurationView.as_view({'get': 'openid_configuration'}), name='openid-configuration'),
+
+    # ── Auth Capabilities ──────────────────────────────────────────────────────
+    path('capabilities/', CapabilitiesView.as_view(), name='capabilities'),
+
+    # ── Admin User Broker ─────────────────────────────────────────────────────
+    path('admin-users/', AdminUserViewSet.as_view({'post': 'create_user'}), name='admin-users'),
 ]

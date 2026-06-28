@@ -15,6 +15,7 @@ from rest_framework import status
 from unittest.mock import patch, MagicMock
 from .services import TokenService
 from .models import EmailVerification, PhoneVerification, AuthenticatorChangeRequest, AuthenticatorChangeStatus
+from .oauth_providers import OAuthUserData
 
 User = get_user_model()
 
@@ -328,12 +329,12 @@ class OAuthAuthenticationTests(APITestCase):
     @patch('stapel_auth.services.OAuthService.get_user_data')
     def test_oauth_google_returns_token_with_claims(self, mock_get_user_data):
         """OAuth Google auth should return token with admin claims"""
-        mock_get_user_data.return_value = {
-            'email': 'oauth@example.com',
-            'name': 'OAuth User',
-            'id': 'google-oauth-id-123',
-            'avatar': 'https://example.com/avatar.jpg',
-        }
+        mock_get_user_data.return_value = OAuthUserData(
+            id='google-oauth-id-123',
+            email='oauth@example.com',
+            username='OAuth User',
+            avatar='https://example.com/avatar.jpg',
+        )
 
         response = self.client.post(reverse('oauth_login'), {
             'provider': 'google',
@@ -365,11 +366,12 @@ class OAuthAuthenticationTests(APITestCase):
             oauth_id='google-staff-id',
         )
 
-        mock_get_user_data.return_value = {
-            'email': 'staffoauth@example.com',
-            'name': 'Staff OAuth User',
-            'id': 'google-staff-id',
-        }
+        mock_get_user_data.return_value = OAuthUserData(
+            id='google-staff-id',
+            email='staffoauth@example.com',
+            username='Staff OAuth User',
+            avatar=None,
+        )
 
         response = self.client.post(reverse('oauth_login'), {
             'provider': 'google',
@@ -823,7 +825,7 @@ class OAuthServiceTests(TestCase):
         from .services import OAuthService
         self.service = OAuthService()
 
-    @patch('stapel_auth.services.requests.get')
+    @patch('stapel_auth.oauth_providers.requests.get')
     def test_get_google_user_data_success(self, mock_get):
         """Should parse Google user data correctly"""
         mock_get.return_value.status_code = 200
@@ -835,11 +837,11 @@ class OAuthServiceTests(TestCase):
 
         result = self.service.get_user_data('google', 'fake-token')
 
-        self.assertEqual(result['id'], 'google123')
-        self.assertEqual(result['email'], 'user@gmail.com')
-        self.assertEqual(result['username'], 'user')
+        self.assertEqual(result.id, 'google123')
+        self.assertEqual(result.email, 'user@gmail.com')
+        self.assertEqual(result.username, 'user')
 
-    @patch('stapel_auth.services.requests.get')
+    @patch('stapel_auth.oauth_providers.requests.get')
     def test_get_google_user_data_failure(self, mock_get):
         """Should return None on Google API failure"""
         mock_get.return_value.status_code = 401
@@ -847,7 +849,7 @@ class OAuthServiceTests(TestCase):
         result = self.service.get_user_data('google', 'invalid-token')
         self.assertIsNone(result)
 
-    @patch('stapel_auth.services.requests.get')
+    @patch('stapel_auth.oauth_providers.requests.get')
     def test_get_facebook_user_data_success(self, mock_get):
         """Should parse Facebook user data correctly"""
         mock_get.return_value.status_code = 200
@@ -860,10 +862,10 @@ class OAuthServiceTests(TestCase):
 
         result = self.service.get_user_data('facebook', 'fake-token')
 
-        self.assertEqual(result['id'], 'fb123')
-        self.assertEqual(result['username'], 'john_doe')
+        self.assertEqual(result.id, 'fb123')
+        self.assertEqual(result.username, 'john_doe')
 
-    @patch('stapel_auth.services.requests.get')
+    @patch('stapel_auth.oauth_providers.requests.get')
     def test_get_github_user_data_success(self, mock_get):
         """Should parse GitHub user data correctly"""
         mock_get.return_value.status_code = 200
@@ -876,8 +878,8 @@ class OAuthServiceTests(TestCase):
 
         result = self.service.get_user_data('github', 'fake-token')
 
-        self.assertEqual(result['id'], '12345')
-        self.assertEqual(result['username'], 'githubuser')
+        self.assertEqual(result.id, '12345')
+        self.assertEqual(result.username, 'githubuser')
 
     def test_unsupported_provider(self):
         """Should return None for unsupported provider"""
@@ -3476,7 +3478,7 @@ class ChangeSerializerTests(TestCase):
 # Password Login Tests
 # =============================================================================
 
-@override_settings(URL_PREFIX='')
+@override_settings(URL_PREFIX='', STAPEL_AUTH={'AUTH_PASSWORD_LOGIN': True})
 class PasswordLoginTests(APITestCase):
     """Tests for POST /password/login/"""
 

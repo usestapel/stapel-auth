@@ -589,6 +589,143 @@ class SimpleStatusResponse:
 # Session DTOs
 # =============================================================================
 
+# =============================================================================
+# Auth Capabilities DTOs
+# =============================================================================
+
+
+@dataclass
+class OAuthProviderInfo:
+    """OAuth provider available for authentication.
+
+    Attributes:
+        id: Provider identifier. Example: google
+        name: Display name. Example: Google
+    """
+    id: str
+    name: str
+
+
+@dataclass
+class RegistrationCapabilities:
+    """Available registration methods for this deployment.
+
+    Attributes:
+        phone: Phone OTP registration enabled. Example: true
+        email: Email OTP registration enabled. Example: true
+        password: Password registration enabled. Example: false
+        oauth: Enabled OAuth providers. Example: []
+        sso: SSO/SAML JIT provisioning enabled. Example: true
+        anonymous: Anonymous registration enabled. Example: true
+    """
+    phone: bool
+    email: bool
+    password: bool
+    oauth: List[OAuthProviderInfo]
+    sso: bool
+    anonymous: bool
+
+
+@dataclass
+class LoginCapabilities:
+    """Available login methods for this deployment.
+
+    Attributes:
+        phone: Phone OTP login enabled. Example: true
+        email: Email OTP login enabled. Example: true
+        password: Password login enabled. Example: false
+        oauth: Enabled OAuth providers. Example: []
+        sso: SSO login enabled. Example: true
+        qr: QR code login enabled. Example: true
+        passkey: Passkey/WebAuthn login enabled. Example: true
+        magic_link: Magic link login enabled. Example: true
+    """
+    phone: bool
+    email: bool
+    password: bool
+    oauth: List[OAuthProviderInfo]
+    sso: bool
+    qr: bool
+    passkey: bool
+    magic_link: bool
+
+
+@dataclass
+class AuthCapabilities:
+    """Auth method availability for this deployment.
+
+    Attributes:
+        registration: Available registration methods.
+        login: Available login methods.
+    """
+    registration: RegistrationCapabilities
+    login: LoginCapabilities
+
+
+# =============================================================================
+# Password Registration DTOs
+# =============================================================================
+
+
+@dataclass
+class PasswordRegisterRequest:
+    """Password-based registration. At least one of email/phone/username required.
+
+    Attributes:
+        password: User password, minimum 8 characters. Example: secure_pass_123
+        email: Email identifier. Example: user@example.com
+        phone: Phone in E.164 format. Example: +79001234567
+        username: Arbitrary username. Example: alice
+    """
+    password: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    username: Optional[str] = None
+
+
+# =============================================================================
+# Admin Broker DTOs
+# =============================================================================
+
+
+@dataclass
+class AdminUserCreateRequest:
+    """Create a user via admin broker, bypassing OTP verification.
+
+    Attributes:
+        email: User email. Example: user@example.com
+        phone: Phone in E.164 format. Example: +79001234567
+        username: Username. Example: alice
+        display_name: Display name. Example: Alice
+        password: Initial password (optional). Example: secure123
+        send_welcome: Send welcome notification via notification service. Example: false
+        mark_verified: Mark email/phone as verified immediately. Example: true
+    """
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    password: Optional[str] = None
+    send_welcome: bool = False
+    mark_verified: bool = True
+
+
+@dataclass
+class AdminUserCreateResponse:
+    """Created user summary.
+
+    Attributes:
+        user_id: Created user UUID. Example: 550e8400-e29b-41d4-a716-446655440000
+        email: User email. Example: user@example.com
+        phone: User phone. Example: +79001234567
+        username: Username. Example: alice
+    """
+    user_id: str
+    email: Optional[str]
+    phone: Optional[str]
+    username: Optional[str]
+
+
 @dataclass
 class SessionResponse:
     """
