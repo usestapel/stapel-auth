@@ -708,7 +708,7 @@ class AuthViewSet(viewsets.GenericViewSet):
                     user = User.objects.create(
                         email=email, auth_type="email", is_email_verified=True
                     )
-                    self._bootstrap_personal_workspace(user)
+                    self._publish_user_registered(user)
                     auth_status = AuthStatus.REGISTERED
 
             self.log_login_attempt(email, "success", request)
@@ -1254,19 +1254,24 @@ class AuthViewSet(viewsets.GenericViewSet):
             avatar=user_data.avatar,
             is_email_verified=True,
         )
-        self._bootstrap_personal_workspace(user)
+        self._publish_user_registered(user)
         return user
 
-    def _bootstrap_personal_workspace(self, user) -> None:
-        """Fire-and-forget: create personal workspace for newly registered users."""
+    def _publish_user_registered(self, user) -> None:
         try:
-            from stapel_core.django.workspaces import get_or_create_personal_workspace
-
-            get_or_create_personal_workspace(user.id)
+            from stapel_core.bus import publish, Event
+            from .events import TOPIC_USER_REGISTERED
+            publish(TOPIC_USER_REGISTERED, Event(
+                event_type="user.registered",
+                service="auth",
+                payload={
+                    "user_id": str(user.id),
+                    "auth_type": user.auth_type or "unknown",
+                    "email": user.email,
+                },
+            ))
         except Exception:
-            logger.exception(
-                "Failed to bootstrap personal workspace for user %s", user.id
-            )
+            logger.exception("Failed to publish user.registered for user %s", user.id)
 
     def _build_callback_uri(self, request, provider):
         """Build the OAuth callback URI using configured host or request."""
@@ -1428,8 +1433,8 @@ class AuthViewSet(viewsets.GenericViewSet):
             )
 
             # Check cookies
-            jwt_cookie = request.COOKIES.get(getattr(settings, "JWT_COOKIE_NAME", "iron_jwt"), "")
-            refresh_cookie = request.COOKIES.get(getattr(settings, "JWT_REFRESH_COOKIE_NAME", "iron_refresh_jwt"), "")
+            jwt_cookie = request.COOKIES.get("iron_jwt", "")
+            refresh_cookie = request.COOKIES.get("iron_refresh_jwt", "")
 
             # Log token info (last 10 chars for debugging without exposing full token)
             token_suffix = "no_token"
@@ -2398,7 +2403,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
         user.set_password(data["password"])
         user.save(update_fields=["password"])
 
-        self._bootstrap_personal_workspace(user)
+        self._publish_user_registered(user)
 
         access_token, refresh_token = _issue_session_tokens(user, request)
         dto = AuthResponse(
@@ -2411,13 +2416,21 @@ class PasswordViewSet(viewsets.GenericViewSet):
         set_jwt_cookies(response, access_token, refresh_token)
         return response
 
-    def _bootstrap_personal_workspace(self, user) -> None:
-        """Fire-and-forget: create personal workspace for newly registered users."""
+    def _publish_user_registered(self, user) -> None:
         try:
-            from stapel_core.django.workspaces import get_or_create_personal_workspace
-            get_or_create_personal_workspace(user.id)
+            from stapel_core.bus import publish, Event
+            from .events import TOPIC_USER_REGISTERED
+            publish(TOPIC_USER_REGISTERED, Event(
+                event_type="user.registered",
+                service="auth",
+                payload={
+                    "user_id": str(user.id),
+                    "auth_type": user.auth_type or "unknown",
+                    "email": user.email,
+                },
+            ))
         except Exception:
-            logger.exception("Failed to bootstrap personal workspace for user %s", user.id)
+            logger.exception("Failed to publish user.registered for user %s", user.id)
 
 
 # ── Auth Capabilities ─────────────────────────────────────────────────────────
@@ -2679,8 +2692,8 @@ class QRAuthViewSet(viewsets.GenericViewSet):
 
             # Different user — mark QR rejected, let the generator know, redirect scanner to conflict
             QRAuthService.reject(key)
-            from .conf import auth_settings
-            _frontend = auth_settings.FRONTEND_URL or ''
+            from django.conf import settings as _s
+            _frontend = getattr(_s, 'FRONTEND_URL', 'https://app.ironmemo.com')
             from urllib.parse import urlencode as _ue
             return HttpResponseRedirect(f"{_frontend}/login?{_ue({'error': 'account_conflict'})}")
 
