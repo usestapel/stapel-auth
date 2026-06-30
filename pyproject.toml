@@ -46,7 +46,22 @@ all = [
 
 [tool.setuptools]
 package-dir = {"stapel_auth" = "."}
-packages = ["stapel_auth", "stapel_auth.migrations"]
+packages = [
+    "stapel_auth",
+    "stapel_auth.migrations",
+    "stapel_auth.otp",
+    "stapel_auth.oauth",
+    "stapel_auth.sessions",
+    "stapel_auth.password",
+    "stapel_auth.qr",
+    "stapel_auth.mfa",
+    "stapel_auth.security",
+    "stapel_auth.magic_link",
+    "stapel_auth.openid",
+    "stapel_auth.admin",
+    "stapel_auth.sso",
+    "stapel_auth.tests",
+]
 
 # Migrations are part of the package
 [tool.setuptools.package-data]

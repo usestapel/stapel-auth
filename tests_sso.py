@@ -543,7 +543,7 @@ class SSOAdminCRUDTests(APITestCase):
         self.client = APIClient()
 
     def _auth(self, user):
-        from stapel_core.django.jwt_provider import jwt_provider
+        from stapel_core.django.jwt.provider import jwt_provider
         access, _ = jwt_provider.create_tokens(user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
 

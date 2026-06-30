@@ -1,13 +1,14 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import (
-    AuthViewSet, ServiceAPIKeyViewSet, CustomTokenObtainPairView, CustomTokenRefreshView,
-    AuthenticatorChangeViewSet, PasswordViewSet, QRAuthViewSet,
-    SessionViewSet, SecurityStatusViewSet, TOTPViewSet,
-    JWKSView, OpenIDConfigurationView,
-    CapabilitiesView, AdminUserViewSet,
-)
-from .security_views import AuditLogViewSet, MagicLinkViewSet, PasskeyViewSet, RevokeSuspiciousView
+from stapel_auth.sessions.views import CustomTokenObtainPairView, CustomTokenRefreshView, SessionViewSet
+from stapel_auth.otp.views import AuthViewSet, AuthenticatorChangeViewSet
+from stapel_auth.password.views import PasswordViewSet
+from stapel_auth.qr.views import QRAuthViewSet
+from stapel_auth.mfa.views import TOTPViewSet, PasskeyViewSet
+from stapel_auth.security.views import SecurityStatusViewSet, AuditLogViewSet, RevokeSuspiciousView, AdminAuditLogViewSet
+from stapel_auth.magic_link.views import MagicLinkViewSet
+from stapel_auth.openid.views import JWKSView, OpenIDConfigurationView, TokenIntrospectView
+from stapel_auth.admin.views import ServiceAPIKeyViewSet, AdminUserViewSet, CapabilitiesView
 from .sso_views import (
     SSODomainLookupView, SAMLMetadataView, SSOLoginView, SAMLACSView,
     OIDCCallbackView, SSOAdminViewSet,
@@ -136,13 +137,17 @@ urlpatterns = [
     path('sso/orgs/<slug:slug>/', SSOAdminViewSet.as_view({'get': 'get_org', 'patch': 'update_org', 'delete': 'delete_org'}), name='sso_org'),
     path('sso/orgs/<slug:slug>/config/', SSOAdminViewSet.as_view({'put': 'upsert_config', 'patch': 'upsert_config'}), name='sso_org_config'),
 
-    # ── OpenID / JWKS ────────────────────────────────────────────────────────
+    # ── OpenID / JWKS / Token Introspection ─────────────────────────────────
     path('.well-known/jwks.json', JWKSView.as_view({'get': 'jwks'}), name='jwks'),
     path('.well-known/openid-configuration', OpenIDConfigurationView.as_view({'get': 'openid_configuration'}), name='openid-configuration'),
+    path('oauth2/introspect/', TokenIntrospectView.as_view(), name='oauth2_introspect'),
 
     # ── Auth Capabilities ──────────────────────────────────────────────────────
     path('capabilities/', CapabilitiesView.as_view(), name='capabilities'),
 
     # ── Admin User Broker ─────────────────────────────────────────────────────
     path('admin-users/', AdminUserViewSet.as_view({'post': 'create_user'}), name='admin-users'),
+
+    # ── Admin Audit Log ───────────────────────────────────────────────────────
+    path('admin/audit/', AdminAuditLogViewSet.as_view({'get': 'list_logs'}), name='admin-audit'),
 ]

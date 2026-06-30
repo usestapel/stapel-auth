@@ -1,19 +1,20 @@
 """SSO views: SAML 2.0 SP + OIDC RP flows, org management (admin)."""
 import json
 import logging
+from dataclasses import dataclass
 
 from django.core.cache import cache
 from django.http import HttpResponse, HttpResponseRedirect
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions, serializers, status
 from rest_framework.request import Request
-from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ViewSet
 
-from stapel_core.django.errors import (
-    IronErrorResponse, error_500_internal,
+from stapel_core.django.api.errors import (
+    IronErrorResponse, IronResponse, error_500_internal,
 )
+from stapel_core.django.api.serializers import IronDataclassSerializer
 
 from .errors import (
     ERR_400_SSO_NOT_CONFIGURED,
@@ -26,6 +27,25 @@ from .sso_service import OIDCService, SAMLService, SSOUserService
 logger = logging.getLogger(__name__)
 
 _OIDC_STATE_TTL = 600  # 10 min
+
+
+@dataclass
+class SSODomainLookupResponse:
+    """SSO organization lookup result for a given email domain.
+
+    Attributes:
+        sso_required: Whether SSO is enforced for this domain. Example: true
+        org_slug: Organization slug to use in the SSO login URL. Example: acmecorp
+        protocol: SSO protocol in use (saml or oidc). Example: saml
+    """
+    sso_required: bool
+    org_slug: str | None
+    protocol: str | None
+
+
+class SSODomainLookupResponseSerializer(IronDataclassSerializer):
+    class Meta:
+        dataclass = SSODomainLookupResponse
 
 
 def _frontend_url():
@@ -58,33 +78,29 @@ class SSODomainLookupView(APIView):
     @extend_schema(
         summary='Check if an email domain has SSO configured',
         parameters=[OpenApiParameter('domain', str, required=True, description='Email domain, e.g. acmecorp.com')],
-        responses={
-            200: {'type': 'object', 'properties': {
-                'sso_required': {'type': 'boolean'},
-                'org_slug': {'type': 'string', 'nullable': True},
-                'protocol': {'type': 'string', 'nullable': True},
-            }},
-        },
+        responses={200: SSODomainLookupResponseSerializer},
         tags=['SSO'],
     )
     def get(self, request: Request):
+        _no_sso = SSODomainLookupResponse(sso_required=False, org_slug=None, protocol=None)
         domain = request.query_params.get('domain', '').strip().lower().lstrip('@')
         if not domain:
-            return Response({'sso_required': False, 'org_slug': None, 'protocol': None})
+            return IronResponse(SSODomainLookupResponseSerializer(_no_sso))
         org = Organization.objects.filter(domain=domain).select_related('sso_config').first()
         if not org:
-            return Response({'sso_required': False, 'org_slug': None, 'protocol': None})
+            return IronResponse(SSODomainLookupResponseSerializer(_no_sso))
         try:
             cfg = org.sso_config
             if not cfg.is_active:
-                return Response({'sso_required': False, 'org_slug': None, 'protocol': None})
-            return Response({
-                'sso_required': org.sso_enforced,
-                'org_slug': org.slug,
-                'protocol': cfg.protocol,
-            })
+                return IronResponse(SSODomainLookupResponseSerializer(_no_sso))
+            dto = SSODomainLookupResponse(
+                sso_required=org.sso_enforced,
+                org_slug=org.slug,
+                protocol=cfg.protocol,
+            )
+            return IronResponse(SSODomainLookupResponseSerializer(dto))
         except SSOConfig.DoesNotExist:
-            return Response({'sso_required': False, 'org_slug': None, 'protocol': None})
+            return IronResponse(SSODomainLookupResponseSerializer(_no_sso))
 
 
 # =============================================================================
@@ -265,7 +281,7 @@ class SSOAdminViewSet(ViewSet):
     )
     def list_orgs(self, request: Request):
         qs = Organization.objects.all().order_by('slug')
-        return Response(_OrgSerializer(qs, many=True).data)
+        return IronResponse(_OrgSerializer(qs, many=True))
 
     @extend_schema(
         summary='Create a new SSO organization',
@@ -280,7 +296,7 @@ class SSOAdminViewSet(ViewSet):
         ser = _OrgSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         org = ser.save()
-        return Response(_OrgSerializer(org).data, status=status.HTTP_201_CREATED)
+        return IronResponse(_OrgSerializer(org), status=201)
 
     @extend_schema(
         summary='Get an SSO organization with its config',
@@ -296,7 +312,8 @@ class SSOAdminViewSet(ViewSet):
             data['config'] = _SSOConfigSerializer(org.sso_config).data
         except SSOConfig.DoesNotExist:
             data['config'] = None
-        return Response(data)
+        from rest_framework.response import Response
+        return Response(data)  # noqa: R001
 
     @extend_schema(
         summary='Update an SSO organization',
@@ -311,7 +328,7 @@ class SSOAdminViewSet(ViewSet):
         ser = _OrgSerializer(org, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
-        return Response(ser.data)
+        return IronResponse(ser)
 
     @extend_schema(
         summary='Delete an SSO organization',
@@ -323,7 +340,7 @@ class SSOAdminViewSet(ViewSet):
         if not org:
             return IronErrorResponse(404, ERR_404_SSO_ORG_NOT_FOUND)
         org.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return IronResponse(status=204)
 
     @extend_schema(
         summary='Create or update SSO config for an organization',
@@ -342,4 +359,4 @@ class SSOAdminViewSet(ViewSet):
             ser = _SSOConfigSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         cfg = ser.save(org=org)
-        return Response(_SSOConfigSerializer(cfg).data)
+        return IronResponse(_SSOConfigSerializer(cfg))

@@ -9,12 +9,13 @@ from rest_framework import serializers, permissions
 from rest_framework.views import APIView
 from rest_framework.viewsets import ViewSet
 
-from stapel_core.django.errors import IronResponse, IronErrorResponse
+from stapel_core.django.api.errors import IronResponse, IronErrorResponse
 from .serializers import AuthResponseSerializer
 from .errors import (
     ERR_429_MAGIC_LINK_RATE,
     ERR_400_PASSKEY_INVALID, ERR_400_PASSKEY_CHALLENGE_EXPIRED,
     ERR_400_LAST_AUTH_METHOD, ERR_404_PASSKEY_NOT_FOUND,
+    ERR_404_NOT_FOUND,
 )
 
 logger = logging.getLogger(__name__)
@@ -182,7 +183,7 @@ class MagicLinkViewSet(ViewSet):
     )
     def verify(self, request):
         from django.shortcuts import redirect
-        from stapel_core.django.utils import set_jwt_cookies
+        from stapel_core.django.jwt.utils import set_jwt_cookies
         from .services import MagicLinkService, AuditService, TOTPService
         from .views import _issue_session_tokens, _add_login_hints
 
@@ -269,7 +270,7 @@ class RevokeSuspiciousView(APIView):
         try:
             user = U.objects.get(id=user_id)
         except U.DoesNotExist:
-            return IronErrorResponse(404, 'error.404.not_found')
+            return IronErrorResponse(404, ERR_404_NOT_FOUND)
 
         UserSession.objects.filter(user=user, is_revoked=False).update(is_revoked=True)
         AuditService.log(AuthEventType.SESSION_REVOKE_ALL, user=user, request=request,
@@ -424,7 +425,7 @@ class PasskeyViewSet(ViewSet):
             return IronErrorResponse(400, ERR_400_PASSKEY_INVALID)
 
         access_token, refresh_token = _issue_session_tokens(user, request)
-        from stapel_core.django.utils import set_jwt_cookies
+        from stapel_core.django.jwt.utils import set_jwt_cookies
         from .dto import AuthResponse, AuthStatus, TokenPairResponse
         from .views import _add_login_hints
         dto = AuthResponse(

@@ -1,6 +1,6 @@
 """Custom error keys for the auth service."""
 
-from stapel_core.django.errors import ErrorKeysView, register_service_errors, format_duration
+from stapel_core.django.api.errors import ErrorKeysView, register_service_errors, format_duration
 
 ERR_401_INVALID_CREDENTIALS = 'error.401.invalid_credentials'
 ERR_401_ACCOUNT_DISABLED = 'error.401.account_disabled'
@@ -60,6 +60,7 @@ ERR_403_STEP_UP_REQUIRED = 'error.403.step_up_required'
 # Lockout
 ERR_423_ACCOUNT_LOCKED = 'error.423.account_locked'
 # Magic links
+ERR_400_INVALID_REDIRECT_URL = 'error.400.invalid_redirect_url'
 ERR_400_MAGIC_LINK_INVALID = 'error.400.magic_link_invalid'
 ERR_429_MAGIC_LINK_RATE = 'error.429.magic_link_rate'
 # Passkeys
@@ -74,6 +75,9 @@ ERR_400_SSO_NOT_CONFIGURED = 'error.400.sso_not_configured'
 ERR_400_SSO_INVALID_RESPONSE = 'error.400.sso_invalid_response'
 ERR_403_SSO_REQUIRED = 'error.403.sso_required'
 ERR_409_SSO_ORG_SLUG_TAKEN = 'error.409.sso_org_slug_taken'
+# Captcha
+ERR_400_CAPTCHA_INVALID  = 'error.400.captcha_invalid'
+ERR_400_CAPTCHA_REQUIRED = 'error.400.captcha_required'
 
 AUTH_ERRORS = {
     ERR_401_INVALID_CREDENTIALS: 'Invalid credentials',
@@ -133,6 +137,7 @@ AUTH_ERRORS = {
     ERR_403_STEP_UP_REQUIRED: 'This action requires TOTP verification. Obtain a step-up token first.',
     # Lockout
     ERR_423_ACCOUNT_LOCKED: 'Account temporarily locked due to too many failed attempts. Try again in {retry_after_minutes} minutes.',
+    ERR_400_INVALID_REDIRECT_URL: 'redirect_url must be a relative path starting with /  — absolute URLs are not allowed.',
     # Magic links
     ERR_400_MAGIC_LINK_INVALID: 'Magic link is invalid or has expired.',
     ERR_429_MAGIC_LINK_RATE: 'Too many magic link requests. Please try again later.',
@@ -148,6 +153,9 @@ AUTH_ERRORS = {
     ERR_400_SSO_INVALID_RESPONSE: 'Invalid SSO response from identity provider.',
     ERR_403_SSO_REQUIRED: 'This account must sign in via SSO. Use your organization SSO link.',
     ERR_409_SSO_ORG_SLUG_TAKEN: 'An organization with this slug already exists.',
+    # Captcha
+    ERR_400_CAPTCHA_INVALID:  'Captcha verification failed. Please try again.',
+    ERR_400_CAPTCHA_REQUIRED: 'Captcha token is required.',
 }
 
 register_service_errors(AUTH_ERRORS)

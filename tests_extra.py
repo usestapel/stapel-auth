@@ -227,7 +227,7 @@ class AuthSettingsTests(TestCase):
 class AuditLogTests(APITestCase):
     def setUp(self):
         self.user = _make_user()
-        from stapel_core.django.jwt_provider import jwt_provider
+        from stapel_core.django.jwt.provider import jwt_provider
         access, _ = jwt_provider.create_tokens(self.user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
 
@@ -312,7 +312,7 @@ class MagicLinkRequestTests(APITestCase):
              patch('stapel_auth.services.MagicLinkService.consume', return_value=token_data), \
              patch('stapel_auth.services.AuditService.log'), \
              patch('stapel_auth.views._issue_session_tokens', return_value=('acc', 'ref')), \
-             patch('stapel_core.django.utils.set_jwt_cookies'):
+             patch('stapel_core.django.jwt.utils.set_jwt_cookies'):
             resp = self.client.get('/magic/verify/?token=validtoken')
         self.assertIn(resp.status_code, [302, 301])
 
@@ -326,7 +326,7 @@ class MagicLinkRequestTests(APITestCase):
 
     def test_verify_same_user_already_logged_in_redirects(self):
         user = _make_user()
-        from stapel_core.django.jwt_provider import jwt_provider
+        from stapel_core.django.jwt.provider import jwt_provider
         access, _ = jwt_provider.create_tokens(user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
         token_data = {'user_id': str(user.id), 'redirect_url': '/home'}
@@ -338,7 +338,7 @@ class MagicLinkRequestTests(APITestCase):
     def test_verify_different_user_logged_in_shows_conflict(self):
         user1 = _make_user()
         user2 = _make_user()
-        from stapel_core.django.jwt_provider import jwt_provider
+        from stapel_core.django.jwt.provider import jwt_provider
         access, _ = jwt_provider.create_tokens(user1)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
         token_data = {'user_id': str(user2.id), 'redirect_url': '/home'}
@@ -393,7 +393,7 @@ class RevokeSuspiciousTests(APITestCase):
 class PasskeyListTests(APITestCase):
     def setUp(self):
         self.user = _make_user()
-        from stapel_core.django.jwt_provider import jwt_provider
+        from stapel_core.django.jwt.provider import jwt_provider
         access, _ = jwt_provider.create_tokens(self.user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
 
@@ -490,7 +490,7 @@ class PasskeyAuthAnonTests(APITestCase):
         )
         with patch('stapel_auth.services.PasskeyService.authentication_complete', return_value=(user, pc)), \
              patch('stapel_auth.views._issue_session_tokens', return_value=('acc', 'ref')), \
-             patch('stapel_core.django.utils.set_jwt_cookies'):
+             patch('stapel_core.django.jwt.utils.set_jwt_cookies'):
             resp = self.client.post('/passkey/authenticate/complete/',
                                     {'session_key': 'k', 'credential': {}}, format='json')
         self.assertEqual(resp.status_code, 200)

@@ -1,78 +1,24 @@
-"""OAuth provider plugin registry.
+"""Built-in OAuth provider implementations for stapel-auth.
 
-Each provider implements OAuthProvider and registers itself in PROVIDER_REGISTRY.
-Enabled providers are those that have client_id + client_secret in auth_settings.OAUTH_PROVIDERS.
+Base classes and registry live in ``stapel_core.oauth``.
+Custom providers can be registered from any app without modifying this file:
+
+    from stapel_core.oauth import register_provider
+    from my_app.providers import MyProvider
+    register_provider(MyProvider())
 """
 import logging
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
 
 import requests
+
+from stapel_core.oauth import OAuthProvider, OAuthUserData
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class OAuthUserData:
-    """Normalized user profile from any OAuth provider.
+# Expose the global registry dict — tests can inspect/mutate it
+from stapel_core.oauth import _registry as PROVIDER_REGISTRY  # noqa: F401
 
-    Attributes:
-        id: Provider-specific user ID. Example: 12345
-        email: User email if available. Example: user@example.com
-        username: Suggested username. Example: johndoe
-        avatar: Avatar URL. Example: https://example.com/avatar.jpg
-    """
-    id: str
-    email: str | None
-    username: str | None
-    avatar: str | None
-
-
-class OAuthProvider(ABC):
-    """Abstract base for OAuth providers."""
-
-    id: str
-    display_name: str
-    auth_url: str
-    token_url: str
-    scope: str
-    extra_params: dict
-
-    @abstractmethod
-    def get_user_data(self, access_token: str) -> OAuthUserData | None:
-        """Fetch and normalize user profile using the given access token."""
-        ...
-
-    def get_authorization_url(self, client_id: str, redirect_uri: str, state: str) -> str:
-        """Build the provider authorization URL."""
-        from urllib.parse import urlencode
-        params = {
-            "client_id": client_id,
-            "redirect_uri": redirect_uri,
-            "scope": self.scope,
-            "state": state,
-            "response_type": "code",
-            **self.extra_params,
-        }
-        return self.auth_url + "?" + urlencode(params)
-
-    def exchange_code(self, client_id: str, client_secret: str, code: str, redirect_uri: str) -> str | None:
-        """Exchange authorization code for access token. Returns token string or None."""
-        response = requests.post(
-            self.token_url,
-            data={
-                "code": code,
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "redirect_uri": redirect_uri,
-                "grant_type": "authorization_code",
-            },
-            headers={"Accept": "application/json"},
-            timeout=10,
-        )
-        if response.status_code != 200:
-            return None
-        return response.json().get("access_token")
 
 
 class GoogleProvider(OAuthProvider):
@@ -116,7 +62,6 @@ class GitHubProvider(OAuthProvider):
             return None
         data = response.json()
         email = data.get("email")
-        # GitHub does not return private emails via /user — fetch from /user/emails
         if not email:
             emails_resp = requests.get("https://api.github.com/user/emails", headers=headers, timeout=10)
             if emails_resp.status_code == 200:
@@ -284,32 +229,12 @@ class TestProvider(OAuthProvider):
         return None
 
 
-PROVIDER_REGISTRY: dict[str, OAuthProvider] = {
-    "google": GoogleProvider(),
-    "github": GitHubProvider(),
-    "zoom": ZoomProvider(),
-    "facebook": FacebookProvider(),
-    "apple": AppleProvider(),
-    "twitter": TwitterProvider(),
-    "yandex": YandexProvider(),
-    "vk": VKProvider(),
-    "sber": SberProvider(),
-}
-
-# TestProvider is only available when DEBUG=True (dev/test environments only).
-try:
-    from django.conf import settings as _django_settings
-    if getattr(_django_settings, "DEBUG", False):
-        PROVIDER_REGISTRY["test"] = TestProvider()
-except Exception:
-    pass
-
-
 def get_enabled_providers() -> list[OAuthProvider]:
-    """Return providers that have client_id and client_secret configured."""
+    """Return registered providers that have credentials configured in auth_settings."""
+    from stapel_core.oauth import get_all_providers
     from .conf import auth_settings
     configs = auth_settings.OAUTH_PROVIDERS
     return [
-        p for pid, p in PROVIDER_REGISTRY.items()
-        if pid in configs and configs[pid].client_id and configs[pid].client_secret
+        p for p in get_all_providers()
+        if p.id in configs and configs[p.id].client_id and configs[p.id].client_secret
     ]

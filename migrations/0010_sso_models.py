@@ -28,7 +28,7 @@ class Migration(migrations.Migration):
             name='SSOConfig',
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('org', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='sso_config', to='stapel_auth.organization')),
+                ('org', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='sso_config', to='authentication.organization')),
                 ('protocol', models.CharField(choices=[('saml', 'SAML 2.0'), ('oidc', 'OIDC')], max_length=10)),
                 ('is_active', models.BooleanField(default=True)),
                 ('saml_entity_id', models.CharField(blank=True, help_text='IdP entity ID / issuer', max_length=500)),
@@ -52,7 +52,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='org_memberships', to=settings.AUTH_USER_MODEL)),
-                ('org', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='memberships', to='stapel_auth.organization')),
+                ('org', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='memberships', to='authentication.organization')),
                 ('role', models.CharField(choices=[('member', 'Member'), ('admin', 'Admin')], default='member', max_length=20)),
                 ('sso_subject_id', models.CharField(blank=True, help_text='NameID (SAML) or sub (OIDC) from IdP', max_length=500)),
                 ('joined_at', models.DateTimeField(auto_now_add=True)),

@@ -8,8 +8,11 @@ class StapelAuthConfig(AppConfig):
     verbose_name = 'Stapel Auth'
 
     def ready(self):
-        from .conf import auth_settings
         import warnings
+        from django.conf import settings
+        from django.utils.module_loading import import_string
+        from stapel_core.oauth import register_provider
+        from .conf import auth_settings
 
         if not auth_settings.FRONTEND_URL:
             warnings.warn(
@@ -18,6 +21,18 @@ class StapelAuthConfig(AppConfig):
                 "Redirects after SSO/magic link/QR login will not work correctly.",
                 stacklevel=2,
             )
-        from stapel_core.gdpr import gdpr_registry
-        from .gdpr import AuthGDPRProvider
-        gdpr_registry.register(AuthGDPRProvider())
+
+        classes = list(auth_settings.OAUTH_PROVIDER_CLASSES)
+        if getattr(settings, 'DEBUG', False):
+            classes.append('stapel_auth.oauth_providers.TestProvider')
+
+        for cls_path in classes:
+            register_provider(import_string(cls_path)())
+
+        # In monolith mode (no GDPR_COLLECTING_SERVICES), register the GDPR provider
+        # in-process so the orchestrator can call it directly.
+        # In microservices mode the bus consumer (management/commands/consume_gdpr.py) handles it.
+        if not getattr(settings, 'GDPR_COLLECTING_SERVICES', None):
+            from stapel_core.gdpr import gdpr_registry
+            from .gdpr import AuthGDPRProvider
+            gdpr_registry.register(AuthGDPRProvider())
