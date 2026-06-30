@@ -5,10 +5,10 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 from rest_framework import permissions
 from rest_framework.viewsets import ViewSet
 from stapel_core.django.errors import IronErrorResponse, IronResponse
-from stapel_auth.errors import ERR_429_MAGIC_LINK_RATE, ERR_400_MAGIC_LINK_INVALID
+from stapel_auth.errors import ERR_429_MAGIC_LINK_RATE
 from stapel_auth.magic_link.services import MagicLinkService
 from stapel_auth.magic_link.serializers import (
-    MagicLinkRequestBodySerializer, MagicLinkRequestResponseSerializer, MagicLinkVerifyQuerySerializer,
+    MagicLinkRequestBodySerializer, MagicLinkRequestResponseSerializer,
 )
 from stapel_auth.sessions.services import AuditService
 from stapel_auth.mfa.services import TOTPService

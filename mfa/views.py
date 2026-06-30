@@ -8,7 +8,6 @@ from rest_framework.decorators import action
 from rest_framework.viewsets import ViewSet
 
 from stapel_core.django.api.errors import (
-    ERR_400_BAD_REQUEST,
     IronErrorResponse,
     IronResponse,
 )

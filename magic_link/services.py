@@ -2,16 +2,8 @@
 """
 Service classes for authentication operations
 """
-from django.conf import settings
-from django.utils import timezone
-from datetime import timedelta
 import logging
 import secrets
-import uuid
-from stapel_auth.models import PhoneVerification
-from stapel_auth.password.dto import PasswordMethodType, PasswordMethod
-from stapel_auth.qr.dto import QRType, QRStatus
-from stapel_core.django.errors import IronServiceError, ERR_500_INTERNAL
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +26,6 @@ class MagicLinkService:
     @classmethod
     def create(cls, user, redirect_url: str = '/') -> str | None:
         """Create a magic link token. Returns None if rate-limited."""
-        import secrets
         from django.core.cache import cache
         rate_key = cls._rate_key(user.email)
         count = cache.get(rate_key) or 0

@@ -13,8 +13,6 @@ from django.core.management.base import BaseCommand
 from stapel_core.bus.event import Event
 from stapel_core.bus.router import get_bus
 from stapel_core.gdpr import (
-    GDPR_DELETE_REQUESTED,
-    GDPR_EXPORT_REQUESTED,
     GDPRServiceConsumerCommand,
 )
 

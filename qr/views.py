@@ -22,7 +22,7 @@ from stapel_auth.qr.serializers import (
 )
 from stapel_auth.qr.services import QRAuthService
 from stapel_auth.sessions.services import AuditService, LoginNotificationService, SessionService
-from stapel_auth.sessions.views import _add_login_hints, _issue_session_tokens
+from stapel_auth.sessions.views import _issue_session_tokens
 
 logger = logging.getLogger(__name__)
 

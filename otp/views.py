@@ -13,7 +13,7 @@ from stapel_core.django.openapi import (
     IronErrorSerializer,
 )
 from django.conf import settings
-from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth import get_user_model
 from drf_spectacular.utils import (
     OpenApiExample,
     extend_schema,
@@ -23,7 +23,6 @@ from drf_spectacular.utils import (
 from rest_framework import permissions, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from stapel_auth.sessions.dto import (
     AuthStatus,
@@ -41,17 +40,14 @@ from stapel_auth.otp.dto import (
     DelayedStatusResponse,
     DelayedCancelResponse,
 )
-from stapel_auth.password.dto import PasswordMethodsResponse
-from stapel_auth.qr.dto import QRGenerateResponse, QRStatus, QRStatusResponse, QRType
 from stapel_auth.mfa.dto import TOTPChallengeResponse, TOTPChallengeStatus
 from stapel_auth.errors import *
-from stapel_auth.models import LoginAttempt, ServiceAPIKey
+from stapel_auth.models import LoginAttempt
 from stapel_auth.sessions.serializers import (
     AuthResponseSerializer,
     LoginResponseSerializer,
     LogoutResponseSerializer,
     UserSerializer,
-    TokenPairSerializer,
     TokenVerifySerializer,
     TokenVerifyResponseSerializer,
 )
@@ -78,23 +74,13 @@ from stapel_auth.otp.serializers import (
 from stapel_auth.oauth.serializers import OAuthSerializer
 from stapel_auth.mfa.serializers import (
     TOTPChallengeResponseSerializer,
-    TOTPChallengeVerifySerializer,
-    TOTPSetupResponseSerializer,
-    TOTPSetupConfirmSerializer,
-    TOTPSetupConfirmResponseSerializer,
-    TOTPStepUpSerializer,
-    TOTPStepUpResponseSerializer,
-    TOTPDisableSerializer,
 )
-from stapel_auth.qr.serializers import QRGenerateSerializer, QRGenerateResponseSerializer, QRStatusResponseSerializer
 from stapel_auth.otp.services import (
     EmailVerificationService,
     PhoneVerificationService,
     AuthenticatorChangeService,
 )
 from stapel_auth.oauth.services import OAuthService
-from stapel_auth.sessions.services import SessionService, AuditService, LoginNotificationService
-from stapel_auth.qr.services import QRAuthService
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -102,16 +88,7 @@ User = get_user_model()
 
 
 # ── Sub-package cross-imports ─────────────────────────────────────────────────
-from stapel_auth.otp.services import PhoneVerificationService, EmailVerificationService, AuthenticatorChangeService
-from stapel_auth.oauth.services import OAuthService
-from stapel_auth.sessions.services import SessionService, AuditService, LoginNotificationService
 from stapel_auth.sessions.views import _issue_session_tokens, _add_login_hints, _CH_HINTS
-from stapel_auth.otp.dto import OtpSentResponse
-from stapel_auth.otp.serializers import (
-    EmailAuthRequestSerializer, EmailAuthVerifySerializer,
-    PhoneAuthRequestSerializer, PhoneAuthVerifySerializer,
-    AnonymousAuthSerializer, OtpSentResponseSerializer,
-)
 
 
 class AuthViewSet(viewsets.GenericViewSet):
