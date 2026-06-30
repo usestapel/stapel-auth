@@ -33,6 +33,7 @@ phone = [
 # OAuth (Google, GitHub, Facebook, etc.)
 oauth = [
     "social-auth-app-django>=5.4",
+    "python3-openid>=3.2",
 ]
 # SAML 2.0 SP
 saml = [
