@@ -1,7 +1,8 @@
 """Serializers for the admin sub-package."""
 from rest_framework import serializers
 from stapel_core.django.api.serializers import IronDataclassSerializer
-from stapel_core.django.api.errors import IronValidationError
+from stapel_core.django.api.errors import StapelValidationError
+
 
 from stapel_auth.models import ServiceAPIKey
 from stapel_auth.errors import ERR_400_EMAIL_OR_PHONE_REQUIRED
@@ -19,12 +20,12 @@ def _normalize_phone(value):
     try:
         phone_number = phonenumbers.parse(value, None)
     except phonenumbers.NumberParseException:
-        raise IronValidationError(ERR_400_INVALID_PHONE_FORMAT)
+        raise StapelValidationError(ERR_400_INVALID_PHONE_FORMAT)
     if not phonenumbers.is_valid_number(phone_number):
-        raise IronValidationError(ERR_400_INVALID_PHONE)
+        raise StapelValidationError(ERR_400_INVALID_PHONE)
     e164 = phonenumbers.format_number(phone_number, phonenumbers.PhoneNumberFormat.E164)
     if len(e164) > 16:  # E.164: '+' + up to 15 digits
-        raise IronValidationError(ERR_400_PHONE_TOO_LONG)
+        raise StapelValidationError(ERR_400_PHONE_TOO_LONG)
     return e164
 
 
@@ -48,7 +49,7 @@ class AdminUserCreateRequestSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         if not any([attrs.get("email"), attrs.get("phone"), attrs.get("username")]):
-            raise IronValidationError(ERR_400_EMAIL_OR_PHONE_REQUIRED)
+            raise StapelValidationError(ERR_400_EMAIL_OR_PHONE_REQUIRED)
         if attrs.get("phone"):
             attrs["phone"] = _normalize_phone(attrs["phone"])
         return attrs

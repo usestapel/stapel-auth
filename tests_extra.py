@@ -977,7 +977,7 @@ class AdminUserBrokerTests(APITestCase):
 
     def test_create_user_with_staff_user(self):
         admin = User.objects.create_user(username='admin', password='pw', is_staff=True)
-        from stapel_auth.tests import create_token_for_user
+        from stapel_auth.tests.test_auth import create_token_for_user
         access, _ = create_token_for_user(admin)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
         response = self.client.post(reverse('admin-users'), {'email': 'staffcreated@example.com'})
