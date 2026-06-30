@@ -2,20 +2,14 @@
 import logging
 
 from stapel_core.django.errors import (
-    ERR_400_BAD_REQUEST,
-    ERR_401_UNAUTHORIZED,
     IronErrorResponse,
     IronResponse,
-    error_429_rate_limit,
-    error_500_internal,
 )
 from stapel_core.django.openapi import (
     IronErrorSerializer,
 )
-from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from drf_spectacular.utils import (
-    OpenApiExample,
     extend_schema,
     extend_schema_view,
     inline_serializer,
@@ -26,44 +20,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from stapel_auth.sessions.dto import (
-    AuthStatus,
-    AuthResponse,
     TokenPairResponse,
-    TokenVerifyResponse,
-    LogoutResponse,
-    SessionResponse,
 )
-from stapel_auth.admin.dto import AdminUserCreateResponse
-from stapel_auth.otp.dto import (
-    OtpSentResponse,
-    InstantRequestOldResponse,
-    InstantVerifyOldResponse,
-    InstantRequestNewResponse,
-    DelayedInitiateResponse,
-    DelayedStatusResponse,
-    DelayedCancelResponse,
-)
-from stapel_auth.password.dto import PasswordMethodsResponse
-from stapel_auth.qr.dto import QRGenerateResponse, QRStatus, QRStatusResponse, QRType
-from stapel_auth.mfa.dto import TOTPChallengeResponse, TOTPChallengeStatus
 from stapel_auth.errors import *
-from stapel_auth.models import LoginAttempt, ServiceAPIKey
 from stapel_auth.sessions.serializers import (
     TokenPairSerializer,
-    AuthResponseSerializer,
-    TokenVerifySerializer,
-    TokenVerifyResponseSerializer,
-    LogoutResponseSerializer,
-    LoginResponseSerializer,
     SessionResponseSerializer,
-    UserSerializer,
     SimpleStatusSerializer,
-)
-from stapel_auth.sessions.services import (
-    TokenService,
-    SessionService,
-    AuditService,
-    LoginNotificationService,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,12 +35,6 @@ User = get_user_model()
 
 
 # ── Sub-package cross-imports ─────────────────────────────────────────────────
-from stapel_auth.sessions.services import TokenService, SessionService, LoginNotificationService, AuditService
-from stapel_auth.sessions.serializers import (
-    TokenPairSerializer, AuthResponseSerializer, TokenVerifySerializer,
-    TokenVerifyResponseSerializer, LogoutResponseSerializer,
-    LoginResponseSerializer, SessionResponseSerializer,
-)
 from stapel_auth.models import UserSession
 
 @extend_schema(
@@ -394,7 +351,6 @@ class SessionViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["delete"], url_path=r"(?P<session_id>[^/.]+)")
     def revoke_one(self, request, session_id=None):
-        from stapel_auth.models import UserSession
 
         try:
             session = UserSession.objects.get(id=session_id, user=request.user)
@@ -414,7 +370,6 @@ class SessionViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"], url_path=r"(?P<session_id>[^/.]+)/confirm")
     def confirm_session(self, request, session_id=None):
-        from stapel_auth.models import UserSession
         try:
             session = UserSession.objects.get(id=session_id, user=request.user, is_revoked=False)
         except UserSession.DoesNotExist:

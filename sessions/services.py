@@ -2,16 +2,9 @@
 """
 Service classes for authentication operations
 """
-from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 import logging
-import secrets
-import uuid
-from stapel_auth.models import PhoneVerification
-from stapel_auth.password.dto import PasswordMethodType, PasswordMethod
-from stapel_auth.qr.dto import QRType, QRStatus
-from stapel_core.django.errors import IronServiceError, ERR_500_INTERNAL
 
 logger = logging.getLogger(__name__)
 
@@ -266,7 +259,6 @@ class SessionService:
         (legacy token pre-dating session tracking — caller should allow).
         """
         from stapel_auth.models import UserSession
-        from django.utils import timezone
         try:
             session = UserSession.objects.get(jti=old_jti)
         except UserSession.DoesNotExist:
@@ -307,7 +299,6 @@ class SessionService:
     @staticmethod
     def get_active(user):
         from stapel_auth.models import UserSession
-        from django.utils import timezone
         return UserSession.objects.filter(
             user=user,
             is_revoked=False,
@@ -319,8 +310,6 @@ class SessionService:
 # TOTP Service
 # =============================================================================
 
-import hashlib as _hashlib
-import secrets as _secrets
 
 
 
@@ -363,8 +352,6 @@ class LoginNotificationService:
     def is_new_device(user, session) -> bool:
         """True if no prior session with same device_name exists (last 90 days)."""
         from stapel_auth.models import UserSession
-        from django.utils import timezone
-        from datetime import timedelta
         cutoff = timezone.now() - timedelta(days=90)
         return not UserSession.objects.filter(
             user=user,

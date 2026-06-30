@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from django.core.cache import cache
 from django.http import HttpResponse, HttpResponseRedirect
 from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import permissions, serializers, status
+from rest_framework import permissions, serializers
 from rest_framework.request import Request
 from rest_framework.views import APIView
 from rest_framework.viewsets import ViewSet

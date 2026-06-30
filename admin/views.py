@@ -2,7 +2,6 @@
 import logging
 
 from stapel_core.django.api.errors import (
-    IronErrorResponse,
     IronResponse,
 )
 from drf_spectacular.utils import extend_schema
