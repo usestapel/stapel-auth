@@ -78,6 +78,21 @@ DEFAULTS = {
     # OAuth provider credentials (parsed into dict[str, OAuthProviderConfig])
     'OAUTH_PROVIDERS': {},
 
+    # Dotted-path list of OAuthProvider subclasses to register on startup.
+    # Extend in settings to add providers without modifying stapel-auth:
+    #   STAPEL_AUTH = {'OAUTH_PROVIDER_CLASSES': [..., 'myapp.providers.YandexProvider']}
+    'OAUTH_PROVIDER_CLASSES': [
+        'stapel_auth.oauth_providers.GoogleProvider',
+        'stapel_auth.oauth_providers.GitHubProvider',
+        'stapel_auth.oauth_providers.ZoomProvider',
+        'stapel_auth.oauth_providers.FacebookProvider',
+        'stapel_auth.oauth_providers.AppleProvider',
+        'stapel_auth.oauth_providers.TwitterProvider',
+        'stapel_auth.oauth_providers.YandexProvider',
+        'stapel_auth.oauth_providers.VKProvider',
+        'stapel_auth.oauth_providers.SberProvider',
+    ],
+
     # Registration method gates
     'AUTH_PHONE_REGISTRATION':    True,
     'AUTH_EMAIL_REGISTRATION':    True,

@@ -320,6 +320,10 @@ class AuthEventType(models.TextChoices):
     PASSKEY_LOGIN       = 'passkey_login'
     PASSKEY_REMOVED     = 'passkey_removed'
     OAUTH_LOGIN         = 'oauth_login'
+    QR_LOGIN            = 'qr_login'
+    SSO_LOGIN           = 'sso_login'
+    TOTP_FAILED         = 'totp_failed'
+    CAPTCHA_FAILED      = 'captcha_failed'
 
 
 class AuthAuditLog(models.Model):
