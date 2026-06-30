@@ -1,13 +1,7 @@
 """Session views: JWT token issuance and session management."""
+
 import logging
 
-from stapel_core.django.errors import (
-    IronErrorResponse,
-    IronResponse,
-)
-from stapel_core.django.openapi import (
-    IronErrorSerializer,
-)
 from django.contrib.auth import authenticate, get_user_model
 from drf_spectacular.utils import (
     extend_schema,
@@ -18,24 +12,31 @@ from rest_framework import permissions, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from stapel_core.django.errors import (
+    StapelErrorResponse,
+    StapelResponse,
+)
+from stapel_core.django.openapi import (
+    StapelErrorSerializer,
+)
 
+from stapel_auth.errors import *
 from stapel_auth.sessions.dto import (
     TokenPairResponse,
 )
-from stapel_auth.errors import *
 from stapel_auth.sessions.serializers import (
-    TokenPairSerializer,
     SessionResponseSerializer,
     SimpleStatusSerializer,
+    TokenPairSerializer,
 )
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-
 # ── Sub-package cross-imports ─────────────────────────────────────────────────
 from stapel_auth.models import UserSession
+
 
 @extend_schema(
     tags=["Token"],
@@ -46,7 +47,7 @@ from stapel_auth.models import UserSession
             "password": serializers.CharField(help_text="Password"),
         },
     ),
-    responses={200: TokenPairSerializer, 401: IronErrorSerializer},
+    responses={200: TokenPairSerializer, 401: StapelErrorSerializer},
 )
 class CustomTokenObtainPairView(APIView):
     """
@@ -66,7 +67,7 @@ class CustomTokenObtainPairView(APIView):
         password = request.data.get("password")
 
         if not username or not password:
-            return IronErrorResponse(400, ERR_400_CREDENTIALS_REQUIRED)
+            return StapelErrorResponse(400, ERR_400_CREDENTIALS_REQUIRED)
 
         # Authenticate user
         user = authenticate(request, username=username, password=password)
@@ -82,10 +83,10 @@ class CustomTokenObtainPairView(APIView):
                 pass
 
         if user is None:
-            return IronErrorResponse(401, ERR_401_INVALID_CREDENTIALS)
+            return StapelErrorResponse(401, ERR_401_INVALID_CREDENTIALS)
 
         if not user.is_active:
-            return IronErrorResponse(401, ERR_401_ACCOUNT_DISABLED)
+            return StapelErrorResponse(401, ERR_401_ACCOUNT_DISABLED)
 
         # Create tokens using jwt_provider
         access_token, refresh_token = jwt_provider.create_tokens(user)
@@ -129,7 +130,7 @@ class CustomTokenRefreshView(viewsets.GenericViewSet):
                 )
             },
         ),
-        responses={200: TokenPairSerializer, 401: IronErrorSerializer},
+        responses={200: TokenPairSerializer, 401: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="")
     def refresh_post(self, request):
@@ -138,7 +139,7 @@ class CustomTokenRefreshView(viewsets.GenericViewSet):
 
     @extend_schema(
         description="Refresh access token using refresh token from cookies",
-        responses={200: TokenPairSerializer, 401: IronErrorSerializer},
+        responses={200: TokenPairSerializer, 401: StapelErrorSerializer},
     )
     @action(detail=False, methods=["get"], url_path="")
     def refresh_get(self, request):
@@ -159,14 +160,14 @@ class CustomTokenRefreshView(viewsets.GenericViewSet):
         refresh_token = refresh_token_from_body or refresh_token_from_cookie
 
         if not refresh_token:
-            return IronErrorResponse(401, ERR_401_REFRESH_NOT_PROVIDED)
+            return StapelErrorResponse(401, ERR_401_REFRESH_NOT_PROVIDED)
 
         if jwt_provider.is_blacklisted(refresh_token):
-            return IronErrorResponse(401, ERR_401_REFRESH_REVOKED)
+            return StapelErrorResponse(401, ERR_401_REFRESH_REVOKED)
 
         _payload = jwt_provider.handler.decode_token(refresh_token, verify=False)
         if not _payload:
-            return IronErrorResponse(401, ERR_401_REFRESH_INVALID)
+            return StapelErrorResponse(401, ERR_401_REFRESH_INVALID)
 
         old_jti = _payload.get("jti")
         _uid = _payload.get("user_id")
@@ -175,7 +176,7 @@ class CustomTokenRefreshView(viewsets.GenericViewSet):
 
         if _uid and is_user_blacklisted(_uid):
             logger.warning(f"Token refresh blocked: user {_uid} is blacklisted")
-            return IronErrorResponse(401, ERR_401_REFRESH_REVOKED)
+            return StapelErrorResponse(401, ERR_401_REFRESH_REVOKED)
 
         # Session-level check: reject revoked sessions
         if old_jti:
@@ -183,7 +184,7 @@ class CustomTokenRefreshView(viewsets.GenericViewSet):
 
             session = UserSession.objects.filter(jti=old_jti).first()
             if session and session.is_revoked:
-                return IronErrorResponse(401, ERR_401_REFRESH_REVOKED)
+                return StapelErrorResponse(401, ERR_401_REFRESH_REVOKED)
 
         def load_user_data(user_id: str):
             try:
@@ -198,7 +199,7 @@ class CustomTokenRefreshView(viewsets.GenericViewSet):
         if old_jti:
             user_data = load_user_data(_uid)
             if not user_data:
-                return IronErrorResponse(401, ERR_401_REFRESH_INVALID)
+                return StapelErrorResponse(401, ERR_401_REFRESH_INVALID)
             new_access_token, new_refresh_token = jwt_provider.create_tokens_from_data(
                 user_data
             )
@@ -209,7 +210,7 @@ class CustomTokenRefreshView(viewsets.GenericViewSet):
             new_refresh_token = refresh_token
 
         if not new_access_token:
-            return IronErrorResponse(401, ERR_401_REFRESH_INVALID)
+            return StapelErrorResponse(401, ERR_401_REFRESH_INVALID)
 
         # Rotate session: update jti to point at the new refresh token.
         # If no session record exists (legacy token pre-dating session tracking),
@@ -229,14 +230,18 @@ class CustomTokenRefreshView(viewsets.GenericViewSet):
                 if exp
                 else timezone.now() + datetime.timedelta(days=7)
             )
-            at_payload = jwt_provider.handler.decode_token(new_access_token, verify=False) or {}
+            at_payload = (
+                jwt_provider.handler.decode_token(new_access_token, verify=False) or {}
+            )
             rotated = SessionService.rotate(
-                old_jti, new_jti, expires_at,
+                old_jti,
+                new_jti,
+                expires_at,
                 user_id=_uid,
                 new_access_jti=at_payload.get("jti", ""),
             )
             if rotated is None:
-                return IronErrorResponse(401, ERR_401_REFRESH_REVOKED)
+                return StapelErrorResponse(401, ERR_401_REFRESH_REVOKED)
         else:
             new_refresh_token = refresh_token
 
@@ -250,14 +255,14 @@ class CustomTokenRefreshView(viewsets.GenericViewSet):
         return response
 
 
-_CH_HINTS = 'Sec-CH-UA-Platform-Version, Sec-CH-UA-Model'
+_CH_HINTS = "Sec-CH-UA-Platform-Version, Sec-CH-UA-Model"
 
 
 def _add_login_hints(response, *, critical: bool = False):
     """Append UA Client Hints headers so Chromium sends real OS/model on login."""
-    response['Accept-CH'] = _CH_HINTS
+    response["Accept-CH"] = _CH_HINTS
     if critical:
-        response['Critical-CH'] = _CH_HINTS
+        response["Critical-CH"] = _CH_HINTS
     return response
 
 
@@ -281,8 +286,9 @@ def _issue_session_tokens(user, request):
     )
     session = None
     if jti:
-        session = SessionService.create(user, jti, expires_at, request=request,
-                                        access_jti=at_payload.get("jti", ""))
+        session = SessionService.create(
+            user, jti, expires_at, request=request, access_jti=at_payload.get("jti", "")
+        )
     AuditService.log("login_success", user=user, request=request, session=session)
     if session:
         LoginNotificationService.check_and_notify(user, session)
@@ -303,8 +309,6 @@ def _issue_session_tokens(user, request):
     me=extend_schema(tags=["User"]),
     verify_token=extend_schema(tags=["Token"]),
 )
-
-
 class SessionViewSet(viewsets.GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -328,13 +332,14 @@ class SessionViewSet(viewsets.GenericViewSet):
             current_jti = payload.get("refresh_jti") or payload.get("jti")
 
         from .dto import SessionResponse
+
         sessions = SessionService.get_active(request.user)
         dtos = [
             SessionResponse(
                 id=str(s.id),
-                device_type=s.device_type or 'unknown',
-                device_name=s.device_name or 'Unknown device',
-                device_details=s.device_details or '',
+                device_type=s.device_type or "unknown",
+                device_name=s.device_name or "Unknown device",
+                device_details=s.device_details or "",
                 ip_address=s.ip_address,
                 created_at=s.created_at.isoformat(),
                 last_used_at=s.last_used_at.isoformat(),
@@ -343,11 +348,11 @@ class SessionViewSet(viewsets.GenericViewSet):
             )
             for s in sessions
         ]
-        return IronResponse(SessionResponseSerializer(dtos, many=True))
+        return StapelResponse(SessionResponseSerializer(dtos, many=True))
 
     @extend_schema(
         description="Revoke a specific session by ID.",
-        responses={200: None, 404: IronErrorSerializer},
+        responses={200: None, 404: StapelErrorSerializer},
     )
     @action(detail=False, methods=["delete"], url_path=r"(?P<session_id>[^/.]+)")
     def revoke_one(self, request, session_id=None):
@@ -355,30 +360,37 @@ class SessionViewSet(viewsets.GenericViewSet):
         try:
             session = UserSession.objects.get(id=session_id, user=request.user)
         except UserSession.DoesNotExist:
-            return IronErrorResponse(404, ERR_404_NOT_FOUND)
+            return StapelErrorResponse(404, ERR_404_NOT_FOUND)
         session.is_revoked = True
         session.save(update_fields=["is_revoked"])
         from .services import _blacklist_jti
+
         _blacklist_jti(session.jti, session.expires_at)
         _blacklist_jti(session.access_jti, session.expires_at)
         from .dto import SimpleStatusResponse
-        return IronResponse(SimpleStatusSerializer(SimpleStatusResponse(status='revoked')))
+
+        return StapelResponse(
+            SimpleStatusSerializer(SimpleStatusResponse(status="revoked"))
+        )
 
     @extend_schema(
         description='Mark a suspicious session as confirmed ("this was me"). Clears the suspicious flag.',
-        responses={200: SimpleStatusSerializer, 404: IronErrorSerializer},
+        responses={200: SimpleStatusSerializer, 404: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path=r"(?P<session_id>[^/.]+)/confirm")
     def confirm_session(self, request, session_id=None):
         try:
-            session = UserSession.objects.get(id=session_id, user=request.user, is_revoked=False)
+            session = UserSession.objects.get(
+                id=session_id, user=request.user, is_revoked=False
+            )
         except UserSession.DoesNotExist:
-            return IronErrorResponse(404, ERR_404_NOT_FOUND)
+            return StapelErrorResponse(404, ERR_404_NOT_FOUND)
         if session.is_suspicious:
             session.is_suspicious = False
             session.save(update_fields=["is_suspicious"])
         from .dto import SimpleStatusResponse
-        return IronResponse(SimpleStatusSerializer(SimpleStatusResponse(status='ok')))
+
+        return StapelResponse(SimpleStatusSerializer(SimpleStatusResponse(status="ok")))
 
     @extend_schema(
         description="Revoke all sessions except the current one.",
@@ -400,11 +412,12 @@ class SessionViewSet(viewsets.GenericViewSet):
 
         SessionService.revoke_all(request.user, except_jti=current_jti)
         from .dto import SimpleStatusResponse
-        return IronResponse(SimpleStatusSerializer(SimpleStatusResponse(status='revoked')))
+
+        return StapelResponse(
+            SimpleStatusSerializer(SimpleStatusResponse(status="revoked"))
+        )
 
 
 # =============================================================================
 # Security Status ViewSet
 # =============================================================================
-
-

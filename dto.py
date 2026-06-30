@@ -1,24 +1,9 @@
 """Backward-compatibility shim — imports from sub-packages."""
 from dataclasses import dataclass
 
-# ── Sessions DTOs ─────────────────────────────────────────────────────────────
-
-# ── OTP DTOs ──────────────────────────────────────────────────────────────────
-
-# ── OAuth DTOs ────────────────────────────────────────────────────────────────
-
-# ── Password DTOs ─────────────────────────────────────────────────────────────
-
-# ── MFA (TOTP + Passkey) DTOs ─────────────────────────────────────────────────
-
-# ── QR DTOs ───────────────────────────────────────────────────────────────────
-
-# ── Security DTOs ─────────────────────────────────────────────────────────────
-
-# ── Admin DTOs ────────────────────────────────────────────────────────────────
-
-
-# ── DTOs not yet split into sub-packages ─────────────────────────────────────
+from stapel_auth.sessions.dto import AuthResponse, AuthStatus, TokenPairResponse  # noqa: F401
+from stapel_auth.otp.dto import OtpSentResponse  # noqa: F401
+from stapel_auth.mfa.dto import TOTPChallengeResponse, TOTPChallengeStatus  # noqa: F401
 
 
 @dataclass

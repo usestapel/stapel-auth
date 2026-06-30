@@ -1,17 +1,17 @@
 """Views for the password authentication domain."""
+
 import logging
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-
 from stapel_core.django.api.errors import (
     ERR_400_BAD_REQUEST,
-    IronErrorResponse,
-    IronResponse,
+    StapelErrorResponse,
+    StapelResponse,
 )
-from stapel_core.django.openapi.schemas import IronErrorSerializer
+from stapel_core.django.openapi.schemas import StapelErrorSerializer
 
 from stapel_auth.dto import (
     AuthResponse,
@@ -46,12 +46,12 @@ from stapel_auth.password.serializers import (
 from stapel_auth.password.services import PasswordService
 from stapel_auth.serializers import (
     AuthResponseSerializer,
+    LoginResponseSerializer,
     OtpSentResponseSerializer,
     SimpleStatusSerializer,
     TOTPChallengeResponseSerializer,
 )
-from stapel_auth.serializers import LoginResponseSerializer
-from stapel_auth.sessions.views import _issue_session_tokens, _add_login_hints
+from stapel_auth.sessions.views import _add_login_hints, _issue_session_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
     @extend_schema(
         description="Login with email/username and password. Returns `LoginResponse` — either `AuthResponse` (status=LOGGED_IN) or `TOTPChallengeResponse` (status=TOTP_REQUIRED). When TOTP is required, pass `challenge_token` to `POST /totp/challenge/verify/`.",
         request=PasswordLoginSerializer,
-        responses={200: LoginResponseSerializer, 401: IronErrorSerializer},
+        responses={200: LoginResponseSerializer, 401: StapelErrorSerializer},
     )
     @action(
         detail=False,
@@ -99,17 +99,18 @@ class PasswordViewSet(viewsets.GenericViewSet):
         permission_classes=[permissions.AllowAny],
     )
     def login(self, request):
-        from stapel_auth.conf import auth_settings
         from stapel_core.django.api.errors import error_403_forbidden
+
+        from stapel_auth.conf import auth_settings
+
         if not auth_settings.AUTH_PASSWORD_LOGIN:
             return error_403_forbidden()
 
-        from stapel_core.django.jwt.utils import set_jwt_cookies
         from django.utils import timezone
+        from stapel_core.django.jwt.utils import set_jwt_cookies
 
         from stapel_auth.errors import ERR_423_ACCOUNT_LOCKED, retry_params
-        from stapel_auth.services import AuditService, LockoutService
-        from stapel_auth.services import TOTPService
+        from stapel_auth.services import AuditService, LockoutService, TOTPService
 
         serializer = PasswordLoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -117,7 +118,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
 
         is_locked, retry_after = LockoutService.check(identifier)
         if is_locked:
-            return IronErrorResponse(
+            return StapelErrorResponse(
                 423, ERR_423_ACCOUNT_LOCKED, params=retry_params(retry_after)
             )
 
@@ -126,16 +127,16 @@ class PasswordViewSet(viewsets.GenericViewSet):
             count = LockoutService.record_failure(identifier)
             duration = LockoutService.apply_lockout(identifier, count, request=request)
             if duration:
-                return IronErrorResponse(
+                return StapelErrorResponse(
                     423, ERR_423_ACCOUNT_LOCKED, params=retry_params(duration)
                 )
             AuditService.log("login_failed", request=request, identifier=identifier)
-            return IronErrorResponse(401, ERR_401_INVALID_CREDENTIALS)
+            return StapelErrorResponse(401, ERR_401_INVALID_CREDENTIALS)
         if not user.is_active:
             AuditService.log(
                 "login_failed", user=user, request=request, reason="account_disabled"
             )
-            return IronErrorResponse(401, ERR_401_ACCOUNT_DISABLED)
+            return StapelErrorResponse(401, ERR_401_ACCOUNT_DISABLED)
 
         LockoutService.clear(identifier)
 
@@ -149,7 +150,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
                 challenge_token=challenge_token,
                 expires_in=TOTPService.CHALLENGE_TTL,
             )
-            return IronResponse(TOTPChallengeResponseSerializer(dto))
+            return StapelResponse(TOTPChallengeResponseSerializer(dto))
 
         access_token, refresh_token = _issue_session_tokens(user, request)
         dto = AuthResponse(
@@ -176,12 +177,12 @@ class PasswordViewSet(viewsets.GenericViewSet):
             has_password=request.user.has_usable_password(),
             methods=PasswordService.get_available_methods(request.user),
         )
-        return IronResponse(PasswordMethodsResponseSerializer(dto))
+        return StapelResponse(PasswordMethodsResponseSerializer(dto))
 
     @extend_schema(
         description="Change password by providing the current password.",
         request=PasswordChangeDirectSerializer,
-        responses={200: None, 400: IronErrorSerializer},
+        responses={200: None, 400: StapelErrorSerializer},
     )
     @action(
         detail=False,
@@ -191,7 +192,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
     )
     def change_direct(self, request):
         if not request.user.has_usable_password():
-            return IronErrorResponse(400, ERR_400_NO_PASSWORD)
+            return StapelErrorResponse(400, ERR_400_NO_PASSWORD)
         serializer = PasswordChangeDirectSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         ok = PasswordService.change_via_old(
@@ -200,18 +201,21 @@ class PasswordViewSet(viewsets.GenericViewSet):
             serializer.validated_data["new_password"],
         )
         if not ok:
-            return IronErrorResponse(400, ERR_400_WRONG_PASSWORD)
+            return StapelErrorResponse(400, ERR_400_WRONG_PASSWORD)
         from stapel_auth.dto import SimpleStatusResponse
-        return IronResponse(SimpleStatusSerializer(SimpleStatusResponse(status='password_changed')))
+
+        return StapelResponse(
+            SimpleStatusSerializer(SimpleStatusResponse(status="password_changed"))
+        )
 
     @extend_schema(
         description="Request OTP to own verified email or phone in order to change password.",
         request=PasswordOtpRequestSerializer,
         responses={
             200: OtpSentResponseSerializer,
-            400: IronErrorSerializer,
-            422: IronErrorSerializer,
-            429: IronErrorSerializer,
+            400: StapelErrorSerializer,
+            422: StapelErrorSerializer,
+            429: StapelErrorSerializer,
         },
     )
     @action(
@@ -227,12 +231,12 @@ class PasswordViewSet(viewsets.GenericViewSet):
             request.user, serializer.validated_data["method"]
         )
         dto = OtpSentResponse(message="Verification code sent", target=masked)
-        return IronResponse(OtpSentResponseSerializer(dto))
+        return StapelResponse(OtpSentResponseSerializer(dto))
 
     @extend_schema(
         description="Verify OTP and set new password (for authenticated users).",
         request=PasswordOtpVerifySerializer,
-        responses={200: None, 400: IronErrorSerializer},
+        responses={200: None, 400: StapelErrorSerializer},
     )
     @action(
         detail=False,
@@ -250,16 +254,19 @@ class PasswordViewSet(viewsets.GenericViewSet):
             new_password=serializer.validated_data["new_password"],
         )
         from stapel_auth.dto import SimpleStatusResponse
-        return IronResponse(SimpleStatusSerializer(SimpleStatusResponse(status='password_changed')))
+
+        return StapelResponse(
+            SimpleStatusSerializer(SimpleStatusResponse(status="password_changed"))
+        )
 
     @extend_schema(
         description="Request OTP to verified email to reset a forgotten password (unauthenticated).",
         request=PasswordResetEmailRequestSerializer,
         responses={
             200: OtpSentResponseSerializer,
-            403: IronErrorSerializer,
-            404: IronErrorSerializer,
-            429: IronErrorSerializer,
+            403: StapelErrorSerializer,
+            404: StapelErrorSerializer,
+            429: StapelErrorSerializer,
         },
     )
     @action(
@@ -272,7 +279,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
         serializer = PasswordResetEmailRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         masked = PasswordService.reset_request(email=serializer.validated_data["email"])
-        return IronResponse(
+        return StapelResponse(
             OtpSentResponseSerializer(
                 OtpSentResponse(message="Verification code sent", target=masked)
             )
@@ -283,8 +290,8 @@ class PasswordViewSet(viewsets.GenericViewSet):
         request=PasswordResetEmailVerifySerializer,
         responses={
             200: AuthResponseSerializer,
-            400: IronErrorSerializer,
-            404: IronErrorSerializer,
+            400: StapelErrorSerializer,
+            404: StapelErrorSerializer,
         },
     )
     @action(
@@ -319,9 +326,9 @@ class PasswordViewSet(viewsets.GenericViewSet):
         request=PasswordResetPhoneRequestSerializer,
         responses={
             200: OtpSentResponseSerializer,
-            403: IronErrorSerializer,
-            404: IronErrorSerializer,
-            429: IronErrorSerializer,
+            403: StapelErrorSerializer,
+            404: StapelErrorSerializer,
+            429: StapelErrorSerializer,
         },
     )
     @action(
@@ -334,7 +341,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
         serializer = PasswordResetPhoneRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         masked = PasswordService.reset_request(phone=serializer.validated_data["phone"])
-        return IronResponse(
+        return StapelResponse(
             OtpSentResponseSerializer(
                 OtpSentResponse(message="Verification code sent", target=masked)
             )
@@ -345,8 +352,8 @@ class PasswordViewSet(viewsets.GenericViewSet):
         request=PasswordResetPhoneVerifySerializer,
         responses={
             200: AuthResponseSerializer,
-            400: IronErrorSerializer,
-            404: IronErrorSerializer,
+            400: StapelErrorSerializer,
+            404: StapelErrorSerializer,
         },
     )
     @action(
@@ -379,7 +386,11 @@ class PasswordViewSet(viewsets.GenericViewSet):
     @extend_schema(
         description="Register a new account with email/phone/username and password. Disabled by default — enable via AUTH_PASSWORD_REGISTRATION setting.",
         request=PasswordRegisterSerializer,
-        responses={200: AuthResponseSerializer, 400: IronErrorSerializer, 403: IronErrorSerializer},
+        responses={
+            200: AuthResponseSerializer,
+            400: StapelErrorSerializer,
+            403: StapelErrorSerializer,
+        },
     )
     @action(
         detail=False,
@@ -391,9 +402,9 @@ class PasswordViewSet(viewsets.GenericViewSet):
         from django.contrib.auth import get_user_model
         from django.contrib.auth.password_validation import validate_password
         from django.core.exceptions import ValidationError
+        from stapel_core.django.api.errors import error_403_forbidden
 
         from stapel_auth.conf import auth_settings
-        from stapel_core.django.api.errors import error_403_forbidden
 
         if not auth_settings.AUTH_PASSWORD_REGISTRATION:
             return error_403_forbidden()
@@ -406,7 +417,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
         try:
             validate_password(data["password"])
         except ValidationError:
-            return IronErrorResponse(400, ERR_400_BAD_REQUEST)
+            return StapelErrorResponse(400, ERR_400_BAD_REQUEST)
 
         User = get_user_model()
 
@@ -416,11 +427,11 @@ class PasswordViewSet(viewsets.GenericViewSet):
         username = data.get("username")
 
         if email and User.objects.filter(email=email).exists():
-            return IronErrorResponse(409, ERR_409_EMAIL_TAKEN)
+            return StapelErrorResponse(409, ERR_409_EMAIL_TAKEN)
         if phone and User.objects.filter(phone=phone).exists():
-            return IronErrorResponse(409, ERR_409_PHONE_TAKEN)
+            return StapelErrorResponse(409, ERR_409_PHONE_TAKEN)
         if username and User.objects.filter(username=username).exists():
-            return IronErrorResponse(409, ERR_409_USERNAME_TAKEN)
+            return StapelErrorResponse(409, ERR_409_USERNAME_TAKEN)
 
         user = User.objects.create(
             email=email,
@@ -441,22 +452,28 @@ class PasswordViewSet(viewsets.GenericViewSet):
             tokens=TokenPairResponse(refresh=refresh_token, access=access_token),
         )
         from stapel_core.django.jwt.utils import set_jwt_cookies
-        response = IronResponse(AuthResponseSerializer(dto))
+
+        response = StapelResponse(AuthResponseSerializer(dto))
         set_jwt_cookies(response, access_token, refresh_token)
         return response
 
     def _publish_user_registered(self, user) -> None:
         try:
-            from stapel_core.bus import publish, Event
+            from stapel_core.bus import Event, publish
+
             from stapel_auth.events import TOPIC_USER_REGISTERED
-            publish(TOPIC_USER_REGISTERED, Event(
-                event_type="user.registered",
-                service="auth",
-                payload={
-                    "user_id": str(user.id),
-                    "auth_type": user.auth_type or "unknown",
-                    "email": user.email,
-                },
-            ))
+
+            publish(
+                TOPIC_USER_REGISTERED,
+                Event(
+                    event_type="user.registered",
+                    service="auth",
+                    payload={
+                        "user_id": str(user.id),
+                        "auth_type": user.auth_type or "unknown",
+                        "email": user.email,
+                    },
+                ),
+            )
         except Exception:
             logger.exception("Failed to publish user.registered for user %s", user.id)

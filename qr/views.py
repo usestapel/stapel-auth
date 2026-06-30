@@ -1,12 +1,12 @@
 """Views for QR auth domain."""
+
 import logging
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
-
-from stapel_core.django.api.errors import IronErrorResponse, IronResponse
-from stapel_core.django.openapi.schemas import IronErrorSerializer
+from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
+from stapel_core.django.openapi.schemas import StapelErrorSerializer
 
 from stapel_auth.errors import (
     ERR_400_QR_FULFILLED,
@@ -21,7 +21,11 @@ from stapel_auth.qr.serializers import (
     QRStatusResponseSerializer,
 )
 from stapel_auth.qr.services import QRAuthService
-from stapel_auth.sessions.services import AuditService, LoginNotificationService, SessionService
+from stapel_auth.sessions.services import (
+    AuditService,
+    LoginNotificationService,
+    SessionService,
+)
 from stapel_auth.sessions.views import _issue_session_tokens
 
 logger = logging.getLogger(__name__)
@@ -62,8 +66,8 @@ class QRAuthViewSet(viewsets.GenericViewSet):
         request=QRGenerateSerializer,
         responses={
             201: QRGenerateResponseSerializer,
-            400: IronErrorSerializer,
-            401: IronErrorSerializer,
+            400: StapelErrorSerializer,
+            401: StapelErrorSerializer,
         },
     )
     @action(detail=False, methods=["post"], url_path="generate")
@@ -74,7 +78,7 @@ class QRAuthViewSet(viewsets.GenericViewSet):
         redirect_url = serializer.validated_data.get("redirect_url")
 
         if qr_type == QRType.SESSION_SHARE and not request.user.is_authenticated:
-            return IronErrorResponse(401, ERR_401_QR_AUTH_REQUIRED)
+            return StapelErrorResponse(401, ERR_401_QR_AUTH_REQUIRED)
 
         owner_user_id = request.user.id if request.user.is_authenticated else None
         key = QRAuthService.generate(
@@ -90,7 +94,7 @@ class QRAuthViewSet(viewsets.GenericViewSet):
             expires_in=self.QR_TTL,
             scan_url=scan_url,
         )
-        return IronResponse(
+        return StapelResponse(
             QRGenerateResponseSerializer(dto), status=status.HTTP_201_CREATED
         )
 
@@ -110,10 +114,12 @@ class QRAuthViewSet(viewsets.GenericViewSet):
         data = QRAuthService.get(key)
         if data is None:
             dto = QRStatusResponse(status=QRStatus.EXPIRED)
-            return IronResponse(QRStatusResponseSerializer(dto))
+            return StapelResponse(QRStatusResponseSerializer(dto))
 
         if data["status"] == QRStatus.REJECTED:
-            return IronResponse(QRStatusResponseSerializer(QRStatusResponse(status=QRStatus.REJECTED)))
+            return StapelResponse(
+                QRStatusResponseSerializer(QRStatusResponse(status=QRStatus.REJECTED))
+            )
 
         if data["status"] == QRStatus.FULFILLED:
             access_token = data.get("access_token")
@@ -121,19 +127,32 @@ class QRAuthViewSet(viewsets.GenericViewSet):
             # Create session for the polling device (once — key is deleted after)
             if access_token and data.get("fulfilled_user_id"):
                 try:
-                    from datetime import datetime, timezone as _tz
+                    from datetime import datetime
+                    from datetime import timezone as _tz
+
                     from django.contrib.auth import get_user_model as _gum
                     from stapel_core.django.jwt.provider import jwt_provider as _jwt
+
                     _rt = data.get("refresh_token", "")
                     _rt_pl = _jwt.handler.decode_token(_rt, verify=False) or {}
                     _at_pl = _jwt.handler.decode_token(access_token, verify=False) or {}
-                    _jti  = _rt_pl.get("jti", "")
-                    _exp  = datetime.fromtimestamp(_rt_pl.get("exp", 0), tz=_tz.utc)
+                    _jti = _rt_pl.get("jti", "")
+                    _exp = datetime.fromtimestamp(_rt_pl.get("exp", 0), tz=_tz.utc)
                     _user = _gum().objects.filter(pk=data["fulfilled_user_id"]).first()
                     if _user and _jti:
-                        _session = SessionService.create(_user, _jti, _exp, request=request,
-                                              access_jti=_at_pl.get("jti", ""))
-                        AuditService.log('login_success', user=_user, request=request, session=_session)
+                        _session = SessionService.create(
+                            _user,
+                            _jti,
+                            _exp,
+                            request=request,
+                            access_jti=_at_pl.get("jti", ""),
+                        )
+                        AuditService.log(
+                            "login_success",
+                            user=_user,
+                            request=request,
+                            session=_session,
+                        )
                         if _session:
                             LoginNotificationService.check_and_notify(_user, _session)
                 except Exception:
@@ -147,7 +166,7 @@ class QRAuthViewSet(viewsets.GenericViewSet):
         else:
             dto = QRStatusResponse(status=QRStatus.PENDING)
 
-        return IronResponse(QRStatusResponseSerializer(dto))
+        return StapelResponse(QRStatusResponseSerializer(dto))
 
     @extend_schema(
         description="""Browser endpoint embedded in QR code. Processes the scan and redirects.
@@ -158,21 +177,21 @@ class QRAuthViewSet(viewsets.GenericViewSet):
 **login_request** (scanner logged in) → redirects to `/qr-confirm?key=…` for confirmation.
 **login_request** (scanner not logged in) → redirects to `/sign-in?redirect=<scan_url>`.
 """,
-        responses={302: None, 404: IronErrorSerializer},
+        responses={302: None, 404: StapelErrorSerializer},
     )
     @action(detail=False, methods=["get"], url_path=r"(?P<key>[^/.]+)/scan")
     def scan(self, request, key=None):
         from urllib.parse import urlencode
 
-        from stapel_core.django.jwt.utils import set_jwt_cookies
         from django.contrib.auth import get_user_model as _get_user_model
         from django.http import HttpResponseRedirect
+        from stapel_core.django.jwt.utils import set_jwt_cookies
 
         data = QRAuthService.get(key)
         if data is None:
-            return IronErrorResponse(404, ERR_404_QR_NOT_FOUND)
+            return StapelErrorResponse(404, ERR_404_QR_NOT_FOUND)
         if data["status"] == QRStatus.FULFILLED:
-            return IronErrorResponse(400, ERR_400_QR_FULFILLED)
+            return StapelErrorResponse(400, ERR_400_QR_FULFILLED)
 
         qr_type = data["type"]
         redirect_url = data.get("redirect_url") or "/"
@@ -183,7 +202,7 @@ class QRAuthViewSet(viewsets.GenericViewSet):
             try:
                 owner = _User.objects.get(pk=data["owner_user_id"])
             except _User.DoesNotExist:
-                return IronErrorResponse(404, ERR_404_QR_NOT_FOUND)
+                return StapelErrorResponse(404, ERR_404_QR_NOT_FOUND)
 
             if scanner is None:
                 # Issue tokens for the owner and log in the scanner
@@ -201,9 +220,13 @@ class QRAuthViewSet(viewsets.GenericViewSet):
             # Different user — mark QR rejected, let the generator know, redirect scanner to conflict
             QRAuthService.reject(key)
             from django.conf import settings as _s
-            _frontend = getattr(_s, 'FRONTEND_URL', 'https://app.example.com')
+
+            _frontend = getattr(_s, "FRONTEND_URL", "https://app.example.com")
             from urllib.parse import urlencode as _ue
-            return HttpResponseRedirect(f"{_frontend}/login?{_ue({'error': 'account_conflict'})}")
+
+            return HttpResponseRedirect(
+                f"{_frontend}/login?{_ue({'error': 'account_conflict'})}"
+            )
 
         else:  # login_request
             if scanner is None:
@@ -217,17 +240,20 @@ class QRAuthViewSet(viewsets.GenericViewSet):
 
     @extend_schema(
         description="Reject a QR auth request. The device polling `/status` will receive `rejected`.",
-        responses={200: None, 404: IronErrorSerializer},
+        responses={200: None, 404: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path=r"(?P<key>[^/.]+)/reject")
     def reject(self, request, key=None):
         data = QRAuthService.get(key)
         if data is None:
-            return IronErrorResponse(404, ERR_404_QR_NOT_FOUND)
+            return StapelErrorResponse(404, ERR_404_QR_NOT_FOUND)
         QRAuthService.reject(key)
         from stapel_auth.dto import SimpleStatusResponse
         from stapel_auth.serializers import SimpleStatusSerializer
-        return IronResponse(SimpleStatusSerializer(SimpleStatusResponse(status='rejected')))
+
+        return StapelResponse(
+            SimpleStatusSerializer(SimpleStatusResponse(status="rejected"))
+        )
 
     @extend_schema(
         description="""Confirm a `login_request` QR code (called by the logged-in scanner after reviewing).
@@ -236,9 +262,9 @@ Issues tokens for the waiting device. The device polling `/status` will receive 
 """,
         responses={
             200: None,
-            400: IronErrorSerializer,
-            401: IronErrorSerializer,
-            404: IronErrorSerializer,
+            400: StapelErrorSerializer,
+            401: StapelErrorSerializer,
+            404: StapelErrorSerializer,
         },
     )
     @action(
@@ -252,11 +278,11 @@ Issues tokens for the waiting device. The device polling `/status` will receive 
 
         data = QRAuthService.get(key)
         if data is None:
-            return IronErrorResponse(404, ERR_404_QR_NOT_FOUND)
+            return StapelErrorResponse(404, ERR_404_QR_NOT_FOUND)
         if data["status"] != QRStatus.PENDING:
-            return IronErrorResponse(400, ERR_400_QR_FULFILLED)
+            return StapelErrorResponse(400, ERR_400_QR_FULFILLED)
         if data["type"] != QRType.LOGIN_REQUEST:
-            return IronErrorResponse(400, ERR_400_QR_TYPE_REQUIRED)
+            return StapelErrorResponse(400, ERR_400_QR_TYPE_REQUIRED)
 
         access_token, refresh_token = jwt_provider.create_tokens(request.user)
         QRAuthService.fulfill_login_request(
@@ -267,4 +293,7 @@ Issues tokens for the waiting device. The device polling `/status` will receive 
         )
         from stapel_auth.dto import SimpleStatusResponse
         from stapel_auth.serializers import SimpleStatusSerializer
-        return IronResponse(SimpleStatusSerializer(SimpleStatusResponse(status='confirmed')))
+
+        return StapelResponse(
+            SimpleStatusSerializer(SimpleStatusResponse(status="confirmed"))
+        )
