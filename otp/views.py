@@ -1,17 +1,7 @@
 """OTP authentication views: email/phone OTP, OAuth callbacks, authenticator change."""
+
 import logging
 
-from stapel_core.django.errors import (
-    ERR_400_BAD_REQUEST,
-    ERR_401_UNAUTHORIZED,
-    IronErrorResponse,
-    IronResponse,
-    error_429_rate_limit,
-    error_500_internal,
-)
-from stapel_core.django.openapi import (
-    IronErrorSerializer,
-)
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from drf_spectacular.utils import (
@@ -23,46 +13,44 @@ from drf_spectacular.utils import (
 from rest_framework import permissions, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-
-from stapel_auth.sessions.dto import (
-    AuthStatus,
-    AuthResponse,
-    TokenPairResponse,
-    TokenVerifyResponse,
-    LogoutResponse,
+from stapel_core.django.errors import (
+    ERR_400_BAD_REQUEST,
+    ERR_401_UNAUTHORIZED,
+    StapelErrorResponse,
+    StapelResponse,
+    error_429_rate_limit,
+    error_500_internal,
 )
+from stapel_core.django.openapi import (
+    StapelErrorSerializer,
+)
+
+from stapel_auth.errors import *
+from stapel_auth.mfa.dto import TOTPChallengeResponse, TOTPChallengeStatus
+from stapel_auth.mfa.serializers import (
+    TOTPChallengeResponseSerializer,
+)
+from stapel_auth.models import LoginAttempt
+from stapel_auth.oauth.serializers import OAuthSerializer
+from stapel_auth.oauth.services import OAuthService
 from stapel_auth.otp.dto import (
-    OtpSentResponse,
-    InstantRequestOldResponse,
-    InstantVerifyOldResponse,
-    InstantRequestNewResponse,
+    DelayedCancelResponse,
     DelayedInitiateResponse,
     DelayedStatusResponse,
-    DelayedCancelResponse,
-)
-from stapel_auth.mfa.dto import TOTPChallengeResponse, TOTPChallengeStatus
-from stapel_auth.errors import *
-from stapel_auth.models import LoginAttempt
-from stapel_auth.sessions.serializers import (
-    AuthResponseSerializer,
-    LoginResponseSerializer,
-    LogoutResponseSerializer,
-    UserSerializer,
-    TokenVerifySerializer,
-    TokenVerifyResponseSerializer,
+    InstantRequestNewResponse,
+    InstantRequestOldResponse,
+    InstantVerifyOldResponse,
+    OtpSentResponse,
 )
 from stapel_auth.otp.serializers import (
     AnonymousAuthSerializer,
-    EmailAuthRequestSerializer,
-    EmailAuthVerifySerializer,
-    PhoneAuthRequestSerializer,
-    PhoneAuthVerifySerializer,
-    OtpSentResponseSerializer,
     DelayedCancelResponseSerializer,
     DelayedChangeCancelSerializer,
     DelayedChangeInitiateSerializer,
     DelayedInitiateResponseSerializer,
     DelayedStatusResponseSerializer,
+    EmailAuthRequestSerializer,
+    EmailAuthVerifySerializer,
     InstantChangeRequestNewSerializer,
     InstantChangeRequestOldSerializer,
     InstantChangeVerifyNewSerializer,
@@ -70,25 +58,41 @@ from stapel_auth.otp.serializers import (
     InstantRequestNewResponseSerializer,
     InstantRequestOldResponseSerializer,
     InstantVerifyOldResponseSerializer,
-)
-from stapel_auth.oauth.serializers import OAuthSerializer
-from stapel_auth.mfa.serializers import (
-    TOTPChallengeResponseSerializer,
+    OtpSentResponseSerializer,
+    PhoneAuthRequestSerializer,
+    PhoneAuthVerifySerializer,
 )
 from stapel_auth.otp.services import (
+    AuthenticatorChangeService,
     EmailVerificationService,
     PhoneVerificationService,
-    AuthenticatorChangeService,
 )
-from stapel_auth.oauth.services import OAuthService
+from stapel_auth.sessions.dto import (
+    AuthResponse,
+    AuthStatus,
+    LogoutResponse,
+    TokenPairResponse,
+    TokenVerifyResponse,
+)
+from stapel_auth.sessions.serializers import (
+    AuthResponseSerializer,
+    LoginResponseSerializer,
+    LogoutResponseSerializer,
+    TokenVerifyResponseSerializer,
+    TokenVerifySerializer,
+    UserSerializer,
+)
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-
 # ── Sub-package cross-imports ─────────────────────────────────────────────────
-from stapel_auth.sessions.views import _issue_session_tokens, _add_login_hints, _CH_HINTS
+from stapel_auth.sessions.views import (
+    _CH_HINTS,
+    _add_login_hints,
+    _issue_session_tokens,
+)
 
 
 class AuthViewSet(viewsets.GenericViewSet):
@@ -140,10 +144,10 @@ class AuthViewSet(viewsets.GenericViewSet):
         request=EmailAuthRequestSerializer,
         responses={
             200: OtpSentResponseSerializer,
-            400: IronErrorSerializer,
-            409: IronErrorSerializer,
-            422: IronErrorSerializer,
-            500: IronErrorSerializer,
+            400: StapelErrorSerializer,
+            409: StapelErrorSerializer,
+            422: StapelErrorSerializer,
+            500: StapelErrorSerializer,
         },
         examples=[
             OpenApiExample(
@@ -179,9 +183,14 @@ class AuthViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=["post"], url_path="email/request")
     def email_request(self, request):
         """Request email verification code"""
-        from stapel_auth.conf import auth_settings
         from stapel_core.django.errors import error_403_forbidden
-        if not auth_settings.AUTH_EMAIL_LOGIN and not auth_settings.AUTH_EMAIL_REGISTRATION:
+
+        from stapel_auth.conf import auth_settings
+
+        if (
+            not auth_settings.AUTH_EMAIL_LOGIN
+            and not auth_settings.AUTH_EMAIL_REGISTRATION
+        ):
             return error_403_forbidden()
         serializer = EmailAuthRequestSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
@@ -196,10 +205,13 @@ class AuthViewSet(viewsets.GenericViewSet):
                     User.objects.filter(email=email).exclude(id=request_user.id).first()
                 )
                 if existing_user:
-                    return IronErrorResponse(409, ERR_409_EMAIL_TAKEN)
+                    return StapelErrorResponse(409, ERR_409_EMAIL_TAKEN)
 
             # Check if email is reserved by a pending change request
-            from stapel_auth.models import AuthenticatorChangeRequest, AuthenticatorChangeStatus
+            from stapel_auth.models import (
+                AuthenticatorChangeRequest,
+                AuthenticatorChangeStatus,
+            )
 
             reserved = AuthenticatorChangeRequest.objects.filter(
                 new_value=email,
@@ -207,7 +219,7 @@ class AuthViewSet(viewsets.GenericViewSet):
                 status=AuthenticatorChangeStatus.PENDING,
             ).exists()
             if reserved:
-                return IronErrorResponse(409, ERR_409_EMAIL_RESERVED)
+                return StapelErrorResponse(409, ERR_409_EMAIL_RESERVED)
 
             # Check if target email belongs to admin (staff/superuser) - force real OTP
             force_real_otp = False
@@ -232,7 +244,7 @@ class AuthViewSet(viewsets.GenericViewSet):
                 if verification.get("error") == "rate_limit":
                     return error_429_rate_limit(verification.get("retry_after"))
                 elif verification.get("error") == "blocked":
-                    return IronErrorResponse(
+                    return StapelErrorResponse(
                         422,
                         ERR_422_BLOCKED,
                         params=retry_params(verification.get("retry_after")),
@@ -241,11 +253,11 @@ class AuthViewSet(viewsets.GenericViewSet):
                 dto = OtpSentResponse(
                     message="Verification code sent successfully", target=email
                 )
-                return IronResponse(
+                return StapelResponse(
                     OtpSentResponseSerializer(dto), status=status.HTTP_200_OK
                 )
 
-            return IronErrorResponse(500, ERR_500_SEND_FAILED)
+            return StapelErrorResponse(500, ERR_500_SEND_FAILED)
 
     @extend_schema(
         description="""Verify email and authenticate/register.
@@ -268,9 +280,9 @@ class AuthViewSet(viewsets.GenericViewSet):
         request=EmailAuthVerifySerializer,
         responses={
             200: AuthResponseSerializer,
-            400: IronErrorSerializer,
-            409: IronErrorSerializer,
-            422: IronErrorSerializer,
+            400: StapelErrorSerializer,
+            409: StapelErrorSerializer,
+            422: StapelErrorSerializer,
         },
         examples=[
             OpenApiExample(
@@ -340,26 +352,26 @@ class AuthViewSet(viewsets.GenericViewSet):
             # Handle verification errors (REJECTED status)
             if isinstance(result, dict):
                 if result.get("error") == "blocked":
-                    return IronErrorResponse(
+                    return StapelErrorResponse(
                         422,
                         ERR_422_BLOCKED,
                         params=retry_params(result.get("retry_after")),
                     )
                 elif result.get("error") in ("expired", "expired_retry_allowed"):
-                    return IronErrorResponse(400, ERR_400_CODE_EXPIRED)
+                    return StapelErrorResponse(400, ERR_400_CODE_EXPIRED)
                 elif result.get("error") == "invalid_code":
                     attempts_remaining = result.get("attempts_remaining")
                     self.log_login_attempt(email, "failed", request)
                     if attempts_remaining is not None:
-                        return IronErrorResponse(
+                        return StapelErrorResponse(
                             400,
                             ERR_400_INVALID_CODE_ATTEMPTS,
                             params={"attempts_remaining": attempts_remaining},
                         )
-                    return IronErrorResponse(400, ERR_400_INVALID_CODE)
+                    return StapelErrorResponse(400, ERR_400_INVALID_CODE)
                 elif not result.get("success"):
                     self.log_login_attempt(email, "failed", request)
-                    return IronErrorResponse(400, ERR_400_INVALID_CODE)
+                    return StapelErrorResponse(400, ERR_400_INVALID_CODE)
 
             # Code verified successfully - determine auth status
             request_user = request.user if request.user.is_authenticated else None
@@ -371,7 +383,7 @@ class AuthViewSet(viewsets.GenericViewSet):
                 # CASE: Authenticated non-anonymous user adding/changing email
                 if existing_user and existing_user.id != request_user.id:
                     # Email belongs to another account - should not happen (checked in request)
-                    return IronErrorResponse(409, ERR_409_EMAIL_TAKEN)
+                    return StapelErrorResponse(409, ERR_409_EMAIL_TAKEN)
 
                 # Update current user's email
                 request_user.email = email
@@ -443,10 +455,10 @@ class AuthViewSet(viewsets.GenericViewSet):
         request=PhoneAuthRequestSerializer,
         responses={
             200: OtpSentResponseSerializer,
-            400: IronErrorSerializer,
-            409: IronErrorSerializer,
-            422: IronErrorSerializer,
-            500: IronErrorSerializer,
+            400: StapelErrorSerializer,
+            409: StapelErrorSerializer,
+            422: StapelErrorSerializer,
+            500: StapelErrorSerializer,
         },
         examples=[
             OpenApiExample(
@@ -468,9 +480,14 @@ class AuthViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=["post"], url_path="phone/request")
     def phone_request(self, request):
         """Request phone verification code (OTP)"""
-        from stapel_auth.conf import auth_settings
         from stapel_core.django.errors import error_403_forbidden
-        if not auth_settings.AUTH_PHONE_LOGIN and not auth_settings.AUTH_PHONE_REGISTRATION:
+
+        from stapel_auth.conf import auth_settings
+
+        if (
+            not auth_settings.AUTH_PHONE_LOGIN
+            and not auth_settings.AUTH_PHONE_REGISTRATION
+        ):
             return error_403_forbidden()
         serializer = PhoneAuthRequestSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
@@ -485,10 +502,13 @@ class AuthViewSet(viewsets.GenericViewSet):
                     User.objects.filter(phone=phone).exclude(id=request_user.id).first()
                 )
                 if existing_user:
-                    return IronErrorResponse(409, ERR_409_PHONE_TAKEN)
+                    return StapelErrorResponse(409, ERR_409_PHONE_TAKEN)
 
             # Check if phone is reserved by a pending change request
-            from stapel_auth.models import AuthenticatorChangeRequest, AuthenticatorChangeStatus
+            from stapel_auth.models import (
+                AuthenticatorChangeRequest,
+                AuthenticatorChangeStatus,
+            )
 
             reserved = AuthenticatorChangeRequest.objects.filter(
                 new_value=phone,
@@ -496,7 +516,7 @@ class AuthViewSet(viewsets.GenericViewSet):
                 status=AuthenticatorChangeStatus.PENDING,
             ).exists()
             if reserved:
-                return IronErrorResponse(409, ERR_409_PHONE_RESERVED)
+                return StapelErrorResponse(409, ERR_409_PHONE_RESERVED)
 
             # Check if target phone belongs to admin (staff/superuser) - force real OTP
             force_real_otp = False
@@ -521,7 +541,7 @@ class AuthViewSet(viewsets.GenericViewSet):
                 if verification.get("error") == "rate_limit":
                     return error_429_rate_limit(verification.get("retry_after"))
                 elif verification.get("error") == "blocked":
-                    return IronErrorResponse(
+                    return StapelErrorResponse(
                         422,
                         ERR_422_BLOCKED,
                         params=retry_params(verification.get("retry_after")),
@@ -530,11 +550,11 @@ class AuthViewSet(viewsets.GenericViewSet):
                 dto = OtpSentResponse(
                     message="Verification code sent successfully", target=phone
                 )
-                return IronResponse(
+                return StapelResponse(
                     OtpSentResponseSerializer(dto), status=status.HTTP_200_OK
                 )
 
-            return IronErrorResponse(500, ERR_500_SEND_FAILED)
+            return StapelErrorResponse(500, ERR_500_SEND_FAILED)
 
     @extend_schema(
         description="""Verify phone number and authenticate/register.
@@ -557,9 +577,9 @@ class AuthViewSet(viewsets.GenericViewSet):
         request=PhoneAuthVerifySerializer,
         responses={
             200: AuthResponseSerializer,
-            400: IronErrorSerializer,
-            409: IronErrorSerializer,
-            422: IronErrorSerializer,
+            400: StapelErrorSerializer,
+            409: StapelErrorSerializer,
+            422: StapelErrorSerializer,
         },
         examples=[
             OpenApiExample(
@@ -593,26 +613,26 @@ class AuthViewSet(viewsets.GenericViewSet):
             # Handle verification errors (REJECTED status)
             if isinstance(result, dict):
                 if result.get("error") == "blocked":
-                    return IronErrorResponse(
+                    return StapelErrorResponse(
                         422,
                         ERR_422_BLOCKED,
                         params=retry_params(result.get("retry_after")),
                     )
                 elif result.get("error") in ("expired", "expired_retry_allowed"):
-                    return IronErrorResponse(400, ERR_400_CODE_EXPIRED)
+                    return StapelErrorResponse(400, ERR_400_CODE_EXPIRED)
                 elif result.get("error") == "invalid_code":
                     attempts_remaining = result.get("attempts_remaining")
                     self.log_login_attempt(phone, "failed", request)
                     if attempts_remaining is not None:
-                        return IronErrorResponse(
+                        return StapelErrorResponse(
                             400,
                             ERR_400_INVALID_CODE_ATTEMPTS,
                             params={"attempts_remaining": attempts_remaining},
                         )
-                    return IronErrorResponse(400, ERR_400_INVALID_CODE)
+                    return StapelErrorResponse(400, ERR_400_INVALID_CODE)
                 elif not result.get("success"):
                     self.log_login_attempt(phone, "failed", request)
-                    return IronErrorResponse(400, ERR_400_INVALID_CODE)
+                    return StapelErrorResponse(400, ERR_400_INVALID_CODE)
 
             # Code verified successfully - determine auth status
             request_user = request.user if request.user.is_authenticated else None
@@ -624,7 +644,7 @@ class AuthViewSet(viewsets.GenericViewSet):
                 # CASE: Authenticated non-anonymous user adding/changing phone
                 if existing_user and existing_user.id != request_user.id:
                     # Phone belongs to another account - should not happen (checked in request)
-                    return IronErrorResponse(409, ERR_409_PHONE_TAKEN)
+                    return StapelErrorResponse(409, ERR_409_PHONE_TAKEN)
 
                 # Update current user's phone
                 request_user.phone = phone
@@ -686,7 +706,7 @@ class AuthViewSet(viewsets.GenericViewSet):
     @extend_schema(
         description="Create anonymous user",
         request=AnonymousAuthSerializer,
-        responses={201: AuthResponseSerializer, 400: IronErrorSerializer},
+        responses={201: AuthResponseSerializer, 400: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"])
     def anonymous(self, request):
@@ -741,7 +761,7 @@ class AuthViewSet(viewsets.GenericViewSet):
     @extend_schema(
         description="OAuth authentication (Google, Facebook, etc.). Returns `LoginResponse` — either `AuthResponse` (status=LOGGED_IN) or `TOTPChallengeResponse` (status=TOTP_REQUIRED). When TOTP is required, pass `challenge_token` to `POST /totp/challenge/verify/`.",
         request=OAuthSerializer,
-        responses={200: LoginResponseSerializer, 400: IronErrorSerializer},
+        responses={200: LoginResponseSerializer, 400: StapelErrorSerializer},
         examples=[
             OpenApiExample(
                 "OAuth login request",
@@ -753,21 +773,26 @@ class AuthViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=["post"])
     def oauth_login(self, request):
         """OAuth authentication"""
-        from stapel_auth.conf import auth_settings
         from stapel_core.django.errors import error_403_forbidden
-        if not auth_settings.AUTH_OAUTH_LOGIN and not auth_settings.AUTH_OAUTH_REGISTRATION:
+
+        from stapel_auth.conf import auth_settings
+
+        if (
+            not auth_settings.AUTH_OAUTH_LOGIN
+            and not auth_settings.AUTH_OAUTH_REGISTRATION
+        ):
             return error_403_forbidden()
         provider = request.data.get("provider")
         access_token = request.data.get("access_token")
 
         if not provider or not access_token:
-            return IronErrorResponse(400, ERR_400_OAUTH_FIELDS_REQUIRED)
+            return StapelErrorResponse(400, ERR_400_OAUTH_FIELDS_REQUIRED)
 
         ocore = OAuthService()
         user_data = ocore.get_user_data(provider, access_token)
 
         if not user_data:
-            return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
+            return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 
         user = self._resolve_oauth_user(provider, user_data)
         self.log_login_attempt(str(user.id), "success", request)
@@ -781,7 +806,7 @@ class AuthViewSet(viewsets.GenericViewSet):
                 challenge_token=challenge_token,
                 expires_in=TOTPService.CHALLENGE_TTL,
             )
-            return IronResponse(TOTPChallengeResponseSerializer(dto))
+            return StapelResponse(TOTPChallengeResponseSerializer(dto))
 
         access_token, refresh_token = _issue_session_tokens(user, request)
         tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
@@ -809,22 +834,25 @@ class AuthViewSet(viewsets.GenericViewSet):
 
         from django.core.cache import cache
         from django.shortcuts import redirect
+        from stapel_core.django.errors import error_403_forbidden
 
         from stapel_auth.conf import auth_settings
         from stapel_auth.oauth_providers import PROVIDER_REGISTRY
-        from stapel_core.django.errors import error_403_forbidden
 
-        if not auth_settings.AUTH_OAUTH_LOGIN and not auth_settings.AUTH_OAUTH_REGISTRATION:
+        if (
+            not auth_settings.AUTH_OAUTH_LOGIN
+            and not auth_settings.AUTH_OAUTH_REGISTRATION
+        ):
             return error_403_forbidden()
 
         p = PROVIDER_REGISTRY.get(provider)
         if not p:
-            return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
+            return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 
         configs = auth_settings.OAUTH_PROVIDERS
         cfg = configs.get(provider)
         if not cfg or not cfg.client_id:
-            return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
+            return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 
         state = secrets.token_urlsafe(32)
         redirect_uri = self._build_callback_uri(request, provider)
@@ -843,7 +871,7 @@ class AuthViewSet(viewsets.GenericViewSet):
 
     @extend_schema(
         description="OAuth provider callback — exchanges code for JWT and redirects to frontend",
-        responses={302: None, 400: IronErrorSerializer},
+        responses={302: None, 400: StapelErrorSerializer},
     )
     @action(
         detail=False, methods=["get"], url_path="oauth/(?P<provider>[^/.]+)/callback"
@@ -863,31 +891,33 @@ class AuthViewSet(viewsets.GenericViewSet):
         state = request.query_params.get("state")
 
         if error or not code or not state:
-            return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
+            return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 
         state_data = cache.get(f"oauth_state:{state}")
         if not state_data or state_data.get("provider") != provider:
-            return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
+            return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
         cache.delete(f"oauth_state:{state}")
 
         p = PROVIDER_REGISTRY.get(provider)
         if not p:
-            return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
+            return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 
         configs = auth_settings.OAUTH_PROVIDERS
         cfg = configs.get(provider)
         if not cfg or not cfg.client_id:
-            return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
+            return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 
         redirect_uri = state_data["redirect_uri"]
-        access_token = p.exchange_code(cfg.client_id, cfg.client_secret, code, redirect_uri)
+        access_token = p.exchange_code(
+            cfg.client_id, cfg.client_secret, code, redirect_uri
+        )
         if not access_token:
-            return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
+            return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 
         ocore = OAuthService()
         user_data = ocore.get_user_data(provider, access_token)
         if not user_data:
-            return IronErrorResponse(400, ERR_400_OAUTH_FAILED)
+            return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 
         user = self._resolve_oauth_user(provider, user_data)
         self.log_login_attempt(str(user.id), "success", request)
@@ -967,17 +997,22 @@ class AuthViewSet(viewsets.GenericViewSet):
 
     def _publish_user_registered(self, user) -> None:
         try:
-            from stapel_core.bus import publish, Event
+            from stapel_core.bus import Event, publish
+
             from stapel_auth.events import TOPIC_USER_REGISTERED
-            publish(TOPIC_USER_REGISTERED, Event(
-                event_type="user.registered",
-                service="auth",
-                payload={
-                    "user_id": str(user.id),
-                    "auth_type": user.auth_type or "unknown",
-                    "email": user.email,
-                },
-            ))
+
+            publish(
+                TOPIC_USER_REGISTERED,
+                Event(
+                    event_type="user.registered",
+                    service="auth",
+                    payload={
+                        "user_id": str(user.id),
+                        "auth_type": user.auth_type or "unknown",
+                        "email": user.email,
+                    },
+                ),
+            )
         except Exception:
             logger.exception("Failed to publish user.registered for user %s", user.id)
 
@@ -1001,7 +1036,7 @@ class AuthViewSet(viewsets.GenericViewSet):
                 ),
             },
         ),
-        responses={200: LogoutResponseSerializer, 400: IronErrorSerializer},
+        responses={200: LogoutResponseSerializer, 400: StapelErrorSerializer},
     )
     @action(
         detail=False, methods=["post"], permission_classes=[permissions.IsAuthenticated]
@@ -1012,7 +1047,7 @@ class AuthViewSet(viewsets.GenericViewSet):
 
     @extend_schema(
         description="Logout user via GET request (for cookie-based authentication). Blacklists both access and refresh tokens.",
-        responses={200: LogoutResponseSerializer, 400: IronErrorSerializer},
+        responses={200: LogoutResponseSerializer, 400: StapelErrorSerializer},
     )
     @action(
         detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated]
@@ -1097,6 +1132,7 @@ class AuthViewSet(viewsets.GenericViewSet):
                                 )
                         # Revoke session in DB so it disappears from active list immediately
                         from .services import SessionService as _SS
+
                         _SS.revoke_by_jti(jti)
                 except Exception as e:
                     logger.warning(f"Failed to blacklist refresh token: {e}")
@@ -1124,7 +1160,7 @@ class AuthViewSet(viewsets.GenericViewSet):
 
     @extend_schema(
         description="Get current authenticated user information",
-        responses={200: UserSerializer, 401: IronErrorSerializer},
+        responses={200: UserSerializer, 401: StapelErrorSerializer},
     )
     @action(
         detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated]
@@ -1162,19 +1198,19 @@ class AuthViewSet(viewsets.GenericViewSet):
                 f"client_ip={client_ip}"
             )
 
-            resp = IronErrorResponse(401, ERR_401_UNAUTHORIZED)
-            resp['Accept-CH'] = _CH_HINTS
+            resp = StapelErrorResponse(401, ERR_401_UNAUTHORIZED)
+            resp["Accept-CH"] = _CH_HINTS
             return resp
 
         serializer = UserSerializer(request.user)
-        resp = IronResponse(serializer)
-        resp['Accept-CH'] = _CH_HINTS
+        resp = StapelResponse(serializer)
+        resp["Accept-CH"] = _CH_HINTS
         return resp
 
     @extend_schema(
         description="Verify JWT token",
         request=TokenVerifySerializer,
-        responses={200: TokenVerifyResponseSerializer, 401: IronErrorSerializer},
+        responses={200: TokenVerifyResponseSerializer, 401: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"])
     def verify_token(self, request):
@@ -1183,33 +1219,31 @@ class AuthViewSet(viewsets.GenericViewSet):
 
         token = request.data.get("token")
         if not token:
-            return IronErrorResponse(400, ERR_400_TOKEN_REQUIRED)
+            return StapelErrorResponse(400, ERR_400_TOKEN_REQUIRED)
 
         try:
             # Validate token using jwt_provider
             payload = jwt_provider.validate_token(token)
 
             if not payload:
-                return IronErrorResponse(401, ERR_401_TOKEN_INVALID)
+                return StapelErrorResponse(401, ERR_401_TOKEN_INVALID)
 
             # Check if blacklisted
             if jwt_provider.is_blacklisted(token):
-                return IronErrorResponse(401, ERR_401_TOKEN_REVOKED)
+                return StapelErrorResponse(401, ERR_401_TOKEN_REVOKED)
 
             user_id = payload.get("user_id")
             user = User.objects.get(id=user_id)
 
             verify_dto = TokenVerifyResponse(valid=True, user=user)
-            return IronResponse(
+            return StapelResponse(
                 TokenVerifyResponseSerializer(verify_dto), status=status.HTTP_200_OK
             )
         except User.DoesNotExist:
-            return IronErrorResponse(401, ERR_401_USER_NOT_FOUND)
+            return StapelErrorResponse(401, ERR_401_USER_NOT_FOUND)
         except Exception as e:
             logger.error(f"Token verification error: {e}")
-            return IronErrorResponse(401, ERR_401_TOKEN_INVALID)
-
-
+            return StapelErrorResponse(401, ERR_401_TOKEN_INVALID)
 
 
 @extend_schema_view(
@@ -1234,37 +1268,37 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def _service_error_to_response(self, result):
-        """Convert service error dict to IronErrorResponse."""
+        """Convert service error dict to StapelErrorResponse."""
         error = result.get("error", "unknown_error")
 
         if error == "rate_limit":
             return error_429_rate_limit(result.get("retry_after"))
         if error == "blocked":
-            return IronErrorResponse(
+            return StapelErrorResponse(
                 422,
                 ERR_422_BLOCKED,
                 params=retry_params(result.get("retry_after")),
             )
         if error == "not_available":
-            return IronErrorResponse(409, ERR_400_NOT_AVAILABLE)
+            return StapelErrorResponse(409, ERR_400_NOT_AVAILABLE)
         if error == "no_current_value":
-            return IronErrorResponse(400, ERR_400_NO_CURRENT_VALUE)
+            return StapelErrorResponse(400, ERR_400_NO_CURRENT_VALUE)
         if error in ("invalid_change_token", "value_mismatch"):
-            return IronErrorResponse(400, ERR_400_INVALID_CHANGE_TOKEN)
+            return StapelErrorResponse(400, ERR_400_INVALID_CHANGE_TOKEN)
         if error == "not_found":
-            return IronErrorResponse(404, ERR_404_CHANGE_NOT_FOUND)
+            return StapelErrorResponse(404, ERR_404_CHANGE_NOT_FOUND)
         if error == "invalid_code":
-            return IronErrorResponse(
+            return StapelErrorResponse(
                 400,
                 ERR_400_INVALID_CODE,
                 params={"attempts_remaining": result.get("attempts_remaining")},
             )
         if error in ("expired", "expired_retry_allowed"):
-            return IronErrorResponse(400, ERR_400_CODE_EXPIRED)
+            return StapelErrorResponse(400, ERR_400_CODE_EXPIRED)
         if error == "send_failed":
-            return IronErrorResponse(500, ERR_500_SEND_FAILED)
+            return StapelErrorResponse(500, ERR_500_SEND_FAILED)
 
-        return IronErrorResponse(400, ERR_400_BAD_REQUEST)
+        return StapelErrorResponse(400, ERR_400_BAD_REQUEST)
 
     # ── Phone Instant ────────────────────────────────────────
 
@@ -1285,7 +1319,7 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
                 message="Verification code sent to your current phone",
                 masked_target=result["masked_target"],
             )
-            return IronResponse(InstantRequestOldResponseSerializer(dto))
+            return StapelResponse(InstantRequestOldResponseSerializer(dto))
         return self._service_error_to_response(result)
 
     @extend_schema(
@@ -1306,12 +1340,15 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
                 change_token=result["change_token"],
                 expires_at=result["expires_at"],
             )
-            return IronResponse(InstantVerifyOldResponseSerializer(dto))
+            return StapelResponse(InstantVerifyOldResponseSerializer(dto))
         return self._service_error_to_response(result)
 
     @extend_schema(
         request=InstantChangeRequestNewSerializer,
-        responses={200: InstantRequestNewResponseSerializer, 409: IronErrorSerializer},
+        responses={
+            200: InstantRequestNewResponseSerializer,
+            409: StapelErrorSerializer,
+        },
     )
     @action(detail=False, methods=["post"], url_path="phone/change/instant/request-new")
     def phone_instant_request_new(self, request):
@@ -1319,7 +1356,7 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
         serializer.is_valid(raise_exception=True)
         new_value = serializer.validated_data.get("phone")
         if not new_value:
-            return IronErrorResponse(400, ERR_400_PHONE_REQUIRED)
+            return StapelErrorResponse(400, ERR_400_PHONE_REQUIRED)
         svc = AuthenticatorChangeService()
         result = svc.request_new_otp(
             request.user, "phone", new_value, serializer.validated_data["change_token"]
@@ -1328,7 +1365,7 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
             dto = InstantRequestNewResponse(
                 message="Verification code sent to new phone"
             )
-            return IronResponse(InstantRequestNewResponseSerializer(dto))
+            return StapelResponse(InstantRequestNewResponseSerializer(dto))
         return self._service_error_to_response(result)
 
     @extend_schema(
@@ -1341,7 +1378,7 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
         serializer.is_valid(raise_exception=True)
         new_value = serializer.validated_data.get("phone")
         if not new_value:
-            return IronErrorResponse(400, ERR_400_PHONE_REQUIRED)
+            return StapelErrorResponse(400, ERR_400_PHONE_REQUIRED)
         svc = AuthenticatorChangeService()
         result = svc.verify_new_and_apply(
             request.user,
@@ -1383,7 +1420,7 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
                 message="Verification code sent to your current email",
                 masked_target=result["masked_target"],
             )
-            return IronResponse(InstantRequestOldResponseSerializer(dto))
+            return StapelResponse(InstantRequestOldResponseSerializer(dto))
         return self._service_error_to_response(result)
 
     @extend_schema(
@@ -1404,12 +1441,15 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
                 change_token=result["change_token"],
                 expires_at=result["expires_at"],
             )
-            return IronResponse(InstantVerifyOldResponseSerializer(dto))
+            return StapelResponse(InstantVerifyOldResponseSerializer(dto))
         return self._service_error_to_response(result)
 
     @extend_schema(
         request=InstantChangeRequestNewSerializer,
-        responses={200: InstantRequestNewResponseSerializer, 409: IronErrorSerializer},
+        responses={
+            200: InstantRequestNewResponseSerializer,
+            409: StapelErrorSerializer,
+        },
     )
     @action(detail=False, methods=["post"], url_path="email/change/instant/request-new")
     def email_instant_request_new(self, request):
@@ -1417,7 +1457,7 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
         serializer.is_valid(raise_exception=True)
         new_value = serializer.validated_data.get("email")
         if not new_value:
-            return IronErrorResponse(400, ERR_400_EMAIL_REQUIRED)
+            return StapelErrorResponse(400, ERR_400_EMAIL_REQUIRED)
         svc = AuthenticatorChangeService()
         result = svc.request_new_otp(
             request.user, "email", new_value, serializer.validated_data["change_token"]
@@ -1426,7 +1466,7 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
             dto = InstantRequestNewResponse(
                 message="Verification code sent to new email"
             )
-            return IronResponse(InstantRequestNewResponseSerializer(dto))
+            return StapelResponse(InstantRequestNewResponseSerializer(dto))
         return self._service_error_to_response(result)
 
     @extend_schema(
@@ -1439,7 +1479,7 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
         serializer.is_valid(raise_exception=True)
         new_value = serializer.validated_data.get("email")
         if not new_value:
-            return IronErrorResponse(400, ERR_400_EMAIL_REQUIRED)
+            return StapelErrorResponse(400, ERR_400_EMAIL_REQUIRED)
         svc = AuthenticatorChangeService()
         result = svc.verify_new_and_apply(
             request.user,
@@ -1466,7 +1506,7 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
 
     @extend_schema(
         request=DelayedChangeInitiateSerializer,
-        responses={201: DelayedInitiateResponseSerializer, 409: IronErrorSerializer},
+        responses={201: DelayedInitiateResponseSerializer, 409: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="phone/change/delayed/initiate")
     def phone_delayed_initiate(self, request):
@@ -1474,7 +1514,7 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
         serializer.is_valid(raise_exception=True)
         new_value = serializer.validated_data.get("phone")
         if not new_value:
-            return IronErrorResponse(400, ERR_400_PHONE_REQUIRED)
+            return StapelErrorResponse(400, ERR_400_PHONE_REQUIRED)
         svc = AuthenticatorChangeService()
         from .utils import mask_value
 
@@ -1497,7 +1537,7 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
                 scheduled_at=result["scheduled_at"],
                 can_cancel_until=result["scheduled_at"],
             )
-            return IronResponse(
+            return StapelResponse(
                 DelayedInitiateResponseSerializer(dto), status=status.HTTP_201_CREATED
             )
         return self._service_error_to_response(result)
@@ -1509,13 +1549,13 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
         info = svc.get_pending_status(request.user, "phone")
         if info:
             dto = DelayedStatusResponse(has_pending_change=True, **info)
-            return IronResponse(DelayedStatusResponseSerializer(dto))
+            return StapelResponse(DelayedStatusResponseSerializer(dto))
         dto = DelayedStatusResponse(has_pending_change=False)
-        return IronResponse(DelayedStatusResponseSerializer(dto))
+        return StapelResponse(DelayedStatusResponseSerializer(dto))
 
     @extend_schema(
         request=DelayedChangeCancelSerializer,
-        responses={200: DelayedCancelResponseSerializer, 404: IronErrorSerializer},
+        responses={200: DelayedCancelResponseSerializer, 404: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="phone/change/delayed/cancel")
     def phone_delayed_cancel(self, request):
@@ -1529,14 +1569,14 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
             dto = DelayedCancelResponse(
                 status="CANCELLED", message="Authenticator change request cancelled"
             )
-            return IronResponse(DelayedCancelResponseSerializer(dto))
+            return StapelResponse(DelayedCancelResponseSerializer(dto))
         return self._service_error_to_response(result)
 
     # ── Email Delayed ────────────────────────────────────────
 
     @extend_schema(
         request=DelayedChangeInitiateSerializer,
-        responses={201: DelayedInitiateResponseSerializer, 409: IronErrorSerializer},
+        responses={201: DelayedInitiateResponseSerializer, 409: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="email/change/delayed/initiate")
     def email_delayed_initiate(self, request):
@@ -1544,7 +1584,7 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
         serializer.is_valid(raise_exception=True)
         new_value = serializer.validated_data.get("email")
         if not new_value:
-            return IronErrorResponse(400, ERR_400_EMAIL_REQUIRED)
+            return StapelErrorResponse(400, ERR_400_EMAIL_REQUIRED)
         svc = AuthenticatorChangeService()
         from .utils import mask_value
 
@@ -1567,7 +1607,7 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
                 scheduled_at=result["scheduled_at"],
                 can_cancel_until=result["scheduled_at"],
             )
-            return IronResponse(
+            return StapelResponse(
                 DelayedInitiateResponseSerializer(dto), status=status.HTTP_201_CREATED
             )
         return self._service_error_to_response(result)
@@ -1579,13 +1619,13 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
         info = svc.get_pending_status(request.user, "email")
         if info:
             dto = DelayedStatusResponse(has_pending_change=True, **info)
-            return IronResponse(DelayedStatusResponseSerializer(dto))
+            return StapelResponse(DelayedStatusResponseSerializer(dto))
         dto = DelayedStatusResponse(has_pending_change=False)
-        return IronResponse(DelayedStatusResponseSerializer(dto))
+        return StapelResponse(DelayedStatusResponseSerializer(dto))
 
     @extend_schema(
         request=DelayedChangeCancelSerializer,
-        responses={200: DelayedCancelResponseSerializer, 404: IronErrorSerializer},
+        responses={200: DelayedCancelResponseSerializer, 404: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="email/change/delayed/cancel")
     def email_delayed_cancel(self, request):
@@ -1599,10 +1639,8 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
             dto = DelayedCancelResponse(
                 status="CANCELLED", message="Authenticator change request cancelled"
             )
-            return IronResponse(DelayedCancelResponseSerializer(dto))
+            return StapelResponse(DelayedCancelResponseSerializer(dto))
         return self._service_error_to_response(result)
 
 
 # ── Password ViewSet ──────────────────────────────────────────────────────────
-
-

@@ -140,3 +140,15 @@ def pytest_configure(config):
             "gdpr": None,
         },
     )
+    import django
+    django.setup()
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(scope="session")
+def django_db_setup(django_test_environment, django_db_blocker):
+    from django.test.utils import setup_databases
+    with django_db_blocker.unblock():
+        setup_databases(verbosity=0, interactive=False)

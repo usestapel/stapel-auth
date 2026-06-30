@@ -6,7 +6,8 @@ from django.conf import settings
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.views import APIView
-from stapel_core.django.api.errors import IronResponse, IronErrorResponse
+from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
+
 from stapel_auth.errors import ERR_401_TOKEN_INVALID
 
 logger = logging.getLogger(__name__)
@@ -45,21 +46,21 @@ class JWKSView(viewsets.GenericViewSet):
                 jwks = jwt_provider.get_jwks()
 
                 if jwks:
-                    return IronResponse(jwks, status=status.HTTP_200_OK)
+                    return StapelResponse(jwks, status=status.HTTP_200_OK)
                 else:
-                    return IronResponse(  # noqa: R006
+                    return StapelResponse(  # noqa: R006
                         {"keys": [], "error": "Public key not available"},
                         status=status.HTTP_200_OK,
                     )
             except Exception as e:
                 logger.error(f"Failed to generate JWKS: {e}")
-                return IronResponse(  # noqa: R006
+                return StapelResponse(  # noqa: R006
                     {"keys": [], "error": str(e)},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
         else:
             # HS256 mode - cannot share symmetric keyk
-            return IronResponse(  # noqa: R006
+            return StapelResponse(  # noqa: R006
                 {
                     "keys": [],
                     "_info": {
@@ -130,7 +131,7 @@ class OpenIDConfigurationView(viewsets.GenericViewSet):
             ],
         }
 
-        return IronResponse(config, status=status.HTTP_200_OK)
+        return StapelResponse(config, status=status.HTTP_200_OK)
 
 
 class TokenIntrospectView(APIView):
@@ -147,26 +148,30 @@ class TokenIntrospectView(APIView):
 
     def post(self, request):
         from stapel_auth.permissions import IsServiceAPIKey
-        if not IsServiceAPIKey().has_permission(request, self):
-            return IronErrorResponse(401, ERR_401_TOKEN_INVALID)
 
-        token = request.data.get('token', '').strip()
+        if not IsServiceAPIKey().has_permission(request, self):
+            return StapelErrorResponse(401, ERR_401_TOKEN_INVALID)
+
+        token = request.data.get("token", "").strip()
         if not token:
-            return IronResponse({'active': False})  # noqa: R006
+            return StapelResponse({"active": False})  # noqa: R006
 
         from stapel_core.django.jwt.provider import jwt_provider
+
         payload = jwt_provider.validate_token(token)
         if not payload:
-            return IronResponse({'active': False})  # noqa: R006
+            return StapelResponse({"active": False})  # noqa: R006
 
-        return IronResponse({  # noqa: R006
-            'active':     True,
-            'sub':        payload.get('user_id'),
-            'username':   payload.get('username'),
-            'email':      payload.get('email'),
-            'scope':      payload.get('scope', ''),
-            'exp':        payload.get('exp'),
-            'iat':        payload.get('iat'),
-            'iss':        payload.get('iss'),
-            'token_type': payload.get('token_type', 'access'),
-        })
+        return StapelResponse(
+            {  # noqa: R006
+                "active": True,
+                "sub": payload.get("user_id"),
+                "username": payload.get("username"),
+                "email": payload.get("email"),
+                "scope": payload.get("scope", ""),
+                "exp": payload.get("exp"),
+                "iat": payload.get("iat"),
+                "iss": payload.get("iss"),
+                "token_type": payload.get("token_type", "access"),
+            }
+        )

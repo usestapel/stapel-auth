@@ -140,3 +140,5 @@ def pytest_configure(config):
             "gdpr": None,
         },
     )
+    import django
+    django.setup()

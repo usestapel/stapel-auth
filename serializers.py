@@ -4,6 +4,17 @@ from rest_framework import serializers
 from stapel_core.django.api.serializers import IronDataclassSerializer
 
 from .dto import SimpleStatusResponse
+from stapel_auth.sessions.serializers import AuthResponseSerializer, LoginResponseSerializer  # noqa: F401
+from stapel_auth.otp.serializers import (  # noqa: F401
+    OtpSentResponseSerializer,
+    PhoneAuthRequestSerializer,
+    ConvertAnonymousUserSerializer,
+    InstantChangeRequestNewSerializer,
+    DelayedChangeInitiateSerializer,
+    DelayedChangeCancelSerializer,
+)
+from stapel_auth.mfa.serializers import TOTPChallengeResponseSerializer  # noqa: F401
+from stapel_auth.oauth.serializers import AuthCapabilitiesSerializer  # noqa: F401
 
 User = get_user_model()
 
