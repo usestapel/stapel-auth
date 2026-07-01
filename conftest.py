@@ -140,9 +140,6 @@ def pytest_configure(config):
             "DEFAULT_PERMISSION_CLASSES": [],
             "EXCEPTION_HANDLER": "stapel_core.django.api.errors.iron_exception_handler",
         },
-        # JWT cookie names — must match what the production service uses
-        JWT_COOKIE_NAME="iron_jwt",
-        JWT_REFRESH_COOKIE_NAME="iron_refresh_jwt",
         # Service settings
         URL_PREFIX="auth/",
         SERVICE_NAME="Iron Auth Test",

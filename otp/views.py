@@ -1144,9 +1144,9 @@ class AuthViewSet(viewsets.GenericViewSet):
             )
 
             # Clear JWT cookies
-            cookie_name = getattr(settings, "JWT_COOKIE_NAME", "iron_jwt")
+            cookie_name = getattr(settings, "JWT_COOKIE_NAME", "stapel_jwt")
             refresh_cookie_name = getattr(
-                settings, "JWT_REFRESH_COOKIE_NAME", "iron_refresh_jwt"
+                settings, "JWT_REFRESH_COOKIE_NAME", "stapel_refresh_jwt"
             )
             cookie_domain = getattr(settings, "JWT_COOKIE_DOMAIN", None)
 
@@ -1177,8 +1177,8 @@ class AuthViewSet(viewsets.GenericViewSet):
             )
 
             # Check cookies
-            _cookie_name = getattr(settings, "JWT_COOKIE_NAME", "iron_jwt")
-            _refresh_cookie_name = getattr(settings, "JWT_REFRESH_COOKIE_NAME", "iron_refresh_jwt")
+            _cookie_name = getattr(settings, "JWT_COOKIE_NAME", "stapel_jwt")
+            _refresh_cookie_name = getattr(settings, "JWT_REFRESH_COOKIE_NAME", "stapel_refresh_jwt")
             jwt_cookie = request.COOKIES.get(_cookie_name, "")
             refresh_cookie = request.COOKIES.get(_refresh_cookie_name, "")
 

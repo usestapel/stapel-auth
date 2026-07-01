@@ -1706,11 +1706,11 @@ class CookieAuthenticationTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Check cookies are set
-        self.assertIn("iron_jwt", response.cookies)
-        self.assertIn("iron_refresh_jwt", response.cookies)
+        self.assertIn("stapel_jwt", response.cookies)
+        self.assertIn("stapel_refresh_jwt", response.cookies)
         # Check cookies are httponly
-        self.assertTrue(response.cookies["iron_jwt"]["httponly"])
-        self.assertTrue(response.cookies["iron_refresh_jwt"]["httponly"])
+        self.assertTrue(response.cookies["stapel_jwt"]["httponly"])
+        self.assertTrue(response.cookies["stapel_refresh_jwt"]["httponly"])
 
     def test_phone_verify_sets_cookies(self):
         """Phone verification should set JWT cookies"""
@@ -1724,8 +1724,8 @@ class CookieAuthenticationTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("iron_jwt", response.cookies)
-        self.assertIn("iron_refresh_jwt", response.cookies)
+        self.assertIn("stapel_jwt", response.cookies)
+        self.assertIn("stapel_refresh_jwt", response.cookies)
 
     def test_anonymous_auth_sets_cookies(self):
         """Anonymous auth should set JWT cookies"""
@@ -1734,8 +1734,8 @@ class CookieAuthenticationTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn("iron_jwt", response.cookies)
-        self.assertIn("iron_refresh_jwt", response.cookies)
+        self.assertIn("stapel_jwt", response.cookies)
+        self.assertIn("stapel_refresh_jwt", response.cookies)
 
     def test_logout_clears_cookies(self):
         """Logout should clear JWT cookies"""
@@ -1744,15 +1744,15 @@ class CookieAuthenticationTests(APITestCase):
         # Get tokens and authenticate
         refresh = TokenService.get_refresh_token_for_user(self.user)
         self.client.force_authenticate(user=self.user)
-        self.client.cookies["iron_jwt"] = str(refresh.access_token)
-        self.client.cookies["iron_refresh_jwt"] = str(refresh)
+        self.client.cookies["stapel_jwt"] = str(refresh.access_token)
+        self.client.cookies["stapel_refresh_jwt"] = str(refresh)
 
         response = self.client.post(reverse("logout"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Cookies should be deleted (max-age=0 or empty)
-        if "iron_jwt" in response.cookies:
-            cookie = response.cookies["iron_jwt"]
+        if "stapel_jwt" in response.cookies:
+            cookie = response.cookies["stapel_jwt"]
             self.assertTrue(cookie["max-age"] == 0 or cookie.value == "")
 
     def test_token_refresh_via_cookie(self):
@@ -1760,7 +1760,7 @@ class CookieAuthenticationTests(APITestCase):
         from stapel_auth.services import TokenService
 
         refresh = TokenService.get_refresh_token_for_user(self.user)
-        self.client.cookies["iron_refresh_jwt"] = str(refresh)
+        self.client.cookies["stapel_refresh_jwt"] = str(refresh)
 
         response = self.client.get(reverse("token_refresh"))
 
@@ -2426,7 +2426,7 @@ class LogoutEdgeCaseTests(APITestCase):
 
     def test_logout_with_invalid_refresh_token(self):
         """Logout with invalid refresh token should still succeed"""
-        self.client.cookies["iron_refresh_jwt"] = "invalid_token"
+        self.client.cookies["stapel_refresh_jwt"] = "invalid_token"
 
         response = self.client.post(reverse("logout"))
 
@@ -3697,7 +3697,7 @@ class PasswordLoginTests(APITestCase):
             },
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("iron_jwt", response.cookies)
+        self.assertIn("stapel_jwt", response.cookies)
 
 
 # =============================================================================
@@ -4070,7 +4070,7 @@ class PasswordResetEmailTests(APITestCase):
                 "new_password": "freshpass789!",
             },
         )
-        self.assertIn("iron_jwt", response.cookies)
+        self.assertIn("stapel_jwt", response.cookies)
 
     @patch("stapel_auth.services.EmailVerificationService.verify_code")
     def test_verify_wrong_code(self, mock_verify):
@@ -4496,7 +4496,7 @@ class QRAuthScanTests(APITestCase):
             reverse("qr_scan", kwargs={"key": key}), follow=False
         )
         self.assertIn(response.status_code, [301, 302])
-        self.assertIn("iron_jwt", response.cookies)
+        self.assertIn("stapel_jwt", response.cookies)
 
     def test_scan_session_share_same_user_redirects(self):
         key = self._generate_session_share_key()
