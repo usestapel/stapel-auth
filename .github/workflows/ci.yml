@@ -28,6 +28,13 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest pytest-django pytest-cov python3-openid
 
+      - name: Hide local sub-packages that shadow installed packages
+        # The flat layout places openid/ at the repo root. If the repo root ends up
+        # in sys.path (via pytest's conftest traversal through tests/__init__.py),
+        # `import openid` finds this local sub-package instead of python3-openid.
+        # Renaming it after pip install ensures only the installed package is found.
+        run: mv openid _openid_pkg_src
+
       - name: Lint
         run: |
           pip install ruff --quiet
