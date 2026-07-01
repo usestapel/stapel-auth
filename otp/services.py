@@ -616,8 +616,8 @@ class AuthenticatorChangeService:
                         "email": user.email or "",
                         "phone": user.phone or "",
                     },
+                    key=str(user.id),
                 ),
-                key=str(user.id),
             )
         except Exception:
             logger.exception("Failed to publish user-contact-changed event")
