@@ -1205,7 +1205,7 @@ class OAuthCallbackTests(APITestCase):
             {'code': 'valid-code', 'state': 'test-state-abc'},
         )
         self.assertEqual(response.status_code, 200)
-        self.assertIn('iron_jwt', response.cookies)
+        self.assertIn('stapel_jwt', response.cookies)
 
     def test_callback_totp_user_redirects_to_challenge(self):
         User.objects.create(
