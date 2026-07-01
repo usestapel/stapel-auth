@@ -1,21 +1,22 @@
 """Views for the admin sub-package: ServiceAPIKeyViewSet, AdminUserViewSet, CapabilitiesView."""
+
 import logging
 
-from stapel_core.django.api.errors import (
-    IronResponse,
-)
 from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.views import APIView
+from stapel_core.django.api.errors import (
+    StapelResponse,
+)
 
-from stapel_auth.models import ServiceAPIKey
 from stapel_auth.admin.dto import AdminUserCreateResponse
 from stapel_auth.admin.serializers import (
-    ServiceAPIKeySerializer,
     AdminUserCreateRequestSerializer,
     AdminUserCreateResponseSerializer,
+    ServiceAPIKeySerializer,
 )
+from stapel_auth.models import ServiceAPIKey
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +50,9 @@ class CapabilitiesView(APIView):
     def get(self, request):
         from stapel_auth.oauth.services import AuthCapabilitiesService
         from stapel_auth.serializers import AuthCapabilitiesSerializer
+
         caps = AuthCapabilitiesService.get_capabilities()
-        return IronResponse(AuthCapabilitiesSerializer(caps))
+        return StapelResponse(AuthCapabilitiesSerializer(caps))
 
 
 # ── Admin User Broker ─────────────────────────────────────────────────────────
@@ -70,14 +72,17 @@ class AdminUserViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=["post"])
     def create_user(self, request):
         from django.contrib.auth import get_user_model
-        from stapel_auth.permissions import IsServiceAPIKey
         from stapel_core.django.api.errors import error_403_forbidden
+
+        from stapel_auth.permissions import IsServiceAPIKey
 
         User = get_user_model()
 
         # Allow either staff user or service API key
         is_svc_key = IsServiceAPIKey().has_permission(request, self)
-        if not is_svc_key and not (request.user.is_authenticated and request.user.is_staff):
+        if not is_svc_key and not (
+            request.user.is_authenticated and request.user.is_staff
+        ):
             return error_403_forbidden()
 
         serializer = AdminUserCreateRequestSerializer(data=request.data)
@@ -108,9 +113,12 @@ class AdminUserViewSet(viewsets.GenericViewSet):
         if send_welcome:
             try:
                 from stapel_core.notifications import request_notification
+
                 request_notification(notification_type="welcome", user_id=str(user.id))
             except Exception:
-                logger.exception("Failed to send welcome notification for user %s", user.id)
+                logger.exception(
+                    "Failed to send welcome notification for user %s", user.id
+                )
 
         dto = AdminUserCreateResponse(
             user_id=str(user.id),
@@ -118,4 +126,4 @@ class AdminUserViewSet(viewsets.GenericViewSet):
             phone=user.phone,
             username=user.username,
         )
-        return IronResponse(AdminUserCreateResponseSerializer(dto), status=201)
+        return StapelResponse(AdminUserCreateResponseSerializer(dto), status=201)
