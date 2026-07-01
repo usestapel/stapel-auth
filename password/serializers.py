@@ -1,13 +1,16 @@
 """Serializers for the password authentication domain."""
-from rest_framework import serializers
-from stapel_core.django.api.serializers import IronDataclassSerializer
-from stapel_core.django.api.errors import IronValidationError
-from stapel_core.django.captcha import CaptchaMixin
+
 from django.contrib.auth.password_validation import validate_password
+from rest_framework import serializers
+from stapel_core.django.api.errors import StapelValidationError
+from stapel_core.django.api.serializers import IronDataclassSerializer
+from stapel_core.django.captcha import CaptchaMixin
 
 from stapel_auth.errors import (
-    ERR_400_INVALID_PHONE_FORMAT, ERR_400_INVALID_PHONE, ERR_400_PHONE_TOO_LONG,
+    ERR_400_INVALID_PHONE,
+    ERR_400_INVALID_PHONE_FORMAT,
     ERR_400_PASSWORDS_DONT_MATCH,
+    ERR_400_PHONE_TOO_LONG,
 )
 from stapel_auth.password.dto import (
     PasswordMethod,
@@ -19,20 +22,21 @@ from stapel_auth.password.dto import (
 def normalize_phone(value):
     """Parse and normalize phone number to E.164 format (+79991234567)."""
     import phonenumbers
+
     try:
         phone_number = phonenumbers.parse(value, None)
     except phonenumbers.NumberParseException:
-        raise IronValidationError(ERR_400_INVALID_PHONE_FORMAT)
+        raise StapelValidationError(ERR_400_INVALID_PHONE_FORMAT)
     if not phonenumbers.is_valid_number(phone_number):
-        raise IronValidationError(ERR_400_INVALID_PHONE)
+        raise StapelValidationError(ERR_400_INVALID_PHONE)
     e164 = phonenumbers.format_number(phone_number, phonenumbers.PhoneNumberFormat.E164)
     if len(e164) > 16:  # E.164: '+' + up to 15 digits
-        raise IronValidationError(ERR_400_PHONE_TOO_LONG)
+        raise StapelValidationError(ERR_400_PHONE_TOO_LONG)
     return e164
 
 
 class PasswordLoginSerializer(serializers.Serializer):
-    login = serializers.CharField(help_text='Email or username')
+    login = serializers.CharField(help_text="Email or username")
     password = serializers.CharField()
 
 
@@ -42,21 +46,27 @@ class PasswordChangeDirectSerializer(serializers.Serializer):
 
     def validate_new_password(self, value):
         from django.contrib.auth.password_validation import validate_password
+
         validate_password(value)
         return value
 
 
 class PasswordOtpRequestSerializer(serializers.Serializer):
-    method = serializers.ChoiceField(choices=[PasswordMethodType.EMAIL, PasswordMethodType.PHONE])
+    method = serializers.ChoiceField(
+        choices=[PasswordMethodType.EMAIL, PasswordMethodType.PHONE]
+    )
 
 
 class PasswordOtpVerifySerializer(serializers.Serializer):
-    method = serializers.ChoiceField(choices=[PasswordMethodType.EMAIL, PasswordMethodType.PHONE])
+    method = serializers.ChoiceField(
+        choices=[PasswordMethodType.EMAIL, PasswordMethodType.PHONE]
+    )
     code = serializers.CharField(max_length=4)
     new_password = serializers.CharField(min_length=8)
 
     def validate_new_password(self, value):
         from django.contrib.auth.password_validation import validate_password
+
         validate_password(value)
         return value
 
@@ -107,19 +117,23 @@ class PasswordResetPhoneVerifySerializer(serializers.Serializer):
 
 class PasswordResetSerializer(serializers.Serializer):
     """Serializer for password reset request"""
+
     email = serializers.EmailField()
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
     """Serializer for password reset confirmation"""
+
     uid = serializers.CharField()
     token = serializers.CharField()
-    new_password = serializers.CharField(write_only=True, validators=[validate_password])
+    new_password = serializers.CharField(
+        write_only=True, validators=[validate_password]
+    )
     new_password2 = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        if attrs['new_password'] != attrs['new_password2']:
-            raise IronValidationError(ERR_400_PASSWORDS_DONT_MATCH)
+        if attrs["new_password"] != attrs["new_password2"]:
+            raise StapelValidationError(ERR_400_PASSWORDS_DONT_MATCH)
         return attrs
 
 
@@ -145,7 +159,8 @@ class PasswordRegisterSerializer(CaptchaMixin, serializers.Serializer):
     def validate(self, attrs):
         if not any([attrs.get("email"), attrs.get("phone"), attrs.get("username")]):
             from stapel_auth.errors import ERR_400_EMAIL_OR_PHONE_REQUIRED
-            raise IronValidationError(ERR_400_EMAIL_OR_PHONE_REQUIRED)
+
+            raise StapelValidationError(ERR_400_EMAIL_OR_PHONE_REQUIRED)
         if attrs.get("phone"):
             attrs["phone"] = normalize_phone(attrs["phone"])
         self._require_captcha_if_configured(attrs)

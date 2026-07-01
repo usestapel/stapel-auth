@@ -1,3 +1,14 @@
+import os as _os
+import sys as _sys
+
+# Flat package layout (package-dir={"stapel_auth":"."}) places subdirs like openid/
+# at the repo root. pytest adds conftest parent dirs to sys.path, so `import openid`
+# resolves to the local openid/ dir instead of the installed python3-openid package.
+# Remove the repo root from sys.path before any imports.
+_repo_root = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path = [p for p in _sys.path if _os.path.abspath(p or _os.getcwd()) != _repo_root]
+
+
 def pytest_configure(config):
     # Bootstrap a minimal Celery app so shared_task decorators have a configured
     # app with ALWAYS_EAGER=True before Django settings are loaded.
