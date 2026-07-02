@@ -49,7 +49,7 @@ jobs:
 
       - name: Tests with coverage
         run: |
-          python -m pytest --pyargs stapel_auth.tests stapel_auth.tests_sso stapel_auth.tests_extra stapel_auth.tests_services \
+          python -m pytest --pyargs stapel_auth.tests \
             --cov=stapel_auth \
             --cov-report=term-missing \
             --cov-report=xml \
