@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 — 2026-07-02
+
+### Added
+- Step-up verification factors (`otp_email`, `otp_phone`, `totp`,
+  `passkey` — interchangeable) registered with
+  `stapel_core.verification`; three verification endpoints
+  (initiate / verify / status) drive any `@requires_verification`
+  challenge in any service.
+- Exemplar flows: `auth.passwordless_login`, `auth.password_login`,
+  `auth.step_up_verification`.
+
+### Changed
+- OAuth login no longer forces OTP (`OAUTH_STEP_UP` defaults to False);
+  password-login TOTP step-up stays on (`PASSWORD_LOGIN_STEP_UP=True`).
+- Canonical event name `user.registered` (comm action name); legacy Kafka
+  topic `stapel.auth.user-registered` retired, `TOPIC_USER_REGISTERED`
+  kept as an import alias.
+
 ## 0.2.0 — 2026-07-02
 
 ### Security
