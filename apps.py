@@ -29,6 +29,15 @@ class StapelAuthConfig(AppConfig):
         for cls_path in classes:
             register_provider(import_string(cls_path)())
 
+        # Step-up verification factors: the mechanism (challenge/grant
+        # stores, @requires_verification) lives in stapel-core; the concrete
+        # factor implementations on top of the auth services are registered
+        # here. register_factor is idempotent per factor id.
+        from stapel_core.verification import register_factor
+        from .verification_factors import DEFAULT_FACTOR_CLASSES
+        for factor_cls in DEFAULT_FACTOR_CLASSES:
+            register_factor(factor_cls())
+
         # In monolith mode (no GDPR_COLLECTING_SERVICES), register the GDPR provider
         # in-process so the orchestrator can call it directly.
         # In microservices mode the bus consumer (management/commands/consume_gdpr.py) handles it.

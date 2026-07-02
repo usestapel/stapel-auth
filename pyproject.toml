@@ -60,6 +60,7 @@ packages = [
     "stapel_auth.magic_link",
     "stapel_auth.openid",
     "stapel_auth.admin",
+    "stapel_auth.verification",
     "stapel_auth.tests",
 ]
 

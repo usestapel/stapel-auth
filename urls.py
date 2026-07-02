@@ -26,6 +26,7 @@ from stapel_auth.qr.views import QRAuthViewSet
 from stapel_auth.mfa.views import TOTPViewSet, PasskeyViewSet
 from stapel_auth.security.views import SecurityStatusViewSet, AuditLogViewSet, RevokeSuspiciousView, AdminAuditLogViewSet
 from stapel_auth.magic_link.views import MagicLinkViewSet
+from stapel_auth.verification.views import VerificationViewSet
 from stapel_auth.openid.views import JWKSView, OpenIDConfigurationView, TokenIntrospectView
 from stapel_auth.admin.views import ServiceAPIKeyViewSet, AdminUserViewSet, CapabilitiesView
 from .sso_views import (
@@ -37,7 +38,7 @@ __all__ = [
     'get_otp_urls', 'get_password_urls', 'get_oauth_urls', 'get_sso_urls',
     'get_mfa_urls', 'get_qr_urls', 'get_magic_link_urls', 'get_sessions_urls',
     'get_admin_api_urls', 'get_security_urls', 'get_openid_urls',
-    'urlpatterns',
+    'get_verification_urls', 'urlpatterns',
 ]
 
 
@@ -185,6 +186,17 @@ def get_mfa_urls(enabled=None):
     return patterns
 
 
+def get_verification_urls(enabled=None):
+    """Step-up verification challenge endpoints (stapel_core.verification). Always on."""
+    if not _gate(enabled):
+        return []
+    return [
+        path('verification/<str:challenge_id>/', VerificationViewSet.as_view({'get': 'info'}), name='verification_info'),
+        path('verification/<str:challenge_id>/initiate/', VerificationViewSet.as_view({'post': 'initiate'}), name='verification_initiate'),
+        path('verification/<str:challenge_id>/complete/', VerificationViewSet.as_view({'post': 'complete'}), name='verification_complete'),
+    ]
+
+
 def get_magic_link_urls(enabled=None):
     """Magic link request/verify."""
     if not _gate(enabled, 'AUTH_MAGIC_LINK_LOGIN'):
@@ -274,4 +286,5 @@ urlpatterns = (
     + get_magic_link_urls(enabled=True)
     + get_sso_urls(enabled=True)
     + get_openid_urls(enabled=True)
+    + get_verification_urls(enabled=True)
 )

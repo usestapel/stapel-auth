@@ -23,6 +23,7 @@ _LAZY_EXPORTS = {
     "get_security_urls": (".urls", "get_security_urls"),
     "get_sessions_urls": (".urls", "get_sessions_urls"),
     "get_sso_urls": (".urls", "get_sso_urls"),
+    "get_verification_urls": (".urls", "get_verification_urls"),
 }
 
 __all__ = sorted(_LAZY_EXPORTS)

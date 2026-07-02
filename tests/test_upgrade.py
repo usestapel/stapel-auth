@@ -473,6 +473,9 @@ _EXPECTED_URLS = {
     'jwks': '.well-known/jwks.json',
     'openid-configuration': '.well-known/openid-configuration',
     'oauth2_introspect': 'oauth2/introspect/',
+    'verification_info': 'verification/<str:challenge_id>/',
+    'verification_initiate': 'verification/<str:challenge_id>/initiate/',
+    'verification_complete': 'verification/<str:challenge_id>/complete/',
     'capabilities': 'capabilities/',
     'admin-users': 'admin-users/',
     'admin-audit': 'admin/audit/',
@@ -515,6 +518,7 @@ class URLFactoryEquivalenceTests(TestCase):
             auth_urls.get_magic_link_urls,
             auth_urls.get_sso_urls,
             auth_urls.get_openid_urls,
+            auth_urls.get_verification_urls,
         ):
             part = self._collect(factory(enabled=True))
             overlap = set(part) & set(combined)

@@ -160,7 +160,9 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         user.last_login = timezone.now()
         user.save(update_fields=["last_login"])
 
-        if TOTPService.is_enabled(user):
+        # TOTP step-up on password login, gated by PASSWORD_LOGIN_STEP_UP
+        # (default True — a password alone is phishable).
+        if auth_settings.PASSWORD_LOGIN_STEP_UP and TOTPService.is_enabled(user):
             challenge_token = TOTPService.create_challenge(str(user.id))
             dto = TOTPChallengeResponse(
                 status=TOTPChallengeStatus.TOTP_REQUIRED,

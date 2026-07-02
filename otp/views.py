@@ -890,7 +890,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             return response
 
     @extend_schema(
-        description="OAuth authentication (Google, Facebook, etc.). Returns `LoginResponse` — either `AuthResponse` (status=LOGGED_IN) or `TOTPChallengeResponse` (status=TOTP_REQUIRED). When TOTP is required, pass `challenge_token` to `POST /totp/challenge/verify/`.",
+        description="OAuth authentication (Google, Facebook, etc.). Returns `LoginResponse` — normally `AuthResponse` (status=LOGGED_IN); with the `OAUTH_STEP_UP` setting enabled and TOTP enrolled, `TOTPChallengeResponse` (status=TOTP_REQUIRED) — pass `challenge_token` to `POST /totp/challenge/verify/`.",
         request=OAuthSerializer,
         responses={200: LoginResponseSerializer, 400: StapelErrorSerializer},
         examples=[
@@ -931,18 +931,21 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
         self.log_login_attempt(str(user.id), "success", request)
 
-        from stapel_auth.mfa.services import TOTPService
+        # No forced TOTP: the OAuth provider already authenticated the user.
+        # Hosts that still want a second factor here opt in via OAUTH_STEP_UP.
+        if auth_settings.OAUTH_STEP_UP:
+            from stapel_auth.mfa.services import TOTPService
 
-        if TOTPService.is_enabled(user):
-            challenge_token = TOTPService.create_challenge(str(user.id))
-            dto = TOTPChallengeResponse(
-                status=TOTPChallengeStatus.TOTP_REQUIRED,
-                challenge_token=challenge_token,
-                expires_in=TOTPService.CHALLENGE_TTL,
-            )
-            return StapelResponse(
-                self.get_totp_challenge_response_serializer_class()(dto)
-            )
+            if TOTPService.is_enabled(user):
+                challenge_token = TOTPService.create_challenge(str(user.id))
+                dto = TOTPChallengeResponse(
+                    status=TOTPChallengeStatus.TOTP_REQUIRED,
+                    challenge_token=challenge_token,
+                    expires_in=TOTPService.CHALLENGE_TTL,
+                )
+                return StapelResponse(
+                    self.get_totp_challenge_response_serializer_class()(dto)
+                )
 
         access_token, refresh_token = _issue_session_tokens(user, request)
         tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
@@ -1062,17 +1065,20 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
         self.log_login_attempt(str(user.id), "success", request)
 
-        from stapel_auth.mfa.services import TOTPService
+        # No forced TOTP: the OAuth provider already authenticated the user.
+        # Hosts that still want a second factor here opt in via OAUTH_STEP_UP.
+        if auth_settings.OAUTH_STEP_UP:
+            from stapel_auth.mfa.services import TOTPService
 
-        if TOTPService.is_enabled(user):
-            challenge_token = TOTPService.create_challenge(str(user.id))
-            redirect_after = _sanitize_redirect_after(state_data.get("redirect_after", ""))
-            # Encode redirect_after inside the TOTP challenge URL so the
-            # frontend can resume the OAuth redirect flow after TOTP verify.
-            params = {"token": challenge_token}
-            if redirect_after:
-                params["redirect_after"] = redirect_after
-            return redirect("/totp-challenge?" + urlencode(params))
+            if TOTPService.is_enabled(user):
+                challenge_token = TOTPService.create_challenge(str(user.id))
+                redirect_after = _sanitize_redirect_after(state_data.get("redirect_after", ""))
+                # Encode redirect_after inside the TOTP challenge URL so the
+                # frontend can resume the OAuth redirect flow after TOTP verify.
+                params = {"token": challenge_token}
+                if redirect_after:
+                    params["redirect_after"] = redirect_after
+                return redirect("/totp-challenge?" + urlencode(params))
 
         access_token, refresh_token = _issue_session_tokens(user, request)
 

@@ -113,6 +113,14 @@ DEFAULTS = {
     'AUTH_QR_LOGIN':         True,
     'AUTH_PASSKEY_LOGIN':    True,
     'AUTH_MAGIC_LINK_LOGIN': True,
+
+    # Step-up (TOTP challenge) on existing login flows.
+    # OAuth: off by default — the provider already authenticated the user;
+    # opt back in with OAUTH_STEP_UP=True.
+    'OAUTH_STEP_UP': False,
+    # Password login: on by default (a password alone is phishable) —
+    # preserves the pre-0.3 behavior; opt out with PASSWORD_LOGIN_STEP_UP=False.
+    'PASSWORD_LOGIN_STEP_UP': True,
 }
 
 # Env var fallbacks for settings that are commonly set via environment

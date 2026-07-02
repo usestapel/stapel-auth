@@ -1260,7 +1260,27 @@ class OAuthCallbackTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('stapel_jwt', response.cookies)
 
-    def test_callback_totp_user_redirects_to_challenge(self):
+    def test_callback_totp_user_gets_tokens_by_default(self):
+        # The provider already authenticated the user: no forced TOTP
+        # challenge on the callback unless OAUTH_STEP_UP is enabled.
+        User.objects.create(
+            email='test-oauth@example.com',
+            oauth_provider='test',
+            oauth_id='test-oauth-user-1',
+            is_email_verified=True,
+        )
+        from unittest.mock import patch
+        self._store_state()
+        with patch('stapel_auth.services.TOTPService.is_enabled', return_value=True):
+            response = self.client.get(
+                reverse('oauth_callback', kwargs={'provider': 'test'}),
+                {'code': 'valid-code', 'state': 'test-state-abc'},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('stapel_jwt', response.cookies)
+
+    @override_settings(OAUTH_STEP_UP=True)
+    def test_callback_totp_user_redirects_to_challenge_with_step_up_enabled(self):
         User.objects.create(
             email='test-oauth@example.com',
             oauth_provider='test',
