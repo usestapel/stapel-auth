@@ -52,6 +52,7 @@ from stapel_auth.serializers import (
     TOTPChallengeResponseSerializer,
 )
 from stapel_auth.sessions.views import _add_login_hints, _issue_session_tokens
+from stapel_auth.utils import SerializerSeamsMixin
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +71,24 @@ logger = logging.getLogger(__name__)
     reset_phone_request=extend_schema(tags=["Password Auth"]),
     reset_phone_verify=extend_schema(tags=["Password Auth"]),
 )
-class PasswordViewSet(viewsets.GenericViewSet):
+class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     permission_classes = [permissions.AllowAny]
+
+    # Overridable serializer seams (see SerializerSeamsMixin).
+    login_request_serializer_class = PasswordLoginSerializer
+    change_direct_request_serializer_class = PasswordChangeDirectSerializer
+    change_otp_request_serializer_class = PasswordOtpRequestSerializer
+    change_otp_verify_request_serializer_class = PasswordOtpVerifySerializer
+    reset_email_request_serializer_class = PasswordResetEmailRequestSerializer
+    reset_email_verify_request_serializer_class = PasswordResetEmailVerifySerializer
+    reset_phone_request_serializer_class = PasswordResetPhoneRequestSerializer
+    reset_phone_verify_request_serializer_class = PasswordResetPhoneVerifySerializer
+    register_request_serializer_class = PasswordRegisterSerializer
+    auth_response_serializer_class = AuthResponseSerializer
+    totp_challenge_response_serializer_class = TOTPChallengeResponseSerializer
+    methods_response_serializer_class = PasswordMethodsResponseSerializer
+    otp_sent_response_serializer_class = OtpSentResponseSerializer
+    status_response_serializer_class = SimpleStatusSerializer
 
     _authenticated_actions = frozenset(
         {
@@ -112,7 +129,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
         from stapel_auth.errors import ERR_423_ACCOUNT_LOCKED, retry_params
         from stapel_auth.services import AuditService, LockoutService, TOTPService
 
-        serializer = PasswordLoginSerializer(data=request.data)
+        serializer = self.get_login_request_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
         identifier = serializer.validated_data["login"]
 
@@ -150,7 +167,9 @@ class PasswordViewSet(viewsets.GenericViewSet):
                 challenge_token=challenge_token,
                 expires_in=TOTPService.CHALLENGE_TTL,
             )
-            return StapelResponse(TOTPChallengeResponseSerializer(dto))
+            return StapelResponse(
+                self.get_totp_challenge_response_serializer_class()(dto)
+            )
 
         access_token, refresh_token = _issue_session_tokens(user, request)
         dto = AuthResponse(
@@ -158,7 +177,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
             user=user,
             tokens=TokenPairResponse(refresh=refresh_token, access=access_token),
         )
-        response = Response(AuthResponseSerializer(dto).data)
+        response = Response(self.get_auth_response_serializer_class()(dto).data)
         set_jwt_cookies(response, access_token, refresh_token)
         return _add_login_hints(response, critical=True)
 
@@ -177,7 +196,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
             has_password=request.user.has_usable_password(),
             methods=PasswordService.get_available_methods(request.user),
         )
-        return StapelResponse(PasswordMethodsResponseSerializer(dto))
+        return StapelResponse(self.get_methods_response_serializer_class()(dto))
 
     @extend_schema(
         description="Change password by providing the current password.",
@@ -193,7 +212,9 @@ class PasswordViewSet(viewsets.GenericViewSet):
     def change_direct(self, request):
         if not request.user.has_usable_password():
             return StapelErrorResponse(400, ERR_400_NO_PASSWORD)
-        serializer = PasswordChangeDirectSerializer(data=request.data)
+        serializer = self.get_change_direct_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         ok = PasswordService.change_via_old(
             request.user,
@@ -205,7 +226,9 @@ class PasswordViewSet(viewsets.GenericViewSet):
         from stapel_auth.dto import SimpleStatusResponse
 
         return StapelResponse(
-            SimpleStatusSerializer(SimpleStatusResponse(status="password_changed"))
+            self.get_status_response_serializer_class()(
+                SimpleStatusResponse(status="password_changed")
+            )
         )
 
     @extend_schema(
@@ -225,13 +248,13 @@ class PasswordViewSet(viewsets.GenericViewSet):
         permission_classes=[permissions.IsAuthenticated],
     )
     def change_otp_request(self, request):
-        serializer = PasswordOtpRequestSerializer(data=request.data)
+        serializer = self.get_change_otp_request_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
         masked = PasswordService.send_change_otp(
             request.user, serializer.validated_data["method"]
         )
         dto = OtpSentResponse(message="Verification code sent", target=masked)
-        return StapelResponse(OtpSentResponseSerializer(dto))
+        return StapelResponse(self.get_otp_sent_response_serializer_class()(dto))
 
     @extend_schema(
         description="Verify OTP and set new password (for authenticated users).",
@@ -245,7 +268,9 @@ class PasswordViewSet(viewsets.GenericViewSet):
         permission_classes=[permissions.IsAuthenticated],
     )
     def change_otp_verify(self, request):
-        serializer = PasswordOtpVerifySerializer(data=request.data)
+        serializer = self.get_change_otp_verify_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         PasswordService.change_via_otp(
             request.user,
@@ -256,7 +281,9 @@ class PasswordViewSet(viewsets.GenericViewSet):
         from stapel_auth.dto import SimpleStatusResponse
 
         return StapelResponse(
-            SimpleStatusSerializer(SimpleStatusResponse(status="password_changed"))
+            self.get_status_response_serializer_class()(
+                SimpleStatusResponse(status="password_changed")
+            )
         )
 
     @extend_schema(
@@ -276,11 +303,11 @@ class PasswordViewSet(viewsets.GenericViewSet):
         permission_classes=[permissions.AllowAny],
     )
     def reset_email_request(self, request):
-        serializer = PasswordResetEmailRequestSerializer(data=request.data)
+        serializer = self.get_reset_email_request_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
         masked = PasswordService.reset_request(email=serializer.validated_data["email"])
         return StapelResponse(
-            OtpSentResponseSerializer(
+            self.get_otp_sent_response_serializer_class()(
                 OtpSentResponse(message="Verification code sent", target=masked)
             )
         )
@@ -304,7 +331,9 @@ class PasswordViewSet(viewsets.GenericViewSet):
         from stapel_core.django.jwt.provider import jwt_provider
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
-        serializer = PasswordResetEmailVerifySerializer(data=request.data)
+        serializer = self.get_reset_email_verify_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         user = PasswordService.reset_verify(
             email=serializer.validated_data["email"],
@@ -317,7 +346,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
             user=user,
             tokens=TokenPairResponse(refresh=refresh_token, access=access_token),
         )
-        response = Response(AuthResponseSerializer(dto).data)
+        response = Response(self.get_auth_response_serializer_class()(dto).data)
         set_jwt_cookies(response, access_token, refresh_token)
         return response
 
@@ -338,11 +367,11 @@ class PasswordViewSet(viewsets.GenericViewSet):
         permission_classes=[permissions.AllowAny],
     )
     def reset_phone_request(self, request):
-        serializer = PasswordResetPhoneRequestSerializer(data=request.data)
+        serializer = self.get_reset_phone_request_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
         masked = PasswordService.reset_request(phone=serializer.validated_data["phone"])
         return StapelResponse(
-            OtpSentResponseSerializer(
+            self.get_otp_sent_response_serializer_class()(
                 OtpSentResponse(message="Verification code sent", target=masked)
             )
         )
@@ -366,7 +395,9 @@ class PasswordViewSet(viewsets.GenericViewSet):
         from stapel_core.django.jwt.provider import jwt_provider
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
-        serializer = PasswordResetPhoneVerifySerializer(data=request.data)
+        serializer = self.get_reset_phone_verify_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         user = PasswordService.reset_verify(
             phone=serializer.validated_data["phone"],
@@ -379,7 +410,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
             user=user,
             tokens=TokenPairResponse(refresh=refresh_token, access=access_token),
         )
-        response = Response(AuthResponseSerializer(dto).data)
+        response = Response(self.get_auth_response_serializer_class()(dto).data)
         set_jwt_cookies(response, access_token, refresh_token)
         return response
 
@@ -409,7 +440,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
         if not auth_settings.AUTH_PASSWORD_REGISTRATION:
             return error_403_forbidden()
 
-        serializer = PasswordRegisterSerializer(data=request.data)
+        serializer = self.get_register_request_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
@@ -453,7 +484,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
         )
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
-        response = StapelResponse(AuthResponseSerializer(dto))
+        response = StapelResponse(self.get_auth_response_serializer_class()(dto))
         set_jwt_cookies(response, access_token, refresh_token)
         return response
 

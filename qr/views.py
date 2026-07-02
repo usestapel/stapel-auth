@@ -21,12 +21,14 @@ from stapel_auth.qr.serializers import (
     QRStatusResponseSerializer,
 )
 from stapel_auth.qr.services import QRAuthService
+from stapel_auth.serializers import SimpleStatusSerializer
 from stapel_auth.sessions.services import (
     AuditService,
     LoginNotificationService,
     SessionService,
 )
 from stapel_auth.sessions.views import _issue_session_tokens
+from stapel_auth.utils import SerializerSeamsMixin
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +42,14 @@ logger = logging.getLogger(__name__)
     scan=extend_schema(tags=["QR Auth"]),
     confirm=extend_schema(tags=["QR Auth"]),
 )
-class QRAuthViewSet(viewsets.GenericViewSet):
+class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     permission_classes = [permissions.AllowAny]
+
+    # Overridable serializer seams (see SerializerSeamsMixin).
+    generate_request_serializer_class = QRGenerateSerializer
+    generate_response_serializer_class = QRGenerateResponseSerializer
+    status_response_serializer_class = QRStatusResponseSerializer
+    simple_status_response_serializer_class = SimpleStatusSerializer
 
     _authenticated_actions = frozenset({"confirm"})
 
@@ -74,7 +82,7 @@ class QRAuthViewSet(viewsets.GenericViewSet):
     def generate(self, request):
         import secrets as _secrets
 
-        serializer = QRGenerateSerializer(data=request.data)
+        serializer = self.get_generate_request_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
         qr_type = serializer.validated_data["type"]
         redirect_url = serializer.validated_data.get("redirect_url")
@@ -106,7 +114,8 @@ class QRAuthViewSet(viewsets.GenericViewSet):
             scan_url=scan_url,
         )
         response = StapelResponse(
-            QRGenerateResponseSerializer(dto), status=status.HTTP_201_CREATED
+            self.get_generate_response_serializer_class()(dto),
+            status=status.HTTP_201_CREATED,
         )
         response.set_cookie(
             self._nonce_cookie_name(key),
@@ -153,7 +162,7 @@ class QRAuthViewSet(viewsets.GenericViewSet):
         data = QRAuthService.get(key)
         if data is None:
             dto = QRStatusResponse(status=QRStatus.EXPIRED)
-            return StapelResponse(QRStatusResponseSerializer(dto))
+            return StapelResponse(self.get_status_response_serializer_class()(dto))
 
         # login_request status polling hands out session tokens once
         # fulfilled — only the device that generated the QR (and thus holds
@@ -165,7 +174,9 @@ class QRAuthViewSet(viewsets.GenericViewSet):
 
         if data["status"] == QRStatus.REJECTED:
             return StapelResponse(
-                QRStatusResponseSerializer(QRStatusResponse(status=QRStatus.REJECTED))
+                self.get_status_response_serializer_class()(
+                    QRStatusResponse(status=QRStatus.REJECTED)
+                )
             )
 
         if data["status"] == QRStatus.FULFILLED:
@@ -213,7 +224,7 @@ class QRAuthViewSet(viewsets.GenericViewSet):
         else:
             dto = QRStatusResponse(status=QRStatus.PENDING)
 
-        return StapelResponse(QRStatusResponseSerializer(dto))
+        return StapelResponse(self.get_status_response_serializer_class()(dto))
 
     @extend_schema(
         description="""Browser endpoint embedded in QR code. Processes the scan and redirects.
@@ -303,10 +314,11 @@ class QRAuthViewSet(viewsets.GenericViewSet):
             return StapelErrorResponse(404, ERR_404_QR_NOT_FOUND)
         QRAuthService.reject(key)
         from stapel_auth.dto import SimpleStatusResponse
-        from stapel_auth.serializers import SimpleStatusSerializer
 
         return StapelResponse(
-            SimpleStatusSerializer(SimpleStatusResponse(status="rejected"))
+            self.get_simple_status_response_serializer_class()(
+                SimpleStatusResponse(status="rejected")
+            )
         )
 
     @extend_schema(
@@ -346,8 +358,9 @@ Issues tokens for the waiting device. The device polling `/status` will receive 
             refresh_token=refresh_token,
         )
         from stapel_auth.dto import SimpleStatusResponse
-        from stapel_auth.serializers import SimpleStatusSerializer
 
         return StapelResponse(
-            SimpleStatusSerializer(SimpleStatusResponse(status="confirmed"))
+            self.get_simple_status_response_serializer_class()(
+                SimpleStatusResponse(status="confirmed")
+            )
         )

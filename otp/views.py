@@ -157,14 +157,28 @@ from stapel_auth.sessions.views import (
     _add_login_hints,
     _issue_session_tokens,
 )
+from stapel_auth.utils import SerializerSeamsMixin
 
 
-class AuthViewSet(viewsets.GenericViewSet):
+class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     """
     ViewSet for authentication operations
     """
 
     permission_classes = [permissions.AllowAny]
+
+    # Overridable serializer seams (see SerializerSeamsMixin).
+    email_request_serializer_class = EmailAuthRequestSerializer
+    email_verify_request_serializer_class = EmailAuthVerifySerializer
+    phone_request_serializer_class = PhoneAuthRequestSerializer
+    phone_verify_request_serializer_class = PhoneAuthVerifySerializer
+    anonymous_request_serializer_class = AnonymousAuthSerializer
+    otp_sent_response_serializer_class = OtpSentResponseSerializer
+    auth_response_serializer_class = AuthResponseSerializer
+    totp_challenge_response_serializer_class = TOTPChallengeResponseSerializer
+    logout_response_serializer_class = LogoutResponseSerializer
+    me_response_serializer_class = UserSerializer
+    token_verify_response_serializer_class = TokenVerifyResponseSerializer
 
     def get_client_ip(self, request):
         """Get client IP address from request"""
@@ -256,7 +270,7 @@ class AuthViewSet(viewsets.GenericViewSet):
             and not auth_settings.AUTH_EMAIL_REGISTRATION
         ):
             return error_403_forbidden()
-        serializer = EmailAuthRequestSerializer(data=request.data)
+        serializer = self.get_email_request_serializer_class()(data=request.data)
         if serializer.is_valid(raise_exception=True):
             email = serializer.validated_data["email"]
             device_id = serializer.validated_data.get("device_id")
@@ -318,7 +332,8 @@ class AuthViewSet(viewsets.GenericViewSet):
                     message="Verification code sent successfully", target=email
                 )
                 return StapelResponse(
-                    OtpSentResponseSerializer(dto), status=status.HTTP_200_OK
+                    self.get_otp_sent_response_serializer_class()(dto),
+                    status=status.HTTP_200_OK,
                 )
 
             return StapelErrorResponse(500, ERR_500_SEND_FAILED)
@@ -406,7 +421,7 @@ class AuthViewSet(viewsets.GenericViewSet):
         """
         from stapel_auth.security.services import LockoutService
 
-        serializer = EmailAuthVerifySerializer(data=request.data)
+        serializer = self.get_email_verify_request_serializer_class()(data=request.data)
         if serializer.is_valid(raise_exception=True):
             email = serializer.validated_data["email"]
             code = serializer.validated_data["code"]
@@ -524,7 +539,8 @@ class AuthViewSet(viewsets.GenericViewSet):
             tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
             auth_dto = AuthResponse(status=auth_status, user=user, tokens=tokens_dto)
             response = Response(
-                AuthResponseSerializer(auth_dto).data, status=status.HTTP_200_OK
+                self.get_auth_response_serializer_class()(auth_dto).data,
+                status=status.HTTP_200_OK,
             )
             from stapel_core.django.utils import set_jwt_cookies
 
@@ -577,7 +593,7 @@ class AuthViewSet(viewsets.GenericViewSet):
             and not auth_settings.AUTH_PHONE_REGISTRATION
         ):
             return error_403_forbidden()
-        serializer = PhoneAuthRequestSerializer(data=request.data)
+        serializer = self.get_phone_request_serializer_class()(data=request.data)
         if serializer.is_valid(raise_exception=True):
             phone = serializer.validated_data["phone"]
             device_id = serializer.validated_data.get("device_id")
@@ -639,7 +655,8 @@ class AuthViewSet(viewsets.GenericViewSet):
                     message="Verification code sent successfully", target=phone
                 )
                 return StapelResponse(
-                    OtpSentResponseSerializer(dto), status=status.HTTP_200_OK
+                    self.get_otp_sent_response_serializer_class()(dto),
+                    status=status.HTTP_200_OK,
                 )
 
             return StapelErrorResponse(500, ERR_500_SEND_FAILED)
@@ -691,7 +708,7 @@ class AuthViewSet(viewsets.GenericViewSet):
         """
         from stapel_auth.security.services import LockoutService
 
-        serializer = PhoneAuthVerifySerializer(data=request.data)
+        serializer = self.get_phone_verify_request_serializer_class()(data=request.data)
         if serializer.is_valid(raise_exception=True):
             phone = serializer.validated_data["phone"]
             code = serializer.validated_data["code"]
@@ -808,7 +825,8 @@ class AuthViewSet(viewsets.GenericViewSet):
             tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
             auth_dto = AuthResponse(status=auth_status, user=user, tokens=tokens_dto)
             response = Response(
-                AuthResponseSerializer(auth_dto).data, status=status.HTTP_200_OK
+                self.get_auth_response_serializer_class()(auth_dto).data,
+                status=status.HTTP_200_OK,
             )
             from stapel_core.django.utils import set_jwt_cookies
 
@@ -823,7 +841,7 @@ class AuthViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=["post"])
     def anonymous(self, request):
         """Create anonymous user (or return existing anonymous session)."""
-        serializer = AnonymousAuthSerializer(data=request.data)
+        serializer = self.get_anonymous_request_serializer_class()(data=request.data)
         if serializer.is_valid(raise_exception=True):
             # If caller already has a valid anonymous session, reuse it
             if (
@@ -863,7 +881,8 @@ class AuthViewSet(viewsets.GenericViewSet):
                 status=AuthStatus.REGISTERED, user=user, tokens=tokens_dto
             )
             response = Response(
-                AuthResponseSerializer(auth_dto).data, status=status.HTTP_201_CREATED
+                self.get_auth_response_serializer_class()(auth_dto).data,
+                status=status.HTTP_201_CREATED,
             )
             from stapel_core.django.utils import set_jwt_cookies
 
@@ -921,7 +940,9 @@ class AuthViewSet(viewsets.GenericViewSet):
                 challenge_token=challenge_token,
                 expires_in=TOTPService.CHALLENGE_TTL,
             )
-            return StapelResponse(TOTPChallengeResponseSerializer(dto))
+            return StapelResponse(
+                self.get_totp_challenge_response_serializer_class()(dto)
+            )
 
         access_token, refresh_token = _issue_session_tokens(user, request)
         tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
@@ -929,7 +950,8 @@ class AuthViewSet(viewsets.GenericViewSet):
             status=AuthStatus.LOGGED_IN, user=user, tokens=tokens_dto
         )
         response = Response(
-            AuthResponseSerializer(auth_dto).data, status=status.HTTP_200_OK
+            self.get_auth_response_serializer_class()(auth_dto).data,
+            status=status.HTTP_200_OK,
         )
         from stapel_core.django.utils import set_jwt_cookies
 
@@ -1069,7 +1091,8 @@ class AuthViewSet(viewsets.GenericViewSet):
             status=AuthStatus.LOGGED_IN, user=user, tokens=tokens_dto
         )
         response = Response(
-            AuthResponseSerializer(auth_dto).data, status=status.HTTP_200_OK
+            self.get_auth_response_serializer_class()(auth_dto).data,
+            status=status.HTTP_200_OK,
         )
         from stapel_core.django.utils import set_jwt_cookies
 
@@ -1248,7 +1271,8 @@ class AuthViewSet(viewsets.GenericViewSet):
             # Create response
             dto = LogoutResponse(message="Successfully logged out")
             response = Response(
-                LogoutResponseSerializer(dto).data, status=status.HTTP_200_OK
+                self.get_logout_response_serializer_class()(dto).data,
+                status=status.HTTP_200_OK,
             )
 
             # Clear JWT cookies
@@ -1312,7 +1336,7 @@ class AuthViewSet(viewsets.GenericViewSet):
             resp["Accept-CH"] = _CH_HINTS
             return resp
 
-        serializer = UserSerializer(request.user)
+        serializer = self.get_me_response_serializer_class()(request.user)
         resp = StapelResponse(serializer)
         resp["Accept-CH"] = _CH_HINTS
         return resp
@@ -1347,7 +1371,8 @@ class AuthViewSet(viewsets.GenericViewSet):
 
             verify_dto = TokenVerifyResponse(valid=True, user=user)
             return StapelResponse(
-                TokenVerifyResponseSerializer(verify_dto), status=status.HTTP_200_OK
+                self.get_token_verify_response_serializer_class()(verify_dto),
+                status=status.HTTP_200_OK,
             )
         except User.DoesNotExist:
             return StapelErrorResponse(401, ERR_401_USER_NOT_FOUND)
@@ -1372,10 +1397,26 @@ class AuthViewSet(viewsets.GenericViewSet):
     email_delayed_status=extend_schema(tags=["Email Change"]),
     email_delayed_cancel=extend_schema(tags=["Email Change"]),
 )
-class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
+class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     """ViewSet for authenticator (phone/email) change flows."""
 
     permission_classes = [permissions.IsAuthenticated]
+
+    # Overridable serializer seams (see SerializerSeamsMixin); the same
+    # serializers back both the phone and the email flavours of each flow.
+    instant_request_old_request_serializer_class = InstantChangeRequestOldSerializer
+    instant_verify_old_request_serializer_class = InstantChangeVerifyOldSerializer
+    instant_request_new_request_serializer_class = InstantChangeRequestNewSerializer
+    instant_verify_new_request_serializer_class = InstantChangeVerifyNewSerializer
+    delayed_initiate_request_serializer_class = DelayedChangeInitiateSerializer
+    delayed_cancel_request_serializer_class = DelayedChangeCancelSerializer
+    instant_request_old_response_serializer_class = InstantRequestOldResponseSerializer
+    instant_verify_old_response_serializer_class = InstantVerifyOldResponseSerializer
+    instant_request_new_response_serializer_class = InstantRequestNewResponseSerializer
+    auth_response_serializer_class = AuthResponseSerializer
+    delayed_initiate_response_serializer_class = DelayedInitiateResponseSerializer
+    delayed_status_response_serializer_class = DelayedStatusResponseSerializer
+    delayed_cancel_response_serializer_class = DelayedCancelResponseSerializer
 
     def _service_error_to_response(self, result):
         """Convert service error dict to StapelErrorResponse."""
@@ -1418,7 +1459,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"], url_path="phone/change/instant/request-old")
     def phone_instant_request_old(self, request):
-        serializer = InstantChangeRequestOldSerializer(data=request.data)
+        serializer = self.get_instant_request_old_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         svc = AuthenticatorChangeService()
         result = svc.request_old_otp(
@@ -1429,7 +1472,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
                 message="Verification code sent to your current phone",
                 masked_target=result["masked_target"],
             )
-            return StapelResponse(InstantRequestOldResponseSerializer(dto))
+            return StapelResponse(
+                self.get_instant_request_old_response_serializer_class()(dto)
+            )
         return self._service_error_to_response(result)
 
     @extend_schema(
@@ -1438,7 +1483,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"], url_path="phone/change/instant/verify-old")
     def phone_instant_verify_old(self, request):
-        serializer = InstantChangeVerifyOldSerializer(data=request.data)
+        serializer = self.get_instant_verify_old_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         svc = AuthenticatorChangeService()
         result = svc.verify_old_otp(
@@ -1450,7 +1497,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
                 change_token=result["change_token"],
                 expires_at=result["expires_at"],
             )
-            return StapelResponse(InstantVerifyOldResponseSerializer(dto))
+            return StapelResponse(
+                self.get_instant_verify_old_response_serializer_class()(dto)
+            )
         return self._service_error_to_response(result)
 
     @extend_schema(
@@ -1462,7 +1511,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"], url_path="phone/change/instant/request-new")
     def phone_instant_request_new(self, request):
-        serializer = InstantChangeRequestNewSerializer(data=request.data)
+        serializer = self.get_instant_request_new_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         new_value = serializer.validated_data.get("phone")
         if not new_value:
@@ -1475,7 +1526,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
             dto = InstantRequestNewResponse(
                 message="Verification code sent to new phone"
             )
-            return StapelResponse(InstantRequestNewResponseSerializer(dto))
+            return StapelResponse(
+                self.get_instant_request_new_response_serializer_class()(dto)
+            )
         return self._service_error_to_response(result)
 
     @extend_schema(
@@ -1484,7 +1537,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"], url_path="phone/change/instant/verify-new")
     def phone_instant_verify_new(self, request):
-        serializer = InstantChangeVerifyNewSerializer(data=request.data)
+        serializer = self.get_instant_verify_new_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         new_value = serializer.validated_data.get("phone")
         if not new_value:
@@ -1504,7 +1559,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
             auth_dto = AuthResponse(
                 status=AuthStatus.MODIFIED, user=request.user, tokens=tokens_dto
             )
-            response = Response(AuthResponseSerializer(auth_dto).data)
+            response = Response(
+                self.get_auth_response_serializer_class()(auth_dto).data
+            )
             from stapel_core.django.utils import set_jwt_cookies
 
             set_jwt_cookies(response, access_token, refresh_token)
@@ -1519,7 +1576,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"], url_path="email/change/instant/request-old")
     def email_instant_request_old(self, request):
-        serializer = InstantChangeRequestOldSerializer(data=request.data)
+        serializer = self.get_instant_request_old_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         svc = AuthenticatorChangeService()
         result = svc.request_old_otp(
@@ -1530,7 +1589,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
                 message="Verification code sent to your current email",
                 masked_target=result["masked_target"],
             )
-            return StapelResponse(InstantRequestOldResponseSerializer(dto))
+            return StapelResponse(
+                self.get_instant_request_old_response_serializer_class()(dto)
+            )
         return self._service_error_to_response(result)
 
     @extend_schema(
@@ -1539,7 +1600,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"], url_path="email/change/instant/verify-old")
     def email_instant_verify_old(self, request):
-        serializer = InstantChangeVerifyOldSerializer(data=request.data)
+        serializer = self.get_instant_verify_old_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         svc = AuthenticatorChangeService()
         result = svc.verify_old_otp(
@@ -1551,7 +1614,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
                 change_token=result["change_token"],
                 expires_at=result["expires_at"],
             )
-            return StapelResponse(InstantVerifyOldResponseSerializer(dto))
+            return StapelResponse(
+                self.get_instant_verify_old_response_serializer_class()(dto)
+            )
         return self._service_error_to_response(result)
 
     @extend_schema(
@@ -1563,7 +1628,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"], url_path="email/change/instant/request-new")
     def email_instant_request_new(self, request):
-        serializer = InstantChangeRequestNewSerializer(data=request.data)
+        serializer = self.get_instant_request_new_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         new_value = serializer.validated_data.get("email")
         if not new_value:
@@ -1576,7 +1643,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
             dto = InstantRequestNewResponse(
                 message="Verification code sent to new email"
             )
-            return StapelResponse(InstantRequestNewResponseSerializer(dto))
+            return StapelResponse(
+                self.get_instant_request_new_response_serializer_class()(dto)
+            )
         return self._service_error_to_response(result)
 
     @extend_schema(
@@ -1585,7 +1654,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"], url_path="email/change/instant/verify-new")
     def email_instant_verify_new(self, request):
-        serializer = InstantChangeVerifyNewSerializer(data=request.data)
+        serializer = self.get_instant_verify_new_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         new_value = serializer.validated_data.get("email")
         if not new_value:
@@ -1605,7 +1676,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
             auth_dto = AuthResponse(
                 status=AuthStatus.MODIFIED, user=request.user, tokens=tokens_dto
             )
-            response = Response(AuthResponseSerializer(auth_dto).data)
+            response = Response(
+                self.get_auth_response_serializer_class()(auth_dto).data
+            )
             from stapel_core.django.utils import set_jwt_cookies
 
             set_jwt_cookies(response, access_token, refresh_token)
@@ -1620,7 +1693,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"], url_path="phone/change/delayed/initiate")
     def phone_delayed_initiate(self, request):
-        serializer = DelayedChangeInitiateSerializer(data=request.data)
+        serializer = self.get_delayed_initiate_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         new_value = serializer.validated_data.get("phone")
         if not new_value:
@@ -1648,7 +1723,8 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
                 can_cancel_until=result["scheduled_at"],
             )
             return StapelResponse(
-                DelayedInitiateResponseSerializer(dto), status=status.HTTP_201_CREATED
+                self.get_delayed_initiate_response_serializer_class()(dto),
+                status=status.HTTP_201_CREATED,
             )
         return self._service_error_to_response(result)
 
@@ -1659,9 +1735,11 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
         info = svc.get_pending_status(request.user, "phone")
         if info:
             dto = DelayedStatusResponse(has_pending_change=True, **info)
-            return StapelResponse(DelayedStatusResponseSerializer(dto))
+            return StapelResponse(
+                self.get_delayed_status_response_serializer_class()(dto)
+            )
         dto = DelayedStatusResponse(has_pending_change=False)
-        return StapelResponse(DelayedStatusResponseSerializer(dto))
+        return StapelResponse(self.get_delayed_status_response_serializer_class()(dto))
 
     @extend_schema(
         request=DelayedChangeCancelSerializer,
@@ -1669,7 +1747,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"], url_path="phone/change/delayed/cancel")
     def phone_delayed_cancel(self, request):
-        serializer = DelayedChangeCancelSerializer(data=request.data)
+        serializer = self.get_delayed_cancel_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         svc = AuthenticatorChangeService()
         result = svc.cancel_pending(
@@ -1679,7 +1759,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
             dto = DelayedCancelResponse(
                 status="CANCELLED", message="Authenticator change request cancelled"
             )
-            return StapelResponse(DelayedCancelResponseSerializer(dto))
+            return StapelResponse(
+                self.get_delayed_cancel_response_serializer_class()(dto)
+            )
         return self._service_error_to_response(result)
 
     # ── Email Delayed ────────────────────────────────────────
@@ -1690,7 +1772,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"], url_path="email/change/delayed/initiate")
     def email_delayed_initiate(self, request):
-        serializer = DelayedChangeInitiateSerializer(data=request.data)
+        serializer = self.get_delayed_initiate_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         new_value = serializer.validated_data.get("email")
         if not new_value:
@@ -1718,7 +1802,8 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
                 can_cancel_until=result["scheduled_at"],
             )
             return StapelResponse(
-                DelayedInitiateResponseSerializer(dto), status=status.HTTP_201_CREATED
+                self.get_delayed_initiate_response_serializer_class()(dto),
+                status=status.HTTP_201_CREATED,
             )
         return self._service_error_to_response(result)
 
@@ -1729,9 +1814,11 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
         info = svc.get_pending_status(request.user, "email")
         if info:
             dto = DelayedStatusResponse(has_pending_change=True, **info)
-            return StapelResponse(DelayedStatusResponseSerializer(dto))
+            return StapelResponse(
+                self.get_delayed_status_response_serializer_class()(dto)
+            )
         dto = DelayedStatusResponse(has_pending_change=False)
-        return StapelResponse(DelayedStatusResponseSerializer(dto))
+        return StapelResponse(self.get_delayed_status_response_serializer_class()(dto))
 
     @extend_schema(
         request=DelayedChangeCancelSerializer,
@@ -1739,7 +1826,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"], url_path="email/change/delayed/cancel")
     def email_delayed_cancel(self, request):
-        serializer = DelayedChangeCancelSerializer(data=request.data)
+        serializer = self.get_delayed_cancel_request_serializer_class()(
+            data=request.data
+        )
         serializer.is_valid(raise_exception=True)
         svc = AuthenticatorChangeService()
         result = svc.cancel_pending(
@@ -1749,7 +1838,9 @@ class AuthenticatorChangeViewSet(viewsets.GenericViewSet):
             dto = DelayedCancelResponse(
                 status="CANCELLED", message="Authenticator change request cancelled"
             )
-            return StapelResponse(DelayedCancelResponseSerializer(dto))
+            return StapelResponse(
+                self.get_delayed_cancel_response_serializer_class()(dto)
+            )
         return self._service_error_to_response(result)
 
 

@@ -17,6 +17,7 @@ from stapel_auth.magic_link.services import MagicLinkService
 from stapel_auth.mfa.services import TOTPService
 from stapel_auth.sessions.services import AuditService
 from stapel_auth.sessions.views import _add_login_hints, _issue_session_tokens
+from stapel_auth.utils import SerializerSeamsMixin
 
 _get_user_model = get_user_model
 
@@ -24,8 +25,12 @@ logger = logging.getLogger(__name__)
 
 
 @extend_schema(tags=["Auth"])
-class MagicLinkViewSet(ViewSet):
+class MagicLinkViewSet(SerializerSeamsMixin, ViewSet):
     permission_classes = [permissions.AllowAny]
+
+    # Overridable serializer seams (see SerializerSeamsMixin).
+    request_serializer_class = MagicLinkRequestBodySerializer
+    response_serializer_class = MagicLinkRequestResponseSerializer
 
     @extend_schema(
         summary="Request a magic link login email",
@@ -35,7 +40,7 @@ class MagicLinkViewSet(ViewSet):
     def request_link(self, request):
         from .services import MagicLinkService
 
-        ser = MagicLinkRequestBodySerializer(data=request.data)
+        ser = self.get_request_serializer_class()(data=request.data)
         ser.is_valid(raise_exception=True)
         email = ser.validated_data["email"].lower()
         redirect_url = ser.validated_data.get("redirect_url") or "/"
@@ -51,7 +56,7 @@ class MagicLinkViewSet(ViewSet):
         except U.DoesNotExist:
             pass
         return StapelResponse(
-            MagicLinkRequestResponseSerializer(
+            self.get_response_serializer_class()(
                 {"message": "If this email is registered, a login link has been sent."}
             )
         )

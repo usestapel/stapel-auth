@@ -29,6 +29,7 @@ from stapel_auth.sessions.serializers import (
     SimpleStatusSerializer,
     TokenPairSerializer,
 )
+from stapel_auth.utils import SerializerSeamsMixin
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -49,7 +50,7 @@ from stapel_auth.models import UserSession
     ),
     responses={200: TokenPairSerializer, 401: StapelErrorSerializer},
 )
-class CustomTokenObtainPairView(APIView):
+class CustomTokenObtainPairView(SerializerSeamsMixin, APIView):
     """
     JWT token obtain view using unified jwt_provider.
 
@@ -57,6 +58,9 @@ class CustomTokenObtainPairView(APIView):
     """
 
     permission_classes = [permissions.AllowAny]
+
+    # Overridable serializer seam (see SerializerSeamsMixin).
+    response_serializer_class = TokenPairSerializer
 
     def post(self, request):
         from stapel_core.django.jwt_provider import jwt_provider
@@ -99,7 +103,8 @@ class CustomTokenObtainPairView(APIView):
 
         tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
         response = Response(
-            TokenPairSerializer(tokens_dto).data, status=status.HTTP_200_OK
+            self.get_response_serializer_class()(tokens_dto).data,
+            status=status.HTTP_200_OK,
         )
 
         # Set cookies
@@ -112,13 +117,16 @@ class CustomTokenObtainPairView(APIView):
     refresh_post=extend_schema(tags=["Token"]),
     refresh_get=extend_schema(tags=["Token"]),
 )
-class CustomTokenRefreshView(viewsets.GenericViewSet):
+class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
     """
     Custom token refresh view that checks refresh token from cookies/body
     and resets cookies with new access token
     """
 
     permission_classes = [permissions.AllowAny]
+
+    # Overridable serializer seam (see SerializerSeamsMixin).
+    response_serializer_class = TokenPairSerializer
 
     @extend_schema(
         description="Refresh access token using refresh token from cookies or request body",
@@ -249,7 +257,8 @@ class CustomTokenRefreshView(viewsets.GenericViewSet):
             refresh=new_refresh_token, access=new_access_token
         )
         response = Response(
-            TokenPairSerializer(tokens_dto).data, status=status.HTTP_200_OK
+            self.get_response_serializer_class()(tokens_dto).data,
+            status=status.HTTP_200_OK,
         )
         set_jwt_cookies(response, new_access_token, new_refresh_token)
         return response
@@ -309,8 +318,12 @@ def _issue_session_tokens(user, request):
     me=extend_schema(tags=["User"]),
     verify_token=extend_schema(tags=["Token"]),
 )
-class SessionViewSet(viewsets.GenericViewSet):
+class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
+
+    # Overridable serializer seams (see SerializerSeamsMixin).
+    list_response_serializer_class = SessionResponseSerializer
+    status_response_serializer_class = SimpleStatusSerializer
 
     @extend_schema(
         description="List all active sessions for the current user.",
@@ -348,7 +361,9 @@ class SessionViewSet(viewsets.GenericViewSet):
             )
             for s in sessions
         ]
-        return StapelResponse(SessionResponseSerializer(dtos, many=True))
+        return StapelResponse(
+            self.get_list_response_serializer_class()(dtos, many=True)
+        )
 
     @extend_schema(
         description="Revoke a specific session by ID.",
@@ -370,7 +385,9 @@ class SessionViewSet(viewsets.GenericViewSet):
         from .dto import SimpleStatusResponse
 
         return StapelResponse(
-            SimpleStatusSerializer(SimpleStatusResponse(status="revoked"))
+            self.get_status_response_serializer_class()(
+                SimpleStatusResponse(status="revoked")
+            )
         )
 
     @extend_schema(
@@ -390,7 +407,11 @@ class SessionViewSet(viewsets.GenericViewSet):
             session.save(update_fields=["is_suspicious"])
         from .dto import SimpleStatusResponse
 
-        return StapelResponse(SimpleStatusSerializer(SimpleStatusResponse(status="ok")))
+        return StapelResponse(
+            self.get_status_response_serializer_class()(
+                SimpleStatusResponse(status="ok")
+            )
+        )
 
     @extend_schema(
         description="Revoke all sessions except the current one.",
@@ -414,7 +435,9 @@ class SessionViewSet(viewsets.GenericViewSet):
         from .dto import SimpleStatusResponse
 
         return StapelResponse(
-            SimpleStatusSerializer(SimpleStatusResponse(status="revoked"))
+            self.get_status_response_serializer_class()(
+                SimpleStatusResponse(status="revoked")
+            )
         )
 
 

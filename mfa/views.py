@@ -32,6 +32,12 @@ from stapel_auth.mfa.serializers import (
     TOTPStepUpResponseSerializer,
     TOTPStepUpSerializer,
 )
+from stapel_auth.serializers import (
+    AuthResponseSerializer,
+    OtpSentResponseSerializer,
+    SimpleStatusSerializer,
+)
+from stapel_auth.utils import SerializerSeamsMixin
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +92,15 @@ def _pc_to_dict(pc):
 # =============================================================================
 
 
-class TOTPViewSet(viewsets.GenericViewSet):
+class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
+    # Overridable serializer seams (see SerializerSeamsMixin).
+    setup_response_serializer_class = TOTPSetupResponseSerializer
+    confirm_setup_response_serializer_class = TOTPSetupConfirmResponseSerializer
+    otp_sent_response_serializer_class = OtpSentResponseSerializer
+    status_response_serializer_class = SimpleStatusSerializer
+    auth_response_serializer_class = AuthResponseSerializer
+    step_up_response_serializer_class = TOTPStepUpResponseSerializer
+
     def get_permissions(self):
         # challenge_verify is unauthenticated (user has no token yet)
         if self.action == "challenge_verify":
@@ -109,7 +123,7 @@ class TOTPViewSet(viewsets.GenericViewSet):
             qr_uri=result["qr_uri"],
             expires_in=TOTPService.CHALLENGE_TTL,
         )
-        return StapelResponse(TOTPSetupResponseSerializer(dto))
+        return StapelResponse(self.get_setup_response_serializer_class()(dto))
 
     @extend_schema(
         description="Confirm TOTP setup with the first code. Activates the device and returns one-time backup codes.",
@@ -131,7 +145,7 @@ class TOTPViewSet(viewsets.GenericViewSet):
                 return StapelErrorResponse(400, ERR_400_INVALID_CODE)
             return StapelErrorResponse(400, ERR_400_TOTP_NOT_PENDING)
         dto = TOTPSetupConfirmResponse(backup_codes=plain_codes)
-        return StapelResponse(TOTPSetupConfirmResponseSerializer(dto))
+        return StapelResponse(self.get_confirm_setup_response_serializer_class()(dto))
 
     @extend_schema(
         description=(
@@ -150,7 +164,6 @@ class TOTPViewSet(viewsets.GenericViewSet):
     def disable_request_otp(self, request):
         from stapel_auth.dto import OtpSentResponse
         from stapel_auth.errors import ERR_400_NO_VERIFIED_CONTACT
-        from stapel_auth.serializers import OtpSentResponseSerializer
         from stapel_auth.services import PasswordService, PhoneVerificationService
 
         user = request.user
@@ -159,7 +172,7 @@ class TOTPViewSet(viewsets.GenericViewSet):
 
         PhoneVerificationService().send_verification_code(user.phone)
         return StapelResponse(
-            OtpSentResponseSerializer(
+            self.get_otp_sent_response_serializer_class()(
                 OtpSentResponse(
                     message="Verification code sent.",
                     target=PasswordService.mask_phone(user.phone),
@@ -180,7 +193,6 @@ class TOTPViewSet(viewsets.GenericViewSet):
         from stapel_auth.dto import SimpleStatusResponse
         from stapel_auth.errors import ERR_400_NO_VERIFIED_CONTACT
         from stapel_auth.mfa.services import TOTPService
-        from stapel_auth.serializers import SimpleStatusSerializer
         from stapel_auth.services import AuditService, PhoneVerificationService
 
         data = request.data or {}
@@ -212,7 +224,9 @@ class TOTPViewSet(viewsets.GenericViewSet):
 
         AuditService.log("totp_disabled", user=request.user, request=request)
         return StapelResponse(
-            SimpleStatusSerializer(SimpleStatusResponse(status="disabled"))
+            self.get_status_response_serializer_class()(
+                SimpleStatusResponse(status="disabled")
+            )
         )
 
     @extend_schema(
@@ -226,7 +240,6 @@ class TOTPViewSet(viewsets.GenericViewSet):
 
         from stapel_auth.dto import AuthResponse, AuthStatus, TokenPairResponse
         from stapel_auth.mfa.services import TOTPService
-        from stapel_auth.serializers import AuthResponseSerializer
         from stapel_auth.sessions.views import _add_login_hints, _issue_session_tokens
 
         challenge_token = (request.data or {}).get("challenge_token", "")
@@ -268,7 +281,7 @@ class TOTPViewSet(viewsets.GenericViewSet):
         auth_dto = AuthResponse(
             status=AuthStatus.LOGGED_IN, user=user, tokens=tokens_dto
         )
-        response = StapelResponse(AuthResponseSerializer(auth_dto))
+        response = StapelResponse(self.get_auth_response_serializer_class()(auth_dto))
         set_jwt_cookies(response, access_token, refresh_token)
         return _add_login_hints(response)
 
@@ -291,7 +304,7 @@ class TOTPViewSet(viewsets.GenericViewSet):
         dto = TOTPStepUpResponse(
             step_up_token=token, expires_in=TOTPService.STEP_UP_TTL
         )
-        return StapelResponse(TOTPStepUpResponseSerializer(dto))
+        return StapelResponse(self.get_step_up_response_serializer_class()(dto))
 
 
 # =============================================================================
@@ -300,7 +313,17 @@ class TOTPViewSet(viewsets.GenericViewSet):
 
 
 @extend_schema(tags=["Passkeys"])
-class PasskeyViewSet(ViewSet):
+class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
+    # Overridable serializer seams (see SerializerSeamsMixin).
+    list_response_serializer_class = _PasskeyListResponseSerializer
+    register_begin_response_serializer_class = _PasskeyRegOptionsSerializer
+    register_complete_request_serializer_class = _PasskeyRegisterCompleteBodySerializer
+    register_complete_response_serializer_class = PasskeyItemSerializer
+    auth_begin_request_serializer_class = _PasskeyAuthBeginBodySerializer
+    auth_begin_response_serializer_class = _PasskeyAuthOptionsSerializer
+    auth_complete_request_serializer_class = _PasskeyAuthCompleteBodySerializer
+    auth_response_serializer_class = AuthResponseSerializer
+
     _anon_actions = frozenset({"auth_begin", "auth_complete"})
 
     def get_permissions(self):
@@ -319,7 +342,9 @@ class PasskeyViewSet(ViewSet):
             user=request.user, is_active=True
         ).order_by("-created_at")
         data = [_pc_to_dict(pc) for pc in qs]
-        return StapelResponse(_PasskeyListResponseSerializer({"passkeys": data}))
+        return StapelResponse(
+            self.get_list_response_serializer_class()({"passkeys": data})
+        )
 
     @extend_schema(summary="Remove a passkey", responses={204: None})
     def destroy(self, request, pk=None):
@@ -366,7 +391,9 @@ class PasskeyViewSet(ViewSet):
         options = (
             json.loads(options_json) if isinstance(options_json, str) else options_json
         )
-        return StapelResponse(_PasskeyRegOptionsSerializer({"options": options}))
+        return StapelResponse(
+            self.get_register_begin_response_serializer_class()({"options": options})
+        )
 
     @extend_schema(
         summary="Complete passkey registration",
@@ -376,7 +403,7 @@ class PasskeyViewSet(ViewSet):
     def register_complete(self, request):
         from stapel_auth.mfa.services import PasskeyService
 
-        ser = _PasskeyRegisterCompleteBodySerializer(data=request.data)
+        ser = self.get_register_complete_request_serializer_class()(data=request.data)
         ser.is_valid(raise_exception=True)
         try:
             pc = PasskeyService.registration_complete(
@@ -392,7 +419,9 @@ class PasskeyViewSet(ViewSet):
         except Exception:
             logger.exception("passkey register_complete failed")
             return StapelErrorResponse(400, ERR_400_PASSKEY_INVALID)
-        return StapelResponse(PasskeyItemSerializer(_pc_to_dict(pc)))
+        return StapelResponse(
+            self.get_register_complete_response_serializer_class()(_pc_to_dict(pc))
+        )
 
     @extend_schema(
         summary="Begin passkey authentication",
@@ -402,7 +431,7 @@ class PasskeyViewSet(ViewSet):
     def auth_begin(self, request):
         from stapel_auth.mfa.services import PasskeyService
 
-        ser = _PasskeyAuthBeginBodySerializer(data=request.data)
+        ser = self.get_auth_begin_request_serializer_class()(data=request.data)
         ser.is_valid(raise_exception=True)
         user = None
         email = ser.validated_data.get("email")
@@ -423,7 +452,7 @@ class PasskeyViewSet(ViewSet):
             json.loads(options_json) if isinstance(options_json, str) else options_json
         )
         return StapelResponse(
-            _PasskeyAuthOptionsSerializer(
+            self.get_auth_begin_response_serializer_class()(
                 {"session_key": session_key, "options": options}
             )
         )
@@ -437,7 +466,7 @@ class PasskeyViewSet(ViewSet):
         from stapel_auth.mfa.services import PasskeyService
         from stapel_auth.sessions.views import _add_login_hints, _issue_session_tokens
 
-        ser = _PasskeyAuthCompleteBodySerializer(data=request.data)
+        ser = self.get_auth_complete_request_serializer_class()(data=request.data)
         ser.is_valid(raise_exception=True)
         try:
             user, pc = PasskeyService.authentication_complete(
@@ -457,13 +486,12 @@ class PasskeyViewSet(ViewSet):
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
         from stapel_auth.dto import AuthResponse, AuthStatus, TokenPairResponse
-        from stapel_auth.serializers import AuthResponseSerializer
 
         dto = AuthResponse(
             status=AuthStatus.LOGGED_IN,
             user=user,
             tokens=TokenPairResponse(refresh=refresh_token, access=access_token),
         )
-        response = StapelResponse(AuthResponseSerializer(dto))
+        response = StapelResponse(self.get_auth_response_serializer_class()(dto))
         set_jwt_cookies(response, access_token, refresh_token)
         return _add_login_hints(response)
