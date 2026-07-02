@@ -1,7 +1,7 @@
 """Serializers for MFA (TOTP and Passkey) domain."""
 from rest_framework import serializers
 from drf_spectacular.utils import PolymorphicProxySerializer
-from stapel_core.django.api.serializers import IronDataclassSerializer
+from stapel_core.django.api.serializers import StapelDataclassSerializer
 
 from stapel_auth.mfa.dto import (
     TOTPChallengeResponse,
@@ -56,22 +56,22 @@ TOTPDisableSerializer = PolymorphicProxySerializer(
 )
 
 
-class TOTPChallengeResponseSerializer(IronDataclassSerializer):
+class TOTPChallengeResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = TOTPChallengeResponse
 
 
-class TOTPSetupResponseSerializer(IronDataclassSerializer):
+class TOTPSetupResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = TOTPSetupResponse
 
 
-class TOTPSetupConfirmResponseSerializer(IronDataclassSerializer):
+class TOTPSetupConfirmResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = TOTPSetupConfirmResponse
 
 
-class TOTPStepUpResponseSerializer(IronDataclassSerializer):
+class TOTPStepUpResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = TOTPStepUpResponse
 

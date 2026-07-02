@@ -2,7 +2,7 @@
 
 from rest_framework import serializers
 from stapel_core.django.api.errors import StapelValidationError
-from stapel_core.django.api.serializers import IronDataclassSerializer
+from stapel_core.django.api.serializers import StapelDataclassSerializer
 
 from stapel_auth.errors import ERR_400_INVALID_REDIRECT_URL
 from stapel_auth.qr.dto import QRGenerateResponse, QRStatusResponse, QRType
@@ -33,16 +33,22 @@ class QRGenerateSerializer(serializers.Serializer):
     def validate_redirect_url(self, value):
         if not value:
             return value
-        if value.startswith("/"):
+        # Reject protocol-relative ("//evil.com") and backslash variants --
+        # only single-slash same-site paths.
+        if (
+            value.startswith("/")
+            and not value.startswith("//")
+            and not value.startswith("/\\")
+        ):
             return value
         raise StapelValidationError(ERR_400_INVALID_REDIRECT_URL)
 
 
-class QRGenerateResponseSerializer(IronDataclassSerializer):
+class QRGenerateResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = QRGenerateResponse
 
 
-class QRStatusResponseSerializer(IronDataclassSerializer):
+class QRStatusResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = QRStatusResponse

@@ -1,6 +1,6 @@
 """Serializers for the admin sub-package."""
 from rest_framework import serializers
-from stapel_core.django.api.serializers import IronDataclassSerializer
+from stapel_core.django.api.serializers import StapelDataclassSerializer
 from stapel_core.django.api.errors import StapelValidationError
 
 
@@ -55,6 +55,6 @@ class AdminUserCreateRequestSerializer(serializers.Serializer):
         return attrs
 
 
-class AdminUserCreateResponseSerializer(IronDataclassSerializer):
+class AdminUserCreateResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = AdminUserCreateResponse

@@ -1188,15 +1188,68 @@ class OAuthCallbackTests(APITestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-    def test_callback_with_redirect_after_redirects_with_tokens(self):
-        self._store_state(redirect_after='https://app.example.com/dashboard')
+    def test_callback_with_redirect_after_sets_cookies_not_url_tokens(self):
+        from django.conf import settings as dj_settings
+        from django.test import override_settings
+
+        stapel_auth_cfg = dict(getattr(dj_settings, 'STAPEL_AUTH', {}) or {})
+        stapel_auth_cfg['FRONTEND_URL'] = 'https://app.example.com'
+        with override_settings(STAPEL_AUTH=stapel_auth_cfg):
+            from stapel_auth.conf import auth_settings
+            auth_settings.reload()
+            self._store_state(redirect_after='https://app.example.com/dashboard')
+            response = self.client.get(
+                reverse('oauth_callback', kwargs={'provider': 'test'}),
+                {'code': 'valid-code', 'state': 'test-state-abc'},
+            )
+        auth_settings.reload()
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('app.example.com', response['Location'])
+        # Tokens must travel as cookies, never in the redirect URL
+        self.assertNotIn('access_token', response['Location'])
+        self.assertTrue(response.cookies)
+
+    def test_callback_redirect_after_to_foreign_origin_is_ignored(self):
+        self._store_state(redirect_after='https://evil.example.net/steal')
         response = self.client.get(
             reverse('oauth_callback', kwargs={'provider': 'test'}),
             {'code': 'valid-code', 'state': 'test-state-abc'},
         )
-        self.assertEqual(response.status_code, 302)
-        self.assertIn('access_token', response['Location'])
-        self.assertIn('app.example.com', response['Location'])
+        # Foreign origin is rejected -> normal 200 token response, no redirect
+        self.assertEqual(response.status_code, 200)
+
+    def test_callback_unverified_email_does_not_merge(self):
+        """Provider without a verified email must not log into an existing
+        account with the same address (account-takeover vector)."""
+        from stapel_auth.oauth_providers import PROVIDER_REGISTRY
+        from stapel_core.oauth import OAuthUserData
+
+        User.objects.create(
+            email='test-oauth@example.com',
+            username='victim',
+            is_email_verified=True,
+        )
+        provider = PROVIDER_REGISTRY['test']
+        original = provider.FIXED_USER
+        provider.FIXED_USER = OAuthUserData(
+            id='test-oauth-user-1',
+            email='test-oauth@example.com',
+            username='testoauthuser',
+            avatar=None,
+            email_verified=False,
+        )
+        try:
+            self._store_state()
+            response = self.client.get(
+                reverse('oauth_callback', kwargs={'provider': 'test'}),
+                {'code': 'valid-code', 'state': 'test-state-abc'},
+            )
+        finally:
+            provider.FIXED_USER = original
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            User.objects.filter(email='test-oauth@example.com').count(), 1
+        )
 
     def test_callback_sets_jwt_cookies(self):
         self._store_state()

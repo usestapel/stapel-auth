@@ -44,6 +44,7 @@ class GoogleProvider(OAuthProvider):
             email=email or None,
             username=email.split("@")[0] or None,
             avatar=data.get("picture"),
+            email_verified=bool(data.get("verified_email")),
         )
 
 
@@ -62,19 +63,37 @@ class GitHubProvider(OAuthProvider):
             return None
         data = response.json()
         email = data.get("email")
-        if not email:
+        email_verified = False
+        emails = []
+        try:
             emails_resp = requests.get("https://api.github.com/user/emails", headers=headers, timeout=10)
             if emails_resp.status_code == 200:
-                emails = emails_resp.json()
-                email = next(
-                    (e["email"] for e in emails if e.get("primary") and e.get("verified")),
-                    emails[0]["email"] if emails else None,
-                )
+                raw_emails = emails_resp.json()
+                if isinstance(raw_emails, list):
+                    emails = [e for e in raw_emails if isinstance(e, dict)]
+        except Exception:
+            # Verification status unknown -> treat as unverified (fail-safe)
+            emails = []
+        if email:
+            # Public profile email: verified only if GitHub lists it verified
+            email_verified = any(
+                e.get("email") == email and e.get("verified") for e in emails
+            )
+        else:
+            primary = next(
+                (e for e in emails if e.get("primary") and e.get("verified")), None
+            )
+            if primary:
+                email, email_verified = primary["email"], True
+            elif emails:
+                email = emails[0].get("email")
+                email_verified = bool(emails[0].get("verified"))
         return OAuthUserData(
             id=str(data.get("id", "")),
             email=email,
             username=data.get("login"),
             avatar=data.get("avatar_url"),
+            email_verified=email_verified,
         )
 
 
@@ -216,6 +235,7 @@ class TestProvider(OAuthProvider):
         email="test-oauth@example.com",
         username="testoauthuser",
         avatar=None,
+        email_verified=True,
     )
 
     def exchange_code(self, client_id, client_secret, code, redirect_uri):

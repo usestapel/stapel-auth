@@ -93,7 +93,19 @@ class SAMLService:
             raise RuntimeError('lxml and signxml are required for SAML support. Run: pip install lxml signxml')
 
         raw = base64.b64decode(saml_response_b64)
-        root = etree.fromstring(raw)
+        # Hardened parsing: attacker-supplied XML is parsed BEFORE signature
+        # verification — entity resolution/DTDs here mean XXE (local file
+        # disclosure, SSRF). Reject DOCTYPE outright and disable entities.
+        import re as _re
+        if _re.search(rb'<!DOCTYPE', raw, _re.IGNORECASE):
+            raise ValueError('DOCTYPE is not allowed in SAML responses')
+        parser = etree.XMLParser(
+            resolve_entities=False,
+            no_network=True,
+            dtd_validation=False,
+            load_dtd=False,
+        )
+        root = etree.fromstring(raw, parser=parser)
 
         # Normalise certificate
         cert_raw = config.saml_x509_cert.strip()

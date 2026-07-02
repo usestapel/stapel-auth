@@ -1,5 +1,5 @@
 """Serializers for the security sub-package (security status, audit log)."""
-from stapel_core.django.api.serializers import IronDataclassSerializer
+from stapel_core.django.api.serializers import StapelDataclassSerializer
 from rest_framework import serializers
 
 from stapel_auth.security.dto import (
@@ -17,37 +17,37 @@ from stapel_auth.security.dto import (
 # Security Status serializers
 # =============================================================================
 
-class SecurityStatusPasswordSerializer(IronDataclassSerializer):
+class SecurityStatusPasswordSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = SecurityStatusPassword
 
 
-class SecurityStatusTOTPSerializer(IronDataclassSerializer):
+class SecurityStatusTOTPSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = SecurityStatusTOTP
 
 
-class SecurityStatusContactSerializer(IronDataclassSerializer):
+class SecurityStatusContactSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = SecurityStatusContact
 
 
-class SecurityStatusOAuthSerializer(IronDataclassSerializer):
+class SecurityStatusOAuthSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = SecurityStatusOAuth
 
 
-class SecurityStatusSessionsSerializer(IronDataclassSerializer):
+class SecurityStatusSessionsSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = SecurityStatusSessions
 
 
-class SecurityStatusPasskeysSerializer(IronDataclassSerializer):
+class SecurityStatusPasskeysSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = SecurityStatusPasskeys
 
 
-class SecurityStatusResponseSerializer(IronDataclassSerializer):
+class SecurityStatusResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = SecurityStatusResponse
 

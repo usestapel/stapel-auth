@@ -84,6 +84,37 @@ from stapel_auth.sessions.serializers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class OAuthEmailNotVerified(Exception):
+    """OAuth email matches an existing account but the provider did not
+    verify it — auto-merge would be an account-takeover vector."""
+
+
+def _sanitize_redirect_after(value: str) -> str:
+    """Allow only same-site relative paths or URLs on the FRONTEND_URL origin.
+
+    An unvalidated value here is an open redirect, and (worse) the OAuth
+    callback used to append session tokens to it — full token exfiltration
+    to an attacker-chosen host.
+    """
+    if not value:
+        return ""
+    if value.startswith("/") and not value.startswith("//") and not value.startswith("/\\"):
+        return value
+    from urllib.parse import urlparse
+
+    from stapel_auth.conf import auth_settings
+
+    frontend = getattr(auth_settings, "FRONTEND_URL", "") or ""
+    if frontend:
+        f, v = urlparse(frontend), urlparse(value)
+        if v.scheme == f.scheme and v.netloc and v.netloc == f.netloc:
+            return value
+    logger.warning("Rejected oauth redirect_after target: %r", value)
+    return ""
+
+
 User = get_user_model()
 
 
@@ -794,7 +825,10 @@ class AuthViewSet(viewsets.GenericViewSet):
         if not user_data:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 
-        user = self._resolve_oauth_user(provider, user_data)
+        try:
+            user = self._resolve_oauth_user(provider, user_data)
+        except OAuthEmailNotVerified:
+            return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
         self.log_login_attempt(str(user.id), "success", request)
 
         from stapel_auth.mfa.services import TOTPService
@@ -919,14 +953,17 @@ class AuthViewSet(viewsets.GenericViewSet):
         if not user_data:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 
-        user = self._resolve_oauth_user(provider, user_data)
+        try:
+            user = self._resolve_oauth_user(provider, user_data)
+        except OAuthEmailNotVerified:
+            return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
         self.log_login_attempt(str(user.id), "success", request)
 
         from stapel_auth.mfa.services import TOTPService
 
         if TOTPService.is_enabled(user):
             challenge_token = TOTPService.create_challenge(str(user.id))
-            redirect_after = state_data.get("redirect_after", "")
+            redirect_after = _sanitize_redirect_after(state_data.get("redirect_after", ""))
             # Encode redirect_after inside the TOTP challenge URL so the
             # frontend can resume the OAuth redirect flow after TOTP verify.
             params = {"token": challenge_token}
@@ -936,15 +973,15 @@ class AuthViewSet(viewsets.GenericViewSet):
 
         access_token, refresh_token = _issue_session_tokens(user, request)
 
-        redirect_after = state_data.get("redirect_after", "")
+        redirect_after = _sanitize_redirect_after(state_data.get("redirect_after", ""))
         if redirect_after:
-            params = urlencode(
-                {
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                }
-            )
-            return redirect(f"{redirect_after}?{params}")
+            # Tokens travel as httponly cookies, never in the URL — query
+            # strings end up in proxy logs, browser history and referrers.
+            from stapel_core.django.utils import set_jwt_cookies
+
+            response = redirect(redirect_after)
+            set_jwt_cookies(response, access_token, refresh_token)
+            return response
 
         tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
         auth_dto = AuthResponse(
@@ -976,12 +1013,20 @@ class AuthViewSet(viewsets.GenericViewSet):
         except User.DoesNotExist:
             pass
 
-        # 2. Same verified email → merge into existing account
+        # 2. Same email → merge into existing account, but ONLY when the
+        # provider asserts the email is verified. Merging on an unverified
+        # address lets an attacker set a victim's email on their own OAuth
+        # account and log in as the victim.
+        email_verified = bool(getattr(user_data, "email_verified", False))
         if email:
-            try:
-                return User.objects.get(email=email)
-            except User.DoesNotExist:
-                pass
+            existing = User.objects.filter(email=email).first()
+            if existing is not None:
+                if email_verified:
+                    return existing
+                # Unverified email matching an existing account: neither
+                # merge nor duplicate — the user must sign in with the
+                # account's original method.
+                raise OAuthEmailNotVerified(email)
 
         # 3. Brand-new user
         user = User.objects.create(
@@ -990,7 +1035,7 @@ class AuthViewSet(viewsets.GenericViewSet):
             oauth_id=oauth_id,
             auth_type="oauth",
             avatar=user_data.avatar,
-            is_email_verified=True,
+            is_email_verified=email_verified,
         )
         self._publish_user_registered(user)
         return user

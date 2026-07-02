@@ -1,7 +1,7 @@
 """Backward-compatibility shim — imports from sub-packages."""
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from stapel_core.django.api.serializers import IronDataclassSerializer
+from stapel_core.django.api.serializers import StapelDataclassSerializer
 
 from .dto import SimpleStatusResponse
 from stapel_auth.sessions.serializers import AuthResponseSerializer, LoginResponseSerializer  # noqa: F401
@@ -38,7 +38,7 @@ class UserSerializer(serializers.ModelSerializer):
         ]
 
 
-class SimpleStatusSerializer(IronDataclassSerializer):
+class SimpleStatusSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = SimpleStatusResponse
 

@@ -1,7 +1,7 @@
 """Serializers for the sessions sub-package."""
 from rest_framework import serializers
 from drf_spectacular.utils import PolymorphicProxySerializer
-from stapel_core.django.api.serializers import IronDataclassSerializer
+from stapel_core.django.api.serializers import StapelDataclassSerializer
 
 from .dto import (
     TokenPairResponse,
@@ -35,13 +35,13 @@ class UserSerializer(serializers.ModelSerializer):
         ]
 
 
-class TokenPairSerializer(IronDataclassSerializer):
+class TokenPairSerializer(StapelDataclassSerializer):
     """Serializer for JWT token pair."""
     class Meta:
         dataclass = TokenPairResponse
 
 
-class AuthResponseSerializer(IronDataclassSerializer):
+class AuthResponseSerializer(StapelDataclassSerializer):
     """Serializer for authentication response with user and tokens."""
     user = UserSerializer(read_only=True)
 
@@ -49,7 +49,7 @@ class AuthResponseSerializer(IronDataclassSerializer):
         dataclass = AuthResponse
 
 
-class TokenVerifyResponseSerializer(IronDataclassSerializer):
+class TokenVerifyResponseSerializer(StapelDataclassSerializer):
     """Serializer for token verify response."""
     user = UserSerializer()
 
@@ -62,7 +62,7 @@ class TokenVerifySerializer(serializers.Serializer):
     token = serializers.CharField()
 
 
-class LogoutResponseSerializer(IronDataclassSerializer):
+class LogoutResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = LogoutResponse
 
@@ -82,7 +82,7 @@ LoginResponseSerializer = PolymorphicProxySerializer(
 )
 
 
-class SessionResponseSerializer(IronDataclassSerializer):
+class SessionResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = SessionResponse
 
@@ -90,6 +90,6 @@ class SessionResponseSerializer(IronDataclassSerializer):
 from stapel_auth.dto import SimpleStatusResponse
 
 
-class SimpleStatusSerializer(IronDataclassSerializer):
+class SimpleStatusSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = SimpleStatusResponse

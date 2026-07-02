@@ -2,6 +2,7 @@
 OTP (One-Time Password) service classes for phone and email verification,
 and authenticator change flows.
 """
+import hmac
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
@@ -141,7 +142,7 @@ class PhoneVerificationService:
             verification.attempts += 1
 
             # Verify code
-            if verification.code == code:
+            if hmac.compare_digest(str(verification.code), str(code)):
                 verification.is_verified = True
                 verification.blocked_until = None  # Clear block on success
                 verification.save()
@@ -295,7 +296,7 @@ class EmailVerificationService:
             verification.attempts += 1
 
             # Verify code
-            if verification.code == code:
+            if hmac.compare_digest(str(verification.code), str(code)):
                 verification.is_verified = True
                 verification.blocked_until = None  # Clear block on success
                 verification.save()
