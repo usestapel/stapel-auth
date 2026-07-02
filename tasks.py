@@ -175,10 +175,11 @@ def cleanup_expired_requests():
 @shared_task
 def evaluate_login_notification(user_id: str, session_id: str):
     """Check if login is from new/suspicious device and send appropriate email."""
-    from stapel_core.django.users.models import User
+    from django.contrib.auth import get_user_model
     from .models import UserSession, AuthEventType
     from .services import LoginNotificationService, AuditService
 
+    User = get_user_model()
     try:
         user = User.objects.get(id=user_id)
         session = UserSession.objects.get(id=session_id)

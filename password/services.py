@@ -34,13 +34,11 @@ class PasswordService:
     @staticmethod
     def _check_mock_admin(user) -> None:
         """Block OTP flows for staff/superuser accounts when mock OTP is active."""
-        from django.conf import settings
-
+        from stapel_auth.conf import auth_settings
         from stapel_auth.errors import ERR_403_MOCK_OTP_ADMIN
 
         if (user.is_staff or user.is_superuser) and (
-            getattr(settings, "USE_MOCK_EMAIL_OTP", False)
-            or getattr(settings, "USE_MOCK_SMS_OTP", False)
+            auth_settings.USE_MOCK_EMAIL_OTP or auth_settings.USE_MOCK_SMS_OTP
         ):
             raise StapelServiceError(403, ERR_403_MOCK_OTP_ADMIN)
 

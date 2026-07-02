@@ -60,13 +60,12 @@ packages = [
     "stapel_auth.magic_link",
     "stapel_auth.openid",
     "stapel_auth.admin",
-    "stapel_auth.sso",
     "stapel_auth.tests",
 ]
 
 # Migrations are part of the package
 [tool.setuptools.package-data]
-stapel_auth = ["migrations/*.py", "schemas/**/*.json", "migrations/**/*.py"]
+stapel_auth = ["migrations/*.py", "schemas/**/*.json", "migrations/**/*.py", "py.typed"]
 
 [tool.coverage.run]
 omit = [

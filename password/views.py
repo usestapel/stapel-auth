@@ -443,7 +443,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
         user.set_password(data["password"])
         user.save(update_fields=["password"])
 
-        self._publish_user_registered(user)
+        self._publish_user_registered(user, request=request)
 
         access_token, refresh_token = _issue_session_tokens(user, request)
         dto = AuthResponse(
@@ -457,23 +457,7 @@ class PasswordViewSet(viewsets.GenericViewSet):
         set_jwt_cookies(response, access_token, refresh_token)
         return response
 
-    def _publish_user_registered(self, user) -> None:
-        try:
-            from stapel_core.bus import Event, publish
+    def _publish_user_registered(self, user, request=None) -> None:
+        from stapel_auth.otp.views import _notify_user_registered
 
-            from stapel_auth.events import TOPIC_USER_REGISTERED
-
-            publish(
-                TOPIC_USER_REGISTERED,
-                Event(
-                    event_type="user.registered",
-                    service="auth",
-                    payload={
-                        "user_id": str(user.id),
-                        "auth_type": user.auth_type or "unknown",
-                        "email": user.email,
-                    },
-                ),
-            )
-        except Exception:
-            logger.exception("Failed to publish user.registered for user %s", user.id)
+        _notify_user_registered(user, request=request)

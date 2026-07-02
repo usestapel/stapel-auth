@@ -214,7 +214,7 @@ class SAMLACSView(APIView):
             )
 
         try:
-            attrs = SAMLService.parse_response(cfg, saml_response)
+            attrs = SAMLService.parse_response(cfg, saml_response, org_slug=slug)
         except Exception as e:
             logger.warning(f"SAML ACS parse error [{slug}]: {e}")
             return HttpResponseRedirect(

@@ -30,6 +30,16 @@ class QRGenerateSerializer(serializers.Serializer):
         ),
     )
 
+    allow_unauthenticated_scanner = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text=(
+            "`session_share` only: explicitly allow a scanner with no session "
+            "to receive the owner's session. Default false — an "
+            "unauthenticated scan of a session_share QR is rejected with 403."
+        ),
+    )
+
     def validate_redirect_url(self, value):
         if not value:
             return value

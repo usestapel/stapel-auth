@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "user.registered",
+  "description": "A new user account completed registration (email/phone OTP, OAuth, or password).",
+  "type": "object",
+  "required": ["user_id", "auth_type"],
+  "properties": {
+    "user_id":   { "type": "string", "format": "uuid" },
+    "auth_type": { "type": "string" },
+    "email":     { "type": ["string", "null"] }
+  },
+  "additionalProperties": false
+}

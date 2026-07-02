@@ -27,9 +27,9 @@ User = None  # lazy import
 
 
 def _get_user_model():
-    from stapel_core.django.users.models import User as U
+    from django.contrib.auth import get_user_model
 
-    return U
+    return get_user_model()
 
 
 # =============================================================================
