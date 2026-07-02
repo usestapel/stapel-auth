@@ -31,6 +31,10 @@ from stapel_core.verification.grants import (
     record_failed_attempt,
 )
 
+from stapel_core.verification import requires_verification
+from stapel_core.verification.decorators import VERIFICATION_ATTR
+from stapel_core.verification.policy import invalidate_policy_cache
+
 from stapel_auth.utils import SerializerSeamsMixin
 from stapel_auth.verification.serializers import (
     VerificationChallengeInfoResponseSerializer,
@@ -38,6 +42,9 @@ from stapel_auth.verification.serializers import (
     VerificationCompleteSerializer,
     VerificationInitiateResponseSerializer,
     VerificationInitiateSerializer,
+    VerificationPreferenceRowSerializer,
+    VerificationPreferenceSerializer,
+    VerificationPreferencesResponseSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -217,3 +224,114 @@ class VerificationViewSet(SerializerSeamsMixin, viewsets.ViewSet):
         )
         dto = VerificationCompleteResponse(verified=True, verification_token=token)
         return StapelResponse(self.get_complete_response_serializer_class()(dto))
+
+
+class VerificationPreferenceViewSet(SerializerSeamsMixin, viewsets.ViewSet):
+    """Per-user step-up policy preferences (stapel_core.verification levels).
+
+    A preference row turns a ``default_on`` scope off (``enabled=False``) or
+    an ``opt_in`` scope on (``enabled=True``); ``strict`` scopes ignore
+    preferences. INVARIANT: disabling protection is itself a protected
+    action — the ``enabled=False`` branch is decorated with
+    ``@requires_verification(scope="verification.settings",
+    level="default_on")``, so an attacker with a stolen session cannot
+    silently switch step-up off. Enabling never requires step-up.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    # Overridable serializer seams (see SerializerSeamsMixin).
+    preference_request_serializer_class = VerificationPreferenceSerializer
+    preference_response_serializer_class = VerificationPreferenceRowSerializer
+    preferences_response_serializer_class = VerificationPreferencesResponseSerializer
+
+    @extend_schema(
+        description=(
+            "The current user's step-up verification preferences: one row per "
+            "scope the user has touched (enabled=False turns a default_on "
+            "scope off, enabled=True turns an opt_in scope on). Scopes "
+            "without a row follow the endpoint's level default; strict "
+            "scopes ignore preferences entirely."
+        ),
+        responses={200: VerificationPreferencesResponseSerializer},
+    )
+    def list_preferences(self, request):
+        from stapel_auth.models import VerificationPreference
+        from stapel_auth.verification.dto import (
+            VerificationPreferenceRow,
+            VerificationPreferencesResponse,
+        )
+
+        rows = [
+            VerificationPreferenceRow(scope=scope, enabled=enabled)
+            for scope, enabled in VerificationPreference.objects.filter(
+                user=request.user
+            ).order_by("scope").values_list("scope", "enabled")
+        ]
+        dto = VerificationPreferencesResponse(preferences=rows)
+        return StapelResponse(self.get_preferences_response_serializer_class()(dto))
+
+    @extend_schema(
+        description=(
+            "Upsert a step-up verification preference {scope, enabled}. "
+            "Enabling (enabled=true) applies immediately. Disabling "
+            "(enabled=false) is itself step-up protected: without a fresh "
+            "grant for scope verification.settings the request is rejected "
+            "with the 403 verification envelope — complete a factor and "
+            "retry. Both writes invalidate the cached policy, so protected "
+            "endpoints see the change within one request."
+        ),
+        request=VerificationPreferenceSerializer,
+        responses={
+            200: VerificationPreferenceRowSerializer,
+            400: StapelErrorSerializer,
+            403: StapelErrorSerializer,
+        },
+    )
+    def set_preference(self, request):
+        serializer = self.get_preference_request_serializer_class()(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        scope = serializer.validated_data["scope"]
+        enabled = serializer.validated_data["enabled"]
+        if enabled:
+            # Turning protection ON never needs proof of presence.
+            return self._apply_preference(request, scope, True)
+        return self._disable_preference(request, scope)
+
+    @requires_verification(scope="verification.settings", level="default_on")
+    def _disable_preference(self, request, scope):
+        """The step-up-guarded branch: switching protection OFF."""
+        return self._apply_preference(request, scope, False)
+
+    def _apply_preference(self, request, scope, enabled):
+        from stapel_auth.models import VerificationPreference
+        from stapel_auth.verification.dto import VerificationPreferenceRow
+
+        VerificationPreference.objects.update_or_create(
+            user=request.user, scope=scope, defaults={"enabled": enabled},
+        )
+        # The core caches resolved policies for POLICY_CACHE_TTL — drop the
+        # entry so the change is visible on the next protected request.
+        invalidate_policy_cache(request.user.pk)
+
+        from stapel_auth.services import AuditService
+
+        AuditService.log(
+            "verification_preference_changed",
+            user=request.user,
+            request=request,
+            scope=scope,
+            enabled=enabled,
+        )
+        dto = VerificationPreferenceRow(scope=scope, enabled=enabled)
+        return StapelResponse(self.get_preference_response_serializer_class()(dto))
+
+
+# The decorator wraps only the disable branch (enabling must never demand
+# step-up), but the endpoint's OpenAPI/flow docs still have to advertise the
+# contract — mirror it onto the public PUT handler.
+setattr(
+    VerificationPreferenceViewSet.set_preference,
+    VERIFICATION_ATTR,
+    getattr(VerificationPreferenceViewSet._disable_preference, VERIFICATION_ATTR),
+)

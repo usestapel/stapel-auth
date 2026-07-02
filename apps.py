@@ -38,6 +38,11 @@ class StapelAuthConfig(AppConfig):
         for factor_cls in DEFAULT_FACTOR_CLASSES:
             register_factor(factor_cls())
 
+        # comm Function providers (auth.verification.policy). Importing the
+        # module runs the @function decorators; re-imports are no-ops and
+        # re-registering the same handler object is idempotent.
+        from . import functions  # noqa: F401
+
         # In monolith mode (no GDPR_COLLECTING_SERVICES), register the GDPR provider
         # in-process so the orchestrator can call it directly.
         # In microservices mode the bus consumer (management/commands/consume_gdpr.py) handles it.

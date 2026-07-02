@@ -26,7 +26,7 @@ from stapel_auth.qr.views import QRAuthViewSet
 from stapel_auth.mfa.views import TOTPViewSet, PasskeyViewSet
 from stapel_auth.security.views import SecurityStatusViewSet, AuditLogViewSet, RevokeSuspiciousView, AdminAuditLogViewSet
 from stapel_auth.magic_link.views import MagicLinkViewSet
-from stapel_auth.verification.views import VerificationViewSet
+from stapel_auth.verification.views import VerificationPreferenceViewSet, VerificationViewSet
 from stapel_auth.openid.views import JWKSView, OpenIDConfigurationView, TokenIntrospectView
 from stapel_auth.admin.views import ServiceAPIKeyViewSet, AdminUserViewSet, CapabilitiesView
 from .sso_views import (
@@ -191,6 +191,9 @@ def get_verification_urls(enabled=None):
     if not _gate(enabled):
         return []
     return [
+        # NB: registered before the <str:challenge_id> routes so the literal
+        # "preferences" segment is not swallowed by the challenge_id pattern.
+        path('verification/preferences/', VerificationPreferenceViewSet.as_view({'get': 'list_preferences', 'put': 'set_preference'}), name='verification_preferences'),
         path('verification/<str:challenge_id>/', VerificationViewSet.as_view({'get': 'info'}), name='verification_info'),
         path('verification/<str:challenge_id>/initiate/', VerificationViewSet.as_view({'post': 'initiate'}), name='verification_initiate'),
         path('verification/<str:challenge_id>/complete/', VerificationViewSet.as_view({'post': 'complete'}), name='verification_complete'),

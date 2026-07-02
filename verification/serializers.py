@@ -6,6 +6,8 @@ from stapel_auth.verification.dto import (
     VerificationChallengeInfoResponse,
     VerificationCompleteResponse,
     VerificationInitiateResponse,
+    VerificationPreferenceRow,
+    VerificationPreferencesResponse,
 )
 
 
@@ -59,3 +61,29 @@ class VerificationInitiateResponseSerializer(StapelDataclassSerializer):
 class VerificationCompleteResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = VerificationCompleteResponse
+
+
+class VerificationPreferenceSerializer(serializers.Serializer):
+    """Request body for upserting a verification preference."""
+
+    scope = serializers.CharField(
+        max_length=100,
+        help_text="Verification scope the preference applies to, e.g. wallet.withdraw.",
+    )
+    enabled = serializers.BooleanField(
+        help_text=(
+            "True enables step-up for the scope (opt_in endpoints), False "
+            "disables it (default_on endpoints). Disabling requires a fresh "
+            "step-up grant for scope verification.settings."
+        ),
+    )
+
+
+class VerificationPreferenceRowSerializer(StapelDataclassSerializer):
+    class Meta:
+        dataclass = VerificationPreferenceRow
+
+
+class VerificationPreferencesResponseSerializer(StapelDataclassSerializer):
+    class Meta:
+        dataclass = VerificationPreferencesResponse

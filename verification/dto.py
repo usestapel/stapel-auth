@@ -43,3 +43,27 @@ class VerificationCompleteResponse:
     """
     verified: bool
     verification_token: str
+
+
+@dataclass
+class VerificationPreferenceRow:
+    """
+    One step-up verification preference of the current user.
+
+    Attributes:
+        scope: Verification scope the preference applies to. Example: wallet.withdraw
+        enabled: Whether step-up is enabled for this scope — False turns a default_on scope off, True turns an opt_in scope on. Example: false
+    """
+    scope: str
+    enabled: bool
+
+
+@dataclass
+class VerificationPreferencesResponse:
+    """
+    The current user's step-up verification preferences.
+
+    Attributes:
+        preferences: Preference rows, one per scope the user has touched — scopes without a row follow the endpoint's level default. Example: [{"scope": "wallet.withdraw", "enabled": false}]
+    """
+    preferences: list[VerificationPreferenceRow] = field(default_factory=list)

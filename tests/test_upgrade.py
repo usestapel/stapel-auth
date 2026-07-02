@@ -473,6 +473,7 @@ _EXPECTED_URLS = {
     'jwks': '.well-known/jwks.json',
     'openid-configuration': '.well-known/openid-configuration',
     'oauth2_introspect': 'oauth2/introspect/',
+    'verification_preferences': 'verification/preferences/',
     'verification_info': 'verification/<str:challenge_id>/',
     'verification_initiate': 'verification/<str:challenge_id>/initiate/',
     'verification_complete': 'verification/<str:challenge_id>/complete/',

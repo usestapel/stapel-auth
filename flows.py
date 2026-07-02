@@ -14,7 +14,7 @@ from stapel_core.flows import Flow, flow_step
 from stapel_auth.mfa.views import TOTPViewSet
 from stapel_auth.otp.views import AuthViewSet
 from stapel_auth.password.views import PasswordViewSet
-from stapel_auth.verification.views import VerificationViewSet
+from stapel_auth.verification.views import VerificationPreferenceViewSet, VerificationViewSet
 
 # ─────────────────────────────────────────────────────────────────────────────
 # auth.passwordless_login
@@ -143,5 +143,25 @@ STEP_UP_VERIFICATION.human(
         "передаёт X-Verification-Token из ответа завершения"
     ),
 )
+flow_step(
+    STEP_UP_VERIFICATION, order=5,
+    note=(
+        "Опционально: посмотреть свои step-up-настройки — по строке "
+        "{scope, enabled} на каждый scope, который пользователь трогал "
+        "(enabled=false выключает default_on-scope, enabled=true включает "
+        "opt_in-scope; strict-эндпоинты настройки игнорируют)"
+    ),
+)(VerificationPreferenceViewSet.list_preferences)
+flow_step(
+    STEP_UP_VERIFICATION, order=6,
+    note=(
+        "Опционально: изменить настройку {scope, enabled}. ИНВАРИАНТ: "
+        "выключение (enabled=false) само защищено "
+        "@requires_verification(scope=verification.settings, "
+        "level=default_on) — без свежего grant'а придёт 403 с конвертом "
+        "verification; включение step-up-подтверждения не требует. Обе "
+        "записи сбрасывают кэш политики в core"
+    ),
+)(VerificationPreferenceViewSet.set_preference)
 
 __all__ = ["PASSWORDLESS_LOGIN", "PASSWORD_LOGIN", "STEP_UP_VERIFICATION"]

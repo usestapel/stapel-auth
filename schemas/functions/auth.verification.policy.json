@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "auth.verification.policy",
+  "description": "Resolve a user's step-up verification policy: which scopes they disabled (default_on endpoints) or enabled (opt_in endpoints). Returns {disabled_scopes, enabled_scopes}.",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "Primary key of the user whose policy is resolved."
+    }
+  },
+  "required": ["user_id"],
+  "additionalProperties": false
+}

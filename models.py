@@ -449,3 +449,28 @@ class OrgMembership(models.Model):
 
     def __str__(self):
         return f'{self.user} @ {self.org.slug} ({self.role})'
+
+
+# =============================================================================
+# Step-up verification — per-user policy preferences
+# =============================================================================
+
+class VerificationPreference(models.Model):
+    """A user's step-up preference for one verification scope.
+
+    Consulted by ``stapel_core.verification`` through the
+    ``auth.verification.policy`` comm Function: ``enabled=False`` rows turn
+    a ``default_on`` scope off, ``enabled=True`` rows turn an ``opt_in``
+    scope on. ``strict`` endpoints ignore preferences entirely.
+    """
+    user       = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='verification_preferences')
+    scope      = models.CharField(max_length=100)
+    enabled    = models.BooleanField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'verification_preferences'
+        unique_together = [('user', 'scope')]
+
+    def __str__(self):
+        return f'{self.user_id}:{self.scope} = {"on" if self.enabled else "off"}'

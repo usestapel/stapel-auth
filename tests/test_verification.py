@@ -29,12 +29,14 @@ from rest_framework.views import APIView
 from stapel_core.verification import (
     create_challenge,
     factor_registry,
+    get_user_policy,
     has_grant,
     requires_verification,
 )
 from stapel_core.verification.grants import (
     CHALLENGE_KEY,
     get_challenge,
+    grant_verification,
     revoke_grants,
 )
 
@@ -86,12 +88,38 @@ class _PayoutDemoView(APIView):
         return Response({"ok": True})
 
 
+class _WalletDemoView(APIView):
+    """default_on: enforced unless the user disabled the scope."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @requires_verification(
+        scope="wallet_demo", factors=["otp_email"], max_age=300, level="default_on"
+    )
+    def post(self, request):
+        return Response({"ok": True})
+
+
+class _ExportDemoView(APIView):
+    """opt_in: enforced only when the user enabled the scope."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @requires_verification(
+        scope="export_demo", factors=["otp_email"], max_age=300, level="opt_in"
+    )
+    def post(self, request):
+        return Response({"ok": True})
+
+
 _TEST_URLCONF = "_stapel_auth_verification_test_urls"
 _urlconf_module = types.ModuleType(_TEST_URLCONF)
 import stapel_auth.urls as _auth_urls  # noqa: E402
 
 _urlconf_module.urlpatterns = list(_auth_urls.urlpatterns) + [
     path("payout-demo/", _PayoutDemoView.as_view()),
+    path("wallet-demo/", _WalletDemoView.as_view()),
+    path("export-demo/", _ExportDemoView.as_view()),
 ]
 sys.modules[_TEST_URLCONF] = _urlconf_module
 
@@ -669,7 +697,9 @@ class FlowDocumentationTests(TestCase):
 
         step_up = flow_registry.get("auth.step_up_verification")
         kinds = [s.kind for s in step_up.sorted_steps()]
-        self.assertEqual(kinds, ["human", "http", "http", "http", "human"])
+        self.assertEqual(
+            kinds, ["human", "http", "http", "http", "human", "http", "http"]
+        )
 
         passwordless = flow_registry.get("auth.passwordless_login")
         self.assertIn("action", [s.kind for s in passwordless.steps])
@@ -681,6 +711,8 @@ class FlowDocumentationTests(TestCase):
         from stapel_auth.password.views import PasswordViewSet
         from stapel_auth.verification.views import VerificationViewSet
 
+        from stapel_auth.verification.views import VerificationPreferenceViewSet
+
         for handler, flow_id in (
             (AuthViewSet.email_request, "auth.passwordless_login"),
             (AuthViewSet.email_verify, "auth.passwordless_login"),
@@ -688,6 +720,8 @@ class FlowDocumentationTests(TestCase):
             (VerificationViewSet.info, "auth.step_up_verification"),
             (VerificationViewSet.initiate, "auth.step_up_verification"),
             (VerificationViewSet.complete, "auth.step_up_verification"),
+            (VerificationPreferenceViewSet.list_preferences, "auth.step_up_verification"),
+            (VerificationPreferenceViewSet.set_preference, "auth.step_up_verification"),
         ):
             memberships = getattr(handler, FLOWS_ATTR, [])
             self.assertIn(flow_id, [m["flow"] for m in memberships], handler)
@@ -718,3 +752,338 @@ class FlowDocumentationTests(TestCase):
         contract = view_verification_contract(_PayoutDemoView)
         self.assertEqual(contract["scope"], "payout_demo")
         self.assertEqual(contract["factors"], ["otp_email", "totp"])
+
+    def test_verification_contract_mirrored_on_preferences_put(self):
+        # The decorator wraps only the disable branch, but the public PUT
+        # handler must still advertise the contract for OpenAPI/flow docs.
+        from stapel_core.verification.decorators import VERIFICATION_ATTR
+
+        from stapel_auth.verification.views import VerificationPreferenceViewSet
+
+        contract = getattr(
+            VerificationPreferenceViewSet.set_preference, VERIFICATION_ATTR
+        )
+        self.assertEqual(contract["scope"], "verification.settings")
+        self.assertEqual(contract["level"], "default_on")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Preferences API: GET/PUT matrix + disable-requires-step-up invariant
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class VerificationPreferencesApiTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = _make_user()
+        _bearer(self.client, self.user)
+        self.url = reverse("verification_preferences")
+
+    def _put(self, scope, enabled):
+        return self.client.put(
+            self.url, {"scope": scope, "enabled": enabled}, format="json"
+        )
+
+    def _grant_settings_scope(self, user=None):
+        grant_verification(
+            user_id=str((user or self.user).pk),
+            scope="verification.settings",
+            max_age=60,
+        )
+
+    def _rows(self):
+        from stapel_auth.models import VerificationPreference
+
+        return list(
+            VerificationPreference.objects.filter(user=self.user)
+            .order_by("scope")
+            .values_list("scope", "enabled")
+        )
+
+    def test_list_empty(self):
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data, {"preferences": []})
+
+    def test_list_returns_rows(self):
+        from stapel_auth.models import VerificationPreference
+
+        VerificationPreference.objects.create(
+            user=self.user, scope="wallet_demo", enabled=False
+        )
+        VerificationPreference.objects.create(
+            user=self.user, scope="export_demo", enabled=True
+        )
+        # Another user's rows must not leak.
+        VerificationPreference.objects.create(
+            user=_make_user(), scope="wallet_demo", enabled=True
+        )
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            resp.data["preferences"],
+            [
+                {"scope": "export_demo", "enabled": True},
+                {"scope": "wallet_demo", "enabled": False},
+            ],
+        )
+
+    def test_enable_does_not_require_step_up(self):
+        resp = self._put("export_demo", True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data, {"scope": "export_demo", "enabled": True})
+        self.assertEqual(self._rows(), [("export_demo", True)])
+
+    def test_disable_without_grant_rejected_with_envelope(self):
+        resp = self._put("wallet_demo", False)
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(
+            resp.data["localizable_error"], "error.403.verification_required"
+        )
+        verification = resp.data["verification"]
+        self.assertEqual(verification["scope"], "verification.settings")
+        self.assertEqual(verification["factors"], ["otp_email"])
+        # No preference was written.
+        self.assertEqual(self._rows(), [])
+
+    def test_disable_with_grant_succeeds(self):
+        self._grant_settings_scope()
+        resp = self._put("wallet_demo", False)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data, {"scope": "wallet_demo", "enabled": False})
+        self.assertEqual(self._rows(), [("wallet_demo", False)])
+
+    def test_disable_full_cycle_through_challenge(self):
+        # 403 envelope → complete otp_email → retry the PUT.
+        envelope = self._put("wallet_demo", False)
+        self.assertEqual(envelope.status_code, 403)
+        challenge_id = envelope.data["verification"]["challenge_id"]
+
+        initiate = self.client.post(
+            reverse("verification_initiate", kwargs={"challenge_id": challenge_id}),
+            {"factor": "otp_email"},
+        )
+        self.assertEqual(initiate.status_code, 200)
+        complete = self.client.post(
+            reverse("verification_complete", kwargs={"challenge_id": challenge_id}),
+            {"factor": "otp_email", "code": "0000"},
+        )
+        self.assertEqual(complete.status_code, 200)
+
+        retry = self._put("wallet_demo", False)
+        self.assertEqual(retry.status_code, 200)
+        self.assertEqual(self._rows(), [("wallet_demo", False)])
+
+    def test_upsert_updates_existing_row(self):
+        self._put("export_demo", True)
+        self._grant_settings_scope()
+        resp = self._put("export_demo", False)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self._rows(), [("export_demo", False)])
+
+    def test_disable_passes_through_for_user_without_factors(self):
+        # default_on on the guard scope: a user with no usable factor is not
+        # blocked from managing preferences (there is nothing to verify).
+        user = _make_user(is_email_verified=False)
+        _bearer(self.client, user)
+        resp = self._put("wallet_demo", False)
+        self.assertEqual(resp.status_code, 200)
+
+    def test_put_validation_errors(self):
+        self.assertEqual(
+            self.client.put(self.url, {"scope": "x"}, format="json").status_code, 400
+        )
+        self.assertEqual(
+            self.client.put(self.url, {"enabled": True}, format="json").status_code,
+            400,
+        )
+        self.assertEqual(
+            self.client.put(
+                self.url, {"scope": "s" * 101, "enabled": True}, format="json"
+            ).status_code,
+            400,
+        )
+
+    def test_requires_authentication(self):
+        self.client.credentials()
+        self.assertIn(self.client.get(self.url).status_code, (401, 403))
+        self.assertIn(
+            self.client.put(
+                self.url, {"scope": "x", "enabled": True}, format="json"
+            ).status_code,
+            (401, 403),
+        )
+
+    def test_mutations_invalidate_core_policy_cache(self):
+        # Prime the core-side cache with the empty policy...
+        self.assertEqual(get_user_policy(self.user)["enabled_scopes"], [])
+        # ...then flip a preference: the change is visible immediately, not
+        # after POLICY_CACHE_TTL.
+        self._put("export_demo", True)
+        self.assertEqual(get_user_policy(self.user)["enabled_scopes"], ["export_demo"])
+
+        self._grant_settings_scope()
+        self._put("wallet_demo", False)
+        policy = get_user_policy(self.user)
+        self.assertEqual(policy["disabled_scopes"], ["wallet_demo"])
+        self.assertEqual(policy["enabled_scopes"], ["export_demo"])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# auth.verification.policy Function: registration, payload, schema
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class VerificationPolicyFunctionTests(TestCase):
+    def test_function_registered_in_ready(self):
+        from stapel_core.comm.registry import function_registry
+
+        self.assertIn("auth.verification.policy", function_registry.names())
+
+    def test_policy_roundtrip(self):
+        from stapel_core.comm import call
+
+        from stapel_auth.models import VerificationPreference
+
+        user = _make_user()
+        VerificationPreference.objects.create(
+            user=user, scope="wallet_demo", enabled=False
+        )
+        VerificationPreference.objects.create(
+            user=user, scope="security", enabled=False
+        )
+        VerificationPreference.objects.create(
+            user=user, scope="export_demo", enabled=True
+        )
+        result = call("auth.verification.policy", {"user_id": str(user.pk)})
+        self.assertEqual(
+            result,
+            {
+                "disabled_scopes": ["security", "wallet_demo"],
+                "enabled_scopes": ["export_demo"],
+            },
+        )
+
+    def test_unknown_user_has_empty_policy(self):
+        from stapel_core.comm import call
+
+        result = call("auth.verification.policy", {"user_id": str(uuid.uuid4())})
+        self.assertEqual(result, {"disabled_scopes": [], "enabled_scopes": []})
+
+    @override_settings(STAPEL_COMM={"VALIDATE_SCHEMAS": True})
+    def test_schema_rejects_bad_payload(self):
+        from stapel_core.comm import call
+        from stapel_core.comm.exceptions import SchemaValidationError
+
+        with self.assertRaises(SchemaValidationError):
+            call("auth.verification.policy", {})
+        with self.assertRaises(SchemaValidationError):
+            call("auth.verification.policy", {"user_id": 42})
+        with self.assertRaises(SchemaValidationError):
+            call("auth.verification.policy", {"user_id": "1", "extra": "no"})
+
+    def test_committed_schema_file_matches_registered_schema(self):
+        import json
+        from pathlib import Path
+
+        import stapel_auth
+        from stapel_auth.functions import VERIFICATION_POLICY_SCHEMA
+
+        schema_file = (
+            Path(stapel_auth.__file__).parent
+            / "schemas" / "functions" / "auth.verification.policy.json"
+        )
+        committed = json.loads(schema_file.read_text())
+        for key in ("type", "properties", "required", "additionalProperties"):
+            self.assertEqual(committed[key], VERIFICATION_POLICY_SCHEMA[key], key)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Policy roundtrip through real protected endpoints (default_on / opt_in)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@override_settings(ROOT_URLCONF=_TEST_URLCONF)
+class PolicyRoundTripTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = _make_user()
+        _bearer(self.client, self.user)
+
+    def _set_pref(self, scope, enabled, grant=False):
+        if grant:
+            grant_verification(
+                user_id=str(self.user.pk),
+                scope="verification.settings",
+                max_age=60,
+            )
+        return self.client.put(
+            reverse("verification_preferences"),
+            {"scope": scope, "enabled": enabled},
+            format="json",
+        )
+
+    def _complete_email(self, challenge_id):
+        self.client.post(
+            reverse("verification_initiate", kwargs={"challenge_id": challenge_id}),
+            {"factor": "otp_email"},
+        )
+        return self.client.post(
+            reverse("verification_complete", kwargs={"challenge_id": challenge_id}),
+            {"factor": "otp_email", "code": "0000"},
+        )
+
+    def test_default_on_disable_and_reenable(self):
+        # Enforced out of the box.
+        first = self.client.post("/wallet-demo/", {})
+        self.assertEqual(first.status_code, 403)
+        self.assertEqual(first.data["verification"]["scope"], "wallet_demo")
+
+        # Disable (requires the step-up grant), then the endpoint opens up.
+        self.assertEqual(
+            self._set_pref("wallet_demo", False, grant=True).status_code, 200
+        )
+        self.assertEqual(self.client.post("/wallet-demo/", {}).status_code, 200)
+
+        # Re-enabling needs no step-up and restores enforcement immediately.
+        self.assertEqual(self._set_pref("wallet_demo", True).status_code, 200)
+        self.assertEqual(self.client.post("/wallet-demo/", {}).status_code, 403)
+
+    def test_opt_in_enable_then_full_verification_cycle(self):
+        # Off by default: the request passes straight through.
+        self.assertEqual(self.client.post("/export-demo/", {}).status_code, 200)
+
+        # Opt in (no step-up needed) — now the endpoint challenges.
+        self.assertEqual(self._set_pref("export_demo", True).status_code, 200)
+        envelope = self.client.post("/export-demo/", {})
+        self.assertEqual(envelope.status_code, 403)
+        self.assertEqual(envelope.data["verification"]["scope"], "export_demo")
+
+        # Complete the factor and retry — the standard client cycle.
+        complete = self._complete_email(envelope.data["verification"]["challenge_id"])
+        self.assertEqual(complete.status_code, 200)
+        self.assertEqual(self.client.post("/export-demo/", {}).status_code, 200)
+
+    def test_strict_endpoint_ignores_disable_preference(self):
+        self.assertEqual(
+            self._set_pref("payout_demo", False, grant=True).status_code, 200
+        )
+        resp = self.client.post("/payout-demo/", {})
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(
+            resp.data["localizable_error"], "error.403.verification_required"
+        )
+
+    def test_strict_endpoint_enrollment_envelope_without_factors(self):
+        user = _make_user(is_email_verified=False)
+        _bearer(self.client, user)
+        resp = self.client.post("/payout-demo/", {})
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(
+            resp.data["localizable_error"],
+            "error.403.verification_enrollment_required",
+        )
+        self.assertEqual(
+            resp.data["verification"],
+            {"scope": "payout_demo", "factors": ["otp_email", "totp"], "enroll": True},
+        )
