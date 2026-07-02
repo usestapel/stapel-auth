@@ -16,7 +16,7 @@ from stapel_core.django.api.errors import (
     StapelResponse,
     error_500_internal,
 )
-from stapel_core.django.api.serializers import IronDataclassSerializer
+from stapel_core.django.api.serializers import StapelDataclassSerializer
 
 from stapel_auth.sso.service import OIDCService, SAMLService, SSOUserService
 
@@ -47,7 +47,7 @@ class SSODomainLookupResponse:
     protocol: str | None
 
 
-class SSODomainLookupResponseSerializer(IronDataclassSerializer):
+class SSODomainLookupResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = SSODomainLookupResponse
 

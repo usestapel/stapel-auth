@@ -138,7 +138,7 @@ def pytest_configure(config):
             ],
             # No IsServiceRequest / IsSuperUser in tests — endpoints handle their own auth
             "DEFAULT_PERMISSION_CLASSES": [],
-            "EXCEPTION_HANDLER": "stapel_core.django.api.errors.iron_exception_handler",
+            "EXCEPTION_HANDLER": "stapel_core.django.api.errors.stapel_exception_handler",
         },
         # Service settings
         URL_PREFIX="auth/",

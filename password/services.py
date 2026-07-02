@@ -198,6 +198,20 @@ class PasswordService:
             raise StapelServiceError(400, ERR_400_INVALID_METHOD)
         user.set_password(new_password)
         user.save(update_fields=["password"])
+        cls._revoke_all_sessions(user)
+
+    @staticmethod
+    def _revoke_all_sessions(user):
+        """A changed/reset password must kill existing sessions — otherwise an
+        attacker's session survives the victim's account recovery."""
+        try:
+            from stapel_auth.sessions.services import SessionService
+
+            SessionService.revoke_all(user)
+        except Exception:
+            logger.exception(
+                "Failed to revoke sessions after password change for %s", user.pk
+            )
 
     @classmethod
     def reset_request(cls, *, email=None, phone=None) -> str:
@@ -249,4 +263,5 @@ class PasswordService:
                 raise StapelServiceError(404, ERR_404_USER_FOR_RESET)
         user.set_password(new_password)
         user.save(update_fields=["password"])
+        cls._revoke_all_sessions(user)
         return user

@@ -5,7 +5,7 @@ Serializers for OTP authentication flows and authenticator change flows.
 import phonenumbers
 from rest_framework import serializers
 from stapel_core.django.api.errors import StapelValidationError
-from stapel_core.django.api.serializers import IronDataclassSerializer
+from stapel_core.django.api.serializers import StapelDataclassSerializer
 from stapel_core.django.captcha import CaptchaMixin
 
 from stapel_auth.errors import (
@@ -90,7 +90,7 @@ class AnonymousAuthSerializer(serializers.Serializer):
     device_id = serializers.CharField(max_length=255, required=False)
 
 
-class OtpSentResponseSerializer(IronDataclassSerializer):
+class OtpSentResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = OtpSentResponse
 
@@ -200,31 +200,31 @@ class DelayedChangeCancelSerializer(serializers.Serializer):
     change_request_id = serializers.UUIDField()
 
 
-class InstantRequestOldResponseSerializer(IronDataclassSerializer):
+class InstantRequestOldResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = InstantRequestOldResponse
 
 
-class InstantVerifyOldResponseSerializer(IronDataclassSerializer):
+class InstantVerifyOldResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = InstantVerifyOldResponse
 
 
-class InstantRequestNewResponseSerializer(IronDataclassSerializer):
+class InstantRequestNewResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = InstantRequestNewResponse
 
 
-class DelayedInitiateResponseSerializer(IronDataclassSerializer):
+class DelayedInitiateResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = DelayedInitiateResponse
 
 
-class DelayedStatusResponseSerializer(IronDataclassSerializer):
+class DelayedStatusResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = DelayedStatusResponse
 
 
-class DelayedCancelResponseSerializer(IronDataclassSerializer):
+class DelayedCancelResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = DelayedCancelResponse

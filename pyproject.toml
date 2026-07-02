@@ -12,7 +12,7 @@ requires-python = ">=3.11"
 keywords = ["django", "stapel", "authentication", "jwt", "passkey", "totp", "sso"]
 classifiers = [
     "Framework :: Django",
-    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.2",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
@@ -66,7 +66,7 @@ packages = [
 
 # Migrations are part of the package
 [tool.setuptools.package-data]
-stapel_auth = ["migrations/*.py", "migrations/**/*.py"]
+stapel_auth = ["migrations/*.py", "schemas/**/*.json", "migrations/**/*.py"]
 
 [tool.coverage.run]
 omit = [

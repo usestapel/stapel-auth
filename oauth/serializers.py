@@ -1,6 +1,6 @@
 """Serializers for OAuth authentication and auth capabilities."""
 from rest_framework import serializers
-from stapel_core.django.api.serializers import IronDataclassSerializer
+from stapel_core.django.api.serializers import StapelDataclassSerializer
 from stapel_auth.oauth.dto import (
     OAuthProviderInfo,
     RegistrationCapabilities,
@@ -15,26 +15,26 @@ class OAuthSerializer(serializers.Serializer):
     access_token = serializers.CharField(max_length=500)
 
 
-class OAuthProviderInfoSerializer(IronDataclassSerializer):
+class OAuthProviderInfoSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = OAuthProviderInfo
 
 
-class RegistrationCapabilitiesSerializer(IronDataclassSerializer):
+class RegistrationCapabilitiesSerializer(StapelDataclassSerializer):
     oauth = OAuthProviderInfoSerializer(many=True)
 
     class Meta:
         dataclass = RegistrationCapabilities
 
 
-class LoginCapabilitiesSerializer(IronDataclassSerializer):
+class LoginCapabilitiesSerializer(StapelDataclassSerializer):
     oauth = OAuthProviderInfoSerializer(many=True)
 
     class Meta:
         dataclass = LoginCapabilities
 
 
-class AuthCapabilitiesSerializer(IronDataclassSerializer):
+class AuthCapabilitiesSerializer(StapelDataclassSerializer):
     registration = RegistrationCapabilitiesSerializer()
     login = LoginCapabilitiesSerializer()
 

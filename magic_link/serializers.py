@@ -22,7 +22,13 @@ class MagicLinkRequestBodySerializer(CaptchaMixin, serializers.Serializer):
     def validate_redirect_url(self, value):
         if not value or value == "/":
             return "/"
-        if not value.startswith("/"):
+        # "//evil.com" and "/\\evil.com" are protocol-relative redirects --
+        # only single-slash same-site paths are acceptable.
+        if (
+            not value.startswith("/")
+            or value.startswith("//")
+            or value.startswith("/\\")
+        ):
             raise StapelValidationError(ERR_400_INVALID_REDIRECT_URL)
         return value
 

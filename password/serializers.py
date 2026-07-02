@@ -3,7 +3,7 @@
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from stapel_core.django.api.errors import StapelValidationError
-from stapel_core.django.api.serializers import IronDataclassSerializer
+from stapel_core.django.api.serializers import StapelDataclassSerializer
 from stapel_core.django.captcha import CaptchaMixin
 
 from stapel_auth.errors import (
@@ -137,12 +137,12 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         return attrs
 
 
-class PasswordMethodSerializer(IronDataclassSerializer):
+class PasswordMethodSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = PasswordMethod
 
 
-class PasswordMethodsResponseSerializer(IronDataclassSerializer):
+class PasswordMethodsResponseSerializer(StapelDataclassSerializer):
     methods = PasswordMethodSerializer(many=True)
 
     class Meta:
