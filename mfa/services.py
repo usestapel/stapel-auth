@@ -8,6 +8,7 @@ class TOTPService:
     STEP_UP_TTL = 900        # 15 min
     CHALLENGE_TTL = 300      # 5 min
     TOTP_WINDOW = 1          # ±1 step tolerance
+    MAX_CHALLENGE_FAILURES = 5   # challenge is invalidated after this many bad codes
 
     # ── setup ────────────────────────────────────────────────────────────────
 
@@ -153,11 +154,14 @@ class TOTPService:
         """
         Verify TOTP code against a challenge token.
         Returns user or None on failure. Clears the challenge on success.
+        The challenge itself is invalidated after MAX_CHALLENGE_FAILURES bad
+        codes — a stolen challenge token gives at most 5 guesses.
         """
         from django.core.cache import cache
         from django.contrib.auth import get_user_model
 
         key = f'totp_challenge:{challenge_token}'
+        fail_key = f'totp_challenge_fails:{challenge_token}'
         user_id = cache.get(key)
         if not user_id:
             return None
@@ -177,7 +181,15 @@ class TOTPService:
         ok = cls._verify_any(device, code=code, backup_code=backup_code)
         if ok:
             cache.delete(key)
+            cache.delete(fail_key)
             return user
+
+        failures = (cache.get(fail_key) or 0) + 1
+        cache.set(fail_key, failures, cls.CHALLENGE_TTL)
+        if failures >= cls.MAX_CHALLENGE_FAILURES:
+            # Burn the challenge — the login must be restarted.
+            cache.delete(key)
+            cache.delete(fail_key)
         return None
 
     # ── step-up ──────────────────────────────────────────────────────────────

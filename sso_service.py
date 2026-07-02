@@ -84,8 +84,16 @@ class SAMLService:
         return f'{config.saml_sso_url}?{params}', request_id
 
     @classmethod
-    def parse_response(cls, config, saml_response_b64: str) -> dict:
-        """Verify signature and parse assertion. Returns user attributes dict."""
+    def parse_response(cls, config, saml_response_b64: str, org_slug: str = None) -> dict:
+        """Verify signature and parse assertion. Returns user attributes dict.
+
+        When *org_slug* is given (always the case for the ACS view) the
+        assertion is additionally validated against:
+          - AudienceRestriction == our SP entityID for this org,
+          - InResponseTo == a request id we issued (stored in cache at login,
+            consumed here so it can be used exactly once),
+          - assertion ID replay (IDs cached until NotOnOrAfter).
+        """
         try:
             from lxml import etree
             from signxml import XMLVerifier
@@ -123,25 +131,114 @@ class SAMLService:
             assertion = signed_root  # signature was on the Assertion itself
 
         cls._validate_conditions(assertion)
+        if org_slug is not None:
+            cls._validate_audience(assertion, org_slug)
+            cls._validate_in_response_to(assertion, root, org_slug)
+            cls._check_assertion_replay(assertion)
         return cls._extract_attributes(assertion, config)
 
-    @staticmethod
-    def _validate_conditions(assertion):
+    @classmethod
+    def _validate_conditions(cls, assertion):
         conditions = assertion.find('saml:Conditions', _SAML_NS)
         if conditions is None:
             return
         now = datetime.now(timezone.utc)
         not_before_str = conditions.get('NotBefore')
         not_after_str = conditions.get('NotOnOrAfter')
-        fmt = '%Y-%m-%dT%H:%M:%SZ'
         if not_before_str:
-            nb = datetime.strptime(not_before_str, fmt).replace(tzinfo=timezone.utc)
+            nb = cls._parse_saml_instant(not_before_str)
             if now < nb:
                 raise ValueError(f'SAML assertion not yet valid (NotBefore={not_before_str})')
         if not_after_str:
-            na = datetime.strptime(not_after_str, fmt).replace(tzinfo=timezone.utc)
+            na = cls._parse_saml_instant(not_after_str)
             if now > na:
                 raise ValueError(f'SAML assertion has expired (NotOnOrAfter={not_after_str})')
+
+    @staticmethod
+    def _parse_saml_instant(value: str) -> datetime:
+        """Parse a SAML dateTime (with or without fractional seconds)."""
+        for fmt in ('%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S.%fZ'):
+            try:
+                return datetime.strptime(value, fmt).replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+        raise ValueError(f'Invalid SAML timestamp: {value!r}')
+
+    @classmethod
+    def _validate_audience(cls, assertion, org_slug: str) -> None:
+        """AudienceRestriction, when present, must name our SP entityID.
+
+        An assertion issued for a different SP (a different audience) must
+        never be accepted here — otherwise any SP the IdP serves could replay
+        its assertions against us.
+        """
+        audiences = assertion.findall(
+            'saml:Conditions/saml:AudienceRestriction/saml:Audience', _SAML_NS,
+        )
+        if not audiences:
+            return  # AudienceRestriction is optional per SAML core spec
+        expected = cls.sp_entity_id(org_slug)
+        values = [(a.text or '').strip() for a in audiences]
+        if expected not in values:
+            raise ValueError(
+                f'SAML assertion audience {values!r} does not include SP entityID {expected!r}'
+            )
+
+    @classmethod
+    def _validate_in_response_to(cls, assertion, response_root, org_slug: str) -> None:
+        """InResponseTo must match a request id WE issued for this org.
+
+        The id is stored in cache by the login view (saml_req:{slug}:{id})
+        and consumed here — a response can only answer one outstanding
+        AuthnRequest, and only once. Responses without InResponseTo are
+        treated as IdP-initiated and allowed (nothing to correlate).
+        """
+        from django.core.cache import cache
+
+        in_response_to = None
+        # Prefer the signed SubjectConfirmationData inside the assertion.
+        scd = assertion.find(
+            'saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData', _SAML_NS,
+        )
+        if scd is not None and scd.get('InResponseTo'):
+            in_response_to = scd.get('InResponseTo')
+        elif response_root is not None and response_root.get('InResponseTo'):
+            in_response_to = response_root.get('InResponseTo')
+
+        if not in_response_to:
+            logger.info('SAML response without InResponseTo (IdP-initiated) for %s', org_slug)
+            return
+
+        key = f'saml_req:{org_slug}:{in_response_to}'
+        if not cache.get(key):
+            raise ValueError(
+                f'SAML InResponseTo {in_response_to!r} does not match an outstanding AuthnRequest'
+            )
+        cache.delete(key)  # consume: single use
+
+    @classmethod
+    def _check_assertion_replay(cls, assertion) -> None:
+        """Reject an assertion whose ID was already accepted (replay).
+
+        IDs are cached until the assertion's NotOnOrAfter — after that the
+        Conditions check rejects it anyway.
+        """
+        from django.core.cache import cache
+
+        assertion_id = assertion.get('ID')
+        if not assertion_id:
+            raise ValueError('SAML assertion has no ID attribute')
+
+        ttl = 300  # fallback when no NotOnOrAfter present
+        conditions = assertion.find('saml:Conditions', _SAML_NS)
+        not_after_str = conditions.get('NotOnOrAfter') if conditions is not None else None
+        if not_after_str:
+            na = cls._parse_saml_instant(not_after_str)
+            ttl = max(int((na - datetime.now(timezone.utc)).total_seconds()), 1)
+
+        # cache.add is atomic: False means the ID was already stored → replay.
+        if not cache.add(f'saml_assertion_seen:{assertion_id}', '1', ttl):
+            raise ValueError(f'SAML assertion {assertion_id!r} replayed')
 
     @staticmethod
     def _extract_attributes(assertion, config) -> dict:

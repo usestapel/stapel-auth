@@ -118,6 +118,39 @@ def _sanitize_redirect_after(value: str) -> str:
 User = get_user_model()
 
 
+def _notify_user_registered(user, request=None) -> None:
+    """Fan out the registration milestone.
+
+    1. stapel_core.signals.user_registered — in-process extension point.
+    2. stapel_core.comm.emit("user.registered") — cross-module/cross-service
+       action with the same payload the legacy bus publish carried.
+    Failures are logged, never raised — registration must not fail because a
+    listener/broker is down.
+    """
+    try:
+        from stapel_core.signals import user_registered
+
+        user_registered.send(sender=user.__class__, user=user, request=request)
+    except Exception:
+        logger.exception("user_registered signal failed for user %s", user.id)
+
+    try:
+        from stapel_core.comm import emit
+
+        emit(
+            "user.registered",
+            {
+                "user_id": str(user.id),
+                "auth_type": user.auth_type or "unknown",
+                "email": user.email,
+            },
+            key=str(user.id),
+            service="auth",
+        )
+    except Exception:
+        logger.exception("Failed to emit user.registered for user %s", user.id)
+
+
 # ── Sub-package cross-imports ─────────────────────────────────────────────────
 from stapel_auth.sessions.views import (
     _CH_HINTS,
@@ -371,10 +404,21 @@ class AuthViewSet(viewsets.GenericViewSet):
         - MERGED: Anonymous user merged into existing account
         - MODIFIED: Authenticated user added/changed email
         """
+        from stapel_auth.security.services import LockoutService
+
         serializer = EmailAuthVerifySerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
             email = serializer.validated_data["email"]
             code = serializer.validated_data["code"]
+
+            # Progressive lockout across verification records (same pattern
+            # as password login) — blocks unbounded OTP guessing via
+            # re-requested codes.
+            is_locked, retry_after = LockoutService.check(email)
+            if is_locked:
+                return StapelErrorResponse(
+                    423, ERR_423_ACCOUNT_LOCKED, params=retry_params(retry_after)
+                )
 
             # Verify code
             verification_service = EmailVerificationService()
@@ -393,6 +437,12 @@ class AuthViewSet(viewsets.GenericViewSet):
                 elif result.get("error") == "invalid_code":
                     attempts_remaining = result.get("attempts_remaining")
                     self.log_login_attempt(email, "failed", request)
+                    count = LockoutService.record_failure(email)
+                    duration = LockoutService.apply_lockout(email, count, request=request)
+                    if duration:
+                        return StapelErrorResponse(
+                            423, ERR_423_ACCOUNT_LOCKED, params=retry_params(duration)
+                        )
                     if attempts_remaining is not None:
                         return StapelErrorResponse(
                             400,
@@ -402,9 +452,16 @@ class AuthViewSet(viewsets.GenericViewSet):
                     return StapelErrorResponse(400, ERR_400_INVALID_CODE)
                 elif not result.get("success"):
                     self.log_login_attempt(email, "failed", request)
+                    count = LockoutService.record_failure(email)
+                    duration = LockoutService.apply_lockout(email, count, request=request)
+                    if duration:
+                        return StapelErrorResponse(
+                            423, ERR_423_ACCOUNT_LOCKED, params=retry_params(duration)
+                        )
                     return StapelErrorResponse(400, ERR_400_INVALID_CODE)
 
             # Code verified successfully - determine auth status
+            LockoutService.clear(email)
             request_user = request.user if request.user.is_authenticated else None
             existing_user = User.objects.filter(email=email).first()
             auth_status = None
@@ -459,7 +516,7 @@ class AuthViewSet(viewsets.GenericViewSet):
                     user = User.objects.create(
                         email=email, auth_type="email", is_email_verified=True
                     )
-                    self._publish_user_registered(user)
+                    self._publish_user_registered(user, request=request)
                     auth_status = AuthStatus.REGISTERED
 
             self.log_login_attempt(email, "success", request)
@@ -632,10 +689,21 @@ class AuthViewSet(viewsets.GenericViewSet):
         - MERGED: Anonymous user merged into existing account
         - MODIFIED: Authenticated user added/changed phone
         """
+        from stapel_auth.security.services import LockoutService
+
         serializer = PhoneAuthVerifySerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
             phone = serializer.validated_data["phone"]
             code = serializer.validated_data["code"]
+
+            # Progressive lockout across verification records (same pattern
+            # as password login) — blocks unbounded OTP guessing via
+            # re-requested codes.
+            is_locked, retry_after = LockoutService.check(phone)
+            if is_locked:
+                return StapelErrorResponse(
+                    423, ERR_423_ACCOUNT_LOCKED, params=retry_params(retry_after)
+                )
 
             # Verify code
             verification_service = PhoneVerificationService()
@@ -654,6 +722,12 @@ class AuthViewSet(viewsets.GenericViewSet):
                 elif result.get("error") == "invalid_code":
                     attempts_remaining = result.get("attempts_remaining")
                     self.log_login_attempt(phone, "failed", request)
+                    count = LockoutService.record_failure(phone)
+                    duration = LockoutService.apply_lockout(phone, count, request=request)
+                    if duration:
+                        return StapelErrorResponse(
+                            423, ERR_423_ACCOUNT_LOCKED, params=retry_params(duration)
+                        )
                     if attempts_remaining is not None:
                         return StapelErrorResponse(
                             400,
@@ -663,9 +737,16 @@ class AuthViewSet(viewsets.GenericViewSet):
                     return StapelErrorResponse(400, ERR_400_INVALID_CODE)
                 elif not result.get("success"):
                     self.log_login_attempt(phone, "failed", request)
+                    count = LockoutService.record_failure(phone)
+                    duration = LockoutService.apply_lockout(phone, count, request=request)
+                    if duration:
+                        return StapelErrorResponse(
+                            423, ERR_423_ACCOUNT_LOCKED, params=retry_params(duration)
+                        )
                     return StapelErrorResponse(400, ERR_400_INVALID_CODE)
 
             # Code verified successfully - determine auth status
+            LockoutService.clear(phone)
             request_user = request.user if request.user.is_authenticated else None
             existing_user = User.objects.filter(phone=phone).first()
             auth_status = None
@@ -1040,26 +1121,8 @@ class AuthViewSet(viewsets.GenericViewSet):
         self._publish_user_registered(user)
         return user
 
-    def _publish_user_registered(self, user) -> None:
-        try:
-            from stapel_core.bus import Event, publish
-
-            from stapel_auth.events import TOPIC_USER_REGISTERED
-
-            publish(
-                TOPIC_USER_REGISTERED,
-                Event(
-                    event_type="user.registered",
-                    service="auth",
-                    payload={
-                        "user_id": str(user.id),
-                        "auth_type": user.auth_type or "unknown",
-                        "email": user.email,
-                    },
-                ),
-            )
-        except Exception:
-            logger.exception("Failed to publish user.registered for user %s", user.id)
+    def _publish_user_registered(self, user, request=None) -> None:
+        _notify_user_registered(user, request=request)
 
     def _build_callback_uri(self, request, provider):
         """Build the OAuth callback URI using configured host or request."""

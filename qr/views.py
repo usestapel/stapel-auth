@@ -72,19 +72,30 @@ class QRAuthViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"], url_path="generate")
     def generate(self, request):
+        import secrets as _secrets
+
         serializer = QRGenerateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         qr_type = serializer.validated_data["type"]
         redirect_url = serializer.validated_data.get("redirect_url")
+        allow_unauth = serializer.validated_data.get(
+            "allow_unauthenticated_scanner", False
+        )
 
         if qr_type == QRType.SESSION_SHARE and not request.user.is_authenticated:
             return StapelErrorResponse(401, ERR_401_QR_AUTH_REQUIRED)
 
         owner_user_id = request.user.id if request.user.is_authenticated else None
+        # Bind the QR to the generating device: the nonce travels back only
+        # as an httponly cookie, so another device polling a stolen key can
+        # never present it.
+        nonce = _secrets.token_urlsafe(32)
         key = QRAuthService.generate(
             qr_type=qr_type,
             owner_user_id=owner_user_id,
             redirect_url=redirect_url,
+            nonce=nonce,
+            allow_unauthenticated_scanner=allow_unauth,
         )
 
         scan_url = request.build_absolute_uri(f"/auth/api/qr/{key}/scan/")
@@ -94,9 +105,35 @@ class QRAuthViewSet(viewsets.GenericViewSet):
             expires_in=self.QR_TTL,
             scan_url=scan_url,
         )
-        return StapelResponse(
+        response = StapelResponse(
             QRGenerateResponseSerializer(dto), status=status.HTTP_201_CREATED
         )
+        response.set_cookie(
+            self._nonce_cookie_name(key),
+            nonce,
+            max_age=self.QR_TTL,
+            httponly=True,
+            secure=request.is_secure(),
+            samesite="Lax",
+            path="/",
+        )
+        return response
+
+    @staticmethod
+    def _nonce_cookie_name(key: str) -> str:
+        return f"stapel_qr_{key}"
+
+    @classmethod
+    def _nonce_matches(cls, request, key: str, data: dict) -> bool:
+        """Constant-time check of the device-binding cookie against the QR record."""
+        import hmac as _hmac
+
+        expected = data.get("nonce")
+        if not expected:
+            # Legacy record without a nonce (created before upgrade) — allow.
+            return True
+        presented = request.COOKIES.get(cls._nonce_cookie_name(key), "")
+        return _hmac.compare_digest(str(presented), str(expected))
 
     @extend_schema(
         description="""Poll the status of a QR auth key.
@@ -111,10 +148,20 @@ class QRAuthViewSet(viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["get"], url_path=r"(?P<key>[^/.]+)/status")
     def qr_status(self, request, key=None):
+        from stapel_auth.errors import ERR_403_QR_DEVICE_MISMATCH
+
         data = QRAuthService.get(key)
         if data is None:
             dto = QRStatusResponse(status=QRStatus.EXPIRED)
             return StapelResponse(QRStatusResponseSerializer(dto))
+
+        # login_request status polling hands out session tokens once
+        # fulfilled — only the device that generated the QR (and thus holds
+        # the httponly nonce cookie) may claim them.
+        if data["type"] == QRType.LOGIN_REQUEST and not self._nonce_matches(
+            request, key, data
+        ):
+            return StapelErrorResponse(403, ERR_403_QR_DEVICE_MISMATCH)
 
         if data["status"] == QRStatus.REJECTED:
             return StapelResponse(
@@ -205,6 +252,13 @@ class QRAuthViewSet(viewsets.GenericViewSet):
                 return StapelErrorResponse(404, ERR_404_QR_NOT_FOUND)
 
             if scanner is None:
+                # Handing the owner's session to an anonymous scanner is
+                # account takeover by QR swap — only allowed when the QR was
+                # created with explicit allow_unauthenticated_scanner.
+                if not data.get("allow_unauthenticated_scanner"):
+                    from stapel_auth.errors import ERR_403_QR_UNAUTH_SCAN
+
+                    return StapelErrorResponse(403, ERR_403_QR_UNAUTH_SCAN)
                 # Issue tokens for the owner and log in the scanner
                 QRAuthService.fulfill_session_share(key, scanner_user_id=owner.id)
                 access_token, refresh_token = _issue_session_tokens(owner, request)

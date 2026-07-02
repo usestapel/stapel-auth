@@ -1,8 +1,8 @@
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 import uuid
 from datetime import timedelta
-from stapel_core.django.users.models import User
 
 
 class PhoneVerification(models.Model):
@@ -115,7 +115,7 @@ class RefreshTokenTracker(models.Model):
     """
     Track refresh tokens for additional security
     """
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='refresh_tokens')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='refresh_tokens')
     token = models.CharField(max_length=500, unique=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
@@ -145,7 +145,7 @@ class UserSession(models.Model):
     Enables refresh token rotation and session management.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sessions')
     # jti (JWT ID) of the current valid refresh token for this session.
     # Updated on every rotation; storing jti (not raw token) is safe if DB is compromised.
     jti = models.CharField(max_length=64, unique=True, db_index=True)
@@ -182,7 +182,7 @@ class TOTPDevice(models.Model):
     Secret stored plain — encrypt at rest via DB/volume encryption in prod.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='totp_device')
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='totp_device')
     secret = models.CharField(max_length=64)
     is_active = models.BooleanField(default=False)
     # Hashed backup codes: list of SHA-256 hex strings (8 codes).
@@ -216,7 +216,7 @@ class AuthenticatorChangeRequest(models.Model):
     Supports both instant (double OTP) and delayed (14-day) flows.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='auth_change_requests')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='auth_change_requests')
 
     change_type = models.CharField(max_length=10, choices=AuthenticatorChangeType)
     old_value = models.CharField(max_length=255)
@@ -328,7 +328,7 @@ class AuthEventType(models.TextChoices):
 
 class AuthAuditLog(models.Model):
     id          = models.UUIDField(primary_key=True, default=uuid.uuid4)
-    user        = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+    user        = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name='audit_logs')
     session     = models.ForeignKey('UserSession', on_delete=models.SET_NULL, null=True,
                                     blank=True, related_name='audit_logs')
@@ -353,7 +353,7 @@ class AuthAuditLog(models.Model):
 
 class PasskeyCredential(models.Model):
     id            = models.UUIDField(primary_key=True, default=uuid.uuid4)
-    user          = models.ForeignKey(User, on_delete=models.CASCADE, related_name='passkeys')
+    user          = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='passkeys')
     credential_id = models.BinaryField(max_length=1024, unique=True)
     public_key    = models.BinaryField(max_length=4096)
     sign_count    = models.PositiveIntegerField(default=0)
@@ -436,7 +436,7 @@ class OrgMembership(models.Model):
     ROLE_ADMIN  = 'admin'
     ROLE_CHOICES = [(ROLE_MEMBER, 'Member'), (ROLE_ADMIN, 'Admin')]
 
-    user           = models.ForeignKey(User, on_delete=models.CASCADE, related_name='org_memberships')
+    user           = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='org_memberships')
     org            = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='memberships')
     role           = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_MEMBER)
     sso_subject_id = models.CharField(max_length=500, blank=True,

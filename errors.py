@@ -51,6 +51,8 @@ ERR_400_QR_FULFILLED = 'error.400.qr_fulfilled'
 ERR_400_QR_TYPE_REQUIRED = 'error.400.qr_type_required'
 ERR_401_QR_AUTH_REQUIRED = 'error.401.qr_auth_required'
 ERR_409_QR_ACCOUNT_CONFLICT = 'error.409.qr_account_conflict'
+ERR_403_QR_DEVICE_MISMATCH = 'error.403.qr_device_mismatch'
+ERR_403_QR_UNAUTH_SCAN = 'error.403.qr_unauth_scan'
 # Sessions
 ERR_404_NOT_FOUND = 'error.404.not_found'
 # TOTP
@@ -129,6 +131,8 @@ AUTH_ERRORS = {
     ERR_400_QR_TYPE_REQUIRED: 'QR type is required (session_share or login_request).',
     ERR_401_QR_AUTH_REQUIRED: 'Authentication required to generate a session_share QR code.',
     ERR_409_QR_ACCOUNT_CONFLICT: 'A different account is already signed in on this device.',
+    ERR_403_QR_DEVICE_MISMATCH: 'This QR code belongs to another device.',
+    ERR_403_QR_UNAUTH_SCAN: 'This QR code cannot be scanned by an unauthenticated device.',
     # Sessions
     ERR_404_NOT_FOUND: 'Not found.',
     # TOTP

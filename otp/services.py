@@ -20,11 +20,13 @@ class PhoneVerificationService:
     """
 
     def __init__(self):
-        self.account_sid = settings.TWILIO_ACCOUNT_SID
-        self.auth_token = settings.TWILIO_AUTH_TOKEN
-        self.verify_service_sid = settings.TWILIO_VERIFY_SERVICE_SID
-        self.use_mock_otp = getattr(settings, 'USE_MOCK_SMS_OTP', False)
-        self.mock_code = getattr(settings, 'MOCK_OTP_CODE', '0000')
+        from stapel_auth.conf import auth_settings
+
+        self.account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', '')
+        self.auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', '')
+        self.verify_service_sid = getattr(settings, 'TWILIO_VERIFY_SERVICE_SID', '')
+        self.use_mock_otp = auth_settings.USE_MOCK_SMS_OTP
+        self.mock_code = auth_settings.MOCK_OTP_CODE
 
     def generate_code(self, force_real=False):
         """
@@ -172,8 +174,10 @@ class EmailVerificationService:
     """
 
     def __init__(self):
-        self.use_mock_otp = getattr(settings, 'USE_MOCK_EMAIL_OTP', False)
-        self.mock_code = getattr(settings, 'MOCK_OTP_CODE', '0000')
+        from stapel_auth.conf import auth_settings
+
+        self.use_mock_otp = auth_settings.USE_MOCK_EMAIL_OTP
+        self.mock_code = auth_settings.MOCK_OTP_CODE
 
     def generate_code(self, force_real=False):
         """

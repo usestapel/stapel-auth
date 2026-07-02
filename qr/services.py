@@ -21,7 +21,15 @@ class QRAuthService:
         return f"{cls.PREFIX}:{key}"
 
     @classmethod
-    def generate(cls, *, qr_type: QRType, owner_user_id=None, redirect_url: str = None) -> str:
+    def generate(cls, *, qr_type: QRType, owner_user_id=None, redirect_url: str = None,
+                 nonce: str = None, allow_unauthenticated_scanner: bool = False) -> str:
+        """Create a QR record.
+
+        nonce — random secret bound to the generating device via an httponly
+        cookie; required to poll a login_request key.
+        allow_unauthenticated_scanner — session_share only: explicitly allow
+        an unauthenticated scanner to receive the owner's session.
+        """
         from django.core.cache import cache
         key = secrets.token_urlsafe(20)
         cache.set(cls._key(key), _json.dumps({
@@ -29,6 +37,8 @@ class QRAuthService:
             "status": QRStatus.PENDING,
             "owner_user_id": str(owner_user_id) if owner_user_id else None,
             "redirect_url": redirect_url or None,
+            "nonce": nonce or None,
+            "allow_unauthenticated_scanner": bool(allow_unauthenticated_scanner),
         }), cls.TTL)
         return key
 

@@ -236,11 +236,32 @@ class TOTPViewSet(viewsets.GenericViewSet):
         if not challenge_token:
             return StapelErrorResponse(400, ERR_400_CODE_REQUIRED)
 
+        # Throttle TOTP guessing with the same LockoutService pattern used
+        # for password login. Keyed per challenge token — the token is the
+        # only stable identifier an unauthenticated caller presents.
+        from stapel_auth.errors import ERR_423_ACCOUNT_LOCKED, retry_params
+        from stapel_auth.security.services import LockoutService
+
+        lock_id = f"totp_challenge:{challenge_token}"
+        is_locked, retry_after = LockoutService.check(lock_id)
+        if is_locked:
+            return StapelErrorResponse(
+                423, ERR_423_ACCOUNT_LOCKED, params=retry_params(retry_after)
+            )
+
         user = TOTPService.resolve_challenge(
             challenge_token, code=code, backup_code=backup_code
         )
         if not user:
+            count = LockoutService.record_failure(lock_id)
+            duration = LockoutService.apply_lockout(lock_id, count, request=request)
+            if duration:
+                return StapelErrorResponse(
+                    423, ERR_423_ACCOUNT_LOCKED, params=retry_params(duration)
+                )
             return StapelErrorResponse(400, ERR_400_INVALID_CODE)
+
+        LockoutService.clear(lock_id)
 
         access_token, refresh_token = _issue_session_tokens(user, request)
         tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
@@ -386,8 +407,9 @@ class PasskeyViewSet(ViewSet):
         user = None
         email = ser.validated_data.get("email")
         if email:
-            from stapel_core.django.users.models import User as U
+            from django.contrib.auth import get_user_model
 
+            U = get_user_model()
             try:
                 user = U.objects.get(email=email, is_active=True)
             except U.DoesNotExist:

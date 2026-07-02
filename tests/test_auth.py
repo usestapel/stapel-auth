@@ -4469,16 +4469,16 @@ class QRAuthScanTests(APITestCase):
         access, _ = create_token_for_user(self.owner)
         self.owner_token = access
 
-    def _generate_session_share_key(self):
+    def _generate_session_share_key(self, allow_unauthenticated_scanner=False):
         c = APIClient()
         c.credentials(HTTP_AUTHORIZATION=f"Bearer {self.owner_token}")
-        resp = c.post(
-            reverse("qr_generate"),
-            {
-                "type": "session_share",
-                "redirect_url": "/",
-            },
-        )
+        payload = {
+            "type": "session_share",
+            "redirect_url": "/",
+        }
+        if allow_unauthenticated_scanner:
+            payload["allow_unauthenticated_scanner"] = True
+        resp = c.post(reverse("qr_generate"), payload)
         return resp.data["key"]
 
     def _generate_login_request_key(self):
@@ -4491,12 +4491,24 @@ class QRAuthScanTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_scan_session_share_unauthenticated_redirects(self):
-        key = self._generate_session_share_key()
+        # Opt-in required: only a QR generated with
+        # allow_unauthenticated_scanner hands the session to an anonymous scanner.
+        key = self._generate_session_share_key(allow_unauthenticated_scanner=True)
         response = self.client.get(
             reverse("qr_scan", kwargs={"key": key}), follow=False
         )
         self.assertIn(response.status_code, [301, 302])
         self.assertIn("stapel_jwt", response.cookies)
+
+    def test_scan_session_share_unauthenticated_default_forbidden(self):
+        key = self._generate_session_share_key()
+        response = self.client.get(
+            reverse("qr_scan", kwargs={"key": key}), follow=False
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(
+            response.data["localizable_error"], "error.403.qr_unauth_scan"
+        )
 
     def test_scan_session_share_same_user_redirects(self):
         key = self._generate_session_share_key()

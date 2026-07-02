@@ -72,6 +72,10 @@ DEFAULTS = {
     # Notifications (optional integration)
     'LOGIN_NOTIFICATION_ENABLED': False,
 
+    # GDPR integration: dotted path to the model that stores re-registration
+    # hashes. Resolved lazily — stapel-gdpr is NOT a hard dependency.
+    'REREGISTRATION_MODEL': 'stapel_gdpr.models.ReRegistrationHash',
+
     # Service-to-service
     'INTERNAL_SERVICE_KEY': None,   # Falls back to env INTERNAL_SERVICE_KEY
 
@@ -175,7 +179,9 @@ auth_settings = AuthSettings()
 
 
 def _reload_on_change(*, setting, **kwargs):
-    if setting == 'STAPEL_AUTH':
+    # Also reload when a flat (legacy) setting with the same name changes,
+    # e.g. override_settings(USE_MOCK_SMS_OTP=False) in tests.
+    if setting == 'STAPEL_AUTH' or setting in DEFAULTS:
         auth_settings.reload()
 
 

@@ -92,14 +92,37 @@ class AuthGDPRProvider(GDPRProvider):
             return []
 
     def _store_reregistration_hashes(self, user_id: int) -> None:
-        """Store irreversible hashes for re-registration detection (24-month retention)."""
+        """Store irreversible hashes for re-registration detection (24-month retention).
+
+        The hash model is resolved lazily from the REREGISTRATION_MODEL auth
+        setting (default: stapel_gdpr.models.ReRegistrationHash) so stapel-auth
+        has no hard import-time dependency on stapel-gdpr. If the model is
+        unavailable, we degrade to a warning instead of failing deletion.
+        """
         import hashlib
+        import warnings
         from datetime import timedelta
 
         from django.contrib.auth import get_user_model
         from django.utils import timezone
+        from django.utils.module_loading import import_string
 
-        from stapel_gdpr.models import ReRegistrationHash
+        from .conf import auth_settings
+
+        model_path = auth_settings.REREGISTRATION_MODEL
+        if not model_path:
+            return
+        try:
+            ReRegistrationHash = import_string(model_path)
+        except ImportError:
+            warnings.warn(
+                f"stapel-auth: re-registration model {model_path!r} is not "
+                "available — skipping re-registration hash storage. Install "
+                "stapel-gdpr or point STAPEL_AUTH['REREGISTRATION_MODEL'] at "
+                "a compatible model.",
+                stacklevel=2,
+            )
+            return
 
         User = get_user_model()
         try:

@@ -45,6 +45,7 @@ def pytest_configure(config):
             "drf_spectacular",
             "stapel_core.django.apps.CommonDjangoConfig",
             "stapel_core.django.users",
+            "stapel_core.django.outbox",
             "social_django",
             "stapel_auth",
             "stapel_gdpr",
