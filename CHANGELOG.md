@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1 — 2026-07-03
+
+### Added
+- Verification flows wired to `stapel_core.verification`: registers
+  otp_email/otp_sms/totp/passkey factors, challenge endpoints under the
+  auth prefix, per-user verification-method preference (migration 0011),
+  verification Function with committed schema.
+
+
 ## 0.3.0 — 2026-07-02
 
 ### Added
