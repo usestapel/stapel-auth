@@ -10,3 +10,6 @@ build/
 htmlcov/
 .pytest_cache/
 .claude/
+
+# build/test stderr scratch
+*.err
