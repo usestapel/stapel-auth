@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.2 — 2026-07-06
+
+### Packaging
+- Tests excluded from the built wheel/sdist (the `stapel_auth.tests`
+  subpackage is no longer listed in `[tool.setuptools] packages`). Added
+  `[project.urls]`, completed the trove classifiers (MIT/OSI, Python 3.13,
+  `Typing :: Typed`, OS Independent, `3 :: Only`, Development Status) and a
+  `[tool.ruff]` lint section (single source shared with the git hooks/CI).
+
+
 ## 0.5.1 — 2026-07-05
 
 ### Fixed — complete OpenAPI (`@extend_schema`) coverage for the last untyped views

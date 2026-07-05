@@ -4,17 +4,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-auth"
-version = "0.5.1"
+version = "0.5.2"
 description = "Full-featured authentication Django app for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
 keywords = ["django", "stapel", "authentication", "jwt", "passkey", "totp", "sso"]
 classifiers = [
+    "Development Status :: 4 - Beta",
     "Framework :: Django",
     "Framework :: Django :: 5.2",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
 ]
 
 # Core auth — always installed
@@ -24,6 +31,13 @@ dependencies = [
     "webauthn>=2.8",
     "phonenumbers>=8.13",
 ]
+
+[project.urls]
+Homepage = "https://github.com/usestapel/stapel-auth"
+Repository = "https://github.com/usestapel/stapel-auth"
+Documentation = "https://github.com/usestapel/stapel-auth#readme"
+Changelog = "https://github.com/usestapel/stapel-auth/blob/main/CHANGELOG.md"
+Issues = "https://github.com/usestapel/stapel-auth/issues"
 
 [project.optional-dependencies]
 # SMS via Twilio
@@ -61,12 +75,19 @@ packages = [
     "stapel_auth.openid",
     "stapel_auth.admin",
     "stapel_auth.verification",
-    "stapel_auth.tests",
 ]
 
 # Migrations are part of the package
 [tool.setuptools.package-data]
 stapel_auth = ["migrations/*.py", "schemas/**/*.json", "translations/*.json", "migrations/**/*.py", "py.typed"]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+# Single source for the git hooks and CI (they pass the same flags on the CLI).
+select = ["E", "F", "W"]
+ignore = ["E501"]
 
 [tool.coverage.run]
 omit = [
