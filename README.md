@@ -7,6 +7,8 @@
 
 Part of the [Stapel framework](https://github.com/usestapel) — composable Django apps for building production-grade platforms.
 
+**Flow docs (SA-documents):** [Flows (EN)](docs/flows/en/README.md) · [Флоу (RU)](docs/flows/ru/README.md)
+
 ## Installation
 
 ```bash

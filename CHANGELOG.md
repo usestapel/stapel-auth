@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.0 — 2026-07-05
+
+### Added — bilingual flow SA-document trees + release-gate drift check (flow-system.md §4)
+
+stapel-auth is the reference module for the rendered flow SA-documents. The
+committed `docs/flows/{en,ru}/` trees (mermaid step diagram, numbered steps,
+endpoint table with the step-up verification contract) are generated from the
+single language-agnostic `docs/flows/flows.json` by `generate_project_docs`
+(stapel-core 0.5.0). The README tags both trees:
+`[Flows (EN)](docs/flows/en/README.md) · [Флоу (RU)](docs/flows/ru/README.md)`.
+
+- `tests/test_flow_docs.py` is the **release-gate drift check** (attributes-
+  static discipline): it regenerates into a temp dir and asserts byte-for-byte
+  equality with the committed tree. Regenerate after a flow/catalog change with
+  `STAPEL_REGEN_FLOW_DOCS=1 pytest tests/test_flow_docs.py` and commit
+  `docs/flows/`.
+- Requires **stapel-core >= 0.5.0** (the `FLOW_DOC_RENDERER` seam,
+  `generate_project_docs`, `DOC_LANGUAGES`).
+
+No code or contract change to the auth service itself — flows/catalogs are
+unchanged; this ships the rendered documentation artifacts and their gate.
+
 ## 0.4.1 — 2026-07-05
 
 ### Fixed — `user.registered` emit is now truly best-effort under ATOMIC_REQUESTS
