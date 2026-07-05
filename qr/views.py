@@ -305,7 +305,8 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
     @extend_schema(
         description="Reject a QR auth request. The device polling `/status` will receive `rejected`.",
-        responses={200: None, 404: StapelErrorSerializer},
+        request=None,
+        responses={200: SimpleStatusSerializer, 404: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path=r"(?P<key>[^/.]+)/reject")
     def reject(self, request, key=None):
@@ -326,8 +327,9 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
 Issues tokens for the waiting device. The device polling `/status` will receive the tokens.
 """,
+        request=None,
         responses={
-            200: None,
+            200: SimpleStatusSerializer,
             400: StapelErrorSerializer,
             401: StapelErrorSerializer,
             404: StapelErrorSerializer,

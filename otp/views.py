@@ -175,6 +175,20 @@ from stapel_auth.sessions.views import (
 from stapel_auth.utils import SerializerSeamsMixin
 
 
+@extend_schema_view(
+    email_request=extend_schema(tags=["Email Auth"]),
+    email_verify=extend_schema(tags=["Email Auth"]),
+    phone_request=extend_schema(tags=["Phone Auth"]),
+    phone_verify=extend_schema(tags=["Phone Auth"]),
+    anonymous=extend_schema(tags=["Anonymous Auth"]),
+    oauth_login=extend_schema(tags=["OAuth"]),
+    oauth_authorize=extend_schema(tags=["OAuth"]),
+    oauth_callback=extend_schema(tags=["OAuth"]),
+    logout=extend_schema(tags=["Session"]),
+    logout_get=extend_schema(tags=["Session"]),
+    me=extend_schema(tags=["User"]),
+    verify_token=extend_schema(tags=["Token"]),
+)
 class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     """
     ViewSet for authentication operations

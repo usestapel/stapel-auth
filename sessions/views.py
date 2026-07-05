@@ -305,18 +305,10 @@ def _issue_session_tokens(user, request):
 
 
 @extend_schema_view(
-    email_request=extend_schema(tags=["Email Auth"]),
-    email_verify=extend_schema(tags=["Email Auth"]),
-    phone_request=extend_schema(tags=["Phone Auth"]),
-    phone_verify=extend_schema(tags=["Phone Auth"]),
-    anonymous=extend_schema(tags=["Anonymous Auth"]),
-    oauth_login=extend_schema(tags=["OAuth"]),
-    oauth_authorize=extend_schema(tags=["OAuth"]),
-    oauth_callback=extend_schema(tags=["OAuth"]),
-    logout=extend_schema(tags=["Session"]),
-    logout_get=extend_schema(tags=["Session"]),
-    me=extend_schema(tags=["User"]),
-    verify_token=extend_schema(tags=["Token"]),
+    list_sessions=extend_schema(tags=["Session"]),
+    revoke_one=extend_schema(tags=["Session"]),
+    confirm_session=extend_schema(tags=["Session"]),
+    revoke_all=extend_schema(tags=["Session"]),
 )
 class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
@@ -392,6 +384,7 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
     @extend_schema(
         description='Mark a suspicious session as confirmed ("this was me"). Clears the suspicious flag.',
+        request=None,
         responses={200: SimpleStatusSerializer, 404: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path=r"(?P<session_id>[^/.]+)/confirm")

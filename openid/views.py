@@ -3,14 +3,44 @@
 import logging
 
 from django.conf import settings
-from rest_framework import permissions, status, viewsets
+from drf_spectacular.utils import extend_schema
+from rest_framework import permissions, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
+from stapel_core.django.openapi.schemas import StapelErrorSerializer
 
 from stapel_auth.errors import ERR_401_TOKEN_INVALID
 
 logger = logging.getLogger(__name__)
+
+
+class TokenIntrospectRequestSerializer(serializers.Serializer):
+    """RFC 7662 introspection request body."""
+
+    token = serializers.CharField(help_text="The JWT access token to introspect.")
+
+
+class TokenIntrospectResponseSerializer(serializers.Serializer):
+    """RFC 7662 introspection response.
+
+    ``active`` is always present; the claim fields are only populated when the
+    token is valid.
+    """
+
+    active = serializers.BooleanField(
+        help_text="Whether the token is currently valid."
+    )
+    sub = serializers.CharField(
+        required=False, help_text="Subject (user_id) claim."
+    )
+    username = serializers.CharField(required=False)
+    email = serializers.CharField(required=False)
+    scope = serializers.CharField(required=False)
+    exp = serializers.IntegerField(required=False, help_text="Expiry (unix ts).")
+    iat = serializers.IntegerField(required=False, help_text="Issued-at (unix ts).")
+    iss = serializers.CharField(required=False, help_text="Issuer.")
+    token_type = serializers.CharField(required=False)
 
 
 class JWKSView(viewsets.GenericViewSet):
@@ -146,6 +176,20 @@ class TokenIntrospectView(APIView):
     permission_classes = []
     authentication_classes = []
 
+    @extend_schema(
+        summary="RFC 7662 token introspection (service-to-service)",
+        description=(
+            "Introspect a JWT. Requires a service API key. Returns "
+            "`{\"active\": false}` for invalid/expired tokens (never 401 for those). "
+            "A 401 is only returned when the caller's service API key is missing/invalid."
+        ),
+        request=TokenIntrospectRequestSerializer,
+        responses={
+            200: TokenIntrospectResponseSerializer,
+            401: StapelErrorSerializer,
+        },
+        tags=["OpenID"],
+    )
     def post(self, request):
         from stapel_auth.permissions import IsServiceAPIKey
 

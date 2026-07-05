@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.5.1 — 2026-07-05
+
+### Fixed — complete OpenAPI (`@extend_schema`) coverage for the last untyped views
+
+drf-spectacular reported five auth endpoints as "unable to guess serializer"
+(APIViews / plain ViewSets whose request bodies it could not introspect),
+producing a thin, untyped generated client. Each now carries an
+`@extend_schema` reflecting its real contract (request serializer / `request=None`
+for bodyless POSTs, response serializers, real error status codes):
+
+- `TokenIntrospectView` (openid) — added `TokenIntrospectRequestSerializer` +
+  `TokenIntrospectResponseSerializer` (RFC 7662 shape: always `active`, plus the
+  claim fields when valid); `401` for missing/invalid service API key.
+- `PasskeyViewSet.register_begin` (mfa) — `request=None`, 200 options / 400.
+- `QRAuthViewSet.confirm` / `reject` (qr) — `request=None`, 200 `SimpleStatus`.
+- `SessionViewSet.confirm_session` (sessions) — `request=None`.
+- `SAMLACSView` (sso) — external IdP form POST documented as `OpenApiTypes.OBJECT`
+  (base64 `SAMLResponse`, SAML 2.0 spec-defined), 302 redirect.
+
+Also fixed a misplaced `@extend_schema_view` that listed `AuthViewSet` method
+names on `SessionViewSet` (12 "argument not found on view" warnings): the tag
+decorator moved to `AuthViewSet` (its real home), and `SessionViewSet` got its
+own correct `["Session"]` tags. No runtime/contract change — annotations only.
+
+Known residual: the `LoginResponse` polymorphic union still emits two
+"discriminator field status" warnings — `AuthResponse.status` is a 5-value enum,
+so it cannot serve as a fixed OpenAPI discriminator key. Both sub-serializers are
+fully typed; resolving this cleanly is a schema-modeling change out of scope here.
+
 ## 0.5.0 — 2026-07-05
 
 ### Added — bilingual flow SA-document trees + release-gate drift check (flow-system.md §4)

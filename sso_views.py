@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from django.core.cache import cache
 from django.http import HttpResponse, HttpResponseRedirect
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions, serializers
 from rest_framework.request import Request
@@ -190,6 +191,15 @@ class SAMLACSView(APIView):
 
     @extend_schema(
         summary="SAML Assertion Consumer Service — IdP posts SAMLResponse here",
+        description=(
+            "Backend-facing endpoint the IdP POSTs to after authentication. The "
+            "body is an external, application/x-www-form-urlencoded form carrying a "
+            "base64-encoded `SAMLResponse` (and optional `RelayState`) — its schema "
+            "is defined by the SAML 2.0 spec, not this API. Always responds with a "
+            "302 redirect to the frontend (with session cookies on success, or an "
+            "`?error=` query param on failure)."
+        ),
+        request=OpenApiTypes.OBJECT,
         tags=["SSO"],
         responses={302: None},
     )

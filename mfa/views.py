@@ -378,7 +378,8 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
 
     @extend_schema(
         summary="Begin passkey registration (generate options)",
-        responses={200: _PasskeyRegOptionsSerializer},
+        request=None,
+        responses={200: _PasskeyRegOptionsSerializer, 400: StapelErrorSerializer},
     )
     def register_begin(self, request):
         from stapel_auth.mfa.services import PasskeyService
