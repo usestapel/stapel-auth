@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.0 — 2026-07-05
+
+### Changed — flow i18n reference migration (flow-system.md §2, stapel-core 0.4)
+
+- The three business flows (`auth.passwordless_login`, `auth.password_login`,
+  `auth.step_up_verification`) migrated to i18n keys: the `flows.py` literals
+  are now the canonical **English** source texts (previously Russian) with
+  implicit keys `flow.<id>.title` / `flow.<id>.description` /
+  `flow.<id>.step.<order>.note`. This changes the `title`/`description`/`note`
+  literals in generated flows.json/markdown to English — hence the minor bump;
+  flow ids, structure, orders and API bindings are unchanged.
+- New committed catalogs `translations/flows.en.json` and
+  `translations/flows.ru.json` (full 20-key set; en mirrors the literals).
+  `stapel_core.flows.i18n.resolve_flow_texts` / `generate_flow_docs --lang ru`
+  renders the Russian texts from them; other languages fall back to English or
+  go through the DOC_TRANSLATOR seam on demand.
+- Drift gates in `tests/test_flow_i18n.py`: en catalog == in-code literals,
+  ru catalog covers exactly the same key set, resolution renders Russian.
+  This is the first-instance pattern every module copies.
+- Requires `stapel-core>=0.4.0,<0.5`.
+
 ## 0.3.4 — 2026-07-05
 
 ### Changed

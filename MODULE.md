@@ -123,6 +123,16 @@ Consumed events: `gdpr.export.requested`, `gdpr.delete.requested` — only in mi
 | `auth.password_login` | Password login (+ optional TOTP challenge via `PASSWORD_LOGIN_STEP_UP`) |
 | `auth.step_up_verification` | **The reference flow** for the `stapel_core.verification` contract (403 envelope → info → initiate → complete → retry; preferences) |
 
+Flow texts are i18n-keyed (flow-system.md §2; this module is the reference
+migration): the `flows.py` literals are the canonical **English** source
+texts with implicit keys (`flow.<id>.title` / `flow.<id>.step.<order>.note`),
+and `translations/flows.en.json` / `translations/flows.ru.json` are the
+committed catalogs `stapel_core.flows.i18n.resolve_flow_texts` picks up.
+Drift gates in `tests/test_flow_i18n.py`: en catalog == literals, ru covers
+the same key set. To localize into another language, ship (or generate via
+`generate_flow_docs --lang X --llm`) another `flows.<lang>.json` — no fork,
+the catalogs merge over INSTALLED_APPS.
+
 ## Anti-patterns
 
 - **Never import another stapel module** (`stapel_gdpr`, `stapel_notifications`, `stapel_workspaces`, ...) from code that extends or configures auth. Integration is only via `stapel_core` comm (events/functions), signals, registries, and dotted-path settings. Even the GDPR model dependency here is a lazy dotted path, not an import.

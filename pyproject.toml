@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-auth"
-version = "0.3.4"
+version = "0.4.0"
 description = "Full-featured authentication Django app for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,7 +19,7 @@ classifiers = [
 
 # Core auth — always installed
 dependencies = [
-    "stapel-core>=0.3.0,<0.4",
+    "stapel-core>=0.4.0,<0.5",
     "pyotp>=2.10",
     "webauthn>=2.8",
     "phonenumbers>=8.13",
@@ -66,7 +66,7 @@ packages = [
 
 # Migrations are part of the package
 [tool.setuptools.package-data]
-stapel_auth = ["migrations/*.py", "schemas/**/*.json", "migrations/**/*.py", "py.typed"]
+stapel_auth = ["migrations/*.py", "schemas/**/*.json", "translations/*.json", "migrations/**/*.py", "py.typed"]
 
 [tool.coverage.run]
 omit = [

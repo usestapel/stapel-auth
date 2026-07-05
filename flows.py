@@ -8,6 +8,14 @@ view methods: views must not import this module (flows.py imports the view
 classes — the dependency points one way, so no import cycle), and
 ``@flow_step`` only annotates the callable, so decorating after class
 creation is equivalent to stacking the decorator in the view module.
+
+i18n (flow-system.md §2, reference migration): the literals below are the
+canonical **English** source texts; every flow/step derives an implicit
+i18n key (``flow.<id>.title`` / ``flow.<id>.description`` /
+``flow.<id>.step.<order>.note``). The committed catalogs
+``translations/flows.en.json`` / ``translations/flows.ru.json`` carry the
+same key set (en mirrors the literals — enforced by tests); rendering in a
+language resolves the keys via ``stapel_core.flows.i18n``.
 """
 from stapel_core.flows import Flow, flow_step
 
@@ -22,30 +30,31 @@ from stapel_auth.verification.views import VerificationPreferenceViewSet, Verifi
 
 PASSWORDLESS_LOGIN = Flow(
     "auth.passwordless_login",
-    title="Вход без пароля (email OTP)",
+    title="Passwordless login (email OTP)",
     description=(
-        "Анонимный пользователь получает одноразовый код на почту и обменивает "
-        "его на JWT-сессию (cookies + пара токенов в теле ответа). Повторный "
-        "запрос кода ограничен рейт-лимитом (30 секунд между отправками, 429/422 "
-        "при превышении); после серии неверных кодов адрес временно блокируется. "
-        "Если адрес не был зарегистрирован, при первом успешном входе создаётся "
-        "новый пользователь (status=REGISTERED вместо LOGGED_IN)."
+        "An anonymous user receives a one-time code by email and exchanges it "
+        "for a JWT session (cookies + a token pair in the response body). "
+        "Requesting the code again is rate-limited (30 seconds between sends; "
+        "429/422 when exceeded); after a series of wrong codes the address is "
+        "temporarily locked. If the address was not registered, the first "
+        "successful login creates a new user (status=REGISTERED instead of "
+        "LOGGED_IN)."
     ),
-    actors=["Анонимный пользователь"],
+    actors=["Anonymous user"],
 )
 
-PASSWORDLESS_LOGIN.human(order=0, note="Пользователь вводит email на форме входа")
+PASSWORDLESS_LOGIN.human(order=0, note="The user enters their email on the login form")
 flow_step(
     PASSWORDLESS_LOGIN, order=1,
-    note="Запросить одноразовый код на email; 429 при рейт-лимите, 422 при блокировке",
+    note="Request a one-time code by email; 429 on rate limit, 422 when the address is locked",
 )(AuthViewSet.email_request)
 flow_step(
     PASSWORDLESS_LOGIN, order=2,
-    note="Обменять код на JWT-сессию; неверный код уменьшает счётчик попыток",
+    note="Exchange the code for a JWT session; a wrong code decrements the attempt counter",
 )(AuthViewSet.email_verify)
 PASSWORDLESS_LOGIN.action(
     "user.registered", order=3,
-    note="Эмитится при первом входе — профиль и воркспейс создаются подписчиками",
+    note="Emitted on first login — the profile and workspace are created by subscribers",
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -54,31 +63,32 @@ PASSWORDLESS_LOGIN.action(
 
 PASSWORD_LOGIN = Flow(
     "auth.password_login",
-    title="Вход по паролю (+ опциональный TOTP)",
+    title="Password login (+ optional TOTP)",
     description=(
-        "Пользователь входит по логину (email/username) и паролю. Эндпоинт "
-        "включается настройкой AUTH_PASSWORD_LOGIN. Неудачные попытки ведут к "
-        "прогрессивной блокировке (423 c retry_after). Если у пользователя "
-        "включён TOTP и настройка PASSWORD_LOGIN_STEP_UP активна (по умолчанию "
-        "да), вместо токенов возвращается TOTP_REQUIRED c challenge_token — "
-        "сессия выдаётся только после проверки кода аутентификатора."
+        "The user signs in with a login (email/username) and password. The "
+        "endpoint is enabled by the AUTH_PASSWORD_LOGIN setting. Failed "
+        "attempts lead to progressive lockout (423 with retry_after). If the "
+        "user has TOTP enabled and the PASSWORD_LOGIN_STEP_UP setting is "
+        "active (default: yes), TOTP_REQUIRED with a challenge_token is "
+        "returned instead of tokens — the session is issued only after the "
+        "authenticator code is verified."
     ),
-    actors=["Анонимный пользователь"],
+    actors=["Anonymous user"],
 )
 
-PASSWORD_LOGIN.human(order=0, note="Пользователь вводит логин и пароль на форме входа")
+PASSWORD_LOGIN.human(order=0, note="The user enters their login and password on the login form")
 flow_step(
     PASSWORD_LOGIN, order=1,
     note=(
-        "Проверить пароль; 423 при блокировке; при включённом TOTP и "
-        "PASSWORD_LOGIN_STEP_UP — ответ TOTP_REQUIRED c challenge_token"
+        "Verify the password; 423 when locked out; with TOTP enabled and "
+        "PASSWORD_LOGIN_STEP_UP — a TOTP_REQUIRED response with a challenge_token"
     ),
 )(PasswordViewSet.login)
 flow_step(
     PASSWORD_LOGIN, order=2,
     note=(
-        "Опциональный шаг (только при TOTP_REQUIRED): обменять challenge_token "
-        "и код аутентификатора на JWT-сессию"
+        "Optional step (only on TOTP_REQUIRED): exchange the challenge_token "
+        "and the authenticator code for a JWT session"
     ),
 )(TOTPViewSet.challenge_verify)
 
@@ -88,79 +98,81 @@ flow_step(
 
 STEP_UP_VERIFICATION = Flow(
     "auth.step_up_verification",
-    title="Step-up-верификация на защищённом эндпоинте (референсный флоу)",
+    title="Step-up verification on a protected endpoint (reference flow)",
     description=(
-        "РЕФЕРЕНСНЫЙ флоу контракта step-up-верификации "
-        "(stapel_core.verification, см. flows-and-verification.md §2) — клиенты "
-        "любого сервиса реализуют его один раз и переиспользуют для всех "
-        "эндпоинтов, защищённых @requires_verification. Цикл: защищённый "
-        "эндпоинт отвечает 403 со структурированным конвертом verification "
-        "(challenge_id, scope, factors, expires_at) → клиент читает challenge, "
-        "выбирает доступный фактор (факторы взаимозаменяемы: otp_email, "
-        "otp_phone, totp, passkey закрывают один challenge), инициирует его и "
-        "завершает проверку → повторяет исходный запрос. Grant хранится "
-        "сервер-сайд (cache, ключ user+scope, TTL=max_age); stateless-клиенты "
-        "могут вместо этого прислать заголовок X-Verification-Token из ответа "
-        "завершения. После MAX_ATTEMPTS неверных попыток challenge сгорает "
-        "(423) — нужно снова вызвать исходный эндпоинт за новым challenge."
+        "THE reference flow of the step-up verification contract "
+        "(stapel_core.verification, see flows-and-verification.md §2) — "
+        "clients of any service implement it once and reuse it for every "
+        "endpoint protected by @requires_verification. The cycle: the "
+        "protected endpoint responds 403 with a structured verification "
+        "envelope (challenge_id, scope, factors, expires_at) → the client "
+        "reads the challenge, picks an available factor (factors are "
+        "interchangeable: otp_email, otp_phone, totp, passkey all close one "
+        "challenge), initiates it and completes the check → repeats the "
+        "original request. The grant is stored server-side (cache, user+scope "
+        "key, TTL=max_age); stateless clients may instead send the "
+        "X-Verification-Token header from the completion response. After "
+        "MAX_ATTEMPTS wrong attempts the challenge burns out (423) — call the "
+        "original endpoint again for a new challenge."
     ),
-    actors=["Аутентифицированный пользователь"],
+    actors=["Authenticated user"],
 )
 
 STEP_UP_VERIFICATION.human(
     order=0,
     note=(
-        "Клиент вызывает защищённый эндпоинт и получает 403 с конвертом "
-        "verification: challenge_id, scope, factors, expires_at"
+        "The client calls the protected endpoint and receives 403 with a "
+        "verification envelope: challenge_id, scope, factors, expires_at"
     ),
 )
 flow_step(
     STEP_UP_VERIFICATION, order=1,
     note=(
-        "Прочитать challenge: scope и факторы, отфильтрованные до реально "
-        "доступных пользователю; 404 для чужого/истёкшего challenge"
+        "Read the challenge: the scope and the factors filtered down to those "
+        "actually available to the user; 404 for a foreign/expired challenge"
     ),
 )(VerificationViewSet.info)
 flow_step(
     STEP_UP_VERIFICATION, order=2,
     note=(
-        "Инициировать выбранный фактор: отправить код (otp_email/otp_phone) "
-        "или получить WebAuthn-опции (passkey); totp инициации не требует"
+        "Initiate the chosen factor: send a code (otp_email/otp_phone) or get "
+        "WebAuthn options (passkey); totp needs no initiation"
     ),
 )(VerificationViewSet.initiate)
 flow_step(
     STEP_UP_VERIFICATION, order=3,
     note=(
-        "Завершить challenge доказательством фактора; успех = "
-        "{verified, verification_token} + grant сервер-сайд; 400 при неверном "
-        "коде, 423 когда challenge сгорел от перебора"
+        "Complete the challenge with the factor proof; success = "
+        "{verified, verification_token} + a server-side grant; 400 on a wrong "
+        "code, 423 when the challenge burned out from brute force"
     ),
 )(VerificationViewSet.complete)
 STEP_UP_VERIFICATION.human(
     order=4,
     note=(
-        "Повторить исходный запрос — grant уже на сервере; stateless-клиент "
-        "передаёт X-Verification-Token из ответа завершения"
+        "Repeat the original request — the grant is already on the server; a "
+        "stateless client sends the X-Verification-Token from the completion "
+        "response"
     ),
 )
 flow_step(
     STEP_UP_VERIFICATION, order=5,
     note=(
-        "Опционально: посмотреть свои step-up-настройки — по строке "
-        "{scope, enabled} на каждый scope, который пользователь трогал "
-        "(enabled=false выключает default_on-scope, enabled=true включает "
-        "opt_in-scope; strict-эндпоинты настройки игнорируют)"
+        "Optional: view your step-up preferences — one {scope, enabled} row "
+        "per scope the user has touched (enabled=false disables a default_on "
+        "scope, enabled=true enables an opt_in scope; strict endpoints ignore "
+        "the preferences)"
     ),
 )(VerificationPreferenceViewSet.list_preferences)
 flow_step(
     STEP_UP_VERIFICATION, order=6,
     note=(
-        "Опционально: изменить настройку {scope, enabled}. ИНВАРИАНТ: "
-        "выключение (enabled=false) само защищено "
-        "@requires_verification(scope=verification.settings, "
-        "level=default_on) — без свежего grant'а придёт 403 с конвертом "
-        "verification; включение step-up-подтверждения не требует. Обе "
-        "записи сбрасывают кэш политики в core"
+        "Optional: change a {scope, enabled} preference. INVARIANT: disabling "
+        "(enabled=false) is itself protected by "
+        "@requires_verification(scope=verification.settings, level=default_on) "
+        "— without a fresh grant a 403 with a verification envelope is "
+        "returned; enabling requires no step-up confirmation. Both writes "
+        "reset the policy cache in core"
     ),
 )(VerificationPreferenceViewSet.set_preference)
 
