@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.3 — 2026-07-05
+
+### Fixed
+- Migration drift under Django 6: the committed migrations were behind the
+  models. `0012` regenerates the missing `AlterField`s —
+  `AuthAuditLog.event_type` choices (new audit event types added to the enum
+  without a migration) and the `SSOConfig.id` / `OrgMembership.id` primary keys
+  (created as `AutoField` in `0010` but the app config declares
+  `BigAutoField`). `makemigrations --check` is now clean.
+
 ## 0.3.2 — 2026-07-04
 
 ### Added
