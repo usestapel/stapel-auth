@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.test import TestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
@@ -711,6 +711,56 @@ class UserRegisteredEventTests(APITestCase):
             )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data['status'], 'REGISTERED')
+
+
+def _break_emit_via_outbox():
+    """patch the REAL outbox write to fail — exercises emit()'s set_rollback
+    path (the mock in test_registration_survives_emit_failure replaces emit()
+    wholesale and so never runs that path)."""
+    from stapel_core.comm import actions
+
+    def explode(event):
+        raise RuntimeError("outbox write failed")
+
+    return patch.object(actions, "_emit_via_outbox", explode)
+
+
+class UserRegisteredEmitAtomicityTests(TestCase):
+    """_notify_user_registered is a best-effort fan-out: a real emit failure
+    must never fail registration. This runs inside a transaction (as under
+    ATOMIC_REQUESTS=True). On the pre-fix code the failing emit marked that
+    transaction rollback-only and the query after it raised
+    TransactionManagementError; the nested atomic now isolates the failure."""
+
+    def test_emit_failure_does_not_poison_request_transaction(self):
+        from stapel_auth.otp.views import _notify_user_registered
+
+        with _break_emit_via_outbox():
+            user = User.objects.create(
+                username=f'u-{uuid.uuid4().hex[:8]}', auth_type='email'
+            )
+            _notify_user_registered(user)
+            # A rollback-only (poisoned) transaction raises here:
+            self.assertTrue(User.objects.filter(pk=user.pk).exists())
+
+
+class UserRegisteredEmitAutocommitTests(TransactionTestCase):
+    """Autocommit mode (no request-level atomic): the emit failure is rolled
+    back inside the helper's own atomic and swallowed, registration survives,
+    and the emit-outside-atomic guard no longer spams a WARNING per
+    registration (emit now runs inside an atomic)."""
+
+    def test_emit_failure_survives_autocommit_without_guard_spam(self):
+        from stapel_auth.otp.views import _notify_user_registered
+
+        with _break_emit_via_outbox():
+            with self.assertNoLogs('stapel_core.comm.actions', level='WARNING'):
+                user = User.objects.create(
+                    username=f'u-{uuid.uuid4().hex[:8]}', auth_type='email'
+                )
+                _notify_user_registered(user)
+
+        self.assertTrue(User.objects.filter(pk=user.pk).exists())
 
 
 class EmitSchemaTests(TestCase):

@@ -135,18 +135,33 @@ def _notify_user_registered(user, request=None) -> None:
         logger.exception("user_registered signal failed for user %s", user.id)
 
     try:
+        from django.db import transaction
+
         from stapel_core.comm import emit
 
-        emit(  # emit-check: ok — best-effort post-commit fan-out, not a mutation+emit unit: this helper has no local ORM write, the caller creates+commits the user independently (autocommit) before calling it, and the swallow is intentional so a broker/listener outage never fails registration
-            "user.registered",
-            {
-                "user_id": str(user.id),
-                "auth_type": user.auth_type or "unknown",
-                "email": user.email,
-            },
-            key=str(user.id),
-            service="auth",
-        )
+        # Emit inside its OWN atomic block so this best-effort fan-out is
+        # honest in BOTH request modes. Under ATOMIC_REQUESTS=True the caller
+        # runs inside the request transaction; a failing emit there marks that
+        # transaction rollback-only (comm/actions.py), so swallowing the
+        # exception would NOT save registration — the next DB query raises
+        # TransactionManagementError and the whole request (created user
+        # included) rolls back with a 500. Wrapping emit in a nested atomic
+        # isolates the failure to a savepoint: Django rolls that savepoint
+        # back and clears needs_rollback, leaving the request transaction
+        # healthy. In autocommit mode the block is the outermost atomic and
+        # behaves identically. Being inside an atomic also silences the
+        # emit-outside-atomic runtime guard's per-registration WARNING spam.
+        with transaction.atomic():
+            emit(  # emit-check: ok — best-effort fan-out wrapped in its own atomic; the user is already saved by the caller, this helper has no local ORM write, and the swallow + savepoint isolation mean a broker/outbox/schema failure never fails registration in either request mode
+                "user.registered",
+                {
+                    "user_id": str(user.id),
+                    "auth_type": user.auth_type or "unknown",
+                    "email": user.email,
+                },
+                key=str(user.id),
+                service="auth",
+            )
     except Exception:
         logger.exception("Failed to emit user.registered for user %s", user.id)
 

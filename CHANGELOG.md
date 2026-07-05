@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.1 — 2026-07-05
+
+### Fixed — `user.registered` emit is now truly best-effort under ATOMIC_REQUESTS
+
+- `otp.views._notify_user_registered` now emits inside its own
+  `transaction.atomic()` block. Previously the "swallow never fails
+  registration" claim held only in autocommit mode: under `ATOMIC_REQUESTS=True`
+  the helper ran inside the request transaction, and a failing emit (outbox
+  insert / schema validation) marked that transaction rollback-only
+  (`comm/actions.py`). Swallowing the exception did not help — the next DB query
+  (`_issue_session_tokens`) raised `TransactionManagementError`, 500-ing the
+  request and rolling back the just-created user. Wrapping emit in a nested
+  atomic isolates the failure to a savepoint (Django rolls it back and clears
+  `needs_rollback`), so registration survives an emit failure in **both** modes.
+  Being inside an atomic also silences the emit-outside-atomic guard's
+  per-registration WARNING spam in autocommit mode. Transactional-outbox
+  ordering is preserved. New regression tests cover both request modes.
+
 ## 0.4.0 — 2026-07-05
 
 ### Changed — flow i18n reference migration (flow-system.md §2, stapel-core 0.4)
