@@ -137,7 +137,7 @@ def _notify_user_registered(user, request=None) -> None:
     try:
         from stapel_core.comm import emit
 
-        emit(
+        emit(  # emit-check: ok — best-effort post-commit fan-out, not a mutation+emit unit: this helper has no local ORM write, the caller creates+commits the user independently (autocommit) before calling it, and the swallow is intentional so a broker/listener outage never fails registration
             "user.registered",
             {
                 "user_id": str(user.id),
