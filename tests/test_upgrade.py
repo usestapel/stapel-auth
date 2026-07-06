@@ -680,6 +680,7 @@ class UserRegisteredEventTests(APITestCase):
         self.assertIsInstance(payload['user_id'], str)
         self.assertEqual(payload['email'], email)
         self.assertEqual(payload['auth_type'], 'email')
+        self.assertIsNone(payload['avatar_url'])
 
     @override_settings(URL_PREFIX='', STAPEL_AUTH={'AUTH_PASSWORD_REGISTRATION': True})
     def test_password_registration_sends_signal_and_emit(self):
@@ -703,6 +704,28 @@ class UserRegisteredEventTests(APITestCase):
         self.assertEqual(len(received), 1)
         m_emit.assert_called_once()
         self.assertEqual(m_emit.call_args[0][0], 'user.registered')
+
+    def test_oauth_registration_emits_avatar_url(self):
+        """New OAuth users carry User.avatar (set from OAuthUserData.avatar
+        by _resolve_oauth_user) through to the user.registered payload."""
+        from stapel_auth.otp.views import AuthViewSet
+
+        class _Data:
+            id = f'oauth-avatar-{uuid.uuid4().hex[:8]}'
+            email = f'oauth_{uuid.uuid4().hex[:8]}@example.com'
+            avatar = 'https://cdn.example.com/pic.jpg'
+            email_verified = True
+
+        view = AuthViewSet()
+        with patch('stapel_core.comm.emit') as m_emit:
+            user = view._resolve_oauth_user('test', _Data())
+
+        self.assertEqual(user.avatar, _Data.avatar)
+        m_emit.assert_called_once()
+        args, kwargs = m_emit.call_args
+        self.assertEqual(args[0], 'user.registered')
+        self.assertEqual(args[1]['avatar_url'], _Data.avatar)
+        self.assertEqual(args[1]['auth_type'], 'oauth')
 
     def test_registration_survives_emit_failure(self):
         email = f'boom_{uuid.uuid4().hex[:8]}@example.com'
@@ -779,15 +802,31 @@ class EmitSchemaTests(TestCase):
             'user_id': str(uuid.uuid4()),
             'auth_type': 'email',
             'email': 'x@example.com',
+            'avatar_url': None,
         }
         jsonschema.validate(payload, schema)  # must not raise
         jsonschema.validate(
-            {'user_id': str(uuid.uuid4()), 'auth_type': 'oauth', 'email': None},
+            {
+                'user_id': str(uuid.uuid4()),
+                'auth_type': 'oauth',
+                'email': None,
+                'avatar_url': 'https://cdn.example.com/pic.jpg',
+            },
             schema,
         )
         with self.assertRaises(jsonschema.ValidationError):
             jsonschema.validate(
                 {'user_id': 123, 'auth_type': 'email', 'email': None}, schema
+            )
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.validate(
+                {
+                    'user_id': str(uuid.uuid4()),
+                    'auth_type': 'email',
+                    'email': None,
+                    'avatar_url': 123,
+                },
+                schema,
             )
 
     def test_session_schemas_use_string_user_id(self):

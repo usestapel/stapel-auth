@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Added — `avatar_url` on `user.registered` (feat-oauth-avatar, auth half)
+
+Wires the OAuth avatar through to the event so downstream consumers (e.g.
+profiles → CDN re-fetch, per the recon verdict) have something to subscribe
+to; auth itself never fetches or stores the image, it only forwards the URL
+the provider handed back.
+
+- `UserRegisteredPayload.avatar_url: str | None = None` (`events.py`).
+- `schemas/emits/user.registered.json` gains `"avatar_url": {"type":
+  ["string", "null"]}` — required by the schema's `additionalProperties:
+  false`, so this was a hard prerequisite for emitting the field at all.
+- `_notify_user_registered` (`otp/views.py`) now sends `user.avatar or None`
+  as `avatar_url`. Only the OAuth registration path
+  (`_resolve_oauth_user`) ever populates `User.avatar`; every other
+  `auth_type` emits `avatar_url: null`.
+
 ### Added — staff role assignments + `staff_roles` JWT claim (admin-suite AS-2)
 
 Producer half of the staff-role transport: role *definitions* stay in deploy

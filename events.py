@@ -25,10 +25,15 @@ class UserRegisteredPayload:
         user_id: UUID of the newly created user.
         auth_type: Registration method (email/phone/oauth/password/anonymous).
         email: User email if available.
+        avatar_url: Avatar URL surfaced by the auth provider (currently only
+            populated for OAuth registrations — see ``User.avatar``), None
+            otherwise. Dead-reckoning consumers (e.g. profiles) decide what
+            to do with it; auth itself never fetches or stores the image.
     """
     user_id: str
     auth_type: str
     email: str | None = None
+    avatar_url: str | None = None
 
 
 @dataclass

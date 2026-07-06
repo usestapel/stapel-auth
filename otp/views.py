@@ -158,6 +158,10 @@ def _notify_user_registered(user, request=None) -> None:
                     "user_id": str(user.id),
                     "auth_type": user.auth_type or "unknown",
                     "email": user.email,
+                    # Only OAuth populates User.avatar today
+                    # (_resolve_oauth_user); "" normalizes to None so the
+                    # schema's ["string", "null"] holds for every auth_type.
+                    "avatar_url": user.avatar or None,
                 },
                 key=str(user.id),
                 service="auth",

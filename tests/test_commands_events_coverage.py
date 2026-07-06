@@ -47,15 +47,24 @@ class EventsModuleTests(TestCase):
 
     def test_payload_dataclass_fields(self):
         from stapel_auth.events import UserRegisteredPayload
-        p = UserRegisteredPayload(user_id='abc', auth_type='email', email='a@b.c')
+        p = UserRegisteredPayload(
+            user_id='abc', auth_type='email', email='a@b.c',
+            avatar_url='https://example.com/a.jpg',
+        )
         self.assertEqual(p.user_id, 'abc')
         self.assertEqual(p.auth_type, 'email')
         self.assertEqual(p.email, 'a@b.c')
+        self.assertEqual(p.avatar_url, 'https://example.com/a.jpg')
 
     def test_payload_email_defaults_none(self):
         from stapel_auth.events import UserRegisteredPayload
         p = UserRegisteredPayload(user_id='xyz', auth_type='anonymous')
         self.assertIsNone(p.email)
+
+    def test_payload_avatar_url_defaults_none(self):
+        from stapel_auth.events import UserRegisteredPayload
+        p = UserRegisteredPayload(user_id='xyz', auth_type='email', email='a@b.c')
+        self.assertIsNone(p.avatar_url)
 
     def test_registry_maps_event_to_payload(self):
         from stapel_auth.events import (

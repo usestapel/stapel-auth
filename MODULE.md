@@ -124,7 +124,7 @@ Emitted events (`stapel_core.comm.emit`, transactional outbox; schemas in `schem
 
 | Event | Payload | When |
 |---|---|---|
-| `user.registered` | `{user_id, auth_type, email}` (`events.py: UserRegisteredPayload`) | First successful auth of a new account (`otp/views.py: _notify_user_registered`) — profile/workspace creation is done by subscribers |
+| `user.registered` | `{user_id, auth_type, email, avatar_url}` (`events.py: UserRegisteredPayload`) — `avatar_url` is `User.avatar` (OAuth only today), `null` otherwise | First successful auth of a new account (`otp/views.py: _notify_user_registered`) — profile/workspace creation is done by subscribers |
 | `user.session_created` | `{user_id, session_id, device_type, ip_address, created_at}` | Schema declared; **no `emit()` call in code yet** (see gaps) |
 | `user.session_revoked` | schema in `schemas/emits/` | Schema declared; **no `emit()` call in code yet** (see gaps) |
 | `staff.role.assigned` | `{user_id, role, staff_roles, actor_id}` (`events.py: StaffRoleAssignedPayload`; `staff_roles` = full list **after** the change) | A staff role was assigned (`staff_roles.py: assign_staff_role` — admin, API, or direct service call). Audit stream for eventstore/notifications (admin-suite §3.8) |
