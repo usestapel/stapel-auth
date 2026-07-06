@@ -25,7 +25,9 @@ def _normalize_phone(value):
         raise StapelValidationError(ERR_400_INVALID_PHONE)
     e164 = phonenumbers.format_number(phone_number, phonenumbers.PhoneNumberFormat.E164)
     if len(e164) > 16:  # E.164: '+' + up to 15 digits
-        raise StapelValidationError(ERR_400_PHONE_TOO_LONG)
+        # Defensive only: a number that passed is_valid_number() is at most
+        # '+' + 15 digits by the E.164 spec, so this can't trip in practice.
+        raise StapelValidationError(ERR_400_PHONE_TOO_LONG)  # pragma: no cover
     return e164
 
 
