@@ -24,7 +24,7 @@ Resolution order per key: `STAPEL_AUTH['KEY']` → flat Django setting of the sa
 
 | Key | Default | What it customizes |
 |---|---|---|
-| `FRONTEND_URL` | `None` (env `FRONTEND_URL`) | Redirect base for SSO / magic link / QR login; OAuth `redirect_after` validation |
+| `FRONTEND_URL` | `None` (env `FRONTEND_URL`) | Redirect base for SSO / magic link / QR login and the OAuth step-up `/totp-challenge` redirect; OAuth `redirect_after` validation. Unset ⇒ same-origin-relative redirects |
 | `BACKEND_URL` | `None` (env `BACKEND_URL`) | Absolute backend URL for SAML/OIDC endpoints and revoke-suspicious links |
 | `USE_MOCK_SMS_OTP` / `USE_MOCK_EMAIL_OTP` | `False` | Mock OTP delivery (dev/test) |
 | `MOCK_OTP_CODE` | `'0000'` | The accepted code in mock mode |

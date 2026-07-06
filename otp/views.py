@@ -1098,7 +1098,12 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 params = {"token": challenge_token}
                 if redirect_after:
                     params["redirect_after"] = redirect_after
-                return redirect("/totp-challenge?" + urlencode(params))
+                # /totp-challenge is a FRONTEND route: anchor it to FRONTEND_URL
+                # so the browser lands on the SPA, not on the (differently
+                # mounted) backend origin. Empty base preserves the historical
+                # same-origin relative redirect when FRONTEND_URL is unset.
+                frontend = auth_settings.FRONTEND_URL or ""
+                return redirect(f"{frontend}/totp-challenge?" + urlencode(params))
 
         access_token, refresh_token = _issue_session_tokens(user, request)
 

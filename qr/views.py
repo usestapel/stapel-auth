@@ -2,6 +2,7 @@
 
 import logging
 
+from django.urls import reverse
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -106,7 +107,10 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             allow_unauthenticated_scanner=allow_unauth,
         )
 
-        scan_url = request.build_absolute_uri(f"/auth/api/qr/{key}/scan/")
+        # reverse() follows whatever prefix this URLconf is mounted under
+        # (STAPEL_MOUNTS / include()), so the scan URL never hardcodes the
+        # historical "/auth/api/" mount point and stays correct under any mount.
+        scan_url = request.build_absolute_uri(reverse("qr_scan", kwargs={"key": key}))
         dto = QRGenerateResponse(
             key=key,
             type=qr_type,

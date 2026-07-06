@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Fixed — root-relative URLs break under a mount prefix (auth-tails)
+
+- **QR `scan_url` no longer hardcodes the `/auth/api/` mount point.**
+  `QRAuthViewSet.generate` built the scan URL from a literal
+  `f"/auth/api/qr/{key}/scan/"`, which is wrong whenever the auth URLconf is
+  `include()`d under a different prefix (see `stapel_core.django.mounts` /
+  `STAPEL_MOUNTS`). It now derives the path with
+  `reverse("qr_scan", kwargs={"key": key})`, so the returned URL follows
+  whatever prefix the app is mounted under.
+- **OAuth step-up TOTP redirect is anchored to `FRONTEND_URL`.** The OAuth
+  callback redirected the browser to a bare `/totp-challenge?…` (a *frontend*
+  route) on the backend origin. It now prefixes `FRONTEND_URL`, matching the
+  SSO / magic-link redirect convention, so the browser lands on the SPA. When
+  `FRONTEND_URL` is unset the redirect stays same-origin-relative, preserving
+  the previous behaviour.
+
 ### Fixed — five latent crashes exposed by the new coverage suite (quality-auth-coverage)
 
 All five were invisible to the old suite because the affected paths were either
