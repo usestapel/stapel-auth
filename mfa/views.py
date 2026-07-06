@@ -41,6 +41,25 @@ from stapel_auth.utils import SerializerSeamsMixin
 
 logger = logging.getLogger(__name__)
 
+# The legacy /totp/step-up/ endpoint is deprecated (removed in 1.0). Emit a
+# single process-level warning the first time it is hit, so an operator running
+# a brownfield host sees the deprecation without a log line per request.
+_LEGACY_STEP_UP_WARNED = False
+
+
+def _warn_legacy_step_up():
+    global _LEGACY_STEP_UP_WARNED
+    if _LEGACY_STEP_UP_WARNED:
+        return
+    _LEGACY_STEP_UP_WARNED = True
+    logger.warning(
+        "POST /totp/step-up/ is DEPRECATED and will be removed in stapel-auth "
+        "1.0. Migrate sensitive actions to @requires_verification "
+        "(scope=..., factors=['totp'], max_age=900) and the /verification/ "
+        "envelope flow; drop the hand-rolled X-Step-Up-Token check. "
+        "See auth-stepup-unification.md."
+    )
+
 
 # ── Inline serializers for passkey list/reg/auth (kept here as in original) ──
 
@@ -286,7 +305,17 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         return _add_login_hints(response)
 
     @extend_schema(
-        description="Issue a step-up token after TOTP verification. Valid for 15 minutes. Pass it as X-Step-Up-Token on sensitive actions.",
+        deprecated=True,
+        description=(
+            "DEPRECATED (removed in 1.0). Issue a one-time step-up token after "
+            "TOTP verification (valid 15 min, X-Step-Up-Token). Superseded by the "
+            "unified step-up contract: guard sensitive actions with "
+            "@requires_verification and drive the /verification/ envelope flow "
+            "instead. For transit, a successful call ALSO writes a server-side "
+            "verification grant for the LEGACY_STEP_UP_GRANT_SCOPES scopes, so "
+            "deployed legacy frontends keep passing @requires_verification while "
+            "the backend migrates. See auth-stepup-unification.md."
+        ),
         request=TOTPStepUpSerializer,
         responses={200: TOTPStepUpResponseSerializer, 400: StapelErrorSerializer},
     )
@@ -295,16 +324,43 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         from stapel_auth.mfa.dto import TOTPStepUpResponse
         from stapel_auth.mfa.services import TOTPService
 
+        _warn_legacy_step_up()
+
         code = (request.data or {}).get("code", "")
         if not code:
             return StapelErrorResponse(400, ERR_400_CODE_REQUIRED)
-        token = TOTPService.create_step_up(request.user, str(code))
+        token = TOTPService._issue_step_up_token(request.user, str(code))
         if not token:
             return StapelErrorResponse(400, ERR_400_INVALID_CODE)
+
+        # Transit bridge: mirror the one-time TOTP proof into the unified
+        # verification grant store so hosts that migrated their guards to
+        # @requires_verification accept the already-deployed legacy frontend.
+        # Unlike the one-time token, the grant is reusable within max_age.
+        from stapel_auth.conf import auth_settings
+        from stapel_core.verification import grant_verification
+
+        for scope in auth_settings.LEGACY_STEP_UP_GRANT_SCOPES or []:
+            grant_verification(
+                user_id=str(request.user.pk),
+                scope=scope,
+                max_age=TOTPService.STEP_UP_TTL,
+            )
+
+        from stapel_auth.services import AuditService
+
+        AuditService.log("totp_step_up", user=request.user, request=request)
+
         dto = TOTPStepUpResponse(
             step_up_token=token, expires_in=TOTPService.STEP_UP_TTL
         )
-        return StapelResponse(self.get_step_up_response_serializer_class()(dto))
+        response = StapelResponse(self.get_step_up_response_serializer_class()(dto))
+        response["Deprecation"] = "true"
+        response["Link"] = (
+            '</verification/>; rel="successor-version"; '
+            'title="Unified step-up verification (@requires_verification)"'
+        )
+        return response
 
 
 # =============================================================================

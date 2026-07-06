@@ -2,6 +2,41 @@
 
 ## [Unreleased]
 
+### Deprecated — step-up unification: the verification envelope is the one step-up contract (auth-stepup-unification)
+
+- **`POST /totp/step-up/` is deprecated (removed in 1.0).** The endpoint keeps
+  working through 0.x but now advertises its retirement: the response carries a
+  `Deprecation: true` header and a `Link: …; rel="successor-version"` pointing at
+  the `/verification/` flow, the OpenAPI operation is flagged `deprecated`, and
+  the endpoint logs a single deprecation warning per process. The one step-up
+  contract of Stapel is the verification envelope (`@requires_verification` +
+  `error.403.verification_required`); the hand-rolled `X-Step-Up-Token` mechanism
+  is superseded.
+- **Server-side grant bridge for zero-downtime brownfield transit.** A
+  successful `/totp/step-up/` now *additionally* writes a
+  `stapel_core.verification` grant for every scope in the new
+  `STAPEL_AUTH['LEGACY_STEP_UP_GRANT_SCOPES']` setting (default `["sensitive"]`,
+  `max_age = STEP_UP_TTL = 900`). An already-deployed legacy frontend that still
+  calls `/totp/step-up/` therefore keeps passing endpoints migrated to
+  `@requires_verification`, so a host can migrate its backend guards first and
+  its frontend later. Set `LEGACY_STEP_UP_GRANT_SCOPES = []` to disable the
+  bridge and issue only the legacy token.
+  - **Semantics differ, deliberately:** the legacy `X-Step-Up-Token` is
+    one-time; the bridged grant is *reusable within `max_age`* per scope. For
+    strict one-shot behaviour, keep `max_age` short. The bridge grants only the
+    configured scopes — a step-up never satisfies an unrelated scope (no scope
+    escalation).
+- **`TOTPService.create_step_up` / `consume_step_up` emit `DeprecationWarning`.**
+  Both keep working; the deprecated endpoint uses an internal, warning-free
+  helper so a legit call does not double-warn. Removed in 1.0.
+- **`error.403.step_up_required` marked deprecated** (kept in the catalogue for
+  hosts that still raise it; no stapel-auth code raises it). Removed in 1.0. No
+  new error key is introduced and `errors.json` is unchanged.
+- **`totp_step_up` audit event is now emitted** by the legacy endpoint on
+  success (the `AuditLog` choice already existed but was never written).
+- **`@stapel/auth-react`: no change** — the package is envelope-only; no
+  `X-Step-Up-Token` bridge is added on the client, per design.
+
 ### Added — declarative error remediation + committed `errors.json` (error-remediation)
 
 - **Error registry moved onto the core declarative mechanism with

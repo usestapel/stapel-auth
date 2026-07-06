@@ -121,6 +121,15 @@ DEFAULTS = {
     # Password login: on by default (a password alone is phishable) —
     # preserves the pre-0.3 behavior; opt out with PASSWORD_LOGIN_STEP_UP=False.
     'PASSWORD_LOGIN_STEP_UP': True,
+
+    # Legacy step-up bridge (DEPRECATED, removed in 1.0). A successful
+    # /totp/step-up/ additionally writes a server-side verification grant
+    # (stapel_core.verification) for each of these scopes, so already-deployed
+    # legacy frontends keep passing @requires_verification guards while the
+    # backend migrates its sensitive actions off the hand-rolled
+    # X-Step-Up-Token check. Set to [] to disable the bridge (issue the legacy
+    # token only). See auth-stepup-unification.md.
+    'LEGACY_STEP_UP_GRANT_SCOPES': ['sensitive'],
 }
 
 # Env var fallbacks for settings that are commonly set via environment

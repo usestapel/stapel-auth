@@ -58,6 +58,10 @@ ERR_404_NOT_FOUND = 'error.404.not_found'
 # TOTP
 ERR_400_CODE_REQUIRED = 'error.400.code_required'
 ERR_400_TOTP_NOT_PENDING = 'error.400.totp_not_pending'
+# DEPRECATED (removed in 1.0): the legacy X-Step-Up-Token enforcement key. No
+# stapel-auth code raises it — it was raised by hosts guarding sensitive actions
+# by hand. The unified step-up contract raises `error.403.verification_required`
+# instead. See auth-stepup-unification.md.
 ERR_403_STEP_UP_REQUIRED = 'error.403.step_up_required'
 # Lockout
 ERR_423_ACCOUNT_LOCKED = 'error.423.account_locked'

@@ -90,6 +90,34 @@ Mechanism (`@requires_verification`, challenge/grant stores) lives in `stapel_co
 
 Host projects add factors **without touching this repo** via `STAPEL_VERIFICATION['EXTRA_FACTORS']` (dotted paths, stapel-core `verification/conf.py`) — same escape-hatch pattern as OAuth providers. Per-user opt-in/out is stored in `VerificationPreference` and served to core via the `auth.verification.policy` function.
 
+#### Migrating off the legacy `/totp/step-up/` (DEPRECATED, removed in 1.0)
+
+The one-time `X-Step-Up-Token` surface (`POST /totp/step-up/`,
+`TOTPService.create_step_up`/`consume_step_up`, and the caller-raised
+`error.403.step_up_required`) is deprecated in favour of the unified contract.
+Migrate each sensitive action:
+
+```python
+# was: hand-rolled header check in your host code
+if not TOTPService.consume_step_up(request.user, request.headers.get("X-Step-Up-Token")):
+    return StapelErrorResponse(403, "error.403.step_up_required")
+
+# now: declarative guard, envelope-driven client flow
+@requires_verification(scope="sensitive", factors=["totp"], max_age=900)
+def post(self, request): ...
+```
+
+Zero-downtime transit: a successful `/totp/step-up/` **also writes a server-side
+verification grant** for `STAPEL_AUTH['LEGACY_STEP_UP_GRANT_SCOPES']` (default
+`["sensitive"]`), so an already-deployed legacy frontend keeps passing the new
+`@requires_verification` guards while you migrate the backend — no coordinated
+frontend release required. Set `LEGACY_STEP_UP_GRANT_SCOPES = []` to disable the
+bridge and issue the legacy token only. **Semantics differ**: the legacy token
+is one-time, the bridged grant is reusable within `max_age` per scope (choose a
+short `max_age` for strict one-shot behaviour). `@stapel/auth-react` is
+envelope-only and needs no change. Remove `/totp/step-up/` usage before
+upgrading to 1.0, where the legacy surface is deleted.
+
 ### Events & functions (comm surface)
 
 Emitted events (`stapel_core.comm.emit`, transactional outbox; schemas in `schemas/emits/`):
