@@ -5,6 +5,8 @@ Service classes for authentication operations
 import logging
 import secrets
 
+from stapel_auth.sessions.services import AuditService
+
 logger = logging.getLogger(__name__)
 
 

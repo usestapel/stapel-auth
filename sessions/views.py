@@ -374,7 +374,7 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
         _blacklist_jti(session.jti, session.expires_at)
         _blacklist_jti(session.access_jti, session.expires_at)
-        from .dto import SimpleStatusResponse
+        from stapel_auth.dto import SimpleStatusResponse
 
         return StapelResponse(
             self.get_status_response_serializer_class()(
@@ -398,7 +398,7 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if session.is_suspicious:
             session.is_suspicious = False
             session.save(update_fields=["is_suspicious"])
-        from .dto import SimpleStatusResponse
+        from stapel_auth.dto import SimpleStatusResponse
 
         return StapelResponse(
             self.get_status_response_serializer_class()(
@@ -425,7 +425,7 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             current_jti = payload.get("refresh_jti") or payload.get("jti")
 
         SessionService.revoke_all(request.user, except_jti=current_jti)
-        from .dto import SimpleStatusResponse
+        from stapel_auth.dto import SimpleStatusResponse
 
         return StapelResponse(
             self.get_status_response_serializer_class()(

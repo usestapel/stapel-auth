@@ -1288,7 +1288,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                                     "Refresh token already expired, not blacklisting"
                                 )
                         # Revoke session in DB so it disappears from active list immediately
-                        from .services import SessionService as _SS
+                        from stapel_auth.sessions.services import SessionService as _SS
 
                         _SS.revoke_by_jti(jti)
                 except Exception as e:

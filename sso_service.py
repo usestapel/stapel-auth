@@ -408,14 +408,19 @@ class SSOUserService:
         """Issue JWT session, set cookies, redirect to frontend."""
         from django.http import HttpResponseRedirect
         from stapel_core.django.jwt.utils import set_jwt_cookies
-        from .views import _issue_session_tokens, _add_login_hints
+        from .views import _add_login_hints
         from .services import LoginNotificationService
-
-        access_token, refresh_token = _issue_session_tokens(user, request)
 
         from stapel_core.django.jwt.provider import jwt_provider as _jwt
         from datetime import datetime, timezone as _tz
         from .services import SessionService, AuditService as _AS
+
+        # Mint the token pair directly: the session row, audit event and login
+        # notification are all handled below with SSO-specific semantics.
+        # (Calling sessions.views._issue_session_tokens here would register the
+        # same refresh jti a second time and hit the UNIQUE(user_sessions.jti)
+        # constraint.)
+        access_token, refresh_token = _jwt.create_tokens(user)
         _rt_pl = _jwt.handler.decode_token(refresh_token, verify=False) or {}
         _at_pl = _jwt.handler.decode_token(access_token, verify=False) or {}
         _jti   = _rt_pl.get('jti', '')

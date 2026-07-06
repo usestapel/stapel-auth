@@ -2,14 +2,50 @@
 
 ## [Unreleased]
 
-### Fixed — `cleanup_expired_anonymous_users` raised `AttributeError` on every call (quality-auth-coverage)
+### Fixed — five latent crashes exposed by the new coverage suite (quality-auth-coverage)
 
-- `SecurityService.cleanup_expired_anonymous_users()` read
-  `settings.ANONYMOUS_USER_LIFETIME` — a key that does not exist (the configured
-  key is `STAPEL_AUTH['ANONYMOUS_USER_LIFETIME_DAYS']`, an int number of days, not
-  a `timedelta`), so any invocation crashed with `AttributeError` before deleting
-  anything. It now reads `auth_settings.ANONYMOUS_USER_LIFETIME_DAYS` and builds
-  the cutoff with `timedelta(days=...)`. Covered by regression tests.
+All five were invisible to the old suite because the affected paths were either
+mocked end-to-end or never exercised; the new tests run the real
+implementations and every fix ships with regression tests.
+
+- **`cleanup_expired_anonymous_users` raised `AttributeError` on every call.**
+  It read `settings.ANONYMOUS_USER_LIFETIME` — a key that does not exist (the
+  configured key is `STAPEL_AUTH['ANONYMOUS_USER_LIFETIME_DAYS']`, an int number
+  of days, not a `timedelta`), so any invocation crashed before deleting
+  anything. Now reads `auth_settings.ANONYMOUS_USER_LIFETIME_DAYS` and builds the
+  cutoff with `timedelta(days=...)`.
+- **`MagicLinkService.send` raised `NameError` on every real call.** The method
+  logs `AuditService.log('magic_link_sent', ...)` but the module never imported
+  `AuditService`, so a real magic-link send crashed right after enqueuing the
+  email. The import now lives at module scope.
+- **Session revoke/confirm endpoints returned HTTP 500 on success.**
+  `SessionViewSet.revoke_one`, `confirm_session` and `revoke_all` did
+  `from .dto import SimpleStatusResponse`, but the class lives in the top-level
+  `stapel_auth.dto` — the success path raised `ImportError` *after* the DB
+  mutation (session already revoked/confirmed, then 500 to the client). Imports
+  fixed; the endpoints now return their documented 200 payloads.
+- **Logout never revoked the session row.** `_logout` imported `SessionService`
+  from `otp.services` (it lives in `sessions.services`) inside a swallowed
+  `except`, so `revoke_by_jti` never ran and a logged-out session stayed in the
+  user's active-sessions list until token expiry. Import fixed.
+- **SSO login crashed on `UNIQUE(user_sessions.jti)`.**
+  `SSOUserService.issue_session_and_redirect` called `_issue_session_tokens`
+  (which already registers the refresh jti as a `UserSession`) and then created
+  a *second* session from the same jti — every real SSO login died on the unique
+  constraint. It now mints the token pair directly and persists the session
+  once, keeping the SSO-specific `sso_login` audit event.
+
+### Changed — coverage raised from 81% to ≥99% line (quality-auth-coverage)
+
+- ~450 tests added across 12 new test files: real `MagicLinkService`,
+  `PasskeyService` against a mocked `webauthn.*` crypto boundary, real `pyotp`
+  TOTP flows, SessionViewSet/SecurityStatus/AdminAuditLog endpoints, SSO
+  service/views branch matrix, `consume_gdpr` via `call_command` + MemoryBus,
+  admin registrations via the registry pattern, URL factory gates, OAuth
+  provider branches, JWKS RS256, token introspection, and fault-injected
+  defensive branches. One `# pragma: no cover` in the whole codebase
+  (`admin/serializers.py` — E.164 length guard unreachable after
+  `is_valid_number`).
 
 ### Removed — dead code excised (quality-auth-coverage)
 
@@ -30,6 +66,8 @@
 - **Unused `PasswordResetSerializer` / `PasswordResetConfirmSerializer` removed**
   from `password/serializers.py` — never imported; the live password-reset flow
   uses the `PasswordReset{Email,Phone}{Request,Verify}Serializer` family.
+- **`magic_link/dto.py` deleted** — `MagicLinkRequestDTO` was never imported
+  anywhere (the magic-link views respond through their serializers directly).
 - These modules/symbols were dead (not reachable from any URL, registry, or
   public export), so despite being source-level removals the change is
   behaviour-preserving — released as a patch.
