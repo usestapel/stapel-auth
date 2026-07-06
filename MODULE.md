@@ -143,6 +143,16 @@ with the committed tree. Regenerate after changing a flow or catalog with
 `STAPEL_REGEN_FLOW_DOCS=1 pytest tests/test_flow_docs.py` and commit
 `docs/flows/`.
 
+**Error registry artifact** (error-remediation): `errors.py` declares each key's
+en text and machine-readable `remediation` via
+`register_service_errors(AUTH_ERRORS, remediation=AUTH_REMEDIATION)`.
+`docs/errors.json` is the committed codegen artifact (the array of `{code,
+status, params, remediation, en}` the frontend error bundle is generated from),
+emitted by core's `generate_error_keys` and covering auth's keys plus the
+cross-cutting `verification`/`captcha` keys. `tests/test_error_keys.py` is the
+drift gate — regenerate with `STAPEL_REGEN_ERROR_KEYS=1 pytest
+tests/test_error_keys.py` and commit `docs/errors.json`.
+
 ## Anti-patterns
 
 - **Never import another stapel module** (`stapel_gdpr`, `stapel_notifications`, `stapel_workspaces`, ...) from code that extends or configures auth. Integration is only via `stapel_core` comm (events/functions), signals, registries, and dotted-path settings. Even the GDPR model dependency here is a lazy dotted path, not an import.

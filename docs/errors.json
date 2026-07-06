@@ -1,0 +1,834 @@
+[
+  {
+    "code": "error.400.bad_request",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Bad request"
+  },
+  {
+    "code": "error.400.captcha_invalid",
+    "status": 400,
+    "params": [],
+    "remediation": "retry",
+    "en": "Captcha verification failed. Please try again."
+  },
+  {
+    "code": "error.400.captcha_required",
+    "status": 400,
+    "params": [],
+    "remediation": "retry",
+    "en": "Captcha token is required."
+  },
+  {
+    "code": "error.400.code_expired",
+    "status": 400,
+    "params": [],
+    "remediation": "retry",
+    "en": "Verification code has expired. Please request a new one."
+  },
+  {
+    "code": "error.400.code_required",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "A verification code is required."
+  },
+  {
+    "code": "error.400.credentials_required",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Username/email and password are required"
+  },
+  {
+    "code": "error.400.email_or_phone_not_both",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Provide either email or phone, not both"
+  },
+  {
+    "code": "error.400.email_or_phone_required",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Either email or phone is required"
+  },
+  {
+    "code": "error.400.email_required",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Email is required."
+  },
+  {
+    "code": "error.400.expected_list",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Expected a list of items"
+  },
+  {
+    "code": "error.400.field.blank",
+    "status": 400,
+    "params": [
+      "field"
+    ],
+    "remediation": "fix_input",
+    "en": "{field} may not be blank"
+  },
+  {
+    "code": "error.400.field.does_not_exist",
+    "status": 400,
+    "params": [
+      "field"
+    ],
+    "remediation": "fix_input",
+    "en": "{field} does not exist"
+  },
+  {
+    "code": "error.400.field.invalid",
+    "status": 400,
+    "params": [
+      "field"
+    ],
+    "remediation": "fix_input",
+    "en": "{field} is invalid"
+  },
+  {
+    "code": "error.400.field.invalid_choice",
+    "status": 400,
+    "params": [
+      "field"
+    ],
+    "remediation": "fix_input",
+    "en": "{field} is not a valid choice"
+  },
+  {
+    "code": "error.400.field.max_length",
+    "status": 400,
+    "params": [
+      "field",
+      "max_length"
+    ],
+    "remediation": "fix_input",
+    "en": "{field} must be at most {max_length} characters"
+  },
+  {
+    "code": "error.400.field.max_value",
+    "status": 400,
+    "params": [
+      "field",
+      "max_value"
+    ],
+    "remediation": "fix_input",
+    "en": "{field} must be at most {max_value}"
+  },
+  {
+    "code": "error.400.field.min_length",
+    "status": 400,
+    "params": [
+      "field",
+      "min_length"
+    ],
+    "remediation": "fix_input",
+    "en": "{field} must be at least {min_length} characters"
+  },
+  {
+    "code": "error.400.field.min_value",
+    "status": 400,
+    "params": [
+      "field",
+      "min_value"
+    ],
+    "remediation": "fix_input",
+    "en": "{field} must be at least {min_value}"
+  },
+  {
+    "code": "error.400.field.null",
+    "status": 400,
+    "params": [
+      "field"
+    ],
+    "remediation": "fix_input",
+    "en": "{field} may not be null"
+  },
+  {
+    "code": "error.400.field.required",
+    "status": 400,
+    "params": [
+      "field"
+    ],
+    "remediation": "fix_input",
+    "en": "{field} is required"
+  },
+  {
+    "code": "error.400.field.unique",
+    "status": 400,
+    "params": [
+      "field"
+    ],
+    "remediation": "fix_input",
+    "en": "{field} must be unique"
+  },
+  {
+    "code": "error.400.invalid_ad_id",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Invalid advertisement ID"
+  },
+  {
+    "code": "error.400.invalid_change_token",
+    "status": 400,
+    "params": [],
+    "remediation": "retry",
+    "en": "Invalid or expired change token."
+  },
+  {
+    "code": "error.400.invalid_code",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Invalid verification code"
+  },
+  {
+    "code": "error.400.invalid_code_attempts",
+    "status": 400,
+    "params": [
+      "attempts_remaining"
+    ],
+    "remediation": "fix_input",
+    "en": "Invalid verification code. {attempts_remaining} attempts remaining."
+  },
+  {
+    "code": "error.400.invalid_method",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Invalid or unavailable method for this account."
+  },
+  {
+    "code": "error.400.invalid_phone",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Invalid phone number"
+  },
+  {
+    "code": "error.400.invalid_phone_format",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Invalid phone number format"
+  },
+  {
+    "code": "error.400.invalid_redirect_url",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "redirect_url must be a relative path starting with /  — absolute URLs are not allowed."
+  },
+  {
+    "code": "error.400.last_auth_method",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Cannot remove the last authentication method."
+  },
+  {
+    "code": "error.400.magic_link_invalid",
+    "status": 400,
+    "params": [],
+    "remediation": "retry",
+    "en": "Magic link is invalid or has expired."
+  },
+  {
+    "code": "error.400.no_current_value",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "No current value on this account."
+  },
+  {
+    "code": "error.400.no_password",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "No password is set. Use set password first."
+  },
+  {
+    "code": "error.400.no_verified_contact",
+    "status": 400,
+    "params": [],
+    "remediation": "verify",
+    "en": "No verified email or phone on this account."
+  },
+  {
+    "code": "error.400.not_available",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "This value is already registered or reserved."
+  },
+  {
+    "code": "error.400.oauth_failed",
+    "status": 400,
+    "params": [],
+    "remediation": "retry",
+    "en": "Failed to authenticate with OAuth provider"
+  },
+  {
+    "code": "error.400.oauth_fields_required",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Provider and access_token are required"
+  },
+  {
+    "code": "error.400.passkey_challenge_expired",
+    "status": 400,
+    "params": [],
+    "remediation": "retry",
+    "en": "Passkey challenge has expired. Please try again."
+  },
+  {
+    "code": "error.400.passkey_invalid",
+    "status": 400,
+    "params": [],
+    "remediation": "retry",
+    "en": "Passkey verification failed."
+  },
+  {
+    "code": "error.400.password_already_set",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Password is already set. Use the change password flow."
+  },
+  {
+    "code": "error.400.passwords_dont_match",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Password fields didn't match"
+  },
+  {
+    "code": "error.400.phone_required",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Phone number is required."
+  },
+  {
+    "code": "error.400.phone_too_long",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Phone number is too long"
+  },
+  {
+    "code": "error.400.qr_expired",
+    "status": 400,
+    "params": [],
+    "remediation": "retry",
+    "en": "QR code has expired."
+  },
+  {
+    "code": "error.400.qr_fulfilled",
+    "status": 400,
+    "params": [],
+    "remediation": "retry",
+    "en": "QR code has already been used."
+  },
+  {
+    "code": "error.400.qr_type_required",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "QR type is required (session_share or login_request)."
+  },
+  {
+    "code": "error.400.sso_invalid_response",
+    "status": 400,
+    "params": [],
+    "remediation": "retry",
+    "en": "Invalid SSO response from identity provider."
+  },
+  {
+    "code": "error.400.sso_not_configured",
+    "status": 400,
+    "params": [],
+    "remediation": "contact_support",
+    "en": "SSO is not configured for this organization."
+  },
+  {
+    "code": "error.400.token_required",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Token is required"
+  },
+  {
+    "code": "error.400.totp_not_pending",
+    "status": 400,
+    "params": [],
+    "remediation": "retry",
+    "en": "No pending TOTP setup. Call /totp/setup/ first."
+  },
+  {
+    "code": "error.400.validation_error",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Validation error"
+  },
+  {
+    "code": "error.400.verification_failed",
+    "status": 400,
+    "params": [],
+    "remediation": "verify",
+    "en": "Verification failed"
+  },
+  {
+    "code": "error.400.verification_invalid_factor",
+    "status": 400,
+    "params": [],
+    "remediation": "verify",
+    "en": "This verification factor is not available"
+  },
+  {
+    "code": "error.400.wrong_password",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Wrong password."
+  },
+  {
+    "code": "error.401.account_disabled",
+    "status": 401,
+    "params": [],
+    "remediation": "contact_support",
+    "en": "User account is disabled"
+  },
+  {
+    "code": "error.401.invalid_credentials",
+    "status": 401,
+    "params": [],
+    "remediation": "reauthenticate",
+    "en": "Invalid credentials"
+  },
+  {
+    "code": "error.401.qr_auth_required",
+    "status": 401,
+    "params": [],
+    "remediation": "reauthenticate",
+    "en": "Authentication required to generate a session_share QR code."
+  },
+  {
+    "code": "error.401.refresh_invalid",
+    "status": 401,
+    "params": [],
+    "remediation": "reauthenticate",
+    "en": "Invalid or expired refresh token"
+  },
+  {
+    "code": "error.401.refresh_not_provided",
+    "status": 401,
+    "params": [],
+    "remediation": "reauthenticate",
+    "en": "Refresh token not provided"
+  },
+  {
+    "code": "error.401.refresh_revoked",
+    "status": 401,
+    "params": [],
+    "remediation": "reauthenticate",
+    "en": "Token has been revoked"
+  },
+  {
+    "code": "error.401.token_invalid",
+    "status": 401,
+    "params": [],
+    "remediation": "reauthenticate",
+    "en": "Invalid token"
+  },
+  {
+    "code": "error.401.token_revoked",
+    "status": 401,
+    "params": [],
+    "remediation": "reauthenticate",
+    "en": "Token has been revoked"
+  },
+  {
+    "code": "error.401.unauthorized",
+    "status": 401,
+    "params": [],
+    "remediation": "reauthenticate",
+    "en": "Authentication required"
+  },
+  {
+    "code": "error.401.user_not_found",
+    "status": 401,
+    "params": [],
+    "remediation": "reauthenticate",
+    "en": "User not found"
+  },
+  {
+    "code": "error.402.payment_required",
+    "status": 402,
+    "params": [],
+    "remediation": "retry",
+    "en": "Payment required"
+  },
+  {
+    "code": "error.403.forbidden",
+    "status": 403,
+    "params": [],
+    "remediation": "retry",
+    "en": "You do not have permission to perform this action"
+  },
+  {
+    "code": "error.403.mock_otp_admin",
+    "status": 403,
+    "params": [],
+    "remediation": "contact_support",
+    "en": "OTP-based auth is disabled for admin accounts in mock mode."
+  },
+  {
+    "code": "error.403.network_blocked",
+    "status": 403,
+    "params": [],
+    "remediation": "contact_support",
+    "en": "Requests from this network are not allowed"
+  },
+  {
+    "code": "error.403.qr_device_mismatch",
+    "status": 403,
+    "params": [],
+    "remediation": "retry",
+    "en": "This QR code belongs to another device."
+  },
+  {
+    "code": "error.403.qr_unauth_scan",
+    "status": 403,
+    "params": [],
+    "remediation": "reauthenticate",
+    "en": "This QR code cannot be scanned by an unauthenticated device."
+  },
+  {
+    "code": "error.403.sso_required",
+    "status": 403,
+    "params": [],
+    "remediation": "reauthenticate",
+    "en": "This account must sign in via SSO. Use your organization SSO link."
+  },
+  {
+    "code": "error.403.step_up_required",
+    "status": 403,
+    "params": [],
+    "remediation": "verify",
+    "en": "This action requires TOTP verification. Obtain a step-up token first."
+  },
+  {
+    "code": "error.403.verification_enrollment_required",
+    "status": 403,
+    "params": [],
+    "remediation": "verify",
+    "en": "Verification factor enrollment required"
+  },
+  {
+    "code": "error.403.verification_required",
+    "status": 403,
+    "params": [],
+    "remediation": "verify",
+    "en": "Additional verification required"
+  },
+  {
+    "code": "error.404.ad_not_found",
+    "status": 404,
+    "params": [],
+    "remediation": "retry",
+    "en": "Listing not found"
+  },
+  {
+    "code": "error.404.change_not_found",
+    "status": 404,
+    "params": [],
+    "remediation": "retry",
+    "en": "Change request not found."
+  },
+  {
+    "code": "error.404.gdpr.export_not_found",
+    "status": 404,
+    "params": [],
+    "remediation": "retry",
+    "en": "Export request not found."
+  },
+  {
+    "code": "error.404.gdpr.no_active_closure",
+    "status": 404,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "No pending account closure found."
+  },
+  {
+    "code": "error.404.not_found",
+    "status": 404,
+    "params": [],
+    "remediation": "retry",
+    "en": "Not found."
+  },
+  {
+    "code": "error.404.passkey_not_found",
+    "status": 404,
+    "params": [],
+    "remediation": "retry",
+    "en": "Passkey not found."
+  },
+  {
+    "code": "error.404.qr_not_found",
+    "status": 404,
+    "params": [],
+    "remediation": "retry",
+    "en": "QR code not found or expired."
+  },
+  {
+    "code": "error.404.sso_org_not_found",
+    "status": 404,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Organization not found."
+  },
+  {
+    "code": "error.404.user_for_reset",
+    "status": 404,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "No account found with this email or phone."
+  },
+  {
+    "code": "error.404.verification_challenge_not_found",
+    "status": 404,
+    "params": [],
+    "remediation": "verify",
+    "en": "Verification challenge not found or expired"
+  },
+  {
+    "code": "error.405.method_not_allowed",
+    "status": 405,
+    "params": [],
+    "remediation": "retry",
+    "en": "Method not allowed"
+  },
+  {
+    "code": "error.406.not_acceptable",
+    "status": 406,
+    "params": [],
+    "remediation": "retry",
+    "en": "Not acceptable"
+  },
+  {
+    "code": "error.408.request_timeout",
+    "status": 408,
+    "params": [],
+    "remediation": "retry",
+    "en": "Request timeout"
+  },
+  {
+    "code": "error.409.conflict",
+    "status": 409,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Resource already exists"
+  },
+  {
+    "code": "error.409.email_reserved",
+    "status": 409,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "This email is reserved by another pending change request."
+  },
+  {
+    "code": "error.409.email_taken",
+    "status": 409,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "This email is already registered to another account."
+  },
+  {
+    "code": "error.409.gdpr.closure_already_pending",
+    "status": 409,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Account closure is already in progress."
+  },
+  {
+    "code": "error.409.gdpr.export_cooldown",
+    "status": 409,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "A data export was already requested in the last 30 days."
+  },
+  {
+    "code": "error.409.gdpr.legal_hold",
+    "status": 409,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Account data is under a legal hold and cannot be deleted."
+  },
+  {
+    "code": "error.409.passkey_already_registered",
+    "status": 409,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "This passkey is already registered."
+  },
+  {
+    "code": "error.409.phone_reserved",
+    "status": 409,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "This phone number is reserved by another pending change request."
+  },
+  {
+    "code": "error.409.phone_taken",
+    "status": 409,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "This phone number is already registered to another account."
+  },
+  {
+    "code": "error.409.qr_account_conflict",
+    "status": 409,
+    "params": [],
+    "remediation": "reauthenticate",
+    "en": "A different account is already signed in on this device."
+  },
+  {
+    "code": "error.409.sso_org_slug_taken",
+    "status": 409,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "An organization with this slug already exists."
+  },
+  {
+    "code": "error.409.username_taken",
+    "status": 409,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "This username is already taken."
+  },
+  {
+    "code": "error.410.gdpr.download_expired",
+    "status": 410,
+    "params": [],
+    "remediation": "retry",
+    "en": "Download link has expired."
+  },
+  {
+    "code": "error.410.gone",
+    "status": 410,
+    "params": [],
+    "remediation": "retry",
+    "en": "Resource has been permanently removed"
+  },
+  {
+    "code": "error.413.payload_too_large",
+    "status": 413,
+    "params": [],
+    "remediation": "retry",
+    "en": "Request body is too large"
+  },
+  {
+    "code": "error.415.unsupported_media_type",
+    "status": 415,
+    "params": [],
+    "remediation": "retry",
+    "en": "Unsupported media type"
+  },
+  {
+    "code": "error.422.blocked",
+    "status": 422,
+    "params": [
+      "retry_after_minutes"
+    ],
+    "remediation": "wait_and_retry",
+    "en": "Account temporarily blocked. Try again in {retry_after_minutes} minutes."
+  },
+  {
+    "code": "error.422.unprocessable_entity",
+    "status": 422,
+    "params": [],
+    "remediation": "wait_and_retry",
+    "en": "Unprocessable entity"
+  },
+  {
+    "code": "error.423.account_locked",
+    "status": 423,
+    "params": [
+      "retry_after_minutes"
+    ],
+    "remediation": "wait_and_retry",
+    "en": "Account temporarily locked due to too many failed attempts. Try again in {retry_after_minutes} minutes."
+  },
+  {
+    "code": "error.423.locked",
+    "status": 423,
+    "params": [],
+    "remediation": "wait_and_retry",
+    "en": "Resource is locked"
+  },
+  {
+    "code": "error.423.verification_locked",
+    "status": 423,
+    "params": [],
+    "remediation": "wait_and_retry",
+    "en": "Too many failed attempts — verification locked"
+  },
+  {
+    "code": "error.425.gdpr.export_not_ready",
+    "status": 425,
+    "params": [],
+    "remediation": "retry",
+    "en": "Export is still being prepared."
+  },
+  {
+    "code": "error.429.magic_link_rate",
+    "status": 429,
+    "params": [],
+    "remediation": "wait_and_retry",
+    "en": "Too many magic link requests. Please try again later."
+  },
+  {
+    "code": "error.429.rate_limit",
+    "status": 429,
+    "params": [
+      "retry_after_minutes"
+    ],
+    "remediation": "wait_and_retry",
+    "en": "Too many attempts. Try again in {retry_after_minutes} minutes."
+  },
+  {
+    "code": "error.429.too_many_requests",
+    "status": 429,
+    "params": [],
+    "remediation": "wait_and_retry",
+    "en": "Too many requests. Please try again later."
+  },
+  {
+    "code": "error.500.internal",
+    "status": 500,
+    "params": [],
+    "remediation": "contact_support",
+    "en": "Something went wrong"
+  },
+  {
+    "code": "error.500.send_failed",
+    "status": 500,
+    "params": [],
+    "remediation": "retry",
+    "en": "Failed to send verification code"
+  }
+]

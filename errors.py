@@ -162,7 +162,101 @@ AUTH_ERRORS = {
     ERR_400_CAPTCHA_REQUIRED: 'Captcha token is required.',
 }
 
-register_service_errors(AUTH_ERRORS)
+# Machine-readable recovery hints (remediation) — the canonical "what to do"
+# for each key, emitted into the errors.json codegen artifact and consumed by the
+# frontend/LLM (frontend-core-architecture §2.5). Vocabulary: retry |
+# wait_and_retry | reauthenticate | verify | fix_input | contact_support | bug.
+# Declared here (backend = canon) rather than left to the status+name heuristic —
+# several keys need intent the heuristic gets wrong (oauth/captcha/passkey
+# ceremonies are retryable, not fix_input; a disabled account or unconfigured SSO
+# needs support, not a re-login).
+AUTH_REMEDIATION = {
+    # Credentials / login
+    ERR_401_INVALID_CREDENTIALS: 'reauthenticate',
+    ERR_401_ACCOUNT_DISABLED: 'contact_support',
+    ERR_422_BLOCKED: 'wait_and_retry',
+    ERR_423_ACCOUNT_LOCKED: 'wait_and_retry',
+    ERR_400_CREDENTIALS_REQUIRED: 'fix_input',
+    ERR_400_WRONG_PASSWORD: 'fix_input',
+    # OTP / verification codes
+    ERR_400_CODE_EXPIRED: 'retry',
+    ERR_400_INVALID_CODE: 'fix_input',
+    ERR_400_INVALID_CODE_ATTEMPTS: 'fix_input',
+    ERR_400_CODE_REQUIRED: 'fix_input',
+    ERR_500_SEND_FAILED: 'retry',
+    # OAuth
+    ERR_400_OAUTH_FAILED: 'retry',
+    ERR_400_OAUTH_FIELDS_REQUIRED: 'fix_input',
+    # Tokens / refresh — session is gone, re-login
+    ERR_400_TOKEN_REQUIRED: 'fix_input',
+    ERR_401_TOKEN_REVOKED: 'reauthenticate',
+    ERR_401_TOKEN_INVALID: 'reauthenticate',
+    ERR_401_REFRESH_INVALID: 'reauthenticate',
+    ERR_401_REFRESH_NOT_PROVIDED: 'reauthenticate',
+    ERR_401_REFRESH_REVOKED: 'reauthenticate',
+    ERR_401_USER_NOT_FOUND: 'reauthenticate',
+    # Contact/username conflicts — pick a different value
+    ERR_409_EMAIL_TAKEN: 'fix_input',
+    ERR_409_EMAIL_RESERVED: 'fix_input',
+    ERR_409_PHONE_TAKEN: 'fix_input',
+    ERR_409_PHONE_RESERVED: 'fix_input',
+    ERR_409_USERNAME_TAKEN: 'fix_input',
+    # Contact change flow
+    ERR_400_NOT_AVAILABLE: 'fix_input',
+    ERR_400_NO_CURRENT_VALUE: 'fix_input',
+    ERR_400_INVALID_CHANGE_TOKEN: 'retry',
+    ERR_404_CHANGE_NOT_FOUND: 'retry',
+    ERR_400_PHONE_REQUIRED: 'fix_input',
+    ERR_400_EMAIL_REQUIRED: 'fix_input',
+    ERR_400_INVALID_PHONE_FORMAT: 'fix_input',
+    ERR_400_INVALID_PHONE: 'fix_input',
+    ERR_400_PHONE_TOO_LONG: 'fix_input',
+    ERR_400_PASSWORDS_DONT_MATCH: 'fix_input',
+    ERR_400_EMAIL_OR_PHONE_REQUIRED: 'fix_input',
+    ERR_400_EMAIL_OR_PHONE_NOT_BOTH: 'fix_input',
+    # Password management
+    ERR_400_PASSWORD_ALREADY_SET: 'fix_input',
+    ERR_400_NO_PASSWORD: 'fix_input',
+    ERR_400_NO_VERIFIED_CONTACT: 'verify',
+    ERR_400_INVALID_METHOD: 'fix_input',
+    ERR_404_USER_FOR_RESET: 'fix_input',
+    ERR_403_MOCK_OTP_ADMIN: 'contact_support',
+    # QR auth
+    ERR_404_QR_NOT_FOUND: 'retry',
+    ERR_400_QR_EXPIRED: 'retry',
+    ERR_400_QR_FULFILLED: 'retry',
+    ERR_400_QR_TYPE_REQUIRED: 'fix_input',
+    ERR_401_QR_AUTH_REQUIRED: 'reauthenticate',
+    ERR_409_QR_ACCOUNT_CONFLICT: 'reauthenticate',
+    ERR_403_QR_DEVICE_MISMATCH: 'retry',
+    ERR_403_QR_UNAUTH_SCAN: 'reauthenticate',
+    # Sessions
+    ERR_404_NOT_FOUND: 'retry',
+    # TOTP / step-up
+    ERR_400_TOTP_NOT_PENDING: 'retry',
+    ERR_403_STEP_UP_REQUIRED: 'verify',
+    # Magic links
+    ERR_400_INVALID_REDIRECT_URL: 'fix_input',
+    ERR_400_MAGIC_LINK_INVALID: 'retry',
+    ERR_429_MAGIC_LINK_RATE: 'wait_and_retry',
+    # Passkeys — WebAuthn ceremonies are retryable
+    ERR_400_PASSKEY_INVALID: 'retry',
+    ERR_400_PASSKEY_CHALLENGE_EXPIRED: 'retry',
+    ERR_409_PASSKEY_ALREADY_REGISTERED: 'fix_input',
+    ERR_400_LAST_AUTH_METHOD: 'fix_input',
+    ERR_404_PASSKEY_NOT_FOUND: 'retry',
+    # SSO
+    ERR_404_SSO_ORG_NOT_FOUND: 'fix_input',
+    ERR_400_SSO_NOT_CONFIGURED: 'contact_support',
+    ERR_400_SSO_INVALID_RESPONSE: 'retry',
+    ERR_403_SSO_REQUIRED: 'reauthenticate',
+    ERR_409_SSO_ORG_SLUG_TAKEN: 'fix_input',
+    # Captcha — re-solve, not a form field to fix
+    ERR_400_CAPTCHA_INVALID: 'retry',
+    ERR_400_CAPTCHA_REQUIRED: 'retry',
+}
+
+register_service_errors(AUTH_ERRORS, remediation=AUTH_REMEDIATION)
 
 
 def retry_params(retry_after):
