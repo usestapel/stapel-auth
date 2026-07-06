@@ -4,6 +4,8 @@ from django.utils import timezone
 import uuid
 from datetime import timedelta
 
+from stapel_core.access import access
+
 
 class PhoneVerification(models.Model):
     """
@@ -449,6 +451,61 @@ class OrgMembership(models.Model):
 
     def __str__(self):
         return f'{self.user} @ {self.org.slug} ({self.role})'
+
+
+# =============================================================================
+# Staff roles — assignments (admin-suite AS-2)
+# =============================================================================
+
+@access(category="business", view="high", add="high", change="high", delete="high")
+class StaffRoleAssignment(models.Model):
+    """One staff role held by one user (admin-suite AS-2, invariant A2).
+
+    Role *definitions* (name → clearance profile) are deploy config — the
+    ``STAPEL_ACCESS["ROLES"]`` merge-registry of ``stapel_core.access`` (AS-1).
+    This table stores only *assignments* (user → role name), and it exists in
+    the auth service alone: auth is the single writer, consumer services are
+    read-only recipients of the materialized ``staff_roles`` JWT claim.
+
+    ``role_name`` is a plain string validated against the settings registry at
+    assignment time — deliberately NOT a FK into a database catalog, so that a
+    runtime admin can never edit the clearance profile a name resolves to
+    (MAC stays MAC; see admin-suite §3.3).
+
+    Rows are immutable: changing a user's roles is revoke + assign, each step
+    audited by its own outbox event (``staff.role.assigned`` / ``.revoked``).
+    Access declaration: managing assignments is itself a HIGH-clearance
+    operation (admin-suite §3.3 — "доступна допуску HIGH").
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='staff_role_assignments',
+    )
+    role_name = models.CharField(max_length=100)
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='staff_roles_granted',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'staff_role_assignments'
+        ordering = ['role_name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'role_name'],
+                name='unique_staff_role_per_user',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.user} → {self.role_name}'
 
 
 # =============================================================================

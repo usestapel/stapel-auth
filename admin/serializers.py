@@ -4,7 +4,7 @@ from stapel_core.django.api.serializers import StapelDataclassSerializer
 from stapel_core.django.api.errors import StapelValidationError
 
 
-from stapel_auth.models import ServiceAPIKey
+from stapel_auth.models import ServiceAPIKey, StaffRoleAssignment
 from stapel_auth.errors import ERR_400_EMAIL_OR_PHONE_REQUIRED
 from stapel_auth.admin.dto import AdminUserCreateResponse
 
@@ -60,3 +60,25 @@ class AdminUserCreateRequestSerializer(serializers.Serializer):
 class AdminUserCreateResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = AdminUserCreateResponse
+
+
+# =============================================================================
+# Staff roles (admin-suite AS-2)
+# =============================================================================
+
+
+class StaffRoleAssignmentSerializer(serializers.ModelSerializer):
+    """One user → role assignment row (read-only representation)."""
+
+    class Meta:
+        model = StaffRoleAssignment
+        fields = ['id', 'user', 'role_name', 'assigned_by', 'created_at']
+        read_only_fields = fields
+
+
+class StaffRoleAssignRequestSerializer(serializers.Serializer):
+    """Assign a staff role: target user UUID + a role name from the
+    STAPEL_ACCESS["ROLES"] registry (validated in the service layer)."""
+
+    user_id = serializers.UUIDField()
+    role = serializers.CharField(max_length=100)

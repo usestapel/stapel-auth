@@ -412,6 +412,7 @@ class SSOUserService:
         from .services import LoginNotificationService
 
         from stapel_core.django.jwt.provider import jwt_provider as _jwt
+        from stapel_auth.staff_roles import create_tokens_for_user
         from datetime import datetime, timezone as _tz
         from .services import SessionService, AuditService as _AS
 
@@ -420,7 +421,7 @@ class SSOUserService:
         # (Calling sessions.views._issue_session_tokens here would register the
         # same refresh jti a second time and hit the UNIQUE(user_sessions.jti)
         # constraint.)
-        access_token, refresh_token = _jwt.create_tokens(user)
+        access_token, refresh_token = create_tokens_for_user(user)
         _rt_pl = _jwt.handler.decode_token(refresh_token, verify=False) or {}
         _at_pl = _jwt.handler.decode_token(access_token, verify=False) or {}
         _jti   = _rt_pl.get('jti', '')

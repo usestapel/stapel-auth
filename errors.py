@@ -84,6 +84,9 @@ ERR_409_SSO_ORG_SLUG_TAKEN = 'error.409.sso_org_slug_taken'
 # Captcha
 ERR_400_CAPTCHA_INVALID  = 'error.400.captcha_invalid'
 ERR_400_CAPTCHA_REQUIRED = 'error.400.captcha_required'
+# Staff roles (admin-suite AS-2)
+ERR_400_UNKNOWN_STAFF_ROLE = 'error.400.unknown_staff_role'
+ERR_400_STAFF_ROLE_TARGET_NOT_STAFF = 'error.400.staff_role_target_not_staff'
 
 AUTH_ERRORS = {
     ERR_401_INVALID_CREDENTIALS: 'Invalid credentials',
@@ -164,6 +167,9 @@ AUTH_ERRORS = {
     # Captcha
     ERR_400_CAPTCHA_INVALID:  'Captcha verification failed. Please try again.',
     ERR_400_CAPTCHA_REQUIRED: 'Captcha token is required.',
+    # Staff roles
+    ERR_400_UNKNOWN_STAFF_ROLE: 'Unknown staff role. Define it in the STAPEL_ACCESS["ROLES"] deploy config first.',
+    ERR_400_STAFF_ROLE_TARGET_NOT_STAFF: 'Staff roles can only be assigned to staff accounts. Make the user staff first.',
 }
 
 # Machine-readable recovery hints (remediation) — the canonical "what to do"
@@ -258,6 +264,10 @@ AUTH_REMEDIATION = {
     # Captcha — re-solve, not a form field to fix
     ERR_400_CAPTCHA_INVALID: 'retry',
     ERR_400_CAPTCHA_REQUIRED: 'retry',
+    # Staff roles — an unknown role means the deploy config lacks it, an
+    # operator input problem in both cases
+    ERR_400_UNKNOWN_STAFF_ROLE: 'fix_input',
+    ERR_400_STAFF_ROLE_TARGET_NOT_STAFF: 'fix_input',
 }
 
 register_service_errors(AUTH_ERRORS, remediation=AUTH_REMEDIATION)

@@ -346,7 +346,7 @@ Issues tokens for the waiting device. The device polling `/status` will receive 
         permission_classes=[permissions.IsAuthenticated],
     )
     def confirm(self, request, key=None):
-        from stapel_core.django.jwt.provider import jwt_provider
+        from stapel_auth.staff_roles import create_tokens_for_user
 
         data = QRAuthService.get(key)
         if data is None:
@@ -356,7 +356,7 @@ Issues tokens for the waiting device. The device polling `/status` will receive 
         if data["type"] != QRType.LOGIN_REQUEST:
             return StapelErrorResponse(400, ERR_400_QR_TYPE_REQUIRED)
 
-        access_token, refresh_token = jwt_provider.create_tokens(request.user)
+        access_token, refresh_token = create_tokens_for_user(request.user)
         QRAuthService.fulfill_login_request(
             key,
             approver_user_id=request.user.id,

@@ -14,7 +14,7 @@ Full-featured authentication as a single pip-installable Django app (`stapel_aut
 - **GDPR provider** (`gdpr.py: AuthGDPRProvider`, section `auth`): export/delete of auth data; registered in-process in monolith mode, or run as a bus consumer (`manage.py consume_gdpr`) in microservices mode.
 - **Flow registry** (`flows.py`): documented business flows consumed by `stapel_core.flows` tooling.
 
-Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`, `PROVIDER_REGISTRY`, and the per-feature URL factories `get_admin_api_urls`, `get_magic_link_urls`, `get_mfa_urls`, `get_oauth_urls`, `get_openid_urls`, `get_otp_urls`, `get_password_urls`, `get_qr_urls`, `get_security_urls`, `get_sessions_urls`, `get_sso_urls`, `get_verification_urls`.
+Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`, `PROVIDER_REGISTRY`, the staff-role assignment services `assign_staff_role`, `revoke_staff_role`, `staff_roles_for` (admin-suite AS-2, see below), and the per-feature URL factories `get_admin_api_urls`, `get_magic_link_urls`, `get_mfa_urls`, `get_oauth_urls`, `get_openid_urls`, `get_otp_urls`, `get_password_urls`, `get_qr_urls`, `get_security_urls`, `get_sessions_urls`, `get_sso_urls`, `get_verification_urls`.
 
 ## Extension points (fork-free)
 
@@ -127,6 +127,8 @@ Emitted events (`stapel_core.comm.emit`, transactional outbox; schemas in `schem
 | `user.registered` | `{user_id, auth_type, email}` (`events.py: UserRegisteredPayload`) | First successful auth of a new account (`otp/views.py: _notify_user_registered`) — profile/workspace creation is done by subscribers |
 | `user.session_created` | `{user_id, session_id, device_type, ip_address, created_at}` | Schema declared; **no `emit()` call in code yet** (see gaps) |
 | `user.session_revoked` | schema in `schemas/emits/` | Schema declared; **no `emit()` call in code yet** (see gaps) |
+| `staff.role.assigned` | `{user_id, role, staff_roles, actor_id}` (`events.py: StaffRoleAssignedPayload`; `staff_roles` = full list **after** the change) | A staff role was assigned (`staff_roles.py: assign_staff_role` — admin, API, or direct service call). Audit stream for eventstore/notifications (admin-suite §3.8) |
+| `staff.role.revoked` | `{user_id, role, staff_roles, actor_id}` (`events.py: StaffRoleRevokedPayload`) | A staff role was revoked (`staff_roles.py: revoke_staff_role`) |
 | `notification.requested` | via `stapel_core.notifications.request_notification` | All outbound mail/SMS: types `otp_code`, `magic_link_login`, `new_device_login`, `suspicious_login`, `all_sessions_revoked`, `welcome`, `auth_change_requested` / `_reminder` / `_urgent` / `_completed`. Templates live in the notifications service — copy changes are **not** an auth fork |
 
 Provided functions (`functions.py`, registered in `ready()`; schema in `schemas/functions/`):
@@ -136,6 +138,78 @@ Provided functions (`functions.py`, registered in `ready()`; schema in `schemas/
 | `auth.verification.policy` | `{user_id}` → `{disabled_scopes, enabled_scopes}` | `stapel_core.verification.policy.get_user_policy` (cached core-side) |
 
 Consumed events: `gdpr.export.requested`, `gdpr.delete.requested` — only in microservices mode, via `manage.py consume_gdpr` (`management/commands/consume_gdpr.py`, service name `auth`). stapel-auth calls no other module's functions.
+
+### Staff roles — assignments + JWT transport (admin-suite AS-2)
+
+Role **definitions** (name → clearance profile) are deploy config owned by
+`stapel_core.access` (AS-1: `STAPEL_ACCESS["ROLES"]` merge-registry over the
+builtins `viewer`/`editor`/`admin`). This module owns role **assignments**
+(user → role names) and their transport. Invariant A2: the auth service is the
+*single writer* — consumer services never grow an assignment table; they read
+the claim.
+
+**Model**: `StaffRoleAssignment` (`models.py`, table `staff_role_assignments`)
+— `user` FK + `role_name` string (validated against the registry at write
+time, deliberately NOT a FK into a DB catalog), unique per (user, role).
+Declared `@access(view/add/change/delete = HIGH)`: with the AS-1 mandate
+backends installed, only clearance-HIGH staff manage assignments (step-up on
+HIGH operations arrives with AS-6). Targets must already be staff — assigning
+a role to a non-staff account is refused (dormant-privilege guard).
+
+**Write paths** (each emits its outbox audit event in the same transaction):
+
+- Services: `stapel_auth.staff_roles.assign_staff_role(user, role, assigned_by=None)`
+  / `revoke_staff_role(user, role, revoked_by=None)` (exported lazily from the
+  package root).
+- Django admin: `StaffRoleAssignmentAdmin` (immutable rows — change = revoke +
+  assign; writes routed through the services so events are never skipped).
+- API: `GET|POST /staff-roles/`, `DELETE /staff-roles/<assignment_id>/`
+  (`admin/views.py: StaffRoleViewSet`) — staff + the corresponding
+  `authentication.*_staffroleassignment` model permission (mandate/DAC/superuser).
+
+**JWT claim contract** (`staff_roles.py: serialize_user_to_jwt_data` /
+`create_tokens_for_user` — every token-issuance path in this module goes
+through it):
+
+```jsonc
+{
+  "user_id": "…", "is_staff": true, "is_superuser": false, …,
+  "staff_roles": ["accountant", "editor"]   // staff/superuser tokens only
+}
+```
+
+- **Staff tokens always carry the claim, an empty list included.** The empty
+  list is authoritative ("zero roles") — it is what lets a revocation
+  propagate to consumers under REPLACE sync-down (в.3). Sorted, so the claim
+  is byte-stable across refreshes.
+- **Non-staff tokens carry no claim** — same shape as pre-AS-2 tokens.
+  Consumers treat a missing claim as "no information" and must not touch
+  their local `staff_roles` copy (an old token can neither grant nor revoke).
+- Role names unknown to a consumer's registry are ignored there
+  (forward-compatible; admin-suite §3.3).
+- Every refresh re-reads roles from the DB (`sessions/views.py:
+  load_user_data`), so revocation latency ≤ access-token lifetime (A3);
+  immediate revocation — the existing Redis user-blacklist.
+
+**Sync-down (consumer side)** lives in stapel-core
+(`get_or_create_user_from_jwt`): local `staff_roles` (and, per в.3,
+`is_staff`/`is_superuser`) are REPLACED from the claim, and the validated
+claim is stamped onto the request user as `_stapel_staff_roles_claim` so
+`MandateBackend`'s claim source reads the *fresh token*, not a stale field.
+
+**Auth-service mandate wiring** — on the auth service itself, point the AS-1
+role-source seam at the assignment table (fresher than any claim; revocation
+is effective on the next request):
+
+```python
+STAPEL_ACCESS = {
+    "ROLE_SOURCES": [
+        "stapel_auth.staff_roles.assignment_roles",   # auth DB is the truth
+        "stapel_core.access.sources.claim_roles",
+        "stapel_core.access.sources.group_roles",
+    ],
+}
+```
 
 ### Signals
 

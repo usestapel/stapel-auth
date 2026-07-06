@@ -12,6 +12,10 @@ from importlib import import_module
 _LAZY_EXPORTS = {
     "auth_settings": (".conf", "auth_settings"),
     "PROVIDER_REGISTRY": (".oauth_providers", "PROVIDER_REGISTRY"),
+    # Staff roles (admin-suite AS-2) — single-writer assignment services.
+    "assign_staff_role": (".staff_roles", "assign_staff_role"),
+    "revoke_staff_role": (".staff_roles", "revoke_staff_role"),
+    "staff_roles_for": (".staff_roles", "staff_roles_for"),
     "get_admin_api_urls": (".urls", "get_admin_api_urls"),
     "get_magic_link_urls": (".urls", "get_magic_link_urls"),
     "get_mfa_urls": (".urls", "get_mfa_urls"),

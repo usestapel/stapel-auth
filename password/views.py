@@ -330,8 +330,9 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         permission_classes=[permissions.AllowAny],
     )
     def reset_email_verify(self, request):
-        from stapel_core.django.jwt.provider import jwt_provider
         from stapel_core.django.jwt.utils import set_jwt_cookies
+
+        from stapel_auth.staff_roles import create_tokens_for_user
 
         serializer = self.get_reset_email_verify_request_serializer_class()(
             data=request.data
@@ -342,7 +343,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             code=serializer.validated_data["code"],
             new_password=serializer.validated_data["new_password"],
         )
-        access_token, refresh_token = jwt_provider.create_tokens(user)
+        access_token, refresh_token = create_tokens_for_user(user)
         dto = AuthResponse(
             status=AuthStatus.LOGGED_IN,
             user=user,
@@ -394,8 +395,9 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         permission_classes=[permissions.AllowAny],
     )
     def reset_phone_verify(self, request):
-        from stapel_core.django.jwt.provider import jwt_provider
         from stapel_core.django.jwt.utils import set_jwt_cookies
+
+        from stapel_auth.staff_roles import create_tokens_for_user
 
         serializer = self.get_reset_phone_verify_request_serializer_class()(
             data=request.data
@@ -406,7 +408,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             code=serializer.validated_data["code"],
             new_password=serializer.validated_data["new_password"],
         )
-        access_token, refresh_token = jwt_provider.create_tokens(user)
+        access_token, refresh_token = create_tokens_for_user(user)
         dto = AuthResponse(
             status=AuthStatus.LOGGED_IN,
             user=user,

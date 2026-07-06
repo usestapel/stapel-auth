@@ -28,7 +28,7 @@ from stapel_auth.security.views import SecurityStatusViewSet, AuditLogViewSet, R
 from stapel_auth.magic_link.views import MagicLinkViewSet
 from stapel_auth.verification.views import VerificationPreferenceViewSet, VerificationViewSet
 from stapel_auth.openid.views import JWKSView, OpenIDConfigurationView, TokenIntrospectView
-from stapel_auth.admin.views import ServiceAPIKeyViewSet, AdminUserViewSet, CapabilitiesView
+from stapel_auth.admin.views import ServiceAPIKeyViewSet, AdminUserViewSet, CapabilitiesView, StaffRoleViewSet
 from .sso_views import (
     SSODomainLookupView, SAMLMetadataView, SSOLoginView, SAMLACSView,
     OIDCCallbackView, SSOAdminViewSet,
@@ -270,6 +270,10 @@ def get_admin_api_urls(enabled=None):
 
         # ── Admin Audit Log ───────────────────────────────────────────────────
         path('admin/audit/', AdminAuditLogViewSet.as_view({'get': 'list_logs'}), name='admin-audit'),
+
+        # ── Staff Roles (admin-suite AS-2; auth is the single writer, A2) ────
+        path('staff-roles/', StaffRoleViewSet.as_view({'get': 'list_assignments', 'post': 'assign'}), name='staff-roles'),
+        path('staff-roles/<uuid:assignment_id>/', StaffRoleViewSet.as_view({'delete': 'revoke'}), name='staff-role-detail'),
     ]
 
 

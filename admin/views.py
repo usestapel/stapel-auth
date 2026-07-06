@@ -15,8 +15,10 @@ from stapel_auth.admin.serializers import (
     AdminUserCreateRequestSerializer,
     AdminUserCreateResponseSerializer,
     ServiceAPIKeySerializer,
+    StaffRoleAssignmentSerializer,
+    StaffRoleAssignRequestSerializer,
 )
-from stapel_auth.models import ServiceAPIKey
+from stapel_auth.models import ServiceAPIKey, StaffRoleAssignment
 
 logger = logging.getLogger(__name__)
 
@@ -127,3 +129,140 @@ class AdminUserViewSet(viewsets.GenericViewSet):
             username=user.username,
         )
         return StapelResponse(AdminUserCreateResponseSerializer(dto), status=201)
+
+
+# ── Staff roles (admin-suite AS-2) ────────────────────────────────────────────
+
+
+class StaffRoleViewSet(viewsets.GenericViewSet):
+    """Manage staff role assignments — the auth service is the single writer
+    of user → role mappings (admin-suite invariant A2).
+
+    Gating: staff + the corresponding Django model permission on
+    ``StaffRoleAssignment``. With the AS-1 mandate backends configured this
+    resolves to clearance HIGH (the model is declared all-HIGH); without
+    them it falls back to superuser / explicit DAC grants — never to plain
+    staff. Writes go through ``stapel_auth.staff_roles`` services, so every
+    change emits its ``staff.role.assigned`` / ``staff.role.revoked`` audit
+    event through the outbox.
+    """
+
+    permission_classes = [permissions.IsAdminUser]
+    queryset = StaffRoleAssignment.objects.all()
+    serializer_class = StaffRoleAssignmentSerializer
+
+    _PERM_BY_ACTION = {
+        "list_assignments": "view",
+        "assign": "add",
+        "revoke": "delete",
+    }
+
+    def _permitted(self, request) -> bool:
+        op = self._PERM_BY_ACTION[self.action]
+        return request.user.has_perm(f"authentication.{op}_staffroleassignment")
+
+    @extend_schema(
+        tags=["Staff Roles"],
+        description=(
+            "List staff role assignments, optionally filtered by ?user_id=. "
+            "Requires the view permission on StaffRoleAssignment "
+            "(clearance HIGH under the mandate)."
+        ),
+        responses={200: StaffRoleAssignmentSerializer(many=True), 403: None},
+    )
+    @action(detail=False, methods=["get"])
+    def list_assignments(self, request):
+        from stapel_core.django.api.errors import error_403_forbidden
+
+        if not self._permitted(request):
+            return error_403_forbidden()
+        qs = self.get_queryset().order_by("user_id", "role_name")
+        user_id = request.query_params.get("user_id")
+        if user_id:
+            qs = qs.filter(user_id=user_id)
+        return StapelResponse(StaffRoleAssignmentSerializer(qs, many=True))
+
+    @extend_schema(
+        tags=["Staff Roles"],
+        description=(
+            "Assign a staff role (a name from the STAPEL_ACCESS['ROLES'] "
+            "registry) to a staff user. Idempotent: 201 on a new assignment, "
+            "200 when it already existed. Emits staff.role.assigned."
+        ),
+        request=StaffRoleAssignRequestSerializer,
+        responses={201: StaffRoleAssignmentSerializer, 400: None, 403: None, 404: None},
+    )
+    @action(detail=False, methods=["post"])
+    def assign(self, request):
+        from django.contrib.auth import get_user_model
+        from stapel_core.django.api.errors import (
+            StapelErrorResponse,
+            error_403_forbidden,
+        )
+
+        from stapel_auth.errors import (
+            ERR_400_STAFF_ROLE_TARGET_NOT_STAFF,
+            ERR_400_UNKNOWN_STAFF_ROLE,
+            ERR_404_NOT_FOUND,
+        )
+        from stapel_auth.staff_roles import (
+            StaffRoleTargetNotStaffError,
+            UnknownStaffRoleError,
+            assign_staff_role,
+        )
+
+        if not self._permitted(request):
+            return error_403_forbidden()
+
+        serializer = StaffRoleAssignRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        User = get_user_model()
+        target = User.objects.filter(pk=data["user_id"]).first()
+        if target is None:
+            return StapelErrorResponse(404, ERR_404_NOT_FOUND)
+
+        try:
+            assignment, created = assign_staff_role(
+                target, data["role"], assigned_by=request.user
+            )
+        except UnknownStaffRoleError:
+            return StapelErrorResponse(400, ERR_400_UNKNOWN_STAFF_ROLE)
+        except StaffRoleTargetNotStaffError:
+            return StapelErrorResponse(400, ERR_400_STAFF_ROLE_TARGET_NOT_STAFF)
+
+        return StapelResponse(
+            StaffRoleAssignmentSerializer(assignment),
+            status=201 if created else 200,
+        )
+
+    @extend_schema(
+        tags=["Staff Roles"],
+        description=(
+            "Revoke a staff role assignment by its id. "
+            "Emits staff.role.revoked."
+        ),
+        responses={204: None, 403: None, 404: None},
+    )
+    @action(detail=True, methods=["delete"])
+    def revoke(self, request, assignment_id=None):
+        from stapel_core.django.api.errors import (
+            StapelErrorResponse,
+            error_403_forbidden,
+        )
+
+        from stapel_auth.errors import ERR_404_NOT_FOUND
+        from stapel_auth.staff_roles import revoke_staff_role
+
+        if not self._permitted(request):
+            return error_403_forbidden()
+
+        assignment = StaffRoleAssignment.objects.filter(pk=assignment_id).first()
+        if assignment is None:
+            return StapelErrorResponse(404, ERR_404_NOT_FOUND)
+
+        revoke_staff_role(
+            assignment.user, assignment.role_name, revoked_by=request.user
+        )
+        return StapelResponse(status=204)

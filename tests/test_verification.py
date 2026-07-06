@@ -665,6 +665,9 @@ LEGACY_FLOW_ALLOWLIST = (
     "drf_format_suffix",
     "/capabilities/",
     "/admin-users/",
+    # Staff-only management surface (admin-suite AS-2) — same class of
+    # endpoint as /admin-users/ and service-keys, not a user-facing flow.
+    "/staff-roles/",
     "/password/methods",
     "/password/change",
     "/password/reset",

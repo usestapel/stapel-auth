@@ -364,6 +364,13 @@
     "en": "SSO is not configured for this organization."
   },
   {
+    "code": "error.400.staff_role_target_not_staff",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Staff roles can only be assigned to staff accounts. Make the user staff first."
+  },
+  {
     "code": "error.400.token_required",
     "status": 400,
     "params": [],
@@ -376,6 +383,13 @@
     "params": [],
     "remediation": "retry",
     "en": "No pending TOTP setup. Call /totp/setup/ first."
+  },
+  {
+    "code": "error.400.unknown_staff_role",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Unknown staff role. Define it in the STAPEL_ACCESS[\"ROLES\"] deploy config first."
   },
   {
     "code": "error.400.validation_error",

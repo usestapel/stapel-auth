@@ -63,7 +63,6 @@ class CustomTokenObtainPairView(SerializerSeamsMixin, APIView):
     response_serializer_class = TokenPairSerializer
 
     def post(self, request):
-        from stapel_core.django.jwt_provider import jwt_provider
         from stapel_core.django.utils import set_jwt_cookies
 
         # Accept both 'username' and 'email' as login field (for backwards compatibility)
@@ -92,8 +91,10 @@ class CustomTokenObtainPairView(SerializerSeamsMixin, APIView):
         if not user.is_active:
             return StapelErrorResponse(401, ERR_401_ACCOUNT_DISABLED)
 
-        # Create tokens using jwt_provider
-        access_token, refresh_token = jwt_provider.create_tokens(user)
+        # Create tokens (staff tokens carry the staff_roles claim — AS-2)
+        from stapel_auth.staff_roles import create_tokens_for_user
+
+        access_token, refresh_token = create_tokens_for_user(user)
 
         # Update last login
         from django.utils import timezone
@@ -197,7 +198,10 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
         def load_user_data(user_id: str):
             try:
                 user = User.objects.get(pk=user_id)
-                from stapel_core.django.utils import serialize_user_to_jwt_data
+                # AS-2: fresh staff_roles claim on every refresh — this is
+                # what bounds role-revocation latency by the access-token
+                # lifetime (admin-suite A3).
+                from stapel_auth.staff_roles import serialize_user_to_jwt_data
 
                 return serialize_user_to_jwt_data(user)
             except User.DoesNotExist:
@@ -281,9 +285,11 @@ def _issue_session_tokens(user, request):
 
     from stapel_core.django.jwt_provider import jwt_provider
 
+    from stapel_auth.staff_roles import create_tokens_for_user
+
     from .services import AuditService, LoginNotificationService, SessionService
 
-    access_token, refresh_token = jwt_provider.create_tokens(user)
+    access_token, refresh_token = create_tokens_for_user(user)
     rt_payload = jwt_provider.handler.decode_token(refresh_token, verify=False) or {}
     at_payload = jwt_provider.handler.decode_token(access_token, verify=False) or {}
     jti = rt_payload.get("jti", "")

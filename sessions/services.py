@@ -49,9 +49,9 @@ class TokenService:
     @staticmethod
     def create_tokens_for_user(user):
         """Create access and refresh tokens for user with custom claims"""
-        from stapel_core.django.jwt_provider import jwt_provider
+        from stapel_auth.staff_roles import create_tokens_for_user
 
-        access_token, refresh_token = jwt_provider.create_tokens(user)
+        access_token, refresh_token = create_tokens_for_user(user)
 
         return {
             'refresh': refresh_token,
@@ -67,9 +67,9 @@ class TokenService:
         - str(result) -> refresh token
         - str(result.access_token) -> access token
         """
-        from stapel_core.django.jwt_provider import jwt_provider
+        from stapel_auth.staff_roles import create_tokens_for_user
 
-        access_token, refresh_token = jwt_provider.create_tokens(user)
+        access_token, refresh_token = create_tokens_for_user(user)
         return TokenPair(access_token, refresh_token)
 
     @staticmethod

@@ -2,6 +2,61 @@
 
 ## [Unreleased]
 
+### Added — staff role assignments + `staff_roles` JWT claim (admin-suite AS-2)
+
+Producer half of the staff-role transport: role *definitions* stay in deploy
+config (`stapel_core.access`, AS-1); role *assignments* now live in the auth
+service — the single writer (invariant A2) — and ride every staff JWT.
+
+- **`StaffRoleAssignment` model** (migration `0013`, table
+  `staff_role_assignments`): user → role-name string, unique per pair,
+  `assigned_by` audit column. `role_name` is validated against the
+  `STAPEL_ACCESS["ROLES"]` registry at write time — deliberately not a FK
+  into a DB catalog, so definitions stay un-editable at runtime (MAC).
+  Declared `@access(view/add/change/delete = "high")` — clearance-HIGH
+  surface under the AS-1 mandate. Targets must already be staff
+  (dormant-privilege guard: `error.400.staff_role_target_not_staff`).
+- **Services** `assign_staff_role` / `revoke_staff_role` / `staff_roles_for`
+  (`staff_roles.py`; exported from the package root): idempotent writes that
+  emit `staff.role.assigned` / `staff.role.revoked` (schemas in
+  `schemas/emits/`, payload carries the full role list *after* the change)
+  through the transactional outbox — row and audit event commit together.
+- **`staff_roles` JWT claim.** Every token-issuance path (obtain pair,
+  refresh, password reset, QR confirm, SSO, `TokenService`,
+  `_issue_session_tokens`) now goes through
+  `staff_roles.create_tokens_for_user`, which appends the sorted role list to
+  staff/superuser payloads. **Staff tokens always carry the claim — an empty
+  list included** (authoritative-empty: this is what makes a revocation reach
+  consumer services under REPLACE sync-down). Non-staff tokens carry no claim
+  (identical to pre-AS-2 tokens: consumers must treat absence as "no
+  information"). Refresh re-reads roles from the DB, so revocation latency is
+  bounded by the access-token lifetime (A3); immediate revocation remains the
+  Redis user-blacklist.
+- **Django admin** for assignments (immutable rows — change = revoke +
+  assign; writes routed through the services so audit events are never
+  skipped) and a management **API**: `GET|POST /staff-roles/`,
+  `DELETE /staff-roles/<assignment_id>/` — gated by staff +
+  `authentication.*_staffroleassignment` model permissions
+  (mandate / DAC / superuser; never "any staff").
+- **AS-1 wiring for the auth service**: `stapel_auth.staff_roles.assignment_roles`
+  is a ready-made `STAPEL_ACCESS["ROLE_SOURCES"]` source reading the
+  assignment table directly (fresher than any claim). See MODULE.md.
+- New error keys: `error.400.unknown_staff_role`,
+  `error.400.staff_role_target_not_staff` (docs/errors.json regenerated).
+
+**Heads-up (в.3, breaking on the consumer side when the stapel-core
+counterpart lands):** the sync-down in stapel-core's
+`get_or_create_user_from_jwt` switches from "upgrade-only" to **REPLACE from
+the claim** for `staff_roles` AND for the `is_staff` / `is_superuser`
+booleans — auth becomes the source of truth for staff status everywhere.
+Migration path for services that today rely on *locally assigned* staff
+flags on shadow users: recreate those staffs in the auth service (e.g. via
+`POST /admin-users/` + role assignment) **before** upgrading stapel-core;
+after the upgrade a login with a fresh token overwrites local
+`is_staff`/`is_superuser` with the auth-side values. Old tokens without the
+claim change nothing (absence = no information), so mixed fleets degrade
+safely during rollout.
+
 ### Fixed — shadowed `admin.py` never loaded in production (auth-tails)
 
 - **The Django admin registrations were invisible in production.** The

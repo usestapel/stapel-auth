@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "staff.role.assigned",
+  "description": "A staff role was assigned to a user in the auth service (single writer, admin-suite A2). staff_roles is the complete role list after the change.",
+  "type": "object",
+  "required": ["user_id", "role", "staff_roles"],
+  "properties": {
+    "user_id":     { "type": "string", "format": "uuid" },
+    "role":        { "type": "string" },
+    "staff_roles": { "type": "array", "items": { "type": "string" } },
+    "actor_id":    { "type": ["string", "null"], "format": "uuid" }
+  },
+  "additionalProperties": false
+}

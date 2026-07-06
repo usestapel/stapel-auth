@@ -480,6 +480,8 @@ _EXPECTED_URLS = {
     'capabilities': 'capabilities/',
     'admin-users': 'admin-users/',
     'admin-audit': 'admin/audit/',
+    'staff-roles': 'staff-roles/',
+    'staff-role-detail': 'staff-roles/<uuid:assignment_id>/',
 }
 
 
