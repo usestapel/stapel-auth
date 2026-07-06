@@ -293,6 +293,63 @@ class SecurityServiceCleanupTests(TestCase):
         SecurityService.cleanup_expired_verifications()
         self.assertTrue(PhoneVerification.objects.filter(pk=v.pk).exists())
 
+    def _make_anon(self, username, created_at):
+        from django.contrib.auth import get_user_model
+
+        return get_user_model().objects.create(
+            username=username,
+            auth_type="anonymous",
+            is_anonymous=True,
+            anonymous_created_at=created_at,
+        )
+
+    def test_cleanup_expired_anonymous_users_deletes_expired(self):
+        # Regression: the method read settings.ANONYMOUS_USER_LIFETIME (missing
+        # key, timedelta-typed) and raised AttributeError on every call. It now
+        # reads auth_settings.ANONYMOUS_USER_LIFETIME_DAYS (int days).
+        from stapel_auth.services import SecurityService
+
+        old = self._make_anon("anon_old", timezone.now() - timedelta(days=31))
+        count = SecurityService.cleanup_expired_anonymous_users()
+        self.assertGreaterEqual(count, 1)
+        self.assertFalse(type(old).objects.filter(pk=old.pk).exists())
+
+    def test_cleanup_expired_anonymous_users_keeps_recent(self):
+        from stapel_auth.services import SecurityService
+
+        recent = self._make_anon("anon_recent", timezone.now() - timedelta(days=1))
+        SecurityService.cleanup_expired_anonymous_users()
+        self.assertTrue(type(recent).objects.filter(pk=recent.pk).exists())
+
+    def test_cleanup_expired_anonymous_users_keeps_non_anonymous(self):
+        from django.contrib.auth import get_user_model
+        from stapel_auth.services import SecurityService
+
+        User = get_user_model()
+        regular = User.objects.create(
+            username="regular_user",
+            auth_type="email",
+            is_anonymous=False,
+            anonymous_created_at=timezone.now() - timedelta(days=99),
+        )
+        SecurityService.cleanup_expired_anonymous_users()
+        self.assertTrue(User.objects.filter(pk=regular.pk).exists())
+
+    def test_cleanup_expired_anonymous_users_respects_configured_lifetime(self):
+        from django.test import override_settings
+        from stapel_auth.services import SecurityService
+
+        User = type(self._make_anon("anon_seed", timezone.now() - timedelta(days=5)))
+        User.objects.filter(username="anon_seed").delete()
+        u = self._make_anon("anon_5d", timezone.now() - timedelta(days=5))
+        # Default lifetime is 30 days -> 5-day-old user survives.
+        SecurityService.cleanup_expired_anonymous_users()
+        self.assertTrue(User.objects.filter(pk=u.pk).exists())
+        # Shrink the lifetime to 3 days -> same user is now expired.
+        with override_settings(STAPEL_AUTH={"ANONYMOUS_USER_LIFETIME_DAYS": 3}):
+            SecurityService.cleanup_expired_anonymous_users()
+        self.assertFalse(User.objects.filter(pk=u.pk).exists())
+
 
 # ---------------------------------------------------------------------------
 # PhoneVerificationService — error branches

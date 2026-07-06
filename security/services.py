@@ -1,5 +1,4 @@
 """Service classes for security operations: SecurityService and LockoutService."""
-from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 import logging
@@ -33,12 +32,14 @@ class SecurityService:
     def cleanup_expired_anonymous_users():
         """Clean up expired anonymous users"""
         from django.contrib.auth import get_user_model
+        from stapel_auth.conf import auth_settings
 
         User = get_user_model()
 
+        lifetime = timedelta(days=auth_settings.ANONYMOUS_USER_LIFETIME_DAYS)
         expired_users = User.objects.filter(
             is_anonymous=True,
-            anonymous_created_at__lt=timezone.now() - settings.ANONYMOUS_USER_LIFETIME
+            anonymous_created_at__lt=timezone.now() - lifetime
         )
 
         count = expired_users.count()

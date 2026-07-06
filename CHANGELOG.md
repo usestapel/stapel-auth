@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed — `cleanup_expired_anonymous_users` raised `AttributeError` on every call (quality-auth-coverage)
+
+- `SecurityService.cleanup_expired_anonymous_users()` read
+  `settings.ANONYMOUS_USER_LIFETIME` — a key that does not exist (the configured
+  key is `STAPEL_AUTH['ANONYMOUS_USER_LIFETIME_DAYS']`, an int number of days, not
+  a `timedelta`), so any invocation crashed with `AttributeError` before deleting
+  anything. It now reads `auth_settings.ANONYMOUS_USER_LIFETIME_DAYS` and builds
+  the cutoff with `timedelta(days=...)`. Covered by regression tests.
+
 ### Removed — dead code excised (quality-auth-coverage)
 
 - **`security_views.py` deleted (271 statements).** The module was fully
