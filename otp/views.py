@@ -218,15 +218,6 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             ip = request.META.get("REMOTE_ADDR")
         return ip
 
-    def set_auth_cookies(self, response, refresh_token):
-        """Set JWT tokens as HTTP-only cookies"""
-        from stapel_core.django.utils import set_jwt_cookies
-
-        access_token = str(refresh_token.access_token)
-        refresh_token_str = str(refresh_token)
-        set_jwt_cookies(response, access_token, refresh_token_str)
-        return response
-
     def log_login_attempt(self, identifier, attempt_type, request):
         """Log login attempt"""
         try:

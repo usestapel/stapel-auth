@@ -9,7 +9,6 @@ from stapel_core.django.captcha import CaptchaMixin
 from stapel_auth.errors import (
     ERR_400_INVALID_PHONE,
     ERR_400_INVALID_PHONE_FORMAT,
-    ERR_400_PASSWORDS_DONT_MATCH,
     ERR_400_PHONE_TOO_LONG,
 )
 from stapel_auth.password.dto import (
@@ -113,28 +112,6 @@ class PasswordResetPhoneVerifySerializer(serializers.Serializer):
     def validate_new_password(self, value):
         validate_password(value)
         return value
-
-
-class PasswordResetSerializer(serializers.Serializer):
-    """Serializer for password reset request"""
-
-    email = serializers.EmailField()
-
-
-class PasswordResetConfirmSerializer(serializers.Serializer):
-    """Serializer for password reset confirmation"""
-
-    uid = serializers.CharField()
-    token = serializers.CharField()
-    new_password = serializers.CharField(
-        write_only=True, validators=[validate_password]
-    )
-    new_password2 = serializers.CharField(write_only=True)
-
-    def validate(self, attrs):
-        if attrs["new_password"] != attrs["new_password2"]:
-            raise StapelValidationError(ERR_400_PASSWORDS_DONT_MATCH)
-        return attrs
 
 
 class PasswordMethodSerializer(StapelDataclassSerializer):

@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Removed — dead code excised (quality-auth-coverage)
+
+- **`security_views.py` deleted (271 statements).** The module was fully
+  superseded by the feature packages (`security/`, `magic_link/`, `mfa/`) and was
+  no longer wired into `urls.py` nor imported anywhere. Not part of the public
+  surface (`__init__.py` lazy exports, `MODULE.md`, `README`, `schemas/`), so its
+  removal touches no documented API.
+- **`oauth/providers.py` deleted (148 statements).** A byte-for-byte duplicate of
+  the canonical top-level `oauth_providers.py` (which `apps.py` registers and
+  `__init__.py` re-exports `PROVIDER_REGISTRY` from). Its only live reference —
+  `oauth/services.py` importing `get_enabled_providers` — now points at the
+  canonical module; the function is behaviour-identical (both query the shared
+  `stapel_core.oauth` registry).
+- **`OTPViewSet.set_auth_cookies` removed** — an unreferenced helper with zero
+  call sites (JWT-cookie setting goes through `stapel_core.django.utils`
+  directly).
+- **Unused `PasswordResetSerializer` / `PasswordResetConfirmSerializer` removed**
+  from `password/serializers.py` — never imported; the live password-reset flow
+  uses the `PasswordReset{Email,Phone}{Request,Verify}Serializer` family.
+- These modules/symbols were dead (not reachable from any URL, registry, or
+  public export), so despite being source-level removals the change is
+  behaviour-preserving — released as a patch.
+
 ### Deprecated — step-up unification: the verification envelope is the one step-up contract (auth-stepup-unification)
 
 - **`POST /totp/step-up/` is deprecated (removed in 1.0).** The endpoint keeps

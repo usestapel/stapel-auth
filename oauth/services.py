@@ -33,7 +33,7 @@ class AuthCapabilitiesService:
             OAuthProviderInfo,
             RegistrationCapabilities,
         )
-        from stapel_auth.oauth.providers import get_enabled_providers
+        from stapel_auth.oauth_providers import get_enabled_providers
 
         s = auth_settings
         phone_real = not s.USE_MOCK_SMS_OTP
