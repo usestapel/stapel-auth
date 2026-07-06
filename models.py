@@ -7,6 +7,7 @@ from datetime import timedelta
 from stapel_core.access import access
 
 
+@access.ops  # TTL-expiring OTP junk (admin-suite AS-5)
 class PhoneVerification(models.Model):
     """
     Model to store phone verification codes
@@ -46,6 +47,7 @@ class PhoneVerification(models.Model):
         return f"{self.phone} - {self.code}"
 
 
+@access.ops  # TTL-expiring OTP junk (admin-suite AS-5)
 class EmailVerification(models.Model):
     """
     Model to store email verification codes
@@ -85,6 +87,7 @@ class EmailVerification(models.Model):
         return f"{self.email} - {self.code}"
 
 
+@access.secret  # API key carrier (admin-suite AS-5)
 class ServiceAPIKey(models.Model):
     """
     Model for service-to-service authentication
@@ -113,6 +116,7 @@ class ServiceAPIKey(models.Model):
         return f"sk_{uuid.uuid4().hex}"
 
 
+@access.secret  # raw refresh token carrier (admin-suite AS-5)
 class RefreshTokenTracker(models.Model):
     """
     Track refresh tokens for additional security
@@ -178,6 +182,7 @@ class UserSession(models.Model):
         return timezone.now() > self.expires_at
 
 
+@access.secret  # TOTP shared secret + hashed backup codes (admin-suite AS-5)
 class TOTPDevice(models.Model):
     """
     TOTP second-factor device for a user (one per user).
@@ -212,6 +217,8 @@ class AuthenticatorChangeStatus(models.TextChoices):
     EXPIRED = 'expired', 'Expired'
 
 
+@access.ops  # change-flow workflow/audit record (admin-suite AS-5); the
+# live change_token is masked explicitly on the admin (see admin/__init__.py)
 class AuthenticatorChangeRequest(models.Model):
     """
     Tracks pending authenticator (phone/email) change requests.
@@ -275,6 +282,7 @@ class AuthenticatorChangeRequest(models.Model):
         return f"{self.user} - {self.change_type} - {self.status}"
 
 
+@access.ops  # security audit log (admin-suite AS-5)
 class LoginAttempt(models.Model):
     """
     Track login attempts for security purposes
@@ -328,6 +336,7 @@ class AuthEventType(models.TextChoices):
     CAPTCHA_FAILED      = 'captcha_failed'
 
 
+@access.ops  # audit log (admin-suite AS-5)
 class AuthAuditLog(models.Model):
     id          = models.UUIDField(primary_key=True, default=uuid.uuid4)
     user        = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
@@ -391,6 +400,7 @@ class Organization(models.Model):
         return f'{self.name} ({self.slug})'
 
 
+@access.secret  # carries oidc_client_secret (admin-suite AS-5)
 class SSOConfig(models.Model):
     PROTOCOL_SAML = 'saml'
     PROTOCOL_OIDC = 'oidc'

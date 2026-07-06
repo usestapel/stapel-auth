@@ -211,6 +211,45 @@ STAPEL_ACCESS = {
 }
 ```
 
+### Admin categories — `@access` declarations (admin-suite AS-5)
+
+Every model in `models.py` carries (or implicitly defaults to) a
+`stapel_core.access.access` category — one declaration, consumed by admin
+visibility, default staff rights, and the audit report (admin-suite §0).
+Undecorated = `business` (visible, staff-manageable) and is the correct,
+zero-effort default for domain tables; it is NOT restated on each of them.
+
+- **`@access.ops`** (read-only journal, view=HIGH): `PhoneVerification`,
+  `EmailVerification` (TTL-expiring OTP codes), `LoginAttempt`, `AuthAuditLog`
+  (security/audit logs), `AuthenticatorChangeRequest` (change-flow workflow
+  record — its `change_token` is additionally pinned via
+  `AuthenticatorChangeRequestAdmin.secret_fields` since it is a live bearer
+  credential for the pending change, not just workflow metadata).
+- **`@access.secret`** (superuser-only, sensitive fields masked):
+  `ServiceAPIKey` (`key`), `RefreshTokenTracker` (`token`) — both
+  pattern-auto-detected; `TOTPDevice` (`secret`, `backup_codes` — the latter
+  pinned explicitly via `secret_fields`, since "backup_codes" doesn't match
+  the mask-pattern list); `SSOConfig` (`oidc_client_secret`,
+  pattern-auto-detected — the SAML fields on the same model are IdP-supplied
+  public config, not secrets).
+- **Left `business`** (considered and rejected for ops/secret): `UserSession`
+  (stores `jti`, not the raw refresh token — its own docstring: "storing jti
+  (not raw token) is safe if DB is compromised" — and is user-facing device
+  management, not a passive journal); `PasskeyCredential` (WebAuthn
+  `public_key`/`credential_id` are public-by-design crypto material, not
+  secrets, despite the model name); `Organization`, `OrgMembership`,
+  `VerificationPreference` (ordinary domain tables). `StaffRoleAssignment`
+  already carries its own full-form declaration (admin-suite AS-2, above).
+
+`admin/__init__.py` registrations for the ops/secret models above (plus
+`AuthAuditLog`, `TOTPDevice`, `SSOConfig`, which previously had none) inherit
+`stapel_core.django.admin.base.StapelModelAdmin` so the category cosmetics
+(read-only rendering, field masking) apply. Where a `ModelAdmin` already
+listed a masked field in its own `readonly_fields` (e.g. `ServiceAPIKeyAdmin`
+had `key`), that entry was removed — the mixin's masked placeholder and the
+class's raw readonly field would otherwise both render, and the raw one
+leaks the real value.
+
 ### Signals
 
 | Signal | Sender/args | When |

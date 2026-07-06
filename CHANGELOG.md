@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+### Added — admin-suite AS-5: `@access` category rollout + `StapelModelAdmin`
+
+Applies the `stapel_core.access` category decorators (admin-suite §0/AS-5
+sweep) to this module's models and switches their `ModelAdmin`s to
+`StapelModelAdmin` so the category cosmetics (read-only rendering, secret
+masking) take effect.
+
+- `@access.ops` (read-only journal): `PhoneVerification`, `EmailVerification`,
+  `LoginAttempt`, `AuthAuditLog`, `AuthenticatorChangeRequest` (the latter's
+  `change_token` additionally pinned via `secret_fields` — a live bearer
+  token, not just workflow metadata).
+- `@access.secret` (superuser-only, masked fields): `ServiceAPIKey`,
+  `RefreshTokenTracker`, `TOTPDevice` (`secret_fields=('secret',
+  'backup_codes')`), `SSOConfig` (`oidc_client_secret`).
+- New admin registrations for previously-unregistered ops/secret models:
+  `AuthAuditLogAdmin`, `TOTPDeviceAdmin`, `SSOConfigAdmin`.
+- Fixed a latent masking bypass while migrating: `ServiceAPIKeyAdmin` and
+  `AuthenticatorChangeRequestAdmin` each listed their now-secret field
+  (`key`, `change_token`) directly in `readonly_fields`, which renders the
+  raw value in a second, unmasked field alongside the mixin's masked
+  placeholder — removed those entries so masking is the only rendering.
+- Left `business` (undecorated) after review: `UserSession`,
+  `PasskeyCredential`, `Organization`, `OrgMembership`,
+  `VerificationPreference` — see MODULE.md for the reasoning.
+- No migration: the decorator is a plain class attribute (verified via a
+  `makemigrations --check --dry-run` harness against a real settings shape).
+
 ### Added — ru error catalog + bilingual error reference (i18n-shipping волна 1)
 
 Reference application of the `stapel_core.i18n` catalog contour to the `errors`
