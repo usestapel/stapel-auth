@@ -1,17 +1,14 @@
 """Coverage tests for the auth admin surfaces.
 
 Targets:
-- ``admin.py`` (top-level Django ModelAdmin registrations). NOTE: this file is
-  shadowed by the ``admin/`` package (``package-dir={"stapel_auth":"."}`` puts
-  both ``admin.py`` and ``admin/__init__.py`` at the same import path, and the
-  package wins), so it can never be reached via ``import stapel_auth.admin``.
-  We load it directly by file path to exercise the registrations + save_model.
+- ``stapel_auth.admin`` (top-level Django ModelAdmin registrations). These now
+  live in ``admin/__init__.py``; previously they were stranded in a top-level
+  ``admin.py`` that the ``admin/`` package shadowed, so they never loaded in
+  production. We import the package normally and assert the registrations.
 - ``stapel_auth.admin.views`` (ServiceAPIKeyViewSet, AdminUserViewSet).
 - ``stapel_auth.admin.serializers`` (AdminUserCreateRequestSerializer, phone
   normalization, ServiceAPIKeySerializer via the viewset).
 """
-import importlib.util
-import os
 import uuid
 from unittest.mock import patch
 
@@ -23,7 +20,6 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from stapel_core.django.jwt.provider import jwt_provider
 
-import stapel_auth
 from stapel_auth.models import (
     AuthenticatorChangeRequest,
     EmailVerification,
@@ -55,45 +51,30 @@ def _make_user(**kwargs):
     return User.objects.create_user(**defaults)
 
 
-def _load_flat_admin_module():
-    """Load the shadowed top-level ``admin.py`` by file path.
-
-    Unregisters any target models first so the ``@admin.register`` decorators
-    inside the module run cleanly and idempotently across repeated loads.
-    """
-    for model in _ADMIN_MODELS:
-        try:
-            dj_admin.site.unregister(model)
-        except dj_admin.sites.NotRegistered:
-            pass
-    path = os.path.join(os.path.dirname(os.path.abspath(stapel_auth.__file__)), "admin.py")
-    spec = importlib.util.spec_from_file_location("stapel_auth._flat_admin", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 class FlatAdminRegistrationTests(TestCase):
-    """admin.py: model registrations + ServiceAPIKeyAdmin.save_model branches."""
+    """admin/__init__.py: model registrations + ServiceAPIKeyAdmin.save_model."""
 
     def test_all_models_registered(self):
-        module = _load_flat_admin_module()
+        import stapel_auth.admin as admin_module
+
         for model in _ADMIN_MODELS:
             self.assertIn(model, dj_admin.site._registry)
-        # sanity: the admin classes are exposed on the module
-        self.assertTrue(hasattr(module, "ServiceAPIKeyAdmin"))
+        # sanity: the admin classes are exposed on the package
+        self.assertTrue(hasattr(admin_module, "ServiceAPIKeyAdmin"))
 
     def test_save_model_generates_key_on_create(self):
-        module = _load_flat_admin_module()
-        admin_obj = module.ServiceAPIKeyAdmin(ServiceAPIKey, dj_admin.site)
+        import stapel_auth.admin as admin_module
+
+        admin_obj = admin_module.ServiceAPIKeyAdmin(ServiceAPIKey, dj_admin.site)
         obj = ServiceAPIKey(name=f"create-{uuid.uuid4().hex[:6]}")
         admin_obj.save_model(request=None, obj=obj, form=None, change=False)
         self.assertTrue(obj.key.startswith("sk_"))
         self.assertTrue(ServiceAPIKey.objects.filter(pk=obj.pk).exists())
 
     def test_save_model_keeps_key_on_change(self):
-        module = _load_flat_admin_module()
-        admin_obj = module.ServiceAPIKeyAdmin(ServiceAPIKey, dj_admin.site)
+        import stapel_auth.admin as admin_module
+
+        admin_obj = admin_module.ServiceAPIKeyAdmin(ServiceAPIKey, dj_admin.site)
         existing_key = f"sk_manual_{uuid.uuid4().hex}"
         obj = ServiceAPIKey.objects.create(
             name=f"edit-{uuid.uuid4().hex[:6]}", key=existing_key

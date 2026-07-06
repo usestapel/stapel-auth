@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Fixed — shadowed `admin.py` never loaded in production (auth-tails)
+
+- **The Django admin registrations were invisible in production.** The
+  `ModelAdmin` classes for `PhoneVerification`, `EmailVerification`,
+  `ServiceAPIKey`, `RefreshTokenTracker`, `AuthenticatorChangeRequest` and
+  `LoginAttempt` lived in a top-level `admin.py`, but the sibling `admin/`
+  package (`admin/__init__.py`) shadows it at the same import path
+  (`package-dir = {"stapel_auth": "."}`). Django's admin autodiscover imports
+  `stapel_auth.admin`, which resolved to the empty package, so **none of these
+  models appeared in the Django admin site.** The registrations now live in
+  `admin/__init__.py` and load normally; `admin.py` is deleted. This is a
+  behavioural change — the six models now show up in the admin as originally
+  intended. No `AlreadyRegistered` conflict: the `admin/` package contained
+  only DRF views/serializers/DTOs, no competing `ModelAdmin`.
+
 ### Fixed — root-relative URLs break under a mount prefix (auth-tails)
 
 - **QR `scan_url` no longer hardcodes the `/auth/api/` mount point.**
