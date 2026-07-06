@@ -9,6 +9,8 @@ Part of the [Stapel framework](https://github.com/usestapel) — composable Djan
 
 **Flow docs (SA-documents):** [Flows (EN)](docs/flows/en/README.md) · [Флоу (RU)](docs/flows/ru/README.md)
 
+**Error reference:** [Errors (EN)](docs/errors.en.md) · [Ошибки (RU)](docs/errors.ru.md)
+
 ## Installation
 
 ```bash

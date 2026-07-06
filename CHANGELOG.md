@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added — ru error catalog + bilingual error reference (i18n-shipping волна 1)
+
+Reference application of the `stapel_core.i18n` catalog contour to the `errors`
+domain (i18n-shipping.md §5) — the pattern wave-2 sweeps copy 1:1.
+
+- `translations/errors.ru.json` — flat `{code: text}` ru catalog covering all
+  116 auth error keys, with `translations/.state.json` provenance sidecar.
+  Provenance is honest: **112** keys seeded from the curated `stapel-translate`
+  builtin fixtures (`origin: seed:stapel-builtin` — no tokens spent), **4**
+  auth-only keys machine-translated (`origin: llm`, unreviewed — the gate's
+  W-counter). `translations/.errors.ru.llm-cache.json` is the committed,
+  content-hash translation cache.
+- `docs/errors.en.md` · `docs/errors.ru.md` — generated human-readable
+  references (`generate_error_docs`); README + MODULE.md link both languages
+  (lint R100 clean). MODULE.md documents the i18n seam semantics (registry
+  `update`/last-wins override shim, catalogs merge/later-wins, params preserved).
+- `tests/test_error_i18n.py` — `check_translation_catalogs` gate (E on
+  missing/stale/params-mismatch/byte-instability all green) + env-gated regen
+  (`STAPEL_REGEN_ERROR_I18N=1 pytest tests/test_error_i18n.py::test_regen`).
+
 ### Added — `avatar_url` on `user.registered` (feat-oauth-avatar, auth half)
 
 Wires the OAuth avatar through to the event so downstream consumers (e.g.

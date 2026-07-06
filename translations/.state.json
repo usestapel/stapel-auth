@@ -1,0 +1,468 @@
+{
+  "errors.ru": {
+    "error.400.bad_request": {
+      "hash": "917ef22f94f46014",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.captcha_invalid": {
+      "hash": "25503336f2734a2c",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.captcha_required": {
+      "hash": "b9e8e17f5f41d501",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.code_expired": {
+      "hash": "c15696e012650622",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.code_required": {
+      "hash": "2d9f8445ac430d84",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.credentials_required": {
+      "hash": "f8b1a35df6cd6724",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.email_or_phone_not_both": {
+      "hash": "38204528cdb3fa94",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.email_or_phone_required": {
+      "hash": "f35785205120133d",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.email_required": {
+      "hash": "288e8d800174e31c",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.expected_list": {
+      "hash": "c3a54ef8b2668571",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.field.blank": {
+      "hash": "24240e0d4ee25246",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.field.does_not_exist": {
+      "hash": "fe05b1cc91670da4",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.field.invalid": {
+      "hash": "a77de121de3de1a8",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.field.invalid_choice": {
+      "hash": "cd885abfaa53ca33",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.field.max_length": {
+      "hash": "76b7f121ccd03177",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.field.max_value": {
+      "hash": "323355f5dc9169a6",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.field.min_length": {
+      "hash": "80b429a34b4f2369",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.field.min_value": {
+      "hash": "6cbb2a2555652ff4",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.field.null": {
+      "hash": "23955fdc9daee1ff",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.field.required": {
+      "hash": "243cda5228ec8015",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.field.unique": {
+      "hash": "bcfc98f9c891efe9",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.invalid_ad_id": {
+      "hash": "5e522ee317c6fcbc",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.invalid_change_token": {
+      "hash": "40a34c9d7290552e",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.invalid_code": {
+      "hash": "4ed23ad3f0fc0024",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.invalid_code_attempts": {
+      "hash": "f6d5e28f92bc67f8",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.invalid_method": {
+      "hash": "5294cbd397d880c8",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.invalid_phone": {
+      "hash": "34e924128e5897bb",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.invalid_phone_format": {
+      "hash": "106244a76a545e6c",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.invalid_redirect_url": {
+      "hash": "56d02ad856fa247e",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.last_auth_method": {
+      "hash": "bf460cf171c12d22",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.magic_link_invalid": {
+      "hash": "161655f5eb92721c",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.no_current_value": {
+      "hash": "55b9360510368458",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.no_password": {
+      "hash": "783c84952f426c78",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.no_verified_contact": {
+      "hash": "e9e49e092c526f0c",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.not_available": {
+      "hash": "9ebef1e02e4a5cfe",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.oauth_failed": {
+      "hash": "6b9d51ba7fccd919",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.oauth_fields_required": {
+      "hash": "5a294fd72d06bde0",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.passkey_challenge_expired": {
+      "hash": "1760cce2edd8ce2e",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.passkey_invalid": {
+      "hash": "28555a8810bab74a",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.password_already_set": {
+      "hash": "265b467b45a2e4ee",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.passwords_dont_match": {
+      "hash": "04c97b317f7b2f23",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.phone_required": {
+      "hash": "a89d669b1a8c8856",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.phone_too_long": {
+      "hash": "b4288fa2e3895c61",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.qr_expired": {
+      "hash": "0b48f52580da841d",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.qr_fulfilled": {
+      "hash": "c5f5ae4ae2919322",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.qr_type_required": {
+      "hash": "8340b934edad0444",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.sso_invalid_response": {
+      "hash": "bfac80909731ee42",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.sso_not_configured": {
+      "hash": "d3f785ac92b48113",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.staff_role_target_not_staff": {
+      "hash": "3a93727b6e7d8f44",
+      "origin": "llm"
+    },
+    "error.400.token_required": {
+      "hash": "6c7181611e64a4aa",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.totp_not_pending": {
+      "hash": "e57dfcf3392eb352",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.unknown_staff_role": {
+      "hash": "3389b9cd42708025",
+      "origin": "llm"
+    },
+    "error.400.validation_error": {
+      "hash": "2aa2d0b411dd04b1",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.verification_failed": {
+      "hash": "f0f2383f8af8d23d",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.verification_invalid_factor": {
+      "hash": "91a4e8daf1450bd9",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.400.wrong_password": {
+      "hash": "08e7aa3eae216706",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.401.account_disabled": {
+      "hash": "f9cc0dcd8c63eabc",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.401.invalid_credentials": {
+      "hash": "7ec371a97f3b2593",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.401.qr_auth_required": {
+      "hash": "38fc84ab52d3ea29",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.401.refresh_invalid": {
+      "hash": "65514f0a4ecac65c",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.401.refresh_not_provided": {
+      "hash": "53b8373e51ca93bc",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.401.refresh_revoked": {
+      "hash": "5b1da153a039fba0",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.401.token_invalid": {
+      "hash": "086efea7640e6806",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.401.token_revoked": {
+      "hash": "5b1da153a039fba0",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.401.unauthorized": {
+      "hash": "0fcfb12dfad07ba0",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.401.user_not_found": {
+      "hash": "4a1793e9900cd312",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.402.payment_required": {
+      "hash": "9b7e0bd8dc8b6974",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.403.forbidden": {
+      "hash": "f49aebf1b5899f56",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.403.mock_otp_admin": {
+      "hash": "157a43a117d4fc35",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.403.network_blocked": {
+      "hash": "73418e2ec86c7544",
+      "origin": "llm"
+    },
+    "error.403.qr_device_mismatch": {
+      "hash": "192e14e63031c954",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.403.qr_unauth_scan": {
+      "hash": "85badafb8f587a90",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.403.sso_required": {
+      "hash": "41d0d06d818b46fc",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.403.step_up_required": {
+      "hash": "463b109166af8556",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.403.verification_enrollment_required": {
+      "hash": "726adb4e63e9ae80",
+      "origin": "llm"
+    },
+    "error.403.verification_required": {
+      "hash": "b6a8631430a90a2e",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.404.ad_not_found": {
+      "hash": "f7439d15c4d40a50",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.404.change_not_found": {
+      "hash": "e12d6c0f20d4c62d",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.404.gdpr.export_not_found": {
+      "hash": "f60f58f55e531c95",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.404.gdpr.no_active_closure": {
+      "hash": "91466a2a28cbf59b",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.404.not_found": {
+      "hash": "0802559db1375af3",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.404.passkey_not_found": {
+      "hash": "fabb97387b90c907",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.404.qr_not_found": {
+      "hash": "fe0e3c9d8876ef0a",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.404.sso_org_not_found": {
+      "hash": "e06a8fd935e1c3ab",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.404.user_for_reset": {
+      "hash": "926490b53f1e14cd",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.404.verification_challenge_not_found": {
+      "hash": "bfb64110e2f2e712",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.405.method_not_allowed": {
+      "hash": "371b26886bee5e55",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.406.not_acceptable": {
+      "hash": "5e08fb869bdfd099",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.408.request_timeout": {
+      "hash": "70f60044d161bbdd",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.409.conflict": {
+      "hash": "b79d6998c7b1fe74",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.409.email_reserved": {
+      "hash": "6aeb2817540be4d0",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.409.email_taken": {
+      "hash": "b53a3f928e5eaed4",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.409.gdpr.closure_already_pending": {
+      "hash": "e46a702d06a5d5ba",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.409.gdpr.export_cooldown": {
+      "hash": "102d355c2bd18408",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.409.gdpr.legal_hold": {
+      "hash": "d5f80bdbab3ec545",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.409.passkey_already_registered": {
+      "hash": "81e308e425ebc295",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.409.phone_reserved": {
+      "hash": "18091307ade1a302",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.409.phone_taken": {
+      "hash": "1d34c52c33af0c3f",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.409.qr_account_conflict": {
+      "hash": "9395b5564d8c24e5",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.409.sso_org_slug_taken": {
+      "hash": "ca1640393155f62a",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.409.username_taken": {
+      "hash": "da2c9d394ae37aee",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.410.gdpr.download_expired": {
+      "hash": "e5b2bc20db9aac51",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.410.gone": {
+      "hash": "9b3a484bf2478795",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.413.payload_too_large": {
+      "hash": "fd973ee25cb9f87a",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.415.unsupported_media_type": {
+      "hash": "5a4d5ddc4995aacf",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.422.blocked": {
+      "hash": "e8bd6a6ca58df85b",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.422.unprocessable_entity": {
+      "hash": "a74da92771f0597b",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.423.account_locked": {
+      "hash": "342b24cd81976499",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.423.locked": {
+      "hash": "7f58ca03e08c7a0d",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.423.verification_locked": {
+      "hash": "b842ece80255e06f",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.425.gdpr.export_not_ready": {
+      "hash": "949122b2fffb6f0c",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.429.magic_link_rate": {
+      "hash": "31ae7149f12d7546",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.429.rate_limit": {
+      "hash": "4c27e391f537df96",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.429.too_many_requests": {
+      "hash": "65e299e97186b8cd",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.500.internal": {
+      "hash": "ab827e3fe17da220",
+      "origin": "seed:stapel-builtin"
+    },
+    "error.500.send_failed": {
+      "hash": "6401f8f4d83cb35c",
+      "origin": "seed:stapel-builtin"
+    }
+  }
+}
