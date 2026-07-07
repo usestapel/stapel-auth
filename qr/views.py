@@ -288,9 +288,9 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
             # Different user — mark QR rejected, let the generator know, redirect scanner to conflict
             QRAuthService.reject(key)
-            from django.conf import settings as _s
+            from stapel_auth.conf import auth_settings
 
-            _frontend = getattr(_s, "FRONTEND_URL", "https://app.example.com")
+            _frontend = auth_settings.FRONTEND_URL or ""
             from urllib.parse import urlencode as _ue
 
             return HttpResponseRedirect(
