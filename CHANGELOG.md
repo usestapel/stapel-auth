@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.5.4] - 2026-07-08
 
 ### Added — admin-suite AS-5: `@access` category rollout + `StapelModelAdmin`
 
