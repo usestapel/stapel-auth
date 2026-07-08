@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/usestapel/stapel-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/usestapel/stapel-auth/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/usestapel/stapel-auth/graph/badge.svg)](https://codecov.io/gh/usestapel/stapel-auth)
+[![PyPI](https://img.shields.io/pypi/v/stapel-auth.svg)](https://pypi.org/project/stapel-auth/)
 
 > Full-featured authentication — JWT, passkeys (WebAuthn), TOTP, QR login, OAuth2, SSO (SAML/OIDC), magic link, phone OTP
 
