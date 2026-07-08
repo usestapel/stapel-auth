@@ -313,6 +313,86 @@ missing/stale/params/byte-instability); regenerate with
 `STAPEL_REGEN_ERROR_I18N=1 pytest tests/test_error_i18n.py::test_regen` and commit
 `translations/errors.ru.json`, `translations/.state.json`, `docs/errors.{en,ru}.md`.
 
+### Contract emission — the `schema` + `flows` + `errors` triad (ETALON)
+
+This module emits its **own** machine-readable API contract, per-module, so the
+frontend codegen reads a committed, version-pinned artifact instead of checking
+out the monolith aggregate at floating `main` (contract-pipeline.md §2, verdict
+**A**: contract = a reviewable commit, like `docs/errors.json` always was). The
+triad lives in `docs/`:
+
+```
+docs/schema.json   drf-spectacular OpenAPI, this module only, canonical /auth/api/ prefix
+docs/flows.json    generate_flow_docs machine artifact, canonical-prefix endpoint paths
+docs/errors.json   generate_error_keys registry (the original per-module etalon)
+```
+
+The emitted `schema.json` + `flows.json` are **byte-identical to the monolith
+aggregate's auth slice** — the paths under `/auth/api/` plus the transitive
+`$ref` component closure they reference. That identity is what lets the frontend
+repoint from the aggregate to per-module sources with a zero-diff `gen:check`.
+`tests/test_contract.py::test_matches_monolith_auth_slice` asserts it in the
+workspace (skipped in module CI, where the monolith isn't checked out).
+
+**Harness** (three ~30-line files, plus the shared mechanism in `stapel_tools.codegen`):
+- `_codegen_settings.py` — the single `settings.configure(**kwargs)` block, shared
+  with `conftest.py` so the test instance and the codegen instance can never drift.
+  `contract=True` swaps in the production `REST_FRAMEWORK` (DRF caches it on first
+  access, so it must be right at configure time).
+- `codegen_urls.py` — mounts `stapel_auth.urls` (+ `stapel_gdpr.urls`, exactly as
+  the monolith does) at the canonical `auth/api/` prefix. **This is the
+  make-or-break**: without it the emitted paths are bare (`/password/login/`) and
+  the operationIds collapse — with it they match the aggregate byte-for-byte.
+- `_codegen.py` — configures the instance on `codegen_urls`, then forces
+  `spectacular_settings.SCHEMA_PATH_PREFIX = "/"` on the drf-spectacular singleton
+  (see below) and calls the shared `emit_schema` / `emit_flows` / `emit_errors`.
+
+**Gate:** `make contract` re-emits; `make contract-check` regenerates into a temp
+dir and diffs — identical discipline to `test_error_keys` / `test_flow_docs`. The
+CI-enforced gate is `tests/test_contract.py` (pytest, run in the module's venv).
+Regenerate after any serializer/view/url/flow/error change:
+
+    make contract        # or: python -m stapel_auth._codegen --out docs
+
+then commit `docs/{schema,flows,errors}.json`.
+
+**Two non-obvious facts the emission depends on** (they bit auth-first and will
+bite the copies, so they are the reason this is the etalon):
+1. **`SCHEMA_PATH_PREFIX` must be pinned to `"/"`.** drf-spectacular derives
+   operationIds by stripping the *common path prefix of all endpoints*. The
+   monolith spans every module, so that prefix is `/` and operationIds keep the
+   mount (`auth_api_anonymous_create`). A single-module harness sees only
+   `/auth/api/*`, so it would strip that and collapse to `anonymous_create`.
+   Pinning `SCHEMA_PATH_PREFIX="/"` reproduces the aggregate. `SCHEMA_PATH_PREFIX_TRIM`
+   stays `False`, so the path *keys* keep `/auth/api/`.
+2. **drf-spectacular ignores Django `SPECTACULAR_SETTINGS` here.** It snapshots its
+   settings singleton at *import* time, before a `configure()`-based harness can
+   populate it — so it (and the monolith, identically) emits on drf **defaults**
+   (`info.title=""`, no `bearerAuth`, no `x-stapel-*` extensions). Do **not**
+   "fix" this by applying `get_spectacular_settings` to the singleton: that would
+   add title/hooks the monolith slice doesn't have and *break* byte-identity. The
+   only override is `SCHEMA_PATH_PREFIX`, patched on the singleton after setup.
+
+**Adding contract emission to another pair-backend** (notifications / profiles /
+billing / workspaces — copy this module, 4 steps):
+1. Extract the `conftest.py` `settings.configure` body into
+   `_codegen_settings.py::settings_kwargs(root_urlconf, contract)`; have conftest
+   call it (no behavior change). Add `drf_spectacular` to `INSTALLED_APPS` and the
+   production `REST_FRAMEWORK` under `contract=True` (auth already had both).
+2. Add `codegen_urls.py` mounting the module (+ any sibling the monolith co-mounts
+   under the same service prefix) at the module's canonical `<mod>/api/` prefix —
+   copy it from the monolith's `urls.py`, exactly.
+3. Add `_codegen.py` (copy verbatim; change only the urlconf module name) — it
+   pins `SCHEMA_PATH_PREFIX="/"` and calls the shared emitters. Add the `Makefile`
+   `contract` / `contract-check` targets and `tests/test_contract.py`.
+4. Run `make contract`, then verify byte-identity against the monolith slice
+   (`test_matches_monolith_auth_slice`, retargeted to `/<mod>/api/`). **If it is
+   not zero-diff, report the exact delta — do not hand-tune the artifact.** Modules
+   with no `@flow_step` emit `flows.json = []` (valid). Confirm the schema's
+   component closure is self-contained; a module that `$ref`s a sibling-only
+   component (e.g. profiles↔auth user linkage) needs that sibling installed in its
+   harness (contract-pipeline.md §9 Q2).
+
 ## Anti-patterns
 
 - **Never import another stapel module** (`stapel_gdpr`, `stapel_notifications`, `stapel_workspaces`, ...) from code that extends or configures auth. Integration is only via `stapel_core` comm (events/functions), signals, registries, and dotted-path settings. Even the GDPR model dependency here is a lazy dotted path, not an import.

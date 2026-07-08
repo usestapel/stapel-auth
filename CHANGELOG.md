@@ -1,5 +1,40 @@
 # Changelog
 
+## [Unreleased]
+
+### Added — per-module contract emission: `schema` + `flows` triad (contract-pipeline.md Wave 1, ETALON)
+
+stapel-auth now emits its **own** API contract per-module, completing the triad
+`docs/{schema,flows,errors}.json` (`errors.json` already existed). The frontend
+codegen can now read auth's committed artifacts instead of the monolith aggregate
+at floating `main` — contract-pipeline.md verdict **A** (contract = a reviewable,
+version-pinned commit). This is the reference implementation the other four
+pair-backends copy.
+
+- **Harness** (reuses `stapel_tools.codegen`, adds ~90 lines of per-module config):
+  - `_codegen_settings.py` — single source of truth for the `settings.configure`
+    block, shared with `conftest.py` (extracted, no test-behavior change); a
+    `contract=True` mode swaps in the production `REST_FRAMEWORK`.
+  - `codegen_urls.py` — mounts `stapel_auth.urls` + `stapel_gdpr.urls` at the
+    canonical `auth/api/` prefix (exactly as the monolith does), so emitted paths
+    are `/auth/api/...` not bare `/password/login/`.
+  - `_codegen.py` — the `python -m stapel_auth._codegen --out docs` entrypoint.
+- **`docs/schema.json`** (new) — drf-spectacular OpenAPI for auth only, canonical
+  prefix; **`docs/flows.json`** (new location) — `generate_flow_docs` machine
+  artifact with canonical-prefix endpoint paths.
+- **Byte-identity** with the monolith aggregate's auth slice (paths under
+  `/auth/api/` + their component closure) is **exact**: 90 paths, 112-component
+  closure, zero diff vs both the committed and freshly-regenerated monolith.
+  `flows.json` and `errors.json` are byte-identical too.
+- **Gate:** `make contract` / `make contract-check`; `tests/test_contract.py`
+  (drift + determinism + canonical-prefix + monolith-slice identity) is the
+  CI-enforced gate.
+- Two emission subtleties documented in MODULE.md (they are why auth is the
+  etalon): `SCHEMA_PATH_PREFIX` must be pinned to `"/"` to reproduce the
+  multi-module common prefix in operationIds, and drf-spectacular emits on its
+  *default* settings here (its singleton snapshots settings at import time), so
+  the harness must reproduce the defaults — not apply `get_spectacular_settings`.
+
 ## [0.5.4] - 2026-07-08
 
 ### Added — admin-suite AS-5: `@access` category rollout + `StapelModelAdmin`
