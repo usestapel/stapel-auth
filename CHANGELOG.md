@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### Added — config axes + `docs/capabilities.json`, the fourth contract artifact (capability-config.md §1-§2/§5, ETALON)
+
+- **`AUTH_ANONYMOUS`** (new setting, default `True`) — anonymous auth is its own
+  config axis with its own URL factory `get_anonymous_urls()` (exported from the
+  package root). Fixes §5-A1: `/anonymous/` used to live inside the otp factory
+  under the email/phone gates, so disabling email+phone silently 404'd guest
+  auth while `GET /capabilities/` kept hardcoding `anonymous: true`. The
+  capability now reads the setting; the view 403s per-request on always-on
+  mounts. Path and URL name unchanged.
+- **`AUTH_TOTP`** (new setting, default `True`) — gates the `/totp/*` block of
+  `get_mfa_urls()` exactly the way `AUTH_PASSKEY_LOGIN` gates `/passkey/*`
+  (§5-A2; TOTP was the only ungated method-functionality). `GET /capabilities/`
+  grows an additive `mfa: {totp, passkey}` section.
+- **`conf.py` on `stapel_core.conf.AppSettings`** (§5-A3) — the bespoke
+  accessor is gone; same public surface (`auth_settings.<KEY>`, `AuthSettings()`,
+  `DEFAULTS`, `OAuthProviderConfig` coercion). `no_env` now protects secrets,
+  dotted-path seams and every boolean gate (env strings are truthy);
+  `INTERNAL_SERVICE_KEY` no longer falls back to the environment.
+- **`docs/capabilities.json`** (§5-A4) — machine-readable config-axis manifest,
+  emitted by `make contract`, drift-gated by `make contract-check` +
+  `tests/test_contract.py` like the triad. Derived: axis key/kind/default/group
+  from `DEFAULTS`, `gates.operations` from the new `urls.py: GATE_REGISTRY`
+  (every factory declares its flags + patterns via `_gated()` where the gating
+  executes) cross-referenced with `schema.json` operationIds. Curated:
+  `docs/capabilities.meta.json` (business_label/summary per axis, provides,
+  requires, extension_points) — missing/stale meta is a loud emission error.
+  17 axes; the schema/flows/errors triad stays byte-identical with all
+  defaults on.
+
 ### Added — per-module contract emission: `schema` + `flows` triad (contract-pipeline.md Wave 1, ETALON)
 
 stapel-auth now emits its **own** API contract per-module, completing the triad
