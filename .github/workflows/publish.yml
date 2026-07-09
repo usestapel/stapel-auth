@@ -28,7 +28,7 @@ jobs:
         run: pip install -e ".[all]"
 
       - name: Install test dependencies
-        run: pip install pytest pytest-django pytest-cov python3-openid
+        run: pip install pytest pytest-django pytest-cov python3-openid "stapel-tools>=0.9.1,<1"
 
       - name: Lint
         run: |
