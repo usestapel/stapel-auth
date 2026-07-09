@@ -57,6 +57,9 @@ DEFAULTS = {
 
     # Anonymous users
     'ANONYMOUS_USER_LIFETIME_DAYS': 30,
+    # Anonymous auth axis: gates POST /anonymous/ (own URL factory) and the
+    # `anonymous` capability. Independent of the email/phone method gates.
+    'AUTH_ANONYMOUS': True,
 
     # JWT cookies (override if needed; usually inherited from stapel-core settings)
     'JWT_COOKIE_DOMAIN': None,

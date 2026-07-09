@@ -17,6 +17,7 @@ _LAZY_EXPORTS = {
     "revoke_staff_role": (".staff_roles", "revoke_staff_role"),
     "staff_roles_for": (".staff_roles", "staff_roles_for"),
     "get_admin_api_urls": (".urls", "get_admin_api_urls"),
+    "get_anonymous_urls": (".urls", "get_anonymous_urls"),
     "get_magic_link_urls": (".urls", "get_magic_link_urls"),
     "get_mfa_urls": (".urls", "get_mfa_urls"),
     "get_oauth_urls": (".urls", "get_oauth_urls"),

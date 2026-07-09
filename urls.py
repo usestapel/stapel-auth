@@ -35,10 +35,10 @@ from .sso_views import (
 )
 
 __all__ = [
-    'get_otp_urls', 'get_password_urls', 'get_oauth_urls', 'get_sso_urls',
-    'get_mfa_urls', 'get_qr_urls', 'get_magic_link_urls', 'get_sessions_urls',
-    'get_admin_api_urls', 'get_security_urls', 'get_openid_urls',
-    'get_verification_urls', 'urlpatterns',
+    'get_otp_urls', 'get_anonymous_urls', 'get_password_urls', 'get_oauth_urls',
+    'get_sso_urls', 'get_mfa_urls', 'get_qr_urls', 'get_magic_link_urls',
+    'get_sessions_urls', 'get_admin_api_urls', 'get_security_urls',
+    'get_openid_urls', 'get_verification_urls', 'urlpatterns',
 ]
 
 
@@ -66,10 +66,25 @@ def get_sessions_urls(enabled=None):
     ]
 
 
-def get_otp_urls(enabled=None):
-    """Email/phone OTP auth, anonymous auth, me/logout/verify, authenticator change.
+def get_anonymous_urls(enabled=None):
+    """Anonymous (guest) authentication. Gated by AUTH_ANONYMOUS.
 
-    Gated by the email/phone login+registration flags.
+    Its own axis, independent of the email/phone method gates — a deployment
+    with all OTP methods off can still serve guests (and vice versa). The
+    path is unchanged from when it lived inside the otp factory.
+    """
+    if not _gate(enabled, 'AUTH_ANONYMOUS'):
+        return []
+    return [
+        path('anonymous/', AuthViewSet.as_view({'post': 'anonymous'}), name='anonymous'),
+    ]
+
+
+def get_otp_urls(enabled=None):
+    """Email/phone OTP auth, me/logout/verify, authenticator change.
+
+    Gated by the email/phone login+registration flags. Anonymous auth moved
+    to its own factory (get_anonymous_urls) — it is a separate axis.
     """
     if not _gate(
         enabled,
@@ -86,8 +101,6 @@ def get_otp_urls(enabled=None):
         path('phone/request/', AuthViewSet.as_view({'post': 'phone_request'}), name='phone_request'),
         path('phone/verify/', AuthViewSet.as_view({'post': 'phone_verify'}), name='phone_verify'),
 
-        # Anonymous authentication
-        path('anonymous/', AuthViewSet.as_view({'post': 'anonymous'}), name='anonymous'),
         # User info and logout
         path('me/', AuthViewSet.as_view({'get': 'me'}), name='me'),
         path('logout/', AuthViewSet.as_view({'post': 'logout', 'get': 'logout_get'}), name='logout'),
@@ -284,6 +297,7 @@ def get_admin_api_urls(enabled=None):
 urlpatterns = (
     get_sessions_urls(enabled=True)
     + get_otp_urls(enabled=True)
+    + get_anonymous_urls(enabled=True)
     + get_oauth_urls(enabled=True)
     + get_admin_api_urls(enabled=True)
     + get_password_urls(enabled=True)

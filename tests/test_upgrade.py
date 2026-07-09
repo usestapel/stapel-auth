@@ -512,6 +512,7 @@ class URLFactoryEquivalenceTests(TestCase):
         for factory in (
             auth_urls.get_sessions_urls,
             auth_urls.get_otp_urls,
+            auth_urls.get_anonymous_urls,
             auth_urls.get_oauth_urls,
             auth_urls.get_admin_api_urls,
             auth_urls.get_password_urls,

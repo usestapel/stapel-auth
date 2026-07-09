@@ -125,6 +125,7 @@ class UrlFactoryGateTests(TestCase):
 
         factories = [
             auth_urls.get_otp_urls,
+            auth_urls.get_anonymous_urls,
             auth_urls.get_password_urls,
             auth_urls.get_oauth_urls,
             auth_urls.get_sso_urls,

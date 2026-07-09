@@ -865,6 +865,12 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     @action(detail=False, methods=["post"])
     def anonymous(self, request):
         """Create anonymous user (or return existing anonymous session)."""
+        from stapel_core.django.errors import error_403_forbidden
+
+        from stapel_auth.conf import auth_settings
+
+        if not auth_settings.AUTH_ANONYMOUS:
+            return error_403_forbidden()
         serializer = self.get_anonymous_request_serializer_class()(data=request.data)
         if serializer.is_valid(raise_exception=True):
             # If caller already has a valid anonymous session, reuse it

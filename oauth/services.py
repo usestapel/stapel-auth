@@ -49,7 +49,7 @@ class AuthCapabilitiesService:
                 password=s.AUTH_PASSWORD_REGISTRATION,
                 oauth=oauth_infos if s.AUTH_OAUTH_REGISTRATION else [],
                 sso=s.AUTH_SSO_REGISTRATION,
-                anonymous=True,
+                anonymous=s.AUTH_ANONYMOUS,
             ),
             login=LoginCapabilities(
                 phone=s.AUTH_PHONE_LOGIN and phone_real,
