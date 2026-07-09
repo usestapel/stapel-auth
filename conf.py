@@ -11,11 +11,14 @@ Configure via STAPEL_AUTH dict in Django settings:
         },
     }
 
-Each key falls back to: direct Django setting → env var → built-in default.
+Built on ``stapel_core.conf.AppSettings`` — the shared per-app settings
+namespace. Resolution order per key: ``settings.STAPEL_AUTH`` dict → flat
+Django setting of the same name (legacy) → environment variable (except
+``no_env`` keys, see below) → built-in default.
 """
-import os
 from dataclasses import dataclass
-from django.test.signals import setting_changed
+
+from stapel_core.conf import AppSettings
 
 
 @dataclass
@@ -76,8 +79,10 @@ DEFAULTS = {
     # hashes. Resolved lazily — stapel-gdpr is NOT a hard dependency.
     'REREGISTRATION_MODEL': 'stapel_gdpr.models.ReRegistrationHash',
 
-    # Service-to-service
-    'INTERNAL_SERVICE_KEY': None,   # Falls back to env INTERNAL_SERVICE_KEY
+    # Service-to-service key. no_env: set it via STAPEL_AUTH or a flat
+    # Django setting — a stray same-named env var must not become the
+    # service-to-service trust anchor silently.
+    'INTERNAL_SERVICE_KEY': None,
 
     # OAuth provider credentials (parsed into dict[str, OAuthProviderConfig])
     'OAUTH_PROVIDERS': {},
@@ -132,74 +137,56 @@ DEFAULTS = {
     'LEGACY_STEP_UP_GRANT_SCOPES': ['sensitive'],
 }
 
-# Env var fallbacks for settings that are commonly set via environment
-_ENV_FALLBACKS = {
-    'FRONTEND_URL': 'FRONTEND_URL',
-    'BACKEND_URL': 'BACKEND_URL',
-    'INTERNAL_SERVICE_KEY': 'INTERNAL_SERVICE_KEY',
-    'JWT_COOKIE_DOMAIN': 'JWT_COOKIE_DOMAIN',
-    'WEBAUTHN_RP_ID': 'WEBAUTHN_RP_ID',
-    'WEBAUTHN_ORIGIN': 'WEBAUTHN_ORIGIN',
-    'TOTP_ISSUER': 'TOTP_ISSUER',
-}
+# Keys that must never fall back to an environment variable (AppSettings
+# ``no_env``). Classification rule, following stapel-core conventions
+# (netintel/gateway/access conf):
+#   * secrets and trust anchors (INTERNAL_SERVICE_KEY, OAUTH_PROVIDERS) — a
+#     stray same-named env var must never become a trust decision silently;
+#   * dotted-path seams (OAUTH_PROVIDER_CLASSES, REREGISTRATION_MODEL) and
+#     scope lists — they decide what code runs / what grants are written;
+#   * every boolean gate (AUTH_* method gates, step-up, mocks) — env vars are
+#     strings, and any non-empty string is truthy, so "AUTH_PASSWORD_LOGIN=
+#     false" in the environment would silently ENABLE password login.
+# Everything else (URLs, TTLs, issuer names, …) stays env-readable — the
+# deployment-convenience knobs the pre-AppSettings conf already read from env.
+_NO_ENV = tuple(
+    key for key, default in DEFAULTS.items() if isinstance(default, bool)
+) + (
+    'INTERNAL_SERVICE_KEY',
+    'OAUTH_PROVIDERS',
+    'OAUTH_PROVIDER_CLASSES',
+    'REREGISTRATION_MODEL',
+    'LEGACY_STEP_UP_GRANT_SCOPES',
+    'MOCK_OTP_CODE',
+)
+
+# NB: OAUTH_PROVIDER_CLASSES / REREGISTRATION_MODEL are intentionally NOT in
+# AppSettings ``import_strings``: their call sites resolve the dotted paths
+# themselves — apps.py imports each provider class (and appends TestProvider
+# under DEBUG), gdpr.py degrades gracefully with a warning when the optional
+# stapel-gdpr model is absent. import_strings would import eagerly and raise.
 
 
-class AuthSettings:
-    """
-    Lazy accessor for STAPEL_AUTH settings.
+class AuthSettings(AppSettings):
+    """STAPEL_AUTH namespace (stapel_core.conf.AppSettings).
 
-    Resolution order per key:
-      1. STAPEL_AUTH['KEY'] in Django settings
-      2. Direct Django setting (legacy / common.django.settings compat)
-      3. Environment variable (for keys in _ENV_FALLBACKS)
-      4. Built-in default
+    Adds one auth-specific convenience on top of the shared pattern:
+    ``OAUTH_PROVIDERS`` dict values are coerced into ``OAuthProviderConfig``
+    dataclasses on access.
     """
 
     def __init__(self):
-        self._cache: dict = {}
+        super().__init__('STAPEL_AUTH', defaults=DEFAULTS, no_env=_NO_ENV)
 
-    def __getattr__(self, name: str):
-        if name.startswith('_') or name not in DEFAULTS:
-            raise AttributeError(f'Invalid stapel-auth setting: {name!r}')
-
-        if name in self._cache:
-            return self._cache[name]
-
-        from django.conf import settings as django_settings
-
-        user_settings = getattr(django_settings, 'STAPEL_AUTH', {})
-
-        if name in user_settings:
-            value = user_settings[name]
-        elif hasattr(django_settings, name):
-            # Legacy: setting defined directly (e.g. FRONTEND_URL = '...')
-            value = getattr(django_settings, name)
-        elif name in _ENV_FALLBACKS:
-            value = os.getenv(_ENV_FALLBACKS[name], DEFAULTS[name])
-        else:
-            value = DEFAULTS[name]
-
-        if name == 'OAUTH_PROVIDERS' and isinstance(value, dict):
+    def __getattr__(self, key: str):
+        value = super().__getattr__(key)
+        if key == 'OAUTH_PROVIDERS' and isinstance(value, dict):
             value = {
                 pid: OAuthProviderConfig(**cfg) if isinstance(cfg, dict) else cfg
                 for pid, cfg in value.items()
             }
-
-        self._cache[name] = value
+            self._cache[key] = value
         return value
-
-    def reload(self):
-        self.__dict__['_cache'] = {}
 
 
 auth_settings = AuthSettings()
-
-
-def _reload_on_change(*, setting, **kwargs):
-    # Also reload when a flat (legacy) setting with the same name changes,
-    # e.g. override_settings(USE_MOCK_SMS_OTP=False) in tests.
-    if setting == 'STAPEL_AUTH' or setting in DEFAULTS:
-        auth_settings.reload()
-
-
-setting_changed.connect(_reload_on_change)

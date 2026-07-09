@@ -199,16 +199,28 @@ class AuthSettingsTests(TestCase):
         self.assertEqual(s._cache, {})
 
     def test_setting_changed_signal_reloads(self):
-        from stapel_auth.conf import auth_settings, _reload_on_change
+        from django.test.signals import setting_changed
+        from stapel_auth.conf import auth_settings
         _ = auth_settings.OTP_TTL
         self.assertIn('OTP_TTL', auth_settings._cache)
-        _reload_on_change(setting='STAPEL_AUTH')
+        setting_changed.send(sender=None, setting='STAPEL_AUTH', value={}, enter=True)
+        self.assertEqual(auth_settings._cache, {})
+
+    def test_setting_changed_signal_flat_key_reloads(self):
+        # A flat (legacy) setting with the same name as a DEFAULTS key also
+        # invalidates, e.g. override_settings(USE_MOCK_SMS_OTP=False) in tests.
+        from django.test.signals import setting_changed
+        from stapel_auth.conf import auth_settings
+        _ = auth_settings.OTP_TTL
+        self.assertIn('OTP_TTL', auth_settings._cache)
+        setting_changed.send(sender=None, setting='OTP_TTL', value=1, enter=True)
         self.assertEqual(auth_settings._cache, {})
 
     def test_setting_changed_signal_ignores_other_settings(self):
-        from stapel_auth.conf import auth_settings, _reload_on_change
+        from django.test.signals import setting_changed
+        from stapel_auth.conf import auth_settings
         _ = auth_settings.OTP_TTL
-        _reload_on_change(setting='OTHER_SETTING')
+        setting_changed.send(sender=None, setting='OTHER_SETTING', value=1, enter=True)
         self.assertIn('OTP_TTL', auth_settings._cache)  # not cleared
 
     def test_env_fallback(self):
