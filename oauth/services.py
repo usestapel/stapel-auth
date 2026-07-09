@@ -30,6 +30,7 @@ class AuthCapabilitiesService:
         from stapel_auth.oauth.dto import (
             AuthCapabilities,
             LoginCapabilities,
+            MFACapabilities,
             OAuthProviderInfo,
             RegistrationCapabilities,
         )
@@ -60,5 +61,9 @@ class AuthCapabilitiesService:
                 qr=s.AUTH_QR_LOGIN,
                 passkey=s.AUTH_PASSKEY_LOGIN,
                 magic_link=s.AUTH_MAGIC_LINK_LOGIN,
+            ),
+            mfa=MFACapabilities(
+                totp=s.AUTH_TOTP,
+                passkey=s.AUTH_PASSKEY_LOGIN,
             ),
         )

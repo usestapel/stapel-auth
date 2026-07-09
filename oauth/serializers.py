@@ -5,6 +5,7 @@ from stapel_auth.oauth.dto import (
     OAuthProviderInfo,
     RegistrationCapabilities,
     LoginCapabilities,
+    MFACapabilities,
     AuthCapabilities,
 )
 
@@ -34,9 +35,15 @@ class LoginCapabilitiesSerializer(StapelDataclassSerializer):
         dataclass = LoginCapabilities
 
 
+class MFACapabilitiesSerializer(StapelDataclassSerializer):
+    class Meta:
+        dataclass = MFACapabilities
+
+
 class AuthCapabilitiesSerializer(StapelDataclassSerializer):
     registration = RegistrationCapabilitiesSerializer()
     login = LoginCapabilitiesSerializer()
+    mfa = MFACapabilitiesSerializer()
 
     class Meta:
         dataclass = AuthCapabilities

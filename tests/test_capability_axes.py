@@ -124,3 +124,59 @@ class AnonymousAxisCapabilitiesTests(APITestCase):
         # was gone. Now both stay on together.
         response = self.client.get(reverse('capabilities'))
         self.assertTrue(response.data['registration']['anonymous'])
+
+
+class TOTPAxisFactoryTests(TestCase):
+    """A2 — AUTH_TOTP gates the totp block of get_mfa_urls, passkey-style."""
+
+    def _names(self):
+        from stapel_auth import urls as auth_urls
+
+        return {p.name for p in auth_urls.get_mfa_urls()}
+
+    def test_on_by_default(self):
+        names = self._names()
+        self.assertIn('totp_setup', names)
+        self.assertIn('totp_step_up', names)
+        self.assertIn('passkey_list', names)
+
+    @override_settings(STAPEL_AUTH={'AUTH_TOTP': False})
+    def test_off_drops_totp_keeps_passkey(self):
+        names = self._names()
+        self.assertNotIn('totp_setup', names)
+        self.assertNotIn('totp_challenge_verify', names)
+        self.assertNotIn('totp_step_up', names)
+        self.assertIn('passkey_list', names)
+
+    @override_settings(STAPEL_AUTH={'AUTH_TOTP': False, 'AUTH_PASSKEY_LOGIN': False})
+    def test_both_off_yields_no_mfa_urls(self):
+        from stapel_auth import urls as auth_urls
+
+        self.assertEqual(auth_urls.get_mfa_urls(), [])
+
+
+class TOTPAxisEndpointTests(APITestCase):
+    """A2 — end-to-end: disabled TOTP endpoints 404 on a factory urlconf."""
+
+    def test_disabled_endpoint_404s(self):
+        with override_settings(STAPEL_AUTH={'AUTH_TOTP': False}):
+            urlconf = _build_urlconf('tests._urlconf_totp_off')
+            with override_settings(ROOT_URLCONF=urlconf):
+                response = self.client.post('/totp/setup/', {})
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+@override_settings(URL_PREFIX='')
+class TOTPAxisCapabilitiesTests(APITestCase):
+    """A2 — GET /capabilities/ exposes the mfa section."""
+
+    def test_default_reports_totp_on(self):
+        response = self.client.get(reverse('capabilities'))
+        self.assertTrue(response.data['mfa']['totp'])
+        self.assertTrue(response.data['mfa']['passkey'])
+
+    @override_settings(STAPEL_AUTH={'AUTH_TOTP': False})
+    def test_disabled_reports_totp_off(self):
+        response = self.client.get(reverse('capabilities'))
+        self.assertFalse(response.data['mfa']['totp'])
+        self.assertTrue(response.data['mfa']['passkey'])

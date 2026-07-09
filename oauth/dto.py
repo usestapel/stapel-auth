@@ -60,12 +60,26 @@ class LoginCapabilities:
 
 
 @dataclass
+class MFACapabilities:
+    """Available multi-factor methods for this deployment.
+
+    Attributes:
+        totp: TOTP (authenticator app) MFA enabled. Example: true
+        passkey: Passkey/WebAuthn enabled (also a login method). Example: true
+    """
+    totp: bool
+    passkey: bool
+
+
+@dataclass
 class AuthCapabilities:
     """Auth method availability for this deployment.
 
     Attributes:
         registration: Available registration methods.
         login: Available login methods.
+        mfa: Available multi-factor methods.
     """
     registration: RegistrationCapabilities
     login: LoginCapabilities
+    mfa: MFACapabilities

@@ -176,9 +176,9 @@ def get_qr_urls(enabled=None):
 
 
 def get_mfa_urls(enabled=None):
-    """TOTP (always available) and passkeys (gated by AUTH_PASSKEY_LOGIN)."""
+    """TOTP (gated by AUTH_TOTP) and passkeys (gated by AUTH_PASSKEY_LOGIN)."""
     patterns = []
-    if _gate(enabled):
+    if _gate(enabled, 'AUTH_TOTP'):
         patterns += [
             path('totp/setup/', TOTPViewSet.as_view({'post': 'setup'}), name='totp_setup'),
             path('totp/setup/confirm/', TOTPViewSet.as_view({'post': 'confirm_setup'}), name='totp_setup_confirm'),

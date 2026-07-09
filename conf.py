@@ -66,6 +66,12 @@ DEFAULTS = {
 
     # TOTP
     'TOTP_ISSUER': 'Stapel',
+    # TOTP axis: gates the /totp/* endpoints in get_mfa_urls (the same way
+    # AUTH_PASSKEY_LOGIN gates the /passkey/* block) and the mfa.totp
+    # capability. NB: step-up (PASSWORD_LOGIN_STEP_UP / OAUTH_STEP_UP)
+    # relies on /totp/challenge/verify/ and /totp/step-up/ — leave AUTH_TOTP
+    # on where step-up is on.
+    'AUTH_TOTP': True,
 
     # Passkeys (WebAuthn)
     'WEBAUTHN_RP_ID': None,         # Falls back to request host
