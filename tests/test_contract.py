@@ -266,7 +266,8 @@ def test_capabilities_envelope():
 
 def test_capabilities_meta_out_of_sync_fails_loudly():
     """A curated-layer gap must be an emission ERROR, never a silent skip."""
-    from stapel_auth._capabilities import build_capabilities
+    from stapel_tools.capabilities import axis_group_rules, build_capabilities
+
     from stapel_auth.conf import DEFAULTS
     from stapel_auth.urls import GATE_REGISTRY
 
@@ -281,6 +282,16 @@ def test_capabilities_meta_out_of_sync_fails_loudly():
             registry=GATE_REGISTRY,
             schema=schema,
             meta=broken_meta,
+            is_axis=lambda k: k.startswith("AUTH_") or k.endswith("_STEP_UP"),
+            axis_group=axis_group_rules(
+                exact={"AUTH_ANONYMOUS": "auth.anonymous", "AUTH_TOTP": "auth.mfa"},
+                suffix={
+                    "_REGISTRATION": "auth.registration",
+                    "_LOGIN": "auth.login",
+                    "_STEP_UP": "auth.stepup",
+                },
+            ),
+            canonical_prefix="/auth/api",
         )
 
     # Baseline: intact meta builds.
