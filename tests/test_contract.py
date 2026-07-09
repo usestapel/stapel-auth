@@ -53,26 +53,35 @@ if _PY != (3, 12):
 REPO = Path(__file__).resolve().parent.parent
 DOCS = REPO / "docs"
 TRIAD = ("schema.json", "flows.json", "errors.json")
+# The fourth artifact (capability-config.md §2): config axes over STAPEL_AUTH,
+# emitted from conf.py DEFAULTS + the urls.py gate registry + schema.json +
+# the curated docs/capabilities.meta.json. Same emit/drift discipline.
+ARTIFACTS = TRIAD + ("capabilities.json",)
 
 
 def _emit(out_dir: Path) -> None:
-    subprocess.run(
-        [sys.executable, "-m", "stapel_auth._codegen", "--out", str(out_dir)],
-        cwd=str(REPO),
-        check=True,
-        capture_output=True,
+    for module in ("stapel_auth._codegen", "stapel_auth._capabilities"):
+        subprocess.run(
+            [sys.executable, "-m", module, "--out", str(out_dir)],
+            cwd=str(REPO),
+            check=True,
+            capture_output=True,
+        )
+
+
+def test_contract_artifacts_committed():
+    for name in ARTIFACTS:
+        assert (DOCS / name).is_file(), f"missing docs/{name} — run `make contract`"
+    assert (DOCS / "capabilities.meta.json").is_file(), (
+        "missing docs/capabilities.meta.json — the curated layer is "
+        "hand-written and committed, not generated"
     )
 
 
-def test_contract_triad_committed():
-    for name in TRIAD:
-        assert (DOCS / name).is_file(), f"missing docs/{name} — run `make contract`"
-
-
 def test_contract_has_no_drift(tmp_path):
-    """Regenerate into a temp dir; committed triad must match byte-for-byte."""
+    """Regenerate into a temp dir; committed artifacts must match byte-for-byte."""
     _emit(tmp_path)
-    for name in TRIAD:
+    for name in ARTIFACTS:
         committed = (DOCS / name).read_bytes()
         regenerated = (tmp_path / name).read_bytes()
         assert committed == regenerated, (
@@ -85,7 +94,7 @@ def test_emission_is_deterministic(tmp_path):
     a, b = tmp_path / "a", tmp_path / "b"
     _emit(a)
     _emit(b)
-    for name in TRIAD:
+    for name in ARTIFACTS:
         assert (a / name).read_bytes() == (b / name).read_bytes()
 
 
@@ -166,3 +175,131 @@ def test_matches_monolith_auth_slice():
         assert json.dumps(mine["components"]["schemas"][c], sort_keys=True) == json.dumps(
             mono["components"]["schemas"][c], sort_keys=True
         ), f"component {c} differs from monolith slice"
+
+
+# --- capabilities.json content sanity (capability-config.md §2, the etalon) ----
+
+_EXPECTED_AXES = {
+    # auth.registration
+    "AUTH_PHONE_REGISTRATION", "AUTH_EMAIL_REGISTRATION", "AUTH_OAUTH_REGISTRATION",
+    "AUTH_SSO_REGISTRATION", "AUTH_PASSWORD_REGISTRATION",
+    # auth.login
+    "AUTH_PHONE_LOGIN", "AUTH_EMAIL_LOGIN", "AUTH_OAUTH_LOGIN", "AUTH_SSO_LOGIN",
+    "AUTH_PASSWORD_LOGIN", "AUTH_QR_LOGIN", "AUTH_PASSKEY_LOGIN",
+    "AUTH_MAGIC_LINK_LOGIN",
+    # auth.anonymous / auth.mfa / auth.stepup
+    "AUTH_ANONYMOUS", "AUTH_TOTP", "OAUTH_STEP_UP", "PASSWORD_LOGIN_STEP_UP",
+}
+
+
+def _capabilities() -> dict:
+    return json.loads((DOCS / "capabilities.json").read_text())
+
+
+def test_capabilities_axes_inventory():
+    """13 method gates + anonymous + totp + 2 step-up, all bool, all grouped."""
+    doc = _capabilities()
+    assert {a["key"] for a in doc["axes"]} == _EXPECTED_AXES
+    assert len(doc["axes"]) == 17
+    for axis in doc["axes"]:
+        assert axis["kind"] == "bool", axis["key"]
+        assert axis["group"].startswith("auth."), axis["key"]
+
+
+def test_capabilities_every_axis_curated():
+    """Every axis carries non-empty curated business semantics."""
+    for axis in _capabilities()["axes"]:
+        assert axis["curated"]["summary"], axis["key"]
+        assert axis["curated"]["business_label"], axis["key"]
+
+
+def test_capabilities_password_axis_gates_password_operations():
+    doc = _capabilities()
+    axis = next(a for a in doc["axes"] if a["key"] == "AUTH_PASSWORD_LOGIN")
+    ops = axis["gates"]["operations"]
+    assert len(ops) == 10
+    assert all(op.startswith("auth_api_password_") for op in ops)
+    # Co-gated with registration: the factory stays mounted while EITHER is on.
+    assert axis["gates"]["co_gates"] == ["AUTH_PASSWORD_REGISTRATION"]
+
+
+def test_capabilities_anonymous_and_totp_axes():
+    doc = _capabilities()
+    anon = next(a for a in doc["axes"] if a["key"] == "AUTH_ANONYMOUS")
+    assert anon["gates"]["operations"] == ["auth_api_anonymous_create"]
+    assert anon["gates"]["co_gates"] == []  # its own factory — the A1 fix
+    totp = next(a for a in doc["axes"] if a["key"] == "AUTH_TOTP")
+    assert totp["gates"]["operations"], "AUTH_TOTP gates no operations"
+    assert all(op.startswith("auth_api_totp_") for op in totp["gates"]["operations"])
+    assert totp["gates"]["co_gates"] == []  # own block inside the mfa factory
+
+
+def test_capabilities_stepup_axes_are_behavioral():
+    """The step-up axes gate behavior, not endpoints."""
+    doc = _capabilities()
+    for key in ("OAUTH_STEP_UP", "PASSWORD_LOGIN_STEP_UP"):
+        axis = next(a for a in doc["axes"] if a["key"] == key)
+        assert axis["gates"]["operations"] == []
+        assert axis["gates"]["behavior"], key
+
+
+def test_capabilities_operations_total_matches_schema():
+    schema = json.loads((DOCS / "schema.json").read_text())
+    methods = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
+    total = sum(
+        1 for item in schema["paths"].values() for m in item if m in methods
+    )
+    assert _capabilities()["operations_total"] == total
+
+
+def test_capabilities_envelope():
+    doc = _capabilities()
+    import tomllib
+
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text())
+    assert doc["module"] == pyproject["project"]["name"]
+    assert doc["version"] == pyproject["project"]["version"]
+    assert doc["provides"]
+    assert doc["extension_points"]
+    assert doc["requires"]
+
+
+def test_capabilities_meta_out_of_sync_fails_loudly():
+    """A curated-layer gap must be an emission ERROR, never a silent skip."""
+    from stapel_auth._capabilities import build_capabilities
+    from stapel_auth.conf import DEFAULTS
+    from stapel_auth.urls import GATE_REGISTRY
+
+    schema = json.loads((DOCS / "schema.json").read_text())
+    meta = json.loads((DOCS / "capabilities.meta.json").read_text())
+
+    def _build(broken_meta):
+        return build_capabilities(
+            module="stapel-auth",
+            version="0.0.0",
+            defaults=DEFAULTS,
+            registry=GATE_REGISTRY,
+            schema=schema,
+            meta=broken_meta,
+        )
+
+    # Baseline: intact meta builds.
+    assert _build(json.loads(json.dumps(meta)))["axes"]
+
+    # Missing axis entry → loud failure.
+    broken = json.loads(json.dumps(meta))
+    del broken["axes"]["AUTH_ANONYMOUS"]
+    with pytest.raises(SystemExit, match="AUTH_ANONYMOUS"):
+        _build(broken)
+
+    # Stale (unknown) axis entry → loud failure.
+    broken = json.loads(json.dumps(meta))
+    broken["axes"]["AUTH_NO_SUCH_AXIS"] = {"summary": "x", "business_label": "x"}
+    with pytest.raises(SystemExit, match="AUTH_NO_SUCH_AXIS"):
+        _build(broken)
+
+    # Empty business_label → loud failure.
+    broken = json.loads(json.dumps(meta))
+    broken["axes"]["AUTH_TOTP"]["business_label"] = ""
+    with pytest.raises(SystemExit, match="business_label"):
+        _build(broken)

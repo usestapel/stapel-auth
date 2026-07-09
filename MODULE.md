@@ -14,13 +14,13 @@ Full-featured authentication as a single pip-installable Django app (`stapel_aut
 - **GDPR provider** (`gdpr.py: AuthGDPRProvider`, section `auth`): export/delete of auth data; registered in-process in monolith mode, or run as a bus consumer (`manage.py consume_gdpr`) in microservices mode.
 - **Flow registry** (`flows.py`): documented business flows consumed by `stapel_core.flows` tooling.
 
-Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`, `PROVIDER_REGISTRY`, the staff-role assignment services `assign_staff_role`, `revoke_staff_role`, `staff_roles_for` (admin-suite AS-2, see below), and the per-feature URL factories `get_admin_api_urls`, `get_magic_link_urls`, `get_mfa_urls`, `get_oauth_urls`, `get_openid_urls`, `get_otp_urls`, `get_password_urls`, `get_qr_urls`, `get_security_urls`, `get_sessions_urls`, `get_sso_urls`, `get_verification_urls`.
+Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`, `PROVIDER_REGISTRY`, the staff-role assignment services `assign_staff_role`, `revoke_staff_role`, `staff_roles_for` (admin-suite AS-2, see below), and the per-feature URL factories `get_admin_api_urls`, `get_anonymous_urls`, `get_magic_link_urls`, `get_mfa_urls`, `get_oauth_urls`, `get_openid_urls`, `get_otp_urls`, `get_password_urls`, `get_qr_urls`, `get_security_urls`, `get_sessions_urls`, `get_sso_urls`, `get_verification_urls`.
 
 ## Extension points (fork-free)
 
 ### Settings (`conf.py` — `STAPEL_AUTH = {...}` dict)
 
-Resolution order per key: `STAPEL_AUTH['KEY']` → flat Django setting of the same name → env var (for keys in `_ENV_FALLBACKS`) → built-in default. All keys below exist in `conf.py: DEFAULTS`.
+`auth_settings` is a `stapel_core.conf.AppSettings` namespace (the shared per-app settings pattern). Resolution order per key: `STAPEL_AUTH['KEY']` → flat Django setting of the same name → env var → built-in default. Env fallback is disabled (`no_env`) for secrets/trust anchors (`INTERNAL_SERVICE_KEY`, `OAUTH_PROVIDERS`), dotted-path seams (`OAUTH_PROVIDER_CLASSES`, `REREGISTRATION_MODEL`), `LEGACY_STEP_UP_GRANT_SCOPES`, `MOCK_OTP_CODE` and **every boolean gate** — env vars are strings and any non-empty string is truthy, so a stray `AUTH_PASSWORD_LOGIN=false` env var must not silently enable password login. All keys below exist in `conf.py: DEFAULTS`.
 
 | Key | Default | What it customizes |
 |---|---|---|
@@ -36,6 +36,8 @@ Resolution order per key: `STAPEL_AUTH['KEY']` → flat Django setting of the sa
 | `QR_TOKEN_TTL` | `300` | QR login token lifetime, seconds |
 | `SESSION_TTL_DAYS` | `30` | `UserSession` expiry |
 | `ANONYMOUS_USER_LIFETIME_DAYS` | `30` | Anonymous account lifetime |
+| `AUTH_ANONYMOUS` | `True` | Anonymous (guest) auth axis: gates `POST /anonymous/` (own URL factory `get_anonymous_urls`, independent of the email/phone gates) and the `anonymous` capability |
+| `AUTH_TOTP` | `True` | TOTP axis: gates the `/totp/*` endpoints in `get_mfa_urls` (passkey-style) and the `mfa.totp` capability. Step-up rides `/totp/challenge/verify/` + `/totp/step-up/` — keep it on where step-up is on |
 | `JWT_COOKIE_DOMAIN` | `None` (env) | JWT cookie domain override |
 | `TOTP_ISSUER` | `'Stapel'` (env) | Issuer shown in authenticator apps |
 | `WEBAUTHN_RP_ID` | `None` (env; falls back to request host) | Passkey relying-party ID |
@@ -44,7 +46,7 @@ Resolution order per key: `STAPEL_AUTH['KEY']` → flat Django setting of the sa
 | `SSO_ENFORCED_REDIRECT_PATH` | `'/login'` | Redirect path when SSO is enforced for a domain |
 | `LOGIN_NOTIFICATION_ENABLED` | `False` | New-device / suspicious-IP login alert emails |
 | `REREGISTRATION_MODEL` | `'stapel_gdpr.models.ReRegistrationHash'` | **Dotted path**, resolved lazily in `gdpr.py` — stapel-gdpr is not a hard dependency; point at your own model |
-| `INTERNAL_SERVICE_KEY` | `None` (env) | Service-to-service auth key |
+| `INTERNAL_SERVICE_KEY` | `None` | Service-to-service auth key (`no_env` — set via `STAPEL_AUTH` or a flat setting, never picked up from the environment) |
 | `OAUTH_PROVIDERS` | `{}` | Per-provider credentials: `{'google': {'client_id': ..., 'client_secret': ...}}` (parsed into `OAuthProviderConfig`) |
 | `OAUTH_PROVIDER_CLASSES` | 9 built-ins (see below) | **Dotted-path list** of `OAuthProvider` subclasses registered at startup — append your own class to add a provider without touching this repo |
 | `AUTH_PHONE_REGISTRATION` / `AUTH_EMAIL_REGISTRATION` / `AUTH_OAUTH_REGISTRATION` / `AUTH_SSO_REGISTRATION` | `True` | Registration method gates |
@@ -55,6 +57,8 @@ Resolution order per key: `STAPEL_AUTH['KEY']` → flat Django setting of the sa
 | `PASSWORD_LOGIN_STEP_UP` | `True` | TOTP challenge after password login |
 
 The `AUTH_*` gates also drive the URL factories in `urls.py`: `include('stapel_auth.urls')` mounts everything (per-request 403 gating), or compose your own URLconf from `get_*_urls()` factories so disabled features 404.
+
+The boolean gates above are this module's **config axes** (capability-config.md §1 in the stapel workspace root): machine-readable metadata over `STAPEL_AUTH`, published as the fourth contract artifact `docs/capabilities.json` (see below). Each factory declares its gating flags and contributed URL patterns in `urls.py: GATE_REGISTRY` via the `_gated()` helper — the declaration lives where the gating executes, so the artifact cannot drift from the code.
 
 ### Swappable models
 
@@ -313,6 +317,39 @@ missing/stale/params/byte-instability); regenerate with
 `STAPEL_REGEN_ERROR_I18N=1 pytest tests/test_error_i18n.py::test_regen` and commit
 `translations/errors.ru.json`, `translations/.state.json`, `docs/errors.{en,ru}.md`.
 
+### Config axes + `capabilities.json` — the fourth contract artifact (ETALON)
+
+`docs/capabilities.json` describes this module's **config axes** — machine-readable
+metadata over the `STAPEL_AUTH` gates (design: `docs/capability-config.md` in the
+stapel workspace root, §1-§2). It rides the same pipeline as the triad below:
+emitted by `make contract`, drift-gated by `make contract-check` and
+`tests/test_contract.py`, committed.
+
+Derivable facts are derived, semantics are curated:
+
+- **Derived** (`_capabilities.py`): axis `key`/`kind`/`default`/`group` from
+  `conf.py: DEFAULTS` (include rule, documented there: a key is an axis iff it
+  starts with `AUTH_` or ends with `_STEP_UP` — 13 method gates + anonymous +
+  totp + 2 step-up policies = 17 axes; TTLs/rate-limits/credentials are tuning
+  knobs, not axes). `gates.operations` come from `urls.py: GATE_REGISTRY` —
+  every URL factory declares `(name, flags, patterns)` through `_gated()` where
+  the gating executes — cross-referenced against `docs/schema.json`
+  operationIds. Flags on one factory compose with **OR** (`gates.co_gates`
+  lists the siblings): the block 404s only when all of them are off.
+- **Curated** (`docs/capabilities.meta.json`, hand-written): per-axis
+  `business_label` + `summary` in business language, module `provides`,
+  `requires[]`, `extension_points[]`, optional `behavior` for axes that gate
+  behavior rather than endpoints (the step-up pair). A missing or stale meta
+  entry is a **loud emission error**, so the curated layer cannot silently
+  desync from the code.
+
+Consumers: the studio CTO capability index aggregates these manifests
+shelf-wide; humans and third-party agents get a config surface they can read
+without opening `conf.py`. Runtime truth for frontends remains
+`GET /auth/api/capabilities/`. The emitter is a local prototype — the mechanism
+moves to stapel-tools for the shelf sweep (capability-config.md §5-A6), with
+only `capabilities.meta.json` staying per-module.
+
 ### Contract emission — the `schema` + `flows` + `errors` triad (ETALON)
 
 This module emits its **own** machine-readable API contract, per-module, so the
@@ -352,9 +389,9 @@ dir and diffs — identical discipline to `test_error_keys` / `test_flow_docs`. 
 CI-enforced gate is `tests/test_contract.py` (pytest, run in the module's venv).
 Regenerate after any serializer/view/url/flow/error change:
 
-    make contract        # or: python -m stapel_auth._codegen --out docs
+    make contract        # emits the triad AND capabilities.json
 
-then commit `docs/{schema,flows,errors}.json`.
+then commit `docs/{schema,flows,errors,capabilities}.json`.
 
 **Two non-obvious facts the emission depends on** (they bit auth-first and will
 bite the copies, so they are the reason this is the etalon):

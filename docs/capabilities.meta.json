@@ -1,0 +1,125 @@
+{
+  "_comment": "Hand-curated layer of docs/capabilities.json (capability-config.md §2 p.3). The emitter (stapel_auth/_capabilities.py) merges this over the derived axes; an axis present in conf.py DEFAULTS but missing here (or vice versa) is a loud emission error. Keep business_label/summary in business language — they surface in CTO conversations, not in code.",
+  "provides": "User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.",
+  "requires": [
+    {
+      "module": "stapel-core",
+      "optional": false,
+      "reason": "comm bus (events/functions), JWT provider, verification mechanism, OAuth provider registry"
+    },
+    {
+      "module": "stapel-gdpr",
+      "optional": true,
+      "reason": "default REREGISTRATION_MODEL target (lazy dotted path); co-mounted under /auth/api/ in the contract harness"
+    },
+    {
+      "module": "stapel-notifications",
+      "optional": true,
+      "reason": "delivers the OTP / magic-link / security emails and SMS this module requests via notification.requested"
+    }
+  ],
+  "extension_points": [
+    {
+      "name": "OAUTH_PROVIDER_CLASSES",
+      "kind": "dotted_path_list",
+      "summary": "Register additional OAuth providers (subclass stapel_core.oauth.OAuthProvider in the host app, append the dotted path) — no fork."
+    },
+    {
+      "name": "REREGISTRATION_MODEL",
+      "kind": "dotted_path",
+      "summary": "Swap the model that stores re-registration hashes; resolved lazily, stapel-gdpr is not a hard dependency."
+    },
+    {
+      "name": "AUTH_USER_MODEL",
+      "kind": "swappable_model",
+      "summary": "Standard Django user swap — subclass stapel-core's AbstractStapelUser; this module only ever uses get_user_model()."
+    },
+    {
+      "name": "serializer_seams",
+      "kind": "class_override",
+      "summary": "Every user-facing view declares *_request/_response_serializer_class seams (SerializerSeamsMixin) — subclass the view, override the attribute, mount via the URL factories."
+    },
+    {
+      "name": "STAPEL_VERIFICATION.EXTRA_FACTORS",
+      "kind": "dotted_path_list",
+      "summary": "Add step-up verification factors to the stapel-core registry alongside the built-ins this module registers (otp_email, otp_phone, totp, passkey)."
+    },
+    {
+      "name": "url_factories",
+      "kind": "urlconf_composition",
+      "summary": "Compose your own URLconf from the get_*_urls() factories so disabled features 404 (include('stapel_auth.urls') mounts everything with per-request gating)."
+    }
+  ],
+  "axes": {
+    "AUTH_PHONE_REGISTRATION": {
+      "business_label": "Sign-up with a phone number",
+      "summary": "New users can create an account by confirming their phone number with a one-time SMS code."
+    },
+    "AUTH_EMAIL_REGISTRATION": {
+      "business_label": "Sign-up with an email address",
+      "summary": "New users can create an account by confirming their email with a one-time code."
+    },
+    "AUTH_OAUTH_REGISTRATION": {
+      "business_label": "Sign-up with a social account",
+      "summary": "New users can create an account through Google, GitHub, Apple and other configured OAuth providers."
+    },
+    "AUTH_SSO_REGISTRATION": {
+      "business_label": "Automatic accounts for corporate SSO users",
+      "summary": "Employees signing in through their company identity provider (SAML/OIDC) get an account provisioned on first login."
+    },
+    "AUTH_PASSWORD_REGISTRATION": {
+      "business_label": "Classic sign-up with a password",
+      "summary": "New users can register with a login and password. Off by default — passwordless methods are the house default."
+    },
+    "AUTH_PHONE_LOGIN": {
+      "business_label": "Sign-in with a phone number",
+      "summary": "Existing users sign in by receiving a one-time SMS code."
+    },
+    "AUTH_EMAIL_LOGIN": {
+      "business_label": "Sign-in with an email code",
+      "summary": "Existing users sign in by receiving a one-time code by email."
+    },
+    "AUTH_OAUTH_LOGIN": {
+      "business_label": "Sign-in with a social account",
+      "summary": "Existing users sign in through the configured OAuth providers."
+    },
+    "AUTH_SSO_LOGIN": {
+      "business_label": "Corporate single sign-on",
+      "summary": "Users of onboarded organizations sign in through their company identity provider (SAML/OIDC), configured per organization in the database."
+    },
+    "AUTH_PASSWORD_LOGIN": {
+      "business_label": "Sign-in with a password",
+      "summary": "Existing users sign in with login and password (plus change/reset flows). Off by default."
+    },
+    "AUTH_QR_LOGIN": {
+      "business_label": "Sign-in by QR code from another device",
+      "summary": "A signed-in device shows a QR code; scanning it signs the user in on the new device."
+    },
+    "AUTH_PASSKEY_LOGIN": {
+      "business_label": "Sign-in with passkeys",
+      "summary": "Users sign in with platform passkeys (Face ID, fingerprint, hardware security keys) via WebAuthn; also usable as a second factor."
+    },
+    "AUTH_MAGIC_LINK_LOGIN": {
+      "business_label": "Sign-in via a one-time email link",
+      "summary": "Users sign in by clicking a short-lived link sent to their email — no code entry."
+    },
+    "AUTH_ANONYMOUS": {
+      "business_label": "Guest access without an account",
+      "summary": "Visitors get a temporary anonymous account (e.g. to browse or fill a cart) that can later be upgraded to a full account; guest data merges on upgrade."
+    },
+    "AUTH_TOTP": {
+      "business_label": "Two-factor authentication with an authenticator app",
+      "summary": "Users can protect their account with time-based one-time codes (Google Authenticator etc.); also the factor behind step-up checks on sensitive actions."
+    },
+    "OAUTH_STEP_UP": {
+      "business_label": "Extra verification after social sign-in",
+      "summary": "Require a two-factor code even after a social (OAuth) login. Off by default — the provider already authenticated the user.",
+      "behavior": "When on, a successful OAuth login with a TOTP-enrolled account returns a TOTP challenge instead of tokens."
+    },
+    "PASSWORD_LOGIN_STEP_UP": {
+      "business_label": "Extra verification after password sign-in",
+      "summary": "Require a two-factor code after password login for TOTP-enrolled accounts. On by default — a password alone is phishable.",
+      "behavior": "When on, a successful password login with a TOTP-enrolled account returns a TOTP challenge instead of tokens."
+    }
+  }
+}
