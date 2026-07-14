@@ -414,9 +414,12 @@ class SSOConfig(models.Model):
     is_active = models.BooleanField(default=True)
 
     # SAML fields
+    # URLField defaults to max_length=200 — too short for real IdP endpoints
+    # (Okta/Azure AD SSO URLs routinely carry long encoded query params).
+    # Widened to 500 to match sibling saml_entity_id/oidc_client_secret.
     saml_entity_id     = models.CharField(max_length=500, blank=True, help_text='IdP entity ID / issuer')
-    saml_sso_url       = models.URLField(blank=True, help_text='IdP SSO URL (redirect binding)')
-    saml_slo_url       = models.URLField(blank=True, help_text='IdP SLO URL (optional)')
+    saml_sso_url       = models.URLField(max_length=500, blank=True, help_text='IdP SSO URL (redirect binding)')
+    saml_slo_url       = models.URLField(max_length=500, blank=True, help_text='IdP SLO URL (optional)')
     saml_x509_cert     = models.TextField(blank=True, help_text='IdP signing certificate (PEM or raw base64)')
     saml_name_id_format = models.CharField(
         max_length=200, blank=True,
@@ -431,7 +434,7 @@ class SSOConfig(models.Model):
     # OIDC fields
     oidc_client_id     = models.CharField(max_length=200, blank=True)
     oidc_client_secret = models.CharField(max_length=500, blank=True)
-    oidc_discovery_url = models.URLField(blank=True, help_text='.well-known/openid-configuration URL')
+    oidc_discovery_url = models.URLField(max_length=500, blank=True, help_text='.well-known/openid-configuration URL')
     oidc_scopes        = models.CharField(max_length=200, blank=True, default='openid email profile')
 
     updated_at = models.DateTimeField(auto_now=True)

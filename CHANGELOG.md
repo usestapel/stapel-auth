@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-07-14
+
+### Fixed — OAuth/SSO URLField truncation (500s) + missing `consume_gdpr` command in installs
+
+- **OAuth avatar**: a pathologically long provider avatar URL now degrades to
+  no-avatar on signup instead of 500ing (`otp/views.py`) — belt-and-suspenders
+  with `stapel-core` 0.10.1 widening `users_user.avatar` 200→500.
+- **`SSOConfig.saml_sso_url` / `saml_slo_url` / `oidc_discovery_url`** widened
+  `URLField` 200→500 (migration `0014_widen_sso_config_urls`, expand-only).
+  Same bug class as the OAuth avatar: Django's `URLField` default is
+  varchar(200), and real IdP endpoints (Okta/Azure AD SSO URLs with encoded
+  query params) routinely exceed it.
+- **Packaging**: `stapel_auth.management` / `stapel_auth.management.commands`
+  (the `consume_gdpr` bus consumer used in microservices mode) were missing
+  from `[tool.setuptools].packages` — every PyPI install was silently missing
+  `manage.py consume_gdpr`. Same class of bug as `stapel-core`'s
+  `projections` subtree miss (7b0eb1e); found by a packaging audit
+  (tree-vs-pyproject diff) done alongside this release.
+- **Dependency pin**: `stapel-core` requirement was still `>=0.8,<0.9` — three
+  major releases behind every other stapel-* module (`>=0.10,<0.11`) and
+  behind the 0.10.1 this release's avatar fix pairs with. A clean install of
+  `stapel-auth` would have resolved a `stapel-core` that predates both the
+  avatar widening and the `Projection`/config-seam features other code here
+  already assumes. Bumped to `>=0.10,<0.11`.
+
 ### Added — config axes + `docs/capabilities.json`, the fourth contract artifact (capability-config.md §1-§2/§5, ETALON)
 
 - **`AUTH_ANONYMOUS`** (new setting, default `True`) — anonymous auth is its own
