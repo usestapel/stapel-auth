@@ -6656,16 +6656,32 @@
             "maxLength": 500
           },
           "saml_sso_url": {
-            "type": "string",
-            "format": "uri",
             "description": "IdP SSO URL (redirect binding)",
-            "maxLength": 500
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 500
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
           },
           "saml_slo_url": {
-            "type": "string",
-            "format": "uri",
             "description": "IdP SLO URL (optional)",
-            "maxLength": 500
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 500
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
           },
           "saml_x509_cert": {
             "type": "string",
@@ -6696,10 +6712,18 @@
             "maxLength": 500
           },
           "oidc_discovery_url": {
-            "type": "string",
-            "format": "uri",
             "description": ".well-known/openid-configuration URL",
-            "maxLength": 500
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 500
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
           },
           "oidc_scopes": {
             "type": "string",
@@ -7588,11 +7612,19 @@
             "maxLength": 150
           },
           "email": {
-            "type": "string",
-            "format": "email",
             "nullable": true,
             "title": "Email address",
-            "maxLength": 254
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "email",
+                "maxLength": 254
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
           },
           "phone": {
             "type": "string",
@@ -7637,10 +7669,18 @@
             "nullable": true
           },
           "avatar": {
-            "type": "string",
-            "format": "uri",
             "nullable": true,
-            "maxLength": 500
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 500
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
           },
           "bio": {
             "type": "string",
@@ -7986,16 +8026,32 @@
             "maxLength": 500
           },
           "saml_sso_url": {
-            "type": "string",
-            "format": "uri",
             "description": "IdP SSO URL (redirect binding)",
-            "maxLength": 500
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 500
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
           },
           "saml_slo_url": {
-            "type": "string",
-            "format": "uri",
             "description": "IdP SLO URL (optional)",
-            "maxLength": 500
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 500
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
           },
           "saml_x509_cert": {
             "type": "string",
@@ -8026,10 +8082,18 @@
             "maxLength": 500
           },
           "oidc_discovery_url": {
-            "type": "string",
-            "format": "uri",
             "description": ".well-known/openid-configuration URL",
-            "maxLength": 500
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 500
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
           },
           "oidc_scopes": {
             "type": "string",
