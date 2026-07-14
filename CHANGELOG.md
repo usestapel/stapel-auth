@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-07-14
+
+### Fixed — contract drift blocking every publish since 2026-07-09
+
+- `v0.5.5` was tagged but never reached PyPI: `docs/schema.json` was
+  generated with drf-spectacular 0.29, which renders a blank-eligible
+  URLField/EmailField as a flat typed string; 0.30 (what a fresh install
+  actually resolves via the floating `drf-spectacular>=0.27` pin) renders it
+  as `oneOf[typed, maxLength:0]` instead. Unrelated to the SSOConfig width
+  fix below, but failed `test_contract_has_no_drift` on the canonical Python
+  3.12 CI leg and blocked the publish job from ever running. Regenerated
+  against drf-spectacular 0.30 to match CI's actual resolution.
+
 ## [0.5.5] - 2026-07-14
 
 ### Fixed — OAuth/SSO URLField truncation (500s) + missing `consume_gdpr` command in installs
