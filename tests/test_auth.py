@@ -358,6 +358,47 @@ class OAuthAuthenticationTests(APITestCase):
         self.assertFalse(decoded["is_superuser"])
 
     @patch("stapel_auth.services.OAuthService.get_user_data")
+    def test_oauth_long_avatar_url_does_not_crash(self, mock_get_user_data):
+        """Regression: a provider avatar URL longer than the old varchar(200)
+        must not 500 the OAuth signup (StringDataRightTruncation in prod)."""
+        long_avatar = "https://lh3.googleusercontent.com/a/" + "x" * 250 + "=s96-c"
+        self.assertGreater(len(long_avatar), 200)
+        mock_get_user_data.return_value = OAuthUserData(
+            id="google-oauth-longavatar",
+            email="longavatar@example.com",
+            username="Long Avatar",
+            avatar=long_avatar,
+        )
+        response = self.client.post(
+            reverse("oauth_login"),
+            {"provider": "google", "access_token": "fake-google-token"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user = User.objects.get(email="longavatar@example.com")
+        # Fits in the widened field (<=500) → stored as-is.
+        self.assertEqual(user.avatar, long_avatar)
+
+    @patch("stapel_auth.services.OAuthService.get_user_data")
+    def test_oauth_pathological_avatar_url_dropped(self, mock_get_user_data):
+        """An avatar URL exceeding even the widened field degrades to no-avatar,
+        never a crash."""
+        huge = "https://x.example/" + "y" * 600
+        self.assertGreater(len(huge), 500)
+        mock_get_user_data.return_value = OAuthUserData(
+            id="google-oauth-hugeavatar",
+            email="hugeavatar@example.com",
+            username="Huge Avatar",
+            avatar=huge,
+        )
+        response = self.client.post(
+            reverse("oauth_login"),
+            {"provider": "google", "access_token": "fake-google-token"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user = User.objects.get(email="hugeavatar@example.com")
+        self.assertIsNone(user.avatar)
+
+    @patch("stapel_auth.services.OAuthService.get_user_data")
     def test_oauth_existing_staff_user_preserves_permissions(self, mock_get_user_data):
         """OAuth for existing staff user should preserve is_staff=True"""
         # Create existing staff user

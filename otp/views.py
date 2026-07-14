@@ -1174,12 +1174,17 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 raise OAuthEmailNotVerified(email)
 
         # 3. Brand-new user
+        # Avatar is untrusted external data; a pathologically long provider URL
+        # must degrade to no-avatar, never 500 the login (field is 500 wide).
+        avatar = user_data.avatar
+        if avatar and len(avatar) > 500:
+            avatar = None
         user = User.objects.create(
             email=email,
             oauth_provider=provider,
             oauth_id=oauth_id,
             auth_type="oauth",
-            avatar=user_data.avatar,
+            avatar=avatar,
             is_email_verified=email_verified,
         )
         self._publish_user_registered(user)
