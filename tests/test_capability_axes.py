@@ -23,7 +23,7 @@ def _build_urlconf(name: str) -> str:
     Built at call time (inside an active override_settings) so the factories
     see the overridden STAPEL_AUTH — the way a host assembles a gated URLconf.
     """
-    from stapel_auth import urls as auth_urls
+    from stapel_auth import urls_v1 as auth_urls
 
     mod = types.ModuleType(name)
     mod.urlpatterns = [
@@ -40,14 +40,14 @@ class AnonymousAxisFactoryTests(TestCase):
     """A1 — the AUTH_ANONYMOUS axis gates its own URL factory."""
 
     def test_on_by_default(self):
-        from stapel_auth import urls as auth_urls
+        from stapel_auth import urls_v1 as auth_urls
 
         names = [p.name for p in auth_urls.get_anonymous_urls()]
         self.assertEqual(names, ['anonymous'])
 
     @override_settings(STAPEL_AUTH={'AUTH_ANONYMOUS': False})
     def test_off_yields_no_urls(self):
-        from stapel_auth import urls as auth_urls
+        from stapel_auth import urls_v1 as auth_urls
 
         self.assertEqual(auth_urls.get_anonymous_urls(), [])
 
@@ -57,7 +57,7 @@ class AnonymousAxisFactoryTests(TestCase):
     })
     def test_independent_of_email_phone_gates(self):
         """The original bug: email+phone off must NOT take anonymous down."""
-        from stapel_auth import urls as auth_urls
+        from stapel_auth import urls_v1 as auth_urls
 
         self.assertEqual(auth_urls.get_otp_urls(), [])
         names = [p.name for p in auth_urls.get_anonymous_urls()]
@@ -130,7 +130,7 @@ class TOTPAxisFactoryTests(TestCase):
     """A2 — AUTH_TOTP gates the totp block of get_mfa_urls, passkey-style."""
 
     def _names(self):
-        from stapel_auth import urls as auth_urls
+        from stapel_auth import urls_v1 as auth_urls
 
         return {p.name for p in auth_urls.get_mfa_urls()}
 
@@ -150,7 +150,7 @@ class TOTPAxisFactoryTests(TestCase):
 
     @override_settings(STAPEL_AUTH={'AUTH_TOTP': False, 'AUTH_PASSKEY_LOGIN': False})
     def test_both_off_yields_no_mfa_urls(self):
-        from stapel_auth import urls as auth_urls
+        from stapel_auth import urls_v1 as auth_urls
 
         self.assertEqual(auth_urls.get_mfa_urls(), [])
 

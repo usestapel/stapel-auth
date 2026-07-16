@@ -94,7 +94,7 @@ class SSODomainLookupView(APIView):
         responses={200: SSODomainLookupResponseSerializer},
         tags=["SSO"],
     )
-    def get(self, request: Request):
+    def get(self, request: Request):  # noqa: R007
         _no_sso = SSODomainLookupResponse(
             sso_required=False, org_slug=None, protocol=None
         )
@@ -135,7 +135,7 @@ class SAMLMetadataView(APIView):
         tags=["SSO"],
         responses={200: None},
     )
-    def get(self, request: Request, slug: str):
+    def get(self, request: Request, slug: str):  # noqa: R007
         org = _get_org(slug)
         if not org:
             return StapelErrorResponse(404, ERR_404_SSO_ORG_NOT_FOUND)
@@ -153,7 +153,7 @@ class SSOLoginView(APIView):
         tags=["SSO"],
         responses={302: None},
     )
-    def get(self, request: Request, slug: str):
+    def get(self, request: Request, slug: str):  # noqa: R007
         org = _get_org(slug)
         if not org:
             return StapelErrorResponse(404, ERR_404_SSO_ORG_NOT_FOUND)
@@ -203,7 +203,7 @@ class SAMLACSView(APIView):
         tags=["SSO"],
         responses={302: None},
     )
-    def post(self, request: Request, slug: str):
+    def post(self, request: Request, slug: str):  # noqa: R007
         org = _get_org(slug)
         if not org:
             return HttpResponseRedirect(
@@ -260,7 +260,7 @@ class OIDCCallbackView(APIView):
         tags=["SSO"],
         responses={302: None},
     )
-    def get(self, request: Request, slug: str):
+    def get(self, request: Request, slug: str):  # noqa: R007
         org = _get_org(slug)
         if not org:
             return HttpResponseRedirect(

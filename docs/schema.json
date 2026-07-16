@@ -5,9 +5,9 @@
     "version": "0.0.0"
   },
   "paths": {
-    "/auth/api/admin-users/": {
+    "/auth/api/v1/admin-users/": {
       "post": {
-        "operationId": "auth_api_admin_users_create",
+        "operationId": "auth_api_v1_admin_users_create",
         "description": "Create a user account without OTP, bypassing normal registration flow. Requires service API key or admin (staff) credentials.\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Admin"
@@ -67,9 +67,9 @@
         }
       }
     },
-    "/auth/api/admin/audit/": {
+    "/auth/api/v1/admin/audit/": {
       "get": {
-        "operationId": "auth_api_admin_audit_retrieve",
+        "operationId": "auth_api_v1_admin_audit_retrieve",
         "summary": "List audit log entries for all users (admin only)",
         "parameters": [
           {
@@ -133,9 +133,9 @@
         "description": "**Permissions:** `IsAdminUser`"
       }
     },
-    "/auth/api/anonymous/": {
+    "/auth/api/v1/anonymous/": {
       "post": {
-        "operationId": "auth_api_anonymous_create",
+        "operationId": "auth_api_v1_anonymous_create",
         "description": "Create anonymous user\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Anonymous Auth"
@@ -196,9 +196,9 @@
         }
       }
     },
-    "/auth/api/capabilities/": {
+    "/auth/api/v1/capabilities/": {
       "get": {
-        "operationId": "auth_api_capabilities_retrieve",
+        "operationId": "auth_api_v1_capabilities_retrieve",
         "description": "Return available authentication and registration methods for this deployment.\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Auth"
@@ -213,9 +213,9 @@
         }
       }
     },
-    "/auth/api/email/change/delayed/cancel/": {
+    "/auth/api/v1/email/change/delayed/cancel/": {
       "post": {
-        "operationId": "auth_api_email_change_delayed_cancel_create",
+        "operationId": "auth_api_v1_email_change_delayed_cancel_create",
         "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Email Change"
@@ -277,9 +277,9 @@
         }
       }
     },
-    "/auth/api/email/change/delayed/initiate/": {
+    "/auth/api/v1/email/change/delayed/initiate/": {
       "post": {
-        "operationId": "auth_api_email_change_delayed_initiate_create",
+        "operationId": "auth_api_v1_email_change_delayed_initiate_create",
         "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Email Change"
@@ -343,9 +343,9 @@
         }
       }
     },
-    "/auth/api/email/change/delayed/status/": {
+    "/auth/api/v1/email/change/delayed/status/": {
       "get": {
-        "operationId": "auth_api_email_change_delayed_status_retrieve",
+        "operationId": "auth_api_v1_email_change_delayed_status_retrieve",
         "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Email Change"
@@ -382,9 +382,9 @@
         }
       }
     },
-    "/auth/api/email/change/instant/request-new/": {
+    "/auth/api/v1/email/change/instant/request-new/": {
       "post": {
-        "operationId": "auth_api_email_change_instant_request_new_create",
+        "operationId": "auth_api_v1_email_change_instant_request_new_create",
         "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Email Change"
@@ -445,9 +445,9 @@
         }
       }
     },
-    "/auth/api/email/change/instant/request-old/": {
+    "/auth/api/v1/email/change/instant/request-old/": {
       "post": {
-        "operationId": "auth_api_email_change_instant_request_old_create",
+        "operationId": "auth_api_v1_email_change_instant_request_old_create",
         "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Email Change"
@@ -498,9 +498,9 @@
         }
       }
     },
-    "/auth/api/email/change/instant/verify-new/": {
+    "/auth/api/v1/email/change/instant/verify-new/": {
       "post": {
-        "operationId": "auth_api_email_change_instant_verify_new_create",
+        "operationId": "auth_api_v1_email_change_instant_verify_new_create",
         "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Email Change"
@@ -554,9 +554,9 @@
         }
       }
     },
-    "/auth/api/email/change/instant/verify-old/": {
+    "/auth/api/v1/email/change/instant/verify-old/": {
       "post": {
-        "operationId": "auth_api_email_change_instant_verify_old_create",
+        "operationId": "auth_api_v1_email_change_instant_verify_old_create",
         "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Email Change"
@@ -609,9 +609,9 @@
         }
       }
     },
-    "/auth/api/email/request/": {
+    "/auth/api/v1/email/request/": {
       "post": {
-        "operationId": "auth_api_email_request_create",
+        "operationId": "auth_api_v1_email_request_create",
         "description": "Request email verification code (OTP).\n\n**Notes:**\n- OTP codes expire after 10 minutes\n- Rate limited to 1 request per 30 seconds per email/device\n- If authenticated non-anonymous user requests OTP for an email already registered to another account, returns 409 Conflict\n- Admin accounts (staff/superuser) always receive real OTP even in mock mode for security\n\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Email Auth"
@@ -714,9 +714,9 @@
         }
       }
     },
-    "/auth/api/email/verify/": {
+    "/auth/api/v1/email/verify/": {
       "post": {
-        "operationId": "auth_api_email_verify_create",
+        "operationId": "auth_api_v1_email_verify_create",
         "description": "Verify email and authenticate/register.\n\n**Authentication Flows:**\n- **Unauthenticated user + new email** → REGISTERED (new account created)\n- **Unauthenticated user + existing email** → LOGGED_IN (login to existing account)\n- **Anonymous user + new email** → REGISTERED (anonymous completes registration)\n- **Anonymous user + existing email** → MERGED (anonymous merged into existing account)\n- **Authenticated user + own/new email** → MODIFIED (user adds/changes email)\n- **Invalid/expired code** → REJECTED\n\n**Status values:**\n- `REJECTED` - Invalid code, expired code, or blocked\n- `REGISTERED` - New account created or anonymous completed registration\n- `LOGGED_IN` - Existing user logged in\n- `MERGED` - Anonymous user merged into existing account\n- `MODIFIED` - Authenticated user added/changed email\n\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Email Auth"
@@ -842,9 +842,9 @@
         }
       }
     },
-    "/auth/api/gdpr/schema/": {
+    "/auth/api/v1/gdpr/schema/": {
       "get": {
-        "operationId": "auth_api_gdpr_schema_retrieve",
+        "operationId": "auth_api_v1_gdpr_schema_retrieve",
         "description": "OpenApi3 schema for this API. Format can be selected via content negotiation.\n\n- YAML: application/vnd.oai.openapi\n- JSON: application/vnd.oai.openapi+json\n\n**Permissions:** `AllowAny`",
         "parameters": [
           {
@@ -1010,9 +1010,9 @@
         }
       }
     },
-    "/auth/api/logout/": {
+    "/auth/api/v1/logout/": {
       "get": {
-        "operationId": "auth_api_logout_retrieve",
+        "operationId": "auth_api_v1_logout_retrieve",
         "description": "Logout user via GET request (for cookie-based authentication). Blacklists both access and refresh tokens.\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Session"
@@ -1054,7 +1054,7 @@
         }
       },
       "post": {
-        "operationId": "auth_api_logout_create",
+        "operationId": "auth_api_v1_logout_create",
         "description": "Logout user and blacklist both access and refresh tokens\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Session"
@@ -1115,9 +1115,9 @@
         }
       }
     },
-    "/auth/api/magic/request/": {
+    "/auth/api/v1/magic/request/": {
       "post": {
-        "operationId": "auth_api_magic_request_create",
+        "operationId": "auth_api_v1_magic_request_create",
         "description": "Overridable serializer seams for stapel-auth API views.\n\nViews declare ``<purpose>_serializer_class`` class attributes following the\n``*_request_serializer_class`` / ``*_response_serializer_class`` naming\nconvention (e.g. ``request_serializer_class`` or, when a view uses several\nserializers, purpose-prefixed names such as ``login_request_serializer_class``\nor ``auth_response_serializer_class``). For every such attribute this mixin\nsupplies the matching ``get_<purpose>_serializer_class()`` getter, so hosts\ncan swap a serializer by subclassing the view and overriding either the\nattribute or the getter::\n\n    class MyMagicLinkViewSet(MagicLinkViewSet):\n        response_serializer_class = MyResponseSerializer\n\nHandler bodies instantiate serializers exclusively through the getters, so\nan override is picked up everywhere the serializer is used.\n\n**Permissions:** `AllowAny`",
         "summary": "Request a magic link login email",
         "tags": [
@@ -1163,9 +1163,9 @@
         }
       }
     },
-    "/auth/api/magic/verify/": {
+    "/auth/api/v1/magic/verify/": {
       "get": {
-        "operationId": "auth_api_magic_verify_retrieve",
+        "operationId": "auth_api_v1_magic_verify_retrieve",
         "description": "Overridable serializer seams for stapel-auth API views.\n\nViews declare ``<purpose>_serializer_class`` class attributes following the\n``*_request_serializer_class`` / ``*_response_serializer_class`` naming\nconvention (e.g. ``request_serializer_class`` or, when a view uses several\nserializers, purpose-prefixed names such as ``login_request_serializer_class``\nor ``auth_response_serializer_class``). For every such attribute this mixin\nsupplies the matching ``get_<purpose>_serializer_class()`` getter, so hosts\ncan swap a serializer by subclassing the view and overriding either the\nattribute or the getter::\n\n    class MyMagicLinkViewSet(MagicLinkViewSet):\n        response_serializer_class = MyResponseSerializer\n\nHandler bodies instantiate serializers exclusively through the getters, so\nan override is picked up everywhere the serializer is used.\n\n**Permissions:** `AllowAny`",
         "summary": "Verify a magic link token and issue session",
         "parameters": [
@@ -1194,9 +1194,9 @@
         }
       }
     },
-    "/auth/api/me/": {
+    "/auth/api/v1/me/": {
       "get": {
-        "operationId": "auth_api_me_retrieve",
+        "operationId": "auth_api_v1_me_retrieve",
         "description": "Get current authenticated user information\n\n**Permissions:** `AllowAny`",
         "tags": [
           "User"
@@ -1231,9 +1231,9 @@
         }
       }
     },
-    "/auth/api/oauth/{provider}/authorize/": {
+    "/auth/api/v1/oauth/{provider}/authorize/": {
       "get": {
-        "operationId": "auth_api_oauth_authorize_retrieve",
+        "operationId": "auth_api_v1_oauth_authorize_retrieve",
         "description": "Redirect browser to OAuth provider authorization page\n\n**Permissions:** `AllowAny`",
         "parameters": [
           {
@@ -1261,9 +1261,9 @@
         }
       }
     },
-    "/auth/api/oauth/{provider}/callback": {
+    "/auth/api/v1/oauth/{provider}/callback": {
       "get": {
-        "operationId": "auth_api_oauth_callback_retrieve",
+        "operationId": "auth_api_v1_oauth_callback_retrieve",
         "description": "OAuth provider callback — exchanges code for JWT and redirects to frontend\n\n**Permissions:** `AllowAny`",
         "parameters": [
           {
@@ -1301,9 +1301,9 @@
         }
       }
     },
-    "/auth/api/oauth/{provider}/callback/": {
+    "/auth/api/v1/oauth/{provider}/callback/": {
       "get": {
-        "operationId": "auth_api_oauth_callback_retrieve_2",
+        "operationId": "auth_api_v1_oauth_callback_retrieve_2",
         "description": "OAuth provider callback — exchanges code for JWT and redirects to frontend\n\n**Permissions:** `AllowAny`",
         "parameters": [
           {
@@ -1341,9 +1341,9 @@
         }
       }
     },
-    "/auth/api/oauth/login/": {
+    "/auth/api/v1/oauth/login/": {
       "post": {
-        "operationId": "auth_api_oauth_login_create",
+        "operationId": "auth_api_v1_oauth_login_create",
         "description": "OAuth authentication (Google, Facebook, etc.). Returns `LoginResponse` — normally `AuthResponse` (status=LOGGED_IN); with the `OAUTH_STEP_UP` setting enabled and TOTP enrolled, `TOTPChallengeResponse` (status=TOTP_REQUIRED) — pass `challenge_token` to `POST /totp/challenge/verify/`.\n\n**Permissions:** `AllowAny`",
         "tags": [
           "OAuth"
@@ -1407,9 +1407,9 @@
         }
       }
     },
-    "/auth/api/oauth2/introspect/": {
+    "/auth/api/v1/oauth2/introspect/": {
       "post": {
-        "operationId": "auth_api_oauth2_introspect_create",
+        "operationId": "auth_api_v1_oauth2_introspect_create",
         "description": "Introspect a JWT. Requires a service API key. Returns `{\"active\": false}` for invalid/expired tokens (never 401 for those). A 401 is only returned when the caller's service API key is missing/invalid.",
         "summary": "RFC 7662 token introspection (service-to-service)",
         "tags": [
@@ -1459,9 +1459,9 @@
         }
       }
     },
-    "/auth/api/passkey/": {
+    "/auth/api/v1/passkey/": {
       "get": {
-        "operationId": "auth_api_passkey_retrieve",
+        "operationId": "auth_api_v1_passkey_retrieve",
         "description": "Overridable serializer seams for stapel-auth API views.\n\nViews declare ``<purpose>_serializer_class`` class attributes following the\n``*_request_serializer_class`` / ``*_response_serializer_class`` naming\nconvention (e.g. ``request_serializer_class`` or, when a view uses several\nserializers, purpose-prefixed names such as ``login_request_serializer_class``\nor ``auth_response_serializer_class``). For every such attribute this mixin\nsupplies the matching ``get_<purpose>_serializer_class()`` getter, so hosts\ncan swap a serializer by subclassing the view and overriding either the\nattribute or the getter::\n\n    class MyMagicLinkViewSet(MagicLinkViewSet):\n        response_serializer_class = MyResponseSerializer\n\nHandler bodies instantiate serializers exclusively through the getters, so\nan override is picked up everywhere the serializer is used.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
         "summary": "List registered passkeys",
         "tags": [
@@ -1486,9 +1486,9 @@
         }
       }
     },
-    "/auth/api/passkey/{id}/": {
+    "/auth/api/v1/passkey/{id}/": {
       "delete": {
-        "operationId": "auth_api_passkey_destroy",
+        "operationId": "auth_api_v1_passkey_destroy",
         "description": "Overridable serializer seams for stapel-auth API views.\n\nViews declare ``<purpose>_serializer_class`` class attributes following the\n``*_request_serializer_class`` / ``*_response_serializer_class`` naming\nconvention (e.g. ``request_serializer_class`` or, when a view uses several\nserializers, purpose-prefixed names such as ``login_request_serializer_class``\nor ``auth_response_serializer_class``). For every such attribute this mixin\nsupplies the matching ``get_<purpose>_serializer_class()`` getter, so hosts\ncan swap a serializer by subclassing the view and overriding either the\nattribute or the getter::\n\n    class MyMagicLinkViewSet(MagicLinkViewSet):\n        response_serializer_class = MyResponseSerializer\n\nHandler bodies instantiate serializers exclusively through the getters, so\nan override is picked up everywhere the serializer is used.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
         "summary": "Remove a passkey",
         "parameters": [
@@ -1516,9 +1516,9 @@
         }
       }
     },
-    "/auth/api/passkey/authenticate/begin/": {
+    "/auth/api/v1/passkey/authenticate/begin/": {
       "post": {
-        "operationId": "auth_api_passkey_authenticate_begin_create",
+        "operationId": "auth_api_v1_passkey_authenticate_begin_create",
         "description": "Overridable serializer seams for stapel-auth API views.\n\nViews declare ``<purpose>_serializer_class`` class attributes following the\n``*_request_serializer_class`` / ``*_response_serializer_class`` naming\nconvention (e.g. ``request_serializer_class`` or, when a view uses several\nserializers, purpose-prefixed names such as ``login_request_serializer_class``\nor ``auth_response_serializer_class``). For every such attribute this mixin\nsupplies the matching ``get_<purpose>_serializer_class()`` getter, so hosts\ncan swap a serializer by subclassing the view and overriding either the\nattribute or the getter::\n\n    class MyMagicLinkViewSet(MagicLinkViewSet):\n        response_serializer_class = MyResponseSerializer\n\nHandler bodies instantiate serializers exclusively through the getters, so\nan override is picked up everywhere the serializer is used.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
         "summary": "Begin passkey authentication",
         "tags": [
@@ -1563,9 +1563,9 @@
         }
       }
     },
-    "/auth/api/passkey/authenticate/complete/": {
+    "/auth/api/v1/passkey/authenticate/complete/": {
       "post": {
-        "operationId": "auth_api_passkey_authenticate_complete_create",
+        "operationId": "auth_api_v1_passkey_authenticate_complete_create",
         "description": "Overridable serializer seams for stapel-auth API views.\n\nViews declare ``<purpose>_serializer_class`` class attributes following the\n``*_request_serializer_class`` / ``*_response_serializer_class`` naming\nconvention (e.g. ``request_serializer_class`` or, when a view uses several\nserializers, purpose-prefixed names such as ``login_request_serializer_class``\nor ``auth_response_serializer_class``). For every such attribute this mixin\nsupplies the matching ``get_<purpose>_serializer_class()`` getter, so hosts\ncan swap a serializer by subclassing the view and overriding either the\nattribute or the getter::\n\n    class MyMagicLinkViewSet(MagicLinkViewSet):\n        response_serializer_class = MyResponseSerializer\n\nHandler bodies instantiate serializers exclusively through the getters, so\nan override is picked up everywhere the serializer is used.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
         "summary": "Complete passkey authentication and issue session",
         "tags": [
@@ -1604,9 +1604,9 @@
         }
       }
     },
-    "/auth/api/passkey/register/begin/": {
+    "/auth/api/v1/passkey/register/begin/": {
       "post": {
-        "operationId": "auth_api_passkey_register_begin_create",
+        "operationId": "auth_api_v1_passkey_register_begin_create",
         "description": "Overridable serializer seams for stapel-auth API views.\n\nViews declare ``<purpose>_serializer_class`` class attributes following the\n``*_request_serializer_class`` / ``*_response_serializer_class`` naming\nconvention (e.g. ``request_serializer_class`` or, when a view uses several\nserializers, purpose-prefixed names such as ``login_request_serializer_class``\nor ``auth_response_serializer_class``). For every such attribute this mixin\nsupplies the matching ``get_<purpose>_serializer_class()`` getter, so hosts\ncan swap a serializer by subclassing the view and overriding either the\nattribute or the getter::\n\n    class MyMagicLinkViewSet(MagicLinkViewSet):\n        response_serializer_class = MyResponseSerializer\n\nHandler bodies instantiate serializers exclusively through the getters, so\nan override is picked up everywhere the serializer is used.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
         "summary": "Begin passkey registration (generate options)",
         "tags": [
@@ -1641,9 +1641,9 @@
         }
       }
     },
-    "/auth/api/passkey/register/complete/": {
+    "/auth/api/v1/passkey/register/complete/": {
       "post": {
-        "operationId": "auth_api_passkey_register_complete_create",
+        "operationId": "auth_api_v1_passkey_register_complete_create",
         "description": "Overridable serializer seams for stapel-auth API views.\n\nViews declare ``<purpose>_serializer_class`` class attributes following the\n``*_request_serializer_class`` / ``*_response_serializer_class`` naming\nconvention (e.g. ``request_serializer_class`` or, when a view uses several\nserializers, purpose-prefixed names such as ``login_request_serializer_class``\nor ``auth_response_serializer_class``). For every such attribute this mixin\nsupplies the matching ``get_<purpose>_serializer_class()`` getter, so hosts\ncan swap a serializer by subclassing the view and overriding either the\nattribute or the getter::\n\n    class MyMagicLinkViewSet(MagicLinkViewSet):\n        response_serializer_class = MyResponseSerializer\n\nHandler bodies instantiate serializers exclusively through the getters, so\nan override is picked up everywhere the serializer is used.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
         "summary": "Complete passkey registration",
         "tags": [
@@ -1688,9 +1688,9 @@
         }
       }
     },
-    "/auth/api/password/change/": {
+    "/auth/api/v1/password/change/": {
       "post": {
-        "operationId": "auth_api_password_change_create",
+        "operationId": "auth_api_v1_password_change_create",
         "description": "Change password by providing the current password.\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Password Auth"
@@ -1737,9 +1737,9 @@
         }
       }
     },
-    "/auth/api/password/change/otp/request/": {
+    "/auth/api/v1/password/change/otp/request/": {
       "post": {
-        "operationId": "auth_api_password_change_otp_request_create",
+        "operationId": "auth_api_v1_password_change_otp_request_create",
         "description": "Request OTP to own verified email or phone in order to change password.\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Password Auth"
@@ -1821,9 +1821,9 @@
         }
       }
     },
-    "/auth/api/password/change/otp/verify/": {
+    "/auth/api/v1/password/change/otp/verify/": {
       "post": {
-        "operationId": "auth_api_password_change_otp_verify_create",
+        "operationId": "auth_api_v1_password_change_otp_verify_create",
         "description": "Verify OTP and set new password (for authenticated users).\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Password Auth"
@@ -1870,9 +1870,9 @@
         }
       }
     },
-    "/auth/api/password/login/": {
+    "/auth/api/v1/password/login/": {
       "post": {
-        "operationId": "auth_api_password_login_create",
+        "operationId": "auth_api_v1_password_login_create",
         "description": "Login with email/username and password. Returns `LoginResponse` — either `AuthResponse` (status=LOGGED_IN) or `TOTPChallengeResponse` (status=TOTP_REQUIRED). When TOTP is required, pass `challenge_token` to `POST /totp/challenge/verify/`.\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Password Auth"
@@ -1927,9 +1927,9 @@
         }
       }
     },
-    "/auth/api/password/methods/": {
+    "/auth/api/v1/password/methods/": {
       "get": {
-        "operationId": "auth_api_password_methods_retrieve",
+        "operationId": "auth_api_v1_password_methods_retrieve",
         "description": "Return available methods for changing the account password.\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Password Auth"
@@ -1960,9 +1960,9 @@
         }
       }
     },
-    "/auth/api/password/register/": {
+    "/auth/api/v1/password/register/": {
       "post": {
-        "operationId": "auth_api_password_register_create",
+        "operationId": "auth_api_v1_password_register_create",
         "description": "Register a new account with email/phone/username and password. Disabled by default — enable via AUTH_PASSWORD_REGISTRATION setting.\n\n**Permissions:** `AllowAny`",
         "tags": [
           "auth"
@@ -2034,9 +2034,9 @@
         }
       }
     },
-    "/auth/api/password/reset/email/request/": {
+    "/auth/api/v1/password/reset/email/request/": {
       "post": {
-        "operationId": "auth_api_password_reset_email_request_create",
+        "operationId": "auth_api_v1_password_reset_email_request_create",
         "description": "Request OTP to verified email to reset a forgotten password (unauthenticated).\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Password Auth"
@@ -2119,9 +2119,9 @@
         }
       }
     },
-    "/auth/api/password/reset/email/verify/": {
+    "/auth/api/v1/password/reset/email/verify/": {
       "post": {
-        "operationId": "auth_api_password_reset_email_verify_create",
+        "operationId": "auth_api_v1_password_reset_email_verify_create",
         "description": "Verify email OTP and set new password. Returns tokens — the user is logged in.\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Password Auth"
@@ -2193,9 +2193,9 @@
         }
       }
     },
-    "/auth/api/password/reset/phone/request/": {
+    "/auth/api/v1/password/reset/phone/request/": {
       "post": {
-        "operationId": "auth_api_password_reset_phone_request_create",
+        "operationId": "auth_api_v1_password_reset_phone_request_create",
         "description": "Request OTP to verified phone to reset a forgotten password (unauthenticated).\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Password Auth"
@@ -2278,9 +2278,9 @@
         }
       }
     },
-    "/auth/api/password/reset/phone/verify/": {
+    "/auth/api/v1/password/reset/phone/verify/": {
       "post": {
-        "operationId": "auth_api_password_reset_phone_verify_create",
+        "operationId": "auth_api_v1_password_reset_phone_verify_create",
         "description": "Verify phone OTP and set new password. Returns tokens — the user is logged in.\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Password Auth"
@@ -2352,9 +2352,9 @@
         }
       }
     },
-    "/auth/api/phone/change/delayed/cancel/": {
+    "/auth/api/v1/phone/change/delayed/cancel/": {
       "post": {
-        "operationId": "auth_api_phone_change_delayed_cancel_create",
+        "operationId": "auth_api_v1_phone_change_delayed_cancel_create",
         "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Phone Change"
@@ -2416,9 +2416,9 @@
         }
       }
     },
-    "/auth/api/phone/change/delayed/initiate/": {
+    "/auth/api/v1/phone/change/delayed/initiate/": {
       "post": {
-        "operationId": "auth_api_phone_change_delayed_initiate_create",
+        "operationId": "auth_api_v1_phone_change_delayed_initiate_create",
         "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Phone Change"
@@ -2482,9 +2482,9 @@
         }
       }
     },
-    "/auth/api/phone/change/delayed/status/": {
+    "/auth/api/v1/phone/change/delayed/status/": {
       "get": {
-        "operationId": "auth_api_phone_change_delayed_status_retrieve",
+        "operationId": "auth_api_v1_phone_change_delayed_status_retrieve",
         "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Phone Change"
@@ -2521,9 +2521,9 @@
         }
       }
     },
-    "/auth/api/phone/change/instant/request-new/": {
+    "/auth/api/v1/phone/change/instant/request-new/": {
       "post": {
-        "operationId": "auth_api_phone_change_instant_request_new_create",
+        "operationId": "auth_api_v1_phone_change_instant_request_new_create",
         "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Phone Change"
@@ -2584,9 +2584,9 @@
         }
       }
     },
-    "/auth/api/phone/change/instant/request-old/": {
+    "/auth/api/v1/phone/change/instant/request-old/": {
       "post": {
-        "operationId": "auth_api_phone_change_instant_request_old_create",
+        "operationId": "auth_api_v1_phone_change_instant_request_old_create",
         "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Phone Change"
@@ -2637,9 +2637,9 @@
         }
       }
     },
-    "/auth/api/phone/change/instant/verify-new/": {
+    "/auth/api/v1/phone/change/instant/verify-new/": {
       "post": {
-        "operationId": "auth_api_phone_change_instant_verify_new_create",
+        "operationId": "auth_api_v1_phone_change_instant_verify_new_create",
         "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Phone Change"
@@ -2693,9 +2693,9 @@
         }
       }
     },
-    "/auth/api/phone/change/instant/verify-old/": {
+    "/auth/api/v1/phone/change/instant/verify-old/": {
       "post": {
-        "operationId": "auth_api_phone_change_instant_verify_old_create",
+        "operationId": "auth_api_v1_phone_change_instant_verify_old_create",
         "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Phone Change"
@@ -2748,9 +2748,9 @@
         }
       }
     },
-    "/auth/api/phone/request/": {
+    "/auth/api/v1/phone/request/": {
       "post": {
-        "operationId": "auth_api_phone_request_create",
+        "operationId": "auth_api_v1_phone_request_create",
         "description": "Request phone verification code (SMS OTP).\n\n**Notes:**\n- OTP codes expire after 10 minutes\n- Rate limited to 1 request per 30 seconds per phone/device\n- If authenticated non-anonymous user requests OTP for a phone already registered to another account, returns 409 Conflict\n- Admin accounts (staff/superuser) always receive real OTP even in mock mode for security\n\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Phone Auth"
@@ -2853,9 +2853,9 @@
         }
       }
     },
-    "/auth/api/phone/verify/": {
+    "/auth/api/v1/phone/verify/": {
       "post": {
-        "operationId": "auth_api_phone_verify_create",
+        "operationId": "auth_api_v1_phone_verify_create",
         "description": "Verify phone number and authenticate/register.\n\n**Authentication Flows:**\n- **Unauthenticated user + new phone** → REGISTERED (new account created)\n- **Unauthenticated user + existing phone** → LOGGED_IN (login to existing account)\n- **Anonymous user + new phone** → REGISTERED (anonymous completes registration)\n- **Anonymous user + existing phone** → MERGED (anonymous merged into existing account)\n- **Authenticated user + own/new phone** → MODIFIED (user adds/changes phone)\n- **Invalid/expired code** → REJECTED\n\n**Status values:**\n- `REJECTED` - Invalid code, expired code, or blocked\n- `REGISTERED` - New account created or anonymous completed registration\n- `LOGGED_IN` - Existing user logged in\n- `MERGED` - Anonymous user merged into existing account\n- `MODIFIED` - Authenticated user added/changed phone\n\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Phone Auth"
@@ -2939,9 +2939,9 @@
         }
       }
     },
-    "/auth/api/qr/{key}/confirm/": {
+    "/auth/api/v1/qr/{key}/confirm/": {
       "post": {
-        "operationId": "auth_api_qr_confirm_create",
+        "operationId": "auth_api_v1_qr_confirm_create",
         "description": "Confirm a `login_request` QR code (called by the logged-in scanner after reviewing).\n\nIssues tokens for the waiting device. The device polling `/status` will receive the tokens.\n\n\n**Permissions:** `AllowAny`",
         "parameters": [
           {
@@ -3012,9 +3012,9 @@
         }
       }
     },
-    "/auth/api/qr/{key}/reject/": {
+    "/auth/api/v1/qr/{key}/reject/": {
       "post": {
-        "operationId": "auth_api_qr_reject_create",
+        "operationId": "auth_api_v1_qr_reject_create",
         "description": "Reject a QR auth request. The device polling `/status` will receive `rejected`.\n\n**Permissions:** `AllowAny`",
         "parameters": [
           {
@@ -3066,9 +3066,9 @@
         }
       }
     },
-    "/auth/api/qr/{key}/scan/": {
+    "/auth/api/v1/qr/{key}/scan/": {
       "get": {
-        "operationId": "auth_api_qr_scan_retrieve",
+        "operationId": "auth_api_v1_qr_scan_retrieve",
         "description": "Browser endpoint embedded in QR code. Processes the scan and redirects.\n\n**session_share** (scanner has no session) → logs scanner in as the QR owner and redirects to `redirect_url`.\n**session_share** (scanner already logged in as the same user) → marks fulfilled, redirects.\n**session_share** (scanner logged in as a *different* user) → redirects with `?qr_status=account_conflict`.\n**login_request** (scanner logged in) → redirects to `/qr-confirm?key=…` for confirmation.\n**login_request** (scanner not logged in) → redirects to `/sign-in?redirect=<scan_url>`.\n\n\n**Permissions:** `AllowAny`",
         "parameters": [
           {
@@ -3106,9 +3106,9 @@
         }
       }
     },
-    "/auth/api/qr/{key}/status/": {
+    "/auth/api/v1/qr/{key}/status/": {
       "get": {
-        "operationId": "auth_api_qr_status_retrieve",
+        "operationId": "auth_api_v1_qr_status_retrieve",
         "description": "Poll the status of a QR auth key.\n\n**Statuses:**\n- `pending` — waiting for scan/confirm.\n- `fulfilled` — action completed; for `login_request`, tokens are included so the polling device can authenticate.\n- `expired` — key was not found (TTL elapsed).\n- `rejected` — scanner or confirmer rejected the request; show error UI.\n\n\n**Permissions:** `AllowAny`",
         "parameters": [
           {
@@ -3152,9 +3152,9 @@
         }
       }
     },
-    "/auth/api/qr/generate/": {
+    "/auth/api/v1/qr/generate/": {
       "post": {
-        "operationId": "auth_api_qr_generate_create",
+        "operationId": "auth_api_v1_qr_generate_create",
         "description": "Generate a short-lived QR auth key (5 min TTL).\n\n**Types:**\n- `session_share` — a logged-in device generates a QR; when another device scans it, that device receives the same session. Requires authentication.\n- `login_request` — an unauthenticated device generates a QR and polls for approval; a logged-in scanner confirms the login.\n\n**`redirect_url`** (optional) — where to send the scanner after the auth flow completes. Defaults to `/`.\n\n**Response:** encode `scan_url` into a QR image (e.g. via qrcode.js) and display it. Poll `GET /qr/{key}/status/` to know when the flow completes.\n\n\n**Permissions:** `AllowAny`",
         "tags": [
           "QR Auth"
@@ -3198,7 +3198,7 @@
                       "key": "abc123xyz",
                       "type": "session_share",
                       "expires_in": 300,
-                      "scan_url": "https://app.example.com/auth/api/qr/abc123xyz/scan/"
+                      "scan_url": "https://app.example.com/auth/api/v1/qr/abc123xyz/scan/"
                     }
                   }
                 }
@@ -3229,9 +3229,9 @@
         }
       }
     },
-    "/auth/api/security/audit/": {
+    "/auth/api/v1/security/audit/": {
       "get": {
-        "operationId": "auth_api_security_audit_retrieve",
+        "operationId": "auth_api_v1_security_audit_retrieve",
         "summary": "List security audit log",
         "parameters": [
           {
@@ -3288,9 +3288,9 @@
         "description": "**Permissions:** `IsAuthenticated`"
       }
     },
-    "/auth/api/security/revoke-suspicious/": {
+    "/auth/api/v1/security/revoke-suspicious/": {
       "get": {
-        "operationId": "auth_api_security_revoke_suspicious_retrieve",
+        "operationId": "auth_api_v1_security_revoke_suspicious_retrieve",
         "summary": "Revoke all sessions via suspicious login email link",
         "parameters": [
           {
@@ -3319,9 +3319,9 @@
         "description": "**Permissions:** `AllowAny`"
       }
     },
-    "/auth/api/security/status/": {
+    "/auth/api/v1/security/status/": {
       "get": {
-        "operationId": "auth_api_security_status_retrieve",
+        "operationId": "auth_api_v1_security_status_retrieve",
         "description": "Return the full security posture for the current user. Used by the frontend to render the security settings screen.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Security"
@@ -3345,9 +3345,9 @@
         }
       }
     },
-    "/auth/api/service-keys": {
+    "/auth/api/v1/service-keys": {
       "get": {
-        "operationId": "auth_api_service_keys_list",
+        "operationId": "auth_api_v1_service_keys_list",
         "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser`",
         "tags": [
           "API Keys"
@@ -3374,7 +3374,7 @@
         }
       },
       "post": {
-        "operationId": "auth_api_service_keys_create",
+        "operationId": "auth_api_v1_service_keys_create",
         "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser`",
         "tags": [
           "API Keys"
@@ -3418,9 +3418,9 @@
         }
       }
     },
-    "/auth/api/service-keys/{id}": {
+    "/auth/api/v1/service-keys/{id}": {
       "get": {
-        "operationId": "auth_api_service_keys_retrieve",
+        "operationId": "auth_api_v1_service_keys_retrieve",
         "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser`",
         "parameters": [
           {
@@ -3455,7 +3455,7 @@
         }
       },
       "put": {
-        "operationId": "auth_api_service_keys_update",
+        "operationId": "auth_api_v1_service_keys_update",
         "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser`",
         "parameters": [
           {
@@ -3510,7 +3510,7 @@
         }
       },
       "patch": {
-        "operationId": "auth_api_service_keys_partial_update",
+        "operationId": "auth_api_v1_service_keys_partial_update",
         "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser`",
         "parameters": [
           {
@@ -3564,7 +3564,7 @@
         }
       },
       "delete": {
-        "operationId": "auth_api_service_keys_destroy",
+        "operationId": "auth_api_v1_service_keys_destroy",
         "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser`",
         "parameters": [
           {
@@ -3592,9 +3592,9 @@
         }
       }
     },
-    "/auth/api/sessions/": {
+    "/auth/api/v1/sessions/": {
       "get": {
-        "operationId": "auth_api_sessions_list",
+        "operationId": "auth_api_v1_sessions_list",
         "description": "List all active sessions for the current user.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Session"
@@ -3637,7 +3637,7 @@
         }
       },
       "delete": {
-        "operationId": "auth_api_sessions_destroy",
+        "operationId": "auth_api_v1_sessions_destroy",
         "description": "Revoke all sessions except the current one.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Session"
@@ -3654,9 +3654,9 @@
         }
       }
     },
-    "/auth/api/sessions/{session_id}/": {
+    "/auth/api/v1/sessions/{session_id}/": {
       "delete": {
-        "operationId": "auth_api_sessions_destroy_2",
+        "operationId": "auth_api_v1_sessions_destroy_2",
         "description": "Revoke a specific session by ID.\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
@@ -3693,9 +3693,9 @@
         }
       }
     },
-    "/auth/api/sessions/{session_id}/confirm/": {
+    "/auth/api/v1/sessions/{session_id}/confirm/": {
       "post": {
-        "operationId": "auth_api_sessions_confirm_create",
+        "operationId": "auth_api_v1_sessions_confirm_create",
         "description": "Mark a suspicious session as confirmed (\"this was me\"). Clears the suspicious flag.\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
@@ -3746,9 +3746,9 @@
         }
       }
     },
-    "/auth/api/sso/{slug}/login/": {
+    "/auth/api/v1/sso/{slug}/login/": {
       "get": {
-        "operationId": "auth_api_sso_login_retrieve",
+        "operationId": "auth_api_v1_sso_login_retrieve",
         "description": "Unified login entry point — dispatches to SAML or OIDC based on org config.\n\n**Permissions:** `AllowAny`",
         "summary": "Initiate SSO login (SAML or OIDC) — redirects to IdP",
         "parameters": [
@@ -3777,9 +3777,9 @@
         }
       }
     },
-    "/auth/api/sso/{slug}/oidc/callback/": {
+    "/auth/api/v1/sso/{slug}/oidc/callback/": {
       "get": {
-        "operationId": "auth_api_sso_oidc_callback_retrieve",
+        "operationId": "auth_api_v1_sso_oidc_callback_retrieve",
         "summary": "OIDC callback — IdP redirects here with auth code",
         "parameters": [
           {
@@ -3808,9 +3808,9 @@
         "description": "**Permissions:** `AllowAny`"
       }
     },
-    "/auth/api/sso/{slug}/saml/acs/": {
+    "/auth/api/v1/sso/{slug}/saml/acs/": {
       "post": {
-        "operationId": "auth_api_sso_saml_acs_create",
+        "operationId": "auth_api_v1_sso_saml_acs_create",
         "description": "Backend-facing endpoint the IdP POSTs to after authentication. The body is an external, application/x-www-form-urlencoded form carrying a base64-encoded `SAMLResponse` (and optional `RelayState`) — its schema is defined by the SAML 2.0 spec, not this API. Always responds with a 302 redirect to the frontend (with session cookies on success, or an `?error=` query param on failure).\n\n**Permissions:** `AllowAny`",
         "summary": "SAML Assertion Consumer Service — IdP posts SAMLResponse here",
         "parameters": [
@@ -3861,9 +3861,9 @@
         }
       }
     },
-    "/auth/api/sso/{slug}/saml/metadata/": {
+    "/auth/api/v1/sso/{slug}/saml/metadata/": {
       "get": {
-        "operationId": "auth_api_sso_saml_metadata_retrieve",
+        "operationId": "auth_api_v1_sso_saml_metadata_retrieve",
         "summary": "SAML SP metadata XML — register this with your IdP",
         "parameters": [
           {
@@ -3892,9 +3892,9 @@
         "description": "**Permissions:** `AllowAny`"
       }
     },
-    "/auth/api/sso/lookup/": {
+    "/auth/api/v1/sso/lookup/": {
       "get": {
-        "operationId": "auth_api_sso_lookup_retrieve",
+        "operationId": "auth_api_v1_sso_lookup_retrieve",
         "summary": "Check if an email domain has SSO configured",
         "parameters": [
           {
@@ -3940,9 +3940,9 @@
         "description": "**Permissions:** `AllowAny`"
       }
     },
-    "/auth/api/sso/orgs/": {
+    "/auth/api/v1/sso/orgs/": {
       "get": {
-        "operationId": "auth_api_sso_orgs_list",
+        "operationId": "auth_api_v1_sso_orgs_list",
         "summary": "List all SSO organizations",
         "tags": [
           "SSO Admin"
@@ -3970,7 +3970,7 @@
         "description": "**Permissions:** `IsAdminUser`"
       },
       "post": {
-        "operationId": "auth_api_sso_orgs_create",
+        "operationId": "auth_api_v1_sso_orgs_create",
         "summary": "Create a new SSO organization",
         "tags": [
           "SSO Admin"
@@ -4015,9 +4015,9 @@
         "description": "**Permissions:** `IsAdminUser`"
       }
     },
-    "/auth/api/sso/orgs/{slug}/": {
+    "/auth/api/v1/sso/orgs/{slug}/": {
       "get": {
-        "operationId": "auth_api_sso_orgs_retrieve",
+        "operationId": "auth_api_v1_sso_orgs_retrieve",
         "summary": "Get an SSO organization with its config",
         "parameters": [
           {
@@ -4052,7 +4052,7 @@
         "description": "**Permissions:** `IsAdminUser`"
       },
       "patch": {
-        "operationId": "auth_api_sso_orgs_partial_update",
+        "operationId": "auth_api_v1_sso_orgs_partial_update",
         "summary": "Update an SSO organization",
         "parameters": [
           {
@@ -4106,7 +4106,7 @@
         "description": "**Permissions:** `IsAdminUser`"
       },
       "delete": {
-        "operationId": "auth_api_sso_orgs_destroy",
+        "operationId": "auth_api_v1_sso_orgs_destroy",
         "summary": "Delete an SSO organization",
         "parameters": [
           {
@@ -4134,9 +4134,9 @@
         "description": "**Permissions:** `IsAdminUser`"
       }
     },
-    "/auth/api/sso/orgs/{slug}/config/": {
+    "/auth/api/v1/sso/orgs/{slug}/config/": {
       "put": {
-        "operationId": "auth_api_sso_orgs_config_update",
+        "operationId": "auth_api_v1_sso_orgs_config_update",
         "summary": "Create or update SSO config for an organization",
         "parameters": [
           {
@@ -4191,7 +4191,7 @@
         "description": "**Permissions:** `IsAdminUser`"
       },
       "patch": {
-        "operationId": "auth_api_sso_orgs_config_partial_update",
+        "operationId": "auth_api_v1_sso_orgs_config_partial_update",
         "summary": "Create or update SSO config for an organization",
         "parameters": [
           {
@@ -4245,9 +4245,9 @@
         "description": "**Permissions:** `IsAdminUser`"
       }
     },
-    "/auth/api/staff-roles/": {
+    "/auth/api/v1/staff-roles/": {
       "get": {
-        "operationId": "auth_api_staff_roles_list",
+        "operationId": "auth_api_v1_staff_roles_list",
         "description": "List staff role assignments, optionally filtered by ?user_id=. Requires the view permission on StaffRoleAssignment (clearance HIGH under the mandate).\n\n**Permissions:** `IsAdminUser`",
         "tags": [
           "Staff Roles"
@@ -4277,7 +4277,7 @@
         }
       },
       "post": {
-        "operationId": "auth_api_staff_roles_create",
+        "operationId": "auth_api_v1_staff_roles_create",
         "description": "Assign a staff role (a name from the STAPEL_ACCESS['ROLES'] registry) to a staff user. Idempotent: 201 on a new assignment, 200 when it already existed. Emits staff.role.assigned.\n\n**Permissions:** `IsAdminUser`",
         "tags": [
           "Staff Roles"
@@ -4330,9 +4330,9 @@
         }
       }
     },
-    "/auth/api/staff-roles/{assignment_id}/": {
+    "/auth/api/v1/staff-roles/{assignment_id}/": {
       "delete": {
-        "operationId": "auth_api_staff_roles_destroy",
+        "operationId": "auth_api_v1_staff_roles_destroy",
         "description": "Revoke a staff role assignment by its id. Emits staff.role.revoked.\n\n**Permissions:** `IsAdminUser`",
         "parameters": [
           {
@@ -4366,9 +4366,9 @@
         }
       }
     },
-    "/auth/api/token/": {
+    "/auth/api/v1/token/": {
       "post": {
-        "operationId": "auth_api_token_create",
+        "operationId": "auth_api_v1_token_create",
         "description": "JWT token obtain view using unified jwt_provider.\n\nAccepts username/email and password, returns access and refresh tokens.\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Token"
@@ -4431,9 +4431,9 @@
         }
       }
     },
-    "/auth/api/token/refresh/": {
+    "/auth/api/v1/token/refresh/": {
       "get": {
-        "operationId": "auth_api_token_refresh_retrieve",
+        "operationId": "auth_api_v1_token_refresh_retrieve",
         "description": "Refresh access token using refresh token from cookies\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Token"
@@ -4476,7 +4476,7 @@
         }
       },
       "post": {
-        "operationId": "auth_api_token_refresh_create",
+        "operationId": "auth_api_v1_token_refresh_create",
         "description": "Refresh access token using refresh token from cookies or request body\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Token"
@@ -4538,9 +4538,9 @@
         }
       }
     },
-    "/auth/api/totp/challenge/verify/": {
+    "/auth/api/v1/totp/challenge/verify/": {
       "post": {
-        "operationId": "auth_api_totp_challenge_verify_create",
+        "operationId": "auth_api_v1_totp_challenge_verify_create",
         "description": "Verify TOTP challenge after password/OAuth login when TOTP is enabled. Issues JWT cookies on success.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
         "tags": [
           "auth"
@@ -4588,9 +4588,9 @@
         }
       }
     },
-    "/auth/api/totp/disable/": {
+    "/auth/api/v1/totp/disable/": {
       "post": {
-        "operationId": "auth_api_totp_disable_create",
+        "operationId": "auth_api_v1_totp_disable_create",
         "description": "Disable TOTP. Discriminate by `method`: `totp` → 6-digit code, `backup` → backup code, `otp` → SMS code from /totp/disable-otp/request/.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
         "tags": [
           "auth"
@@ -4636,9 +4636,9 @@
         }
       }
     },
-    "/auth/api/totp/disable-otp/request/": {
+    "/auth/api/v1/totp/disable-otp/request/": {
       "post": {
-        "operationId": "auth_api_totp_disable_otp_request_create",
+        "operationId": "auth_api_v1_totp_disable_otp_request_create",
         "description": "Send a one-time code to the user's verified phone to confirm TOTP disable. Use when the user lost access to their authenticator and has no backup codes.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
         "tags": [
           "auth"
@@ -4665,9 +4665,9 @@
         }
       }
     },
-    "/auth/api/totp/setup/": {
+    "/auth/api/v1/totp/setup/": {
       "post": {
-        "operationId": "auth_api_totp_setup_create",
+        "operationId": "auth_api_v1_totp_setup_create",
         "description": "Start TOTP enrollment. Returns a secret and otpauth URI for QR display.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
         "tags": [
           "auth"
@@ -4700,9 +4700,9 @@
         }
       }
     },
-    "/auth/api/totp/setup/confirm/": {
+    "/auth/api/v1/totp/setup/confirm/": {
       "post": {
-        "operationId": "auth_api_totp_setup_confirm_create",
+        "operationId": "auth_api_v1_totp_setup_confirm_create",
         "description": "Confirm TOTP setup with the first code. Activates the device and returns one-time backup codes.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
         "tags": [
           "auth"
@@ -4756,9 +4756,9 @@
         }
       }
     },
-    "/auth/api/totp/step-up/": {
+    "/auth/api/v1/totp/step-up/": {
       "post": {
-        "operationId": "auth_api_totp_step_up_create",
+        "operationId": "auth_api_v1_totp_step_up_create",
         "description": "DEPRECATED (removed in 1.0). Issue a one-time step-up token after TOTP verification (valid 15 min, X-Step-Up-Token). Superseded by the unified step-up contract: guard sensitive actions with @requires_verification and drive the /verification/ envelope flow instead. For transit, a successful call ALSO writes a server-side verification grant for the LEGACY_STEP_UP_GRANT_SCOPES scopes, so deployed legacy frontends keep passing @requires_verification while the backend migrates. See auth-stepup-unification.md.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
         "tags": [
           "auth"
@@ -4821,9 +4821,9 @@
         }
       }
     },
-    "/auth/api/user/account/cancel-close": {
+    "/auth/api/v1/user/account/cancel-close": {
       "post": {
-        "operationId": "auth_api_user_account_cancel_close_create",
+        "operationId": "auth_api_v1_user_account_cancel_close_create",
         "description": "Base view exposing serializer seams.\n\nEvery concrete view declares ``request_serializer_class`` /\n``response_serializer_class`` (``None`` when that direction carries no\nserialized payload). Subclasses may swap either class attribute — or\noverride the getters — to customize the request/response envelopes\nwithout rewriting the method bodies.\n\n**Permissions:** `IsAuthenticated`",
         "summary": "Cancel account closure during grace period",
         "tags": [
@@ -4867,9 +4867,9 @@
         }
       }
     },
-    "/auth/api/user/account/close": {
+    "/auth/api/v1/user/account/close": {
       "post": {
-        "operationId": "auth_api_user_account_close_create",
+        "operationId": "auth_api_v1_user_account_close_create",
         "description": "Starts a 30-day grace period. Account is deactivated immediately. Can be cancelled by logging in.\n\n**Permissions:** `IsAuthenticated`",
         "summary": "Initiate account closure",
         "tags": [
@@ -4904,9 +4904,9 @@
         }
       }
     },
-    "/auth/api/user/account/close/status": {
+    "/auth/api/v1/user/account/close/status": {
       "get": {
-        "operationId": "auth_api_user_account_close_status_retrieve",
+        "operationId": "auth_api_v1_user_account_close_status_retrieve",
         "description": "Base view exposing serializer seams.\n\nEvery concrete view declares ``request_serializer_class`` /\n``response_serializer_class`` (``None`` when that direction carries no\nserialized payload). Subclasses may swap either class attribute — or\noverride the getters — to customize the request/response envelopes\nwithout rewriting the method bodies.\n\n**Permissions:** `IsAuthenticated`",
         "summary": "Get account closure status",
         "tags": [
@@ -4940,9 +4940,9 @@
         }
       }
     },
-    "/auth/api/user/data-export/download": {
+    "/auth/api/v1/user/data-export/download": {
       "get": {
-        "operationId": "auth_api_user_data_export_download_retrieve",
+        "operationId": "auth_api_v1_user_data_export_download_retrieve",
         "description": "Returns the ZIP archive. Link is valid for 7 days after export is ready.\n\n**Permissions:** `IsAuthenticated`",
         "summary": "Download data export archive",
         "parameters": [
@@ -5009,7 +5009,7 @@
         }
       },
       "post": {
-        "operationId": "auth_api_user_data_export_download_create",
+        "operationId": "auth_api_v1_user_data_export_download_create",
         "description": "Same as GET but the single-use token travels in the request body instead of the URL, so it never lands in access logs or referrers. Bound to the authenticated user.\n\n**Permissions:** `IsAuthenticated`",
         "summary": "Download data export archive (token in body)",
         "tags": [
@@ -5085,9 +5085,9 @@
         }
       }
     },
-    "/auth/api/user/data-export/request": {
+    "/auth/api/v1/user/data-export/request": {
       "post": {
-        "operationId": "auth_api_user_data_export_request_create",
+        "operationId": "auth_api_v1_user_data_export_request_create",
         "description": "Initiates an async export job. Archive ready within 48 h. Max once per 30 days.\n\n**Permissions:** `IsAuthenticated`",
         "summary": "Request personal data export",
         "tags": [
@@ -5122,9 +5122,9 @@
         }
       }
     },
-    "/auth/api/user/data-export/status": {
+    "/auth/api/v1/user/data-export/status": {
       "get": {
-        "operationId": "auth_api_user_data_export_status_retrieve",
+        "operationId": "auth_api_v1_user_data_export_status_retrieve",
         "description": "Base view exposing serializer seams.\n\nEvery concrete view declares ``request_serializer_class`` /\n``response_serializer_class`` (``None`` when that direction carries no\nserialized payload). Subclasses may swap either class attribute — or\noverride the getters — to customize the request/response envelopes\nwithout rewriting the method bodies.\n\n**Permissions:** `IsAuthenticated`",
         "summary": "Get data export status",
         "tags": [
@@ -5161,9 +5161,9 @@
         }
       }
     },
-    "/auth/api/verification/{challenge_id}/": {
+    "/auth/api/v1/verification/{challenge_id}/": {
       "get": {
-        "operationId": "auth_api_verification_retrieve",
+        "operationId": "auth_api_v1_verification_retrieve",
         "description": "Step-up verification challenge info. Returns the challenge's scope and its factor list filtered to the factors this user can actually complete — build the factor picker UI from it. 404 for a missing, expired or another user's challenge.\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
@@ -5220,9 +5220,9 @@
         }
       }
     },
-    "/auth/api/verification/{challenge_id}/complete/": {
+    "/auth/api/v1/verification/{challenge_id}/complete/": {
       "post": {
-        "operationId": "auth_api_verification_complete_create",
+        "operationId": "auth_api_v1_verification_complete_create",
         "description": "Complete the challenge with the factor's proof (code / backup_code / passkey assertion). On success the server-side grant for the challenge's scope is written and a stateless verification_token is returned — retry the original request (optionally with the X-Verification-Token header). On failure: 400 while attempts remain, 423 once the challenge is invalidated by too many failures.\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
@@ -5314,9 +5314,9 @@
         }
       }
     },
-    "/auth/api/verification/{challenge_id}/initiate/": {
+    "/auth/api/v1/verification/{challenge_id}/initiate/": {
       "post": {
-        "operationId": "auth_api_verification_initiate_create",
+        "operationId": "auth_api_v1_verification_initiate_create",
         "description": "Initiate a verification factor for the challenge: sends the one-time code (otp_email/otp_phone) or produces WebAuthn request options (passkey; totp has nothing to initiate). Returns factor-specific client data — masked destination or the WebAuthn options with the ceremony session_key. The factor must be in the challenge's list and available to the user.\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
@@ -5400,9 +5400,9 @@
         }
       }
     },
-    "/auth/api/verification/preferences/": {
+    "/auth/api/v1/verification/preferences/": {
       "get": {
-        "operationId": "auth_api_verification_preferences_retrieve",
+        "operationId": "auth_api_v1_verification_preferences_retrieve",
         "description": "The current user's step-up verification preferences: one row per scope the user has touched (enabled=False turns a default_on scope off, enabled=True turns an opt_in scope on). Scopes without a row follow the endpoint's level default; strict scopes ignore preferences entirely.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "auth"
@@ -5438,7 +5438,7 @@
         }
       },
       "put": {
-        "operationId": "auth_api_verification_preferences_update",
+        "operationId": "auth_api_v1_verification_preferences_update",
         "description": "Upsert a step-up verification preference {scope, enabled}. Enabling (enabled=true) applies immediately. Disabling (enabled=false) is itself step-up protected: without a fresh grant for scope verification.settings the request is rejected with the 403 verification envelope — complete a factor and retry. Both writes invalidate the cached policy, so protected endpoints see the change within one request.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "auth"
@@ -5509,9 +5509,9 @@
         }
       }
     },
-    "/auth/api/verify/": {
+    "/auth/api/v1/verify/": {
       "post": {
-        "operationId": "auth_api_verify_create",
+        "operationId": "auth_api_v1_verify_create",
         "description": "Verify JWT token\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Token"
@@ -6827,7 +6827,7 @@
           "scan_url": {
             "type": "string",
             "description": "The URL to encode inside the QR image. When a phone camera scans the QR code it opens this URL on the scanner's device, which triggers the auth flow. Pass this to your QR-code renderer (e.g. qrcode.js)",
-            "example": "https://app.example.com/auth/api/qr/abc123xyz/scan/"
+            "example": "https://app.example.com/auth/api/v1/qr/abc123xyz/scan/"
           }
         },
         "required": [

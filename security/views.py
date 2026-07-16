@@ -42,7 +42,7 @@ class SecurityStatusViewSet(viewsets.GenericViewSet):
         responses={200: SecurityStatusResponseSerializer},
     )
     @action(detail=False, methods=["get"], url_path="")
-    def status(self, request):
+    def status(self, request):  # noqa: R007
         from stapel_auth.models import PasskeyCredential
         from stapel_auth.security.dto import (
             SecurityStatusContact,
@@ -247,7 +247,7 @@ class RevokeSuspiciousView(APIView):
         parameters=[OpenApiParameter("token", str, required=True)],
         responses={302: None},
     )
-    def get(self, request):
+    def get(self, request):  # noqa: R007
         from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
         from stapel_core.notifications import request_notification
 

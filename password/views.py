@@ -115,7 +115,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         url_path="login",
         permission_classes=[permissions.AllowAny],
     )
-    def login(self, request):
+    def login(self, request):  # noqa: R007
         from stapel_core.django.api.errors import error_403_forbidden
 
         from stapel_auth.conf import auth_settings
@@ -193,7 +193,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         url_path="methods",
         permission_classes=[permissions.IsAuthenticated],
     )
-    def methods(self, request):
+    def methods(self, request):  # noqa: R007
         dto = PasswordMethodsResponse(
             has_password=request.user.has_usable_password(),
             methods=PasswordService.get_available_methods(request.user),
@@ -211,7 +211,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         url_path="change",
         permission_classes=[permissions.IsAuthenticated],
     )
-    def change_direct(self, request):
+    def change_direct(self, request):  # noqa: R007
         if not request.user.has_usable_password():
             return StapelErrorResponse(400, ERR_400_NO_PASSWORD)
         serializer = self.get_change_direct_request_serializer_class()(
@@ -249,7 +249,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         url_path="change/otp/request",
         permission_classes=[permissions.IsAuthenticated],
     )
-    def change_otp_request(self, request):
+    def change_otp_request(self, request):  # noqa: R007
         serializer = self.get_change_otp_request_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
         masked = PasswordService.send_change_otp(
@@ -269,7 +269,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         url_path="change/otp/verify",
         permission_classes=[permissions.IsAuthenticated],
     )
-    def change_otp_verify(self, request):
+    def change_otp_verify(self, request):  # noqa: R007
         serializer = self.get_change_otp_verify_request_serializer_class()(
             data=request.data
         )
@@ -304,7 +304,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         url_path="reset/email/request",
         permission_classes=[permissions.AllowAny],
     )
-    def reset_email_request(self, request):
+    def reset_email_request(self, request):  # noqa: R007
         serializer = self.get_reset_email_request_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
         masked = PasswordService.reset_request(email=serializer.validated_data["email"])
@@ -329,7 +329,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         url_path="reset/email/verify",
         permission_classes=[permissions.AllowAny],
     )
-    def reset_email_verify(self, request):
+    def reset_email_verify(self, request):  # noqa: R007
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
         from stapel_auth.staff_roles import create_tokens_for_user
@@ -369,7 +369,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         url_path="reset/phone/request",
         permission_classes=[permissions.AllowAny],
     )
-    def reset_phone_request(self, request):
+    def reset_phone_request(self, request):  # noqa: R007
         serializer = self.get_reset_phone_request_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
         masked = PasswordService.reset_request(phone=serializer.validated_data["phone"])
@@ -394,7 +394,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         url_path="reset/phone/verify",
         permission_classes=[permissions.AllowAny],
     )
-    def reset_phone_verify(self, request):
+    def reset_phone_verify(self, request):  # noqa: R007
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
         from stapel_auth.staff_roles import create_tokens_for_user
@@ -433,7 +433,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         url_path="register",
         permission_classes=[permissions.AllowAny],
     )
-    def register(self, request):
+    def register(self, request):  # noqa: R007
         from django.contrib.auth import get_user_model
         from django.contrib.auth.password_validation import validate_password
         from django.core.exceptions import ValidationError

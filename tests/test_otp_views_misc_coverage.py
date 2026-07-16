@@ -404,7 +404,7 @@ class OAuthAuthorizeCallbackBranchTests(APITestCase):
             f"oauth_state:{state}",
             {
                 "provider": provider,
-                "redirect_uri": "http://localhost:8000/api/oauth/test/callback",
+                "redirect_uri": "http://localhost:8000/api/v1/oauth/test/callback",
                 "redirect_after": redirect_after,
             },
             timeout=600,
@@ -516,7 +516,7 @@ class ResolveOAuthUserAndCallbackUriTests(TestCase):
         rf = RequestFactory()
         req = rf.get("/")
         uri = AuthViewSet()._build_callback_uri(req, "test")
-        self.assertEqual(uri, "https://api.example.com/api/oauth/test/callback")
+        self.assertEqual(uri, "https://api.example.com/api/v1/oauth/test/callback")
 
 
 # =============================================================================

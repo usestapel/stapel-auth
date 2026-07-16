@@ -496,7 +496,7 @@ class URLFactoryEquivalenceTests(TestCase):
         return found
 
     def test_assembled_urlpatterns_identical_to_monolith(self):
-        from stapel_auth import urls as auth_urls
+        from stapel_auth import urls_v1 as auth_urls
 
         actual = self._collect(auth_urls.urlpatterns)
         self.assertEqual(actual, _EXPECTED_URLS)
@@ -506,7 +506,7 @@ class URLFactoryEquivalenceTests(TestCase):
         self.assertEqual(reverse('service-keys-list'), '/service-keys')
 
     def test_factories_cover_expected_urls_exactly_once(self):
-        from stapel_auth import urls as auth_urls
+        from stapel_auth import urls_v1 as auth_urls
 
         combined = {}
         for factory in (
@@ -531,7 +531,7 @@ class URLFactoryEquivalenceTests(TestCase):
         self.assertEqual(combined, _EXPECTED_URLS)
 
     def test_factories_gated_by_feature_flags(self):
-        from stapel_auth import urls as auth_urls
+        from stapel_auth import urls_v1 as auth_urls
 
         # Password auth is disabled by default → factory yields nothing.
         with override_settings(STAPEL_AUTH={}):

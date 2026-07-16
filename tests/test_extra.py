@@ -1112,7 +1112,7 @@ class OAuthCallbackTests(APITestCase):
         from django.core.cache import cache
         cache.set(f'oauth_state:{state}', {
             'provider': 'test',
-            'redirect_uri': 'http://localhost:8000/api/oauth/test/callback',
+            'redirect_uri': 'http://localhost:8000/api/v1/oauth/test/callback',
             'redirect_after': redirect_after,
         }, timeout=600)
 

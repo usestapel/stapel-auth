@@ -44,7 +44,7 @@ class SerializerSeamTests(APITestCase):
         # field shows up in the response payload.
         factory = APIRequestFactory()
         request = factory.post(
-            "/auth/api/magic/request/",
+            "/auth/api/v1/magic/request/",
             {"email": "seam-nobody@example.com"},
             format="json",
         )

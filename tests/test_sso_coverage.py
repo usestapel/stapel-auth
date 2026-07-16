@@ -416,7 +416,7 @@ class IssueSessionTests(TestCase):
         from stapel_auth.models import UserSession
         from stapel_auth.services import LoginNotificationService
 
-        request = RequestFactory().post("/auth/api/sso/acmecorp/saml/acs/")
+        request = RequestFactory().post("/auth/api/v1/sso/acmecorp/saml/acs/")
         with patch.object(LoginNotificationService, "check_and_notify"):
             response = SSOUserService.issue_session_and_redirect(
                 self.user, self.org, request
@@ -432,7 +432,7 @@ class IssueSessionTests(TestCase):
         # branch is skipped but the redirect still issues.
         from stapel_auth.services import LoginNotificationService, SessionService
 
-        request = RequestFactory().post("/auth/api/sso/acmecorp/saml/acs/")
+        request = RequestFactory().post("/auth/api/v1/sso/acmecorp/saml/acs/")
         with patch.object(
             SessionService, "create", return_value=None
         ), patch.object(LoginNotificationService, "check_and_notify") as m_notify:

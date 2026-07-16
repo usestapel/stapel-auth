@@ -142,7 +142,7 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: TokenPairSerializer, 401: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="")
-    def refresh_post(self, request):
+    def refresh_post(self, request):  # noqa: R007
         """POST endpoint to refresh access token"""
         return self._refresh_token(request)
 
@@ -151,7 +151,7 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: TokenPairSerializer, 401: StapelErrorSerializer},
     )
     @action(detail=False, methods=["get"], url_path="")
-    def refresh_get(self, request):
+    def refresh_get(self, request):  # noqa: R007
         """GET endpoint to refresh access token"""
         return self._refresh_token(request)
 
@@ -328,7 +328,7 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: SessionResponseSerializer(many=True)},
     )
     @action(detail=False, methods=["get"], url_path="")
-    def list_sessions(self, request):
+    def list_sessions(self, request):  # noqa: R007
         from stapel_core.django.jwt_provider import jwt_provider
 
         from .services import SessionService
@@ -368,7 +368,7 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: None, 404: StapelErrorSerializer},
     )
     @action(detail=False, methods=["delete"], url_path=r"(?P<session_id>[^/.]+)")
-    def revoke_one(self, request, session_id=None):
+    def revoke_one(self, request, session_id=None):  # noqa: R007
 
         try:
             session = UserSession.objects.get(id=session_id, user=request.user)
@@ -395,7 +395,7 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: SimpleStatusSerializer, 404: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path=r"(?P<session_id>[^/.]+)/confirm")
-    def confirm_session(self, request, session_id=None):
+    def confirm_session(self, request, session_id=None):  # noqa: R007
         try:
             session = UserSession.objects.get(
                 id=session_id, user=request.user, is_revoked=False
@@ -418,7 +418,7 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: None},
     )
     @action(detail=False, methods=["delete"], url_path="")
-    def revoke_all(self, request):
+    def revoke_all(self, request):  # noqa: R007
         from stapel_core.django.jwt_provider import jwt_provider
 
         from .services import SessionService

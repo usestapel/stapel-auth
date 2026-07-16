@@ -661,7 +661,7 @@ class OpenIDConfigurationTests(APITestCase):
         """OpenID configuration should contain token_endpoint"""
         response = self.client.get(reverse("openid-configuration"))
         self.assertIn("token_endpoint", response.data)
-        self.assertIn("api/auth/token/", response.data["token_endpoint"])
+        self.assertIn("api/v1/auth/token/", response.data["token_endpoint"])
 
     def test_openid_config_contains_claims_supported(self):
         """OpenID configuration should list supported claims"""

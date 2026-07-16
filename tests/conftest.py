@@ -70,7 +70,7 @@ def pytest_configure(config):
             }
         ],
         AUTH_USER_MODEL="users.User",
-        ROOT_URLCONF="stapel_auth.urls",
+        ROOT_URLCONF="stapel_auth.urls_v1",  # bare v1 set; the v1/ mount itself is covered by test_mounting_urls
         DEFAULT_AUTO_FIELD="django.db.models.BigAutoField",
         USE_TZ=True,
         DATABASES={

@@ -121,7 +121,7 @@ class ModelDunderTests(TestCase):
 
 class UrlFactoryGateTests(TestCase):
     def test_every_factory_returns_empty_when_disabled(self):
-        from stapel_auth import urls as auth_urls
+        from stapel_auth import urls_v1 as auth_urls
 
         factories = [
             auth_urls.get_otp_urls,
@@ -143,7 +143,7 @@ class UrlFactoryGateTests(TestCase):
                 self.assertEqual(factory(enabled=False), [])
 
     def test_every_factory_returns_patterns_when_enabled(self):
-        from stapel_auth import urls as auth_urls
+        from stapel_auth import urls_v1 as auth_urls
 
         for name in auth_urls.__all__:
             if not name.startswith("get_"):

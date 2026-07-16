@@ -10,7 +10,7 @@
       "group": "auth.anonymous",
       "gates": {
         "operations": [
-          "auth_api_anonymous_create"
+          "auth_api_v1_anonymous_create"
         ],
         "co_gates": []
       },
@@ -26,12 +26,12 @@
       "group": "auth.mfa",
       "gates": {
         "operations": [
-          "auth_api_totp_challenge_verify_create",
-          "auth_api_totp_disable_create",
-          "auth_api_totp_disable_otp_request_create",
-          "auth_api_totp_setup_confirm_create",
-          "auth_api_totp_setup_create",
-          "auth_api_totp_step_up_create"
+          "auth_api_v1_totp_challenge_verify_create",
+          "auth_api_v1_totp_disable_create",
+          "auth_api_v1_totp_disable_otp_request_create",
+          "auth_api_v1_totp_setup_confirm_create",
+          "auth_api_v1_totp_setup_create",
+          "auth_api_v1_totp_step_up_create"
         ],
         "co_gates": []
       },
@@ -47,28 +47,28 @@
       "group": "auth.registration",
       "gates": {
         "operations": [
-          "auth_api_email_change_delayed_cancel_create",
-          "auth_api_email_change_delayed_initiate_create",
-          "auth_api_email_change_delayed_status_retrieve",
-          "auth_api_email_change_instant_request_new_create",
-          "auth_api_email_change_instant_request_old_create",
-          "auth_api_email_change_instant_verify_new_create",
-          "auth_api_email_change_instant_verify_old_create",
-          "auth_api_email_request_create",
-          "auth_api_email_verify_create",
-          "auth_api_logout_create",
-          "auth_api_logout_retrieve",
-          "auth_api_me_retrieve",
-          "auth_api_phone_change_delayed_cancel_create",
-          "auth_api_phone_change_delayed_initiate_create",
-          "auth_api_phone_change_delayed_status_retrieve",
-          "auth_api_phone_change_instant_request_new_create",
-          "auth_api_phone_change_instant_request_old_create",
-          "auth_api_phone_change_instant_verify_new_create",
-          "auth_api_phone_change_instant_verify_old_create",
-          "auth_api_phone_request_create",
-          "auth_api_phone_verify_create",
-          "auth_api_verify_create"
+          "auth_api_v1_email_change_delayed_cancel_create",
+          "auth_api_v1_email_change_delayed_initiate_create",
+          "auth_api_v1_email_change_delayed_status_retrieve",
+          "auth_api_v1_email_change_instant_request_new_create",
+          "auth_api_v1_email_change_instant_request_old_create",
+          "auth_api_v1_email_change_instant_verify_new_create",
+          "auth_api_v1_email_change_instant_verify_old_create",
+          "auth_api_v1_email_request_create",
+          "auth_api_v1_email_verify_create",
+          "auth_api_v1_logout_create",
+          "auth_api_v1_logout_retrieve",
+          "auth_api_v1_me_retrieve",
+          "auth_api_v1_phone_change_delayed_cancel_create",
+          "auth_api_v1_phone_change_delayed_initiate_create",
+          "auth_api_v1_phone_change_delayed_status_retrieve",
+          "auth_api_v1_phone_change_instant_request_new_create",
+          "auth_api_v1_phone_change_instant_request_old_create",
+          "auth_api_v1_phone_change_instant_verify_new_create",
+          "auth_api_v1_phone_change_instant_verify_old_create",
+          "auth_api_v1_phone_request_create",
+          "auth_api_v1_phone_verify_create",
+          "auth_api_v1_verify_create"
         ],
         "co_gates": [
           "AUTH_EMAIL_LOGIN",
@@ -88,28 +88,28 @@
       "group": "auth.registration",
       "gates": {
         "operations": [
-          "auth_api_email_change_delayed_cancel_create",
-          "auth_api_email_change_delayed_initiate_create",
-          "auth_api_email_change_delayed_status_retrieve",
-          "auth_api_email_change_instant_request_new_create",
-          "auth_api_email_change_instant_request_old_create",
-          "auth_api_email_change_instant_verify_new_create",
-          "auth_api_email_change_instant_verify_old_create",
-          "auth_api_email_request_create",
-          "auth_api_email_verify_create",
-          "auth_api_logout_create",
-          "auth_api_logout_retrieve",
-          "auth_api_me_retrieve",
-          "auth_api_phone_change_delayed_cancel_create",
-          "auth_api_phone_change_delayed_initiate_create",
-          "auth_api_phone_change_delayed_status_retrieve",
-          "auth_api_phone_change_instant_request_new_create",
-          "auth_api_phone_change_instant_request_old_create",
-          "auth_api_phone_change_instant_verify_new_create",
-          "auth_api_phone_change_instant_verify_old_create",
-          "auth_api_phone_request_create",
-          "auth_api_phone_verify_create",
-          "auth_api_verify_create"
+          "auth_api_v1_email_change_delayed_cancel_create",
+          "auth_api_v1_email_change_delayed_initiate_create",
+          "auth_api_v1_email_change_delayed_status_retrieve",
+          "auth_api_v1_email_change_instant_request_new_create",
+          "auth_api_v1_email_change_instant_request_old_create",
+          "auth_api_v1_email_change_instant_verify_new_create",
+          "auth_api_v1_email_change_instant_verify_old_create",
+          "auth_api_v1_email_request_create",
+          "auth_api_v1_email_verify_create",
+          "auth_api_v1_logout_create",
+          "auth_api_v1_logout_retrieve",
+          "auth_api_v1_me_retrieve",
+          "auth_api_v1_phone_change_delayed_cancel_create",
+          "auth_api_v1_phone_change_delayed_initiate_create",
+          "auth_api_v1_phone_change_delayed_status_retrieve",
+          "auth_api_v1_phone_change_instant_request_new_create",
+          "auth_api_v1_phone_change_instant_request_old_create",
+          "auth_api_v1_phone_change_instant_verify_new_create",
+          "auth_api_v1_phone_change_instant_verify_old_create",
+          "auth_api_v1_phone_request_create",
+          "auth_api_v1_phone_verify_create",
+          "auth_api_v1_verify_create"
         ],
         "co_gates": [
           "AUTH_EMAIL_LOGIN",
@@ -129,10 +129,10 @@
       "group": "auth.registration",
       "gates": {
         "operations": [
-          "auth_api_oauth_authorize_retrieve",
-          "auth_api_oauth_callback_retrieve",
-          "auth_api_oauth_callback_retrieve_2",
-          "auth_api_oauth_login_create"
+          "auth_api_v1_oauth_authorize_retrieve",
+          "auth_api_v1_oauth_callback_retrieve",
+          "auth_api_v1_oauth_callback_retrieve_2",
+          "auth_api_v1_oauth_login_create"
         ],
         "co_gates": [
           "AUTH_OAUTH_LOGIN"
@@ -150,18 +150,18 @@
       "group": "auth.registration",
       "gates": {
         "operations": [
-          "auth_api_sso_login_retrieve",
-          "auth_api_sso_lookup_retrieve",
-          "auth_api_sso_oidc_callback_retrieve",
-          "auth_api_sso_orgs_config_partial_update",
-          "auth_api_sso_orgs_config_update",
-          "auth_api_sso_orgs_create",
-          "auth_api_sso_orgs_destroy",
-          "auth_api_sso_orgs_list",
-          "auth_api_sso_orgs_partial_update",
-          "auth_api_sso_orgs_retrieve",
-          "auth_api_sso_saml_acs_create",
-          "auth_api_sso_saml_metadata_retrieve"
+          "auth_api_v1_sso_login_retrieve",
+          "auth_api_v1_sso_lookup_retrieve",
+          "auth_api_v1_sso_oidc_callback_retrieve",
+          "auth_api_v1_sso_orgs_config_partial_update",
+          "auth_api_v1_sso_orgs_config_update",
+          "auth_api_v1_sso_orgs_create",
+          "auth_api_v1_sso_orgs_destroy",
+          "auth_api_v1_sso_orgs_list",
+          "auth_api_v1_sso_orgs_partial_update",
+          "auth_api_v1_sso_orgs_retrieve",
+          "auth_api_v1_sso_saml_acs_create",
+          "auth_api_v1_sso_saml_metadata_retrieve"
         ],
         "co_gates": [
           "AUTH_SSO_LOGIN"
@@ -179,16 +179,16 @@
       "group": "auth.registration",
       "gates": {
         "operations": [
-          "auth_api_password_change_create",
-          "auth_api_password_change_otp_request_create",
-          "auth_api_password_change_otp_verify_create",
-          "auth_api_password_login_create",
-          "auth_api_password_methods_retrieve",
-          "auth_api_password_register_create",
-          "auth_api_password_reset_email_request_create",
-          "auth_api_password_reset_email_verify_create",
-          "auth_api_password_reset_phone_request_create",
-          "auth_api_password_reset_phone_verify_create"
+          "auth_api_v1_password_change_create",
+          "auth_api_v1_password_change_otp_request_create",
+          "auth_api_v1_password_change_otp_verify_create",
+          "auth_api_v1_password_login_create",
+          "auth_api_v1_password_methods_retrieve",
+          "auth_api_v1_password_register_create",
+          "auth_api_v1_password_reset_email_request_create",
+          "auth_api_v1_password_reset_email_verify_create",
+          "auth_api_v1_password_reset_phone_request_create",
+          "auth_api_v1_password_reset_phone_verify_create"
         ],
         "co_gates": [
           "AUTH_PASSWORD_LOGIN"
@@ -206,28 +206,28 @@
       "group": "auth.login",
       "gates": {
         "operations": [
-          "auth_api_email_change_delayed_cancel_create",
-          "auth_api_email_change_delayed_initiate_create",
-          "auth_api_email_change_delayed_status_retrieve",
-          "auth_api_email_change_instant_request_new_create",
-          "auth_api_email_change_instant_request_old_create",
-          "auth_api_email_change_instant_verify_new_create",
-          "auth_api_email_change_instant_verify_old_create",
-          "auth_api_email_request_create",
-          "auth_api_email_verify_create",
-          "auth_api_logout_create",
-          "auth_api_logout_retrieve",
-          "auth_api_me_retrieve",
-          "auth_api_phone_change_delayed_cancel_create",
-          "auth_api_phone_change_delayed_initiate_create",
-          "auth_api_phone_change_delayed_status_retrieve",
-          "auth_api_phone_change_instant_request_new_create",
-          "auth_api_phone_change_instant_request_old_create",
-          "auth_api_phone_change_instant_verify_new_create",
-          "auth_api_phone_change_instant_verify_old_create",
-          "auth_api_phone_request_create",
-          "auth_api_phone_verify_create",
-          "auth_api_verify_create"
+          "auth_api_v1_email_change_delayed_cancel_create",
+          "auth_api_v1_email_change_delayed_initiate_create",
+          "auth_api_v1_email_change_delayed_status_retrieve",
+          "auth_api_v1_email_change_instant_request_new_create",
+          "auth_api_v1_email_change_instant_request_old_create",
+          "auth_api_v1_email_change_instant_verify_new_create",
+          "auth_api_v1_email_change_instant_verify_old_create",
+          "auth_api_v1_email_request_create",
+          "auth_api_v1_email_verify_create",
+          "auth_api_v1_logout_create",
+          "auth_api_v1_logout_retrieve",
+          "auth_api_v1_me_retrieve",
+          "auth_api_v1_phone_change_delayed_cancel_create",
+          "auth_api_v1_phone_change_delayed_initiate_create",
+          "auth_api_v1_phone_change_delayed_status_retrieve",
+          "auth_api_v1_phone_change_instant_request_new_create",
+          "auth_api_v1_phone_change_instant_request_old_create",
+          "auth_api_v1_phone_change_instant_verify_new_create",
+          "auth_api_v1_phone_change_instant_verify_old_create",
+          "auth_api_v1_phone_request_create",
+          "auth_api_v1_phone_verify_create",
+          "auth_api_v1_verify_create"
         ],
         "co_gates": [
           "AUTH_EMAIL_LOGIN",
@@ -247,28 +247,28 @@
       "group": "auth.login",
       "gates": {
         "operations": [
-          "auth_api_email_change_delayed_cancel_create",
-          "auth_api_email_change_delayed_initiate_create",
-          "auth_api_email_change_delayed_status_retrieve",
-          "auth_api_email_change_instant_request_new_create",
-          "auth_api_email_change_instant_request_old_create",
-          "auth_api_email_change_instant_verify_new_create",
-          "auth_api_email_change_instant_verify_old_create",
-          "auth_api_email_request_create",
-          "auth_api_email_verify_create",
-          "auth_api_logout_create",
-          "auth_api_logout_retrieve",
-          "auth_api_me_retrieve",
-          "auth_api_phone_change_delayed_cancel_create",
-          "auth_api_phone_change_delayed_initiate_create",
-          "auth_api_phone_change_delayed_status_retrieve",
-          "auth_api_phone_change_instant_request_new_create",
-          "auth_api_phone_change_instant_request_old_create",
-          "auth_api_phone_change_instant_verify_new_create",
-          "auth_api_phone_change_instant_verify_old_create",
-          "auth_api_phone_request_create",
-          "auth_api_phone_verify_create",
-          "auth_api_verify_create"
+          "auth_api_v1_email_change_delayed_cancel_create",
+          "auth_api_v1_email_change_delayed_initiate_create",
+          "auth_api_v1_email_change_delayed_status_retrieve",
+          "auth_api_v1_email_change_instant_request_new_create",
+          "auth_api_v1_email_change_instant_request_old_create",
+          "auth_api_v1_email_change_instant_verify_new_create",
+          "auth_api_v1_email_change_instant_verify_old_create",
+          "auth_api_v1_email_request_create",
+          "auth_api_v1_email_verify_create",
+          "auth_api_v1_logout_create",
+          "auth_api_v1_logout_retrieve",
+          "auth_api_v1_me_retrieve",
+          "auth_api_v1_phone_change_delayed_cancel_create",
+          "auth_api_v1_phone_change_delayed_initiate_create",
+          "auth_api_v1_phone_change_delayed_status_retrieve",
+          "auth_api_v1_phone_change_instant_request_new_create",
+          "auth_api_v1_phone_change_instant_request_old_create",
+          "auth_api_v1_phone_change_instant_verify_new_create",
+          "auth_api_v1_phone_change_instant_verify_old_create",
+          "auth_api_v1_phone_request_create",
+          "auth_api_v1_phone_verify_create",
+          "auth_api_v1_verify_create"
         ],
         "co_gates": [
           "AUTH_EMAIL_REGISTRATION",
@@ -288,10 +288,10 @@
       "group": "auth.login",
       "gates": {
         "operations": [
-          "auth_api_oauth_authorize_retrieve",
-          "auth_api_oauth_callback_retrieve",
-          "auth_api_oauth_callback_retrieve_2",
-          "auth_api_oauth_login_create"
+          "auth_api_v1_oauth_authorize_retrieve",
+          "auth_api_v1_oauth_callback_retrieve",
+          "auth_api_v1_oauth_callback_retrieve_2",
+          "auth_api_v1_oauth_login_create"
         ],
         "co_gates": [
           "AUTH_OAUTH_REGISTRATION"
@@ -309,18 +309,18 @@
       "group": "auth.login",
       "gates": {
         "operations": [
-          "auth_api_sso_login_retrieve",
-          "auth_api_sso_lookup_retrieve",
-          "auth_api_sso_oidc_callback_retrieve",
-          "auth_api_sso_orgs_config_partial_update",
-          "auth_api_sso_orgs_config_update",
-          "auth_api_sso_orgs_create",
-          "auth_api_sso_orgs_destroy",
-          "auth_api_sso_orgs_list",
-          "auth_api_sso_orgs_partial_update",
-          "auth_api_sso_orgs_retrieve",
-          "auth_api_sso_saml_acs_create",
-          "auth_api_sso_saml_metadata_retrieve"
+          "auth_api_v1_sso_login_retrieve",
+          "auth_api_v1_sso_lookup_retrieve",
+          "auth_api_v1_sso_oidc_callback_retrieve",
+          "auth_api_v1_sso_orgs_config_partial_update",
+          "auth_api_v1_sso_orgs_config_update",
+          "auth_api_v1_sso_orgs_create",
+          "auth_api_v1_sso_orgs_destroy",
+          "auth_api_v1_sso_orgs_list",
+          "auth_api_v1_sso_orgs_partial_update",
+          "auth_api_v1_sso_orgs_retrieve",
+          "auth_api_v1_sso_saml_acs_create",
+          "auth_api_v1_sso_saml_metadata_retrieve"
         ],
         "co_gates": [
           "AUTH_SSO_REGISTRATION"
@@ -338,16 +338,16 @@
       "group": "auth.login",
       "gates": {
         "operations": [
-          "auth_api_password_change_create",
-          "auth_api_password_change_otp_request_create",
-          "auth_api_password_change_otp_verify_create",
-          "auth_api_password_login_create",
-          "auth_api_password_methods_retrieve",
-          "auth_api_password_register_create",
-          "auth_api_password_reset_email_request_create",
-          "auth_api_password_reset_email_verify_create",
-          "auth_api_password_reset_phone_request_create",
-          "auth_api_password_reset_phone_verify_create"
+          "auth_api_v1_password_change_create",
+          "auth_api_v1_password_change_otp_request_create",
+          "auth_api_v1_password_change_otp_verify_create",
+          "auth_api_v1_password_login_create",
+          "auth_api_v1_password_methods_retrieve",
+          "auth_api_v1_password_register_create",
+          "auth_api_v1_password_reset_email_request_create",
+          "auth_api_v1_password_reset_email_verify_create",
+          "auth_api_v1_password_reset_phone_request_create",
+          "auth_api_v1_password_reset_phone_verify_create"
         ],
         "co_gates": [
           "AUTH_PASSWORD_REGISTRATION"
@@ -365,11 +365,11 @@
       "group": "auth.login",
       "gates": {
         "operations": [
-          "auth_api_qr_confirm_create",
-          "auth_api_qr_generate_create",
-          "auth_api_qr_reject_create",
-          "auth_api_qr_scan_retrieve",
-          "auth_api_qr_status_retrieve"
+          "auth_api_v1_qr_confirm_create",
+          "auth_api_v1_qr_generate_create",
+          "auth_api_v1_qr_reject_create",
+          "auth_api_v1_qr_scan_retrieve",
+          "auth_api_v1_qr_status_retrieve"
         ],
         "co_gates": []
       },
@@ -385,12 +385,12 @@
       "group": "auth.login",
       "gates": {
         "operations": [
-          "auth_api_passkey_authenticate_begin_create",
-          "auth_api_passkey_authenticate_complete_create",
-          "auth_api_passkey_destroy",
-          "auth_api_passkey_register_begin_create",
-          "auth_api_passkey_register_complete_create",
-          "auth_api_passkey_retrieve"
+          "auth_api_v1_passkey_authenticate_begin_create",
+          "auth_api_v1_passkey_authenticate_complete_create",
+          "auth_api_v1_passkey_destroy",
+          "auth_api_v1_passkey_register_begin_create",
+          "auth_api_v1_passkey_register_complete_create",
+          "auth_api_v1_passkey_retrieve"
         ],
         "co_gates": []
       },
@@ -406,8 +406,8 @@
       "group": "auth.login",
       "gates": {
         "operations": [
-          "auth_api_magic_request_create",
-          "auth_api_magic_verify_retrieve"
+          "auth_api_v1_magic_request_create",
+          "auth_api_v1_magic_verify_retrieve"
         ],
         "co_gates": []
       },

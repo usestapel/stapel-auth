@@ -80,7 +80,7 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         },
     )
     @action(detail=False, methods=["post"], url_path="generate")
-    def generate(self, request):
+    def generate(self, request):  # noqa: R007
         import secrets as _secrets
 
         serializer = self.get_generate_request_serializer_class()(data=request.data)
@@ -160,7 +160,7 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: QRStatusResponseSerializer},
     )
     @action(detail=False, methods=["get"], url_path=r"(?P<key>[^/.]+)/status")
-    def qr_status(self, request, key=None):
+    def qr_status(self, request, key=None):  # noqa: R007
         from stapel_auth.errors import ERR_403_QR_DEVICE_MISMATCH
 
         data = QRAuthService.get(key)
@@ -242,7 +242,7 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={302: None, 404: StapelErrorSerializer},
     )
     @action(detail=False, methods=["get"], url_path=r"(?P<key>[^/.]+)/scan")
-    def scan(self, request, key=None):
+    def scan(self, request, key=None):  # noqa: R007
         from urllib.parse import urlencode
 
         from django.contrib.auth import get_user_model as _get_user_model
@@ -313,7 +313,7 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: SimpleStatusSerializer, 404: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path=r"(?P<key>[^/.]+)/reject")
-    def reject(self, request, key=None):
+    def reject(self, request, key=None):  # noqa: R007
         data = QRAuthService.get(key)
         if data is None:
             return StapelErrorResponse(404, ERR_404_QR_NOT_FOUND)
@@ -345,7 +345,7 @@ Issues tokens for the waiting device. The device polling `/status` will receive 
         url_path=r"(?P<key>[^/.]+)/confirm",
         permission_classes=[permissions.IsAuthenticated],
     )
-    def confirm(self, request, key=None):
+    def confirm(self, request, key=None):  # noqa: R007
         from stapel_auth.staff_roles import create_tokens_for_user
 
         data = QRAuthService.get(key)

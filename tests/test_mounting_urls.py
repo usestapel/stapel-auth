@@ -45,7 +45,7 @@ class QRScanUrlMountTests(TestCase):
         self.assertEqual(resp.status_code, 201, resp.content)
         key = resp.data["key"]
         self.assertEqual(
-            resp.data["scan_url"], f"http://testserver/svc/auth/qr/{key}/scan/"
+            resp.data["scan_url"], f"http://testserver/svc/auth/v1/qr/{key}/scan/"
         )
         # and the advertised URL actually resolves inside the deployment
-        self.assertTrue(resp.data["scan_url"].endswith(f"/svc/auth/qr/{key}/scan/"))
+        self.assertTrue(resp.data["scan_url"].endswith(f"/svc/auth/v1/qr/{key}/scan/"))

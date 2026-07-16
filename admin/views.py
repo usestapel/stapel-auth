@@ -49,7 +49,7 @@ class CapabilitiesView(APIView):
         description="Return available authentication and registration methods for this deployment.",
         responses={200: None},
     )
-    def get(self, request):
+    def get(self, request):  # noqa: R007
         from stapel_auth.oauth.services import AuthCapabilitiesService
         from stapel_auth.serializers import AuthCapabilitiesSerializer
 
@@ -72,7 +72,7 @@ class AdminUserViewSet(viewsets.GenericViewSet):
         responses={201: AdminUserCreateResponseSerializer, 400: None, 403: None},
     )
     @action(detail=False, methods=["post"])
-    def create_user(self, request):
+    def create_user(self, request):  # noqa: R007
         from django.contrib.auth import get_user_model
         from stapel_core.django.api.errors import error_403_forbidden
 
@@ -171,7 +171,7 @@ class StaffRoleViewSet(viewsets.GenericViewSet):
         responses={200: StaffRoleAssignmentSerializer(many=True), 403: None},
     )
     @action(detail=False, methods=["get"])
-    def list_assignments(self, request):
+    def list_assignments(self, request):  # noqa: R007
         from stapel_core.django.api.errors import error_403_forbidden
 
         if not self._permitted(request):
@@ -193,7 +193,7 @@ class StaffRoleViewSet(viewsets.GenericViewSet):
         responses={201: StaffRoleAssignmentSerializer, 400: None, 403: None, 404: None},
     )
     @action(detail=False, methods=["post"])
-    def assign(self, request):
+    def assign(self, request):  # noqa: R007
         from django.contrib.auth import get_user_model
         from stapel_core.django.api.errors import (
             StapelErrorResponse,
@@ -246,7 +246,7 @@ class StaffRoleViewSet(viewsets.GenericViewSet):
         responses={204: None, 403: None, 404: None},
     )
     @action(detail=True, methods=["delete"])
-    def revoke(self, request, assignment_id=None):
+    def revoke(self, request, assignment_id=None):  # noqa: R007
         from stapel_core.django.api.errors import (
             StapelErrorResponse,
             error_403_forbidden,

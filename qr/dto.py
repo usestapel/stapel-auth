@@ -41,7 +41,7 @@ class QRGenerateResponse:
         key: Short-lived Redis key (5 min TTL). Example: abc123xyz
         type: QR type. Example: session_share
         expires_in: Seconds until the key expires. Example: 300
-        scan_url: The URL to encode inside the QR image. When a phone camera scans the QR code it opens this URL on the scanner's device, which triggers the auth flow. Pass this to your QR-code renderer (e.g. qrcode.js). Example: https://app.example.com/auth/api/qr/abc123xyz/scan/
+        scan_url: The URL to encode inside the QR image. When a phone camera scans the QR code it opens this URL on the scanner's device, which triggers the auth flow. Pass this to your QR-code renderer (e.g. qrcode.js). Example: https://app.example.com/auth/api/v1/qr/abc123xyz/scan/
     """
     key: str
     type: QRType

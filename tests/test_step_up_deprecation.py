@@ -77,7 +77,7 @@ class _SensitiveDemoView(APIView):
 
 _TEST_URLCONF = "_stapel_auth_stepup_deprecation_test_urls"
 _urlconf_module = types.ModuleType(_TEST_URLCONF)
-import stapel_auth.urls as _auth_urls  # noqa: E402
+import stapel_auth.urls_v1 as _auth_urls  # noqa: E402
 
 _urlconf_module.urlpatterns = list(_auth_urls.urlpatterns) + [
     path("sensitive-demo/", _SensitiveDemoView.as_view()),

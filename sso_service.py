@@ -30,11 +30,11 @@ def _get_base_url() -> str:
 class SAMLService:
     @staticmethod
     def sp_entity_id(org_slug: str) -> str:
-        return f'{_get_base_url()}/auth/api/sso/{org_slug}/saml/metadata/'
+        return f'{_get_base_url()}/auth/api/v1/sso/{org_slug}/saml/metadata/'
 
     @staticmethod
     def acs_url(org_slug: str) -> str:
-        return f'{_get_base_url()}/auth/api/sso/{org_slug}/saml/acs/'
+        return f'{_get_base_url()}/auth/api/v1/sso/{org_slug}/saml/acs/'
 
     @classmethod
     def generate_metadata(cls, org_slug: str) -> str:
@@ -298,7 +298,7 @@ class OIDCService:
             hashlib.sha256(verifier.encode()).digest()
         ).rstrip(b'=').decode()
 
-        callback = f'{_get_base_url()}/auth/api/sso/{org_slug}/oidc/callback/'
+        callback = f'{_get_base_url()}/auth/api/v1/sso/{org_slug}/oidc/callback/'
         params = {
             'response_type': 'code',
             'client_id': config.oidc_client_id,
@@ -323,7 +323,7 @@ class OIDCService:
         """Exchange auth code for user info. Returns {'email', 'first_name', 'last_name', 'subject_id'}."""
         import requests as _req
         meta = cls._discover(config.oidc_discovery_url)
-        callback = f'{_get_base_url()}/auth/api/sso/{org_slug}/oidc/callback/'
+        callback = f'{_get_base_url()}/auth/api/v1/sso/{org_slug}/oidc/callback/'
 
         token_resp = _req.post(meta['token_endpoint'], data={
             'grant_type': 'authorization_code',

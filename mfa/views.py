@@ -132,7 +132,7 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: TOTPSetupResponseSerializer},
     )
     @action(detail=False, methods=["post"], url_path="setup")
-    def setup(self, request):
+    def setup(self, request):  # noqa: R007
         from stapel_auth.mfa.dto import TOTPSetupResponse
         from stapel_auth.mfa.services import TOTPService
 
@@ -150,7 +150,7 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: TOTPSetupConfirmResponseSerializer},
     )
     @action(detail=False, methods=["post"], url_path="setup/confirm")
-    def confirm_setup(self, request):
+    def confirm_setup(self, request):  # noqa: R007
         from stapel_auth.mfa.dto import TOTPSetupConfirmResponse
         from stapel_auth.mfa.services import TOTPService
 
@@ -180,7 +180,7 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         url_path="disable-otp/request",
         permission_classes=[permissions.IsAuthenticated],
     )
-    def disable_request_otp(self, request):
+    def disable_request_otp(self, request):  # noqa: R007
         from stapel_auth.dto import OtpSentResponse
         from stapel_auth.errors import ERR_400_NO_VERIFIED_CONTACT
         from stapel_auth.services import PasswordService, PhoneVerificationService
@@ -208,7 +208,7 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: None, 400: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="disable")
-    def disable(self, request):
+    def disable(self, request):  # noqa: R007
         from stapel_auth.dto import SimpleStatusResponse
         from stapel_auth.errors import ERR_400_NO_VERIFIED_CONTACT
         from stapel_auth.mfa.services import TOTPService
@@ -254,7 +254,7 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: None, 400: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="challenge/verify")
-    def challenge_verify(self, request):
+    def challenge_verify(self, request):  # noqa: R007
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
         from stapel_auth.dto import AuthResponse, AuthStatus, TokenPairResponse
@@ -320,7 +320,7 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: TOTPStepUpResponseSerializer, 400: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="step-up")
-    def step_up(self, request):
+    def step_up(self, request):  # noqa: R007
         from stapel_auth.mfa.dto import TOTPStepUpResponse
         from stapel_auth.mfa.services import TOTPService
 

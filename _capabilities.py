@@ -14,7 +14,7 @@ def main(argv=None):
     return run_capabilities_cli(
         argv,
         repo=Path(__file__).resolve().parent,
-        canonical_prefix="/auth/api",
+        canonical_prefix="/auth/api/v1",
         defaults=DEFAULTS,
         registry=GATE_REGISTRY,
         is_axis=lambda k: k.startswith("AUTH_") or k.endswith("_STEP_UP"),

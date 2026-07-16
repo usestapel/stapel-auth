@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+## [0.5.8] — 2026-07-16
+
+### Changed
+- **v1 canon sweep §60** (api-versioning.md §2, §6): `urls.py` renamed to
+  `urls_v1.py` (paths inside unchanged); the new root `urls.py` mounts it
+  under `v1/` and re-exports the per-feature factories + `GATE_REGISTRY`.
+  Hosts including `stapel_auth.urls` under `auth/api/` now serve
+  `/auth/api/v1/...`; bare `/auth/api/...` no longer exists (no live external
+  consumers; sweep lands before the §3 API00x gates are enabled).
+- Contract artifacts regenerated (`make contract`): `/v1/` in every path and
+  `auth_api_v1_*` operationIds — the single expected diff of the sweep.
+- Absolute-URL builders follow the canon: SSO SAML/OIDC callbacks, magic-link
+  verify, suspicious-login revoke URL, OAuth callback URI, OpenID discovery
+  endpoints now emit `/auth/api/v1/...`.
+- `_capabilities.py` canonical_prefix → `/auth/api/v1`.
+- Lint hygiene to a clean `stapel-verify`: explicit `# noqa: R007/R006` on
+  pre-existing findings (documented endpoints not yet attached to flows).
+
 ## [0.5.7] - 2026-07-16
 
 ### Fixed — user.session_created / user.session_revoked are now actually emitted

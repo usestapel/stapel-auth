@@ -63,10 +63,10 @@ class MagicLinkService:
             return False
         from stapel_core.notifications import request_notification
         # Link goes directly to the backend verify endpoint — sets cookies and redirects.
-        # Backend URL is proxied at the same origin as the frontend under /auth/api/.
+        # Backend URL is proxied at the same origin as the frontend under /auth/api/v1/.
         from stapel_auth.conf import auth_settings
         base_url = auth_settings.FRONTEND_URL or ''
-        link = f'{base_url}/auth/api/magic/verify/?token={token}'
+        link = f'{base_url}/auth/api/v1/magic/verify/?token={token}'
         request_notification(
             notification_type='magic_link_login',
             email=user.email,

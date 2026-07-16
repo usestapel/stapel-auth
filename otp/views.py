@@ -283,7 +283,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         ],
     )
     @action(detail=False, methods=["post"], url_path="email/request")
-    def email_request(self, request):
+    def email_request(self, request):  # noqa: R007
         """Request email verification code"""
         from stapel_core.django.errors import error_403_forbidden
 
@@ -432,7 +432,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         ],
     )
     @action(detail=False, methods=["post"], url_path="email/verify")
-    def email_verify(self, request):
+    def email_verify(self, request):  # noqa: R007
         """
         Verify email and authenticate/register.
 
@@ -606,7 +606,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         ],
     )
     @action(detail=False, methods=["post"], url_path="phone/request")
-    def phone_request(self, request):
+    def phone_request(self, request):  # noqa: R007
         """Request phone verification code (OTP)"""
         from stapel_core.django.errors import error_403_forbidden
 
@@ -719,7 +719,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         ],
     )
     @action(detail=False, methods=["post"], url_path="phone/verify")
-    def phone_verify(self, request):
+    def phone_verify(self, request):  # noqa: R007
         """
         Verify phone number and authenticate/register.
 
@@ -863,7 +863,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={201: AuthResponseSerializer, 400: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"])
-    def anonymous(self, request):
+    def anonymous(self, request):  # noqa: R007
         """Create anonymous user (or return existing anonymous session)."""
         from stapel_core.django.errors import error_403_forbidden
 
@@ -932,7 +932,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         ],
     )
     @action(detail=False, methods=["post"])
-    def oauth_login(self, request):
+    def oauth_login(self, request):  # noqa: R007
         """OAuth authentication"""
         from stapel_core.django.errors import error_403_forbidden
 
@@ -998,7 +998,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     @action(
         detail=False, methods=["get"], url_path="oauth/(?P<provider>[^/.]+)/authorize"
     )
-    def oauth_authorize(self, request, provider=None):
+    def oauth_authorize(self, request, provider=None):  # noqa: R007
         """Initiate server-side OAuth flow"""
         import secrets
 
@@ -1046,7 +1046,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     @action(
         detail=False, methods=["get"], url_path="oauth/(?P<provider>[^/.]+)/callback"
     )
-    def oauth_callback(self, request, provider=None):
+    def oauth_callback(self, request, provider=None):  # noqa: R007
         """Handle OAuth authorization code callback"""
         from urllib.parse import urlencode
 
@@ -1197,7 +1197,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         """Build the OAuth callback URI using configured host or request."""
         base = getattr(settings, "OAUTH_CALLBACK_BASE_URL", "").rstrip("/")
         url_prefix = getattr(settings, "URL_PREFIX", "")
-        path = f"/{url_prefix}api/oauth/{provider}/callback"
+        path = f"/{url_prefix}api/v1/oauth/{provider}/callback"
         if base:
             return base + path
         return request.build_absolute_uri(path)
@@ -1218,7 +1218,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     @action(
         detail=False, methods=["post"], permission_classes=[permissions.IsAuthenticated]
     )
-    def logout(self, request):
+    def logout(self, request):  # noqa: R007
         """POST endpoint to logout user"""
         return self._logout(request)
 
@@ -1229,7 +1229,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     @action(
         detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated]
     )
-    def logout_get(self, request):
+    def logout_get(self, request):  # noqa: R007
         """GET endpoint to logout user (for cookie-based authentication)"""
         return self._logout(request)
 
@@ -1343,7 +1343,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     @action(
         detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated]
     )
-    def me(self, request):
+    def me(self, request):  # noqa: R007
         """Get current user information"""
         # Check if user is actually authenticated
         if not request.user or not request.user.is_authenticated:
@@ -1393,7 +1393,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: TokenVerifyResponseSerializer, 401: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"])
-    def verify_token(self, request):
+    def verify_token(self, request):  # noqa: R007
         """Verify JWT token"""
         from stapel_core.django.jwt_provider import jwt_provider
 
@@ -1504,7 +1504,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: InstantRequestOldResponseSerializer},
     )
     @action(detail=False, methods=["post"], url_path="phone/change/instant/request-old")
-    def phone_instant_request_old(self, request):
+    def phone_instant_request_old(self, request):  # noqa: R007
         serializer = self.get_instant_request_old_request_serializer_class()(
             data=request.data
         )
@@ -1528,7 +1528,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: InstantVerifyOldResponseSerializer},
     )
     @action(detail=False, methods=["post"], url_path="phone/change/instant/verify-old")
-    def phone_instant_verify_old(self, request):
+    def phone_instant_verify_old(self, request):  # noqa: R007
         serializer = self.get_instant_verify_old_request_serializer_class()(
             data=request.data
         )
@@ -1556,7 +1556,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         },
     )
     @action(detail=False, methods=["post"], url_path="phone/change/instant/request-new")
-    def phone_instant_request_new(self, request):
+    def phone_instant_request_new(self, request):  # noqa: R007
         serializer = self.get_instant_request_new_request_serializer_class()(
             data=request.data
         )
@@ -1582,7 +1582,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: AuthResponseSerializer, 409: None},
     )
     @action(detail=False, methods=["post"], url_path="phone/change/instant/verify-new")
-    def phone_instant_verify_new(self, request):
+    def phone_instant_verify_new(self, request):  # noqa: R007
         serializer = self.get_instant_verify_new_request_serializer_class()(
             data=request.data
         )
@@ -1621,7 +1621,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: InstantRequestOldResponseSerializer},
     )
     @action(detail=False, methods=["post"], url_path="email/change/instant/request-old")
-    def email_instant_request_old(self, request):
+    def email_instant_request_old(self, request):  # noqa: R007
         serializer = self.get_instant_request_old_request_serializer_class()(
             data=request.data
         )
@@ -1645,7 +1645,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: InstantVerifyOldResponseSerializer},
     )
     @action(detail=False, methods=["post"], url_path="email/change/instant/verify-old")
-    def email_instant_verify_old(self, request):
+    def email_instant_verify_old(self, request):  # noqa: R007
         serializer = self.get_instant_verify_old_request_serializer_class()(
             data=request.data
         )
@@ -1673,7 +1673,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         },
     )
     @action(detail=False, methods=["post"], url_path="email/change/instant/request-new")
-    def email_instant_request_new(self, request):
+    def email_instant_request_new(self, request):  # noqa: R007
         serializer = self.get_instant_request_new_request_serializer_class()(
             data=request.data
         )
@@ -1699,7 +1699,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: AuthResponseSerializer, 409: None},
     )
     @action(detail=False, methods=["post"], url_path="email/change/instant/verify-new")
-    def email_instant_verify_new(self, request):
+    def email_instant_verify_new(self, request):  # noqa: R007
         serializer = self.get_instant_verify_new_request_serializer_class()(
             data=request.data
         )
@@ -1738,7 +1738,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={201: DelayedInitiateResponseSerializer, 409: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="phone/change/delayed/initiate")
-    def phone_delayed_initiate(self, request):
+    def phone_delayed_initiate(self, request):  # noqa: R007
         serializer = self.get_delayed_initiate_request_serializer_class()(
             data=request.data
         )
@@ -1776,7 +1776,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
     @extend_schema(responses={200: DelayedStatusResponseSerializer})
     @action(detail=False, methods=["get"], url_path="phone/change/delayed/status")
-    def phone_delayed_status(self, request):
+    def phone_delayed_status(self, request):  # noqa: R007
         svc = AuthenticatorChangeService()
         info = svc.get_pending_status(request.user, "phone")
         if info:
@@ -1792,7 +1792,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: DelayedCancelResponseSerializer, 404: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="phone/change/delayed/cancel")
-    def phone_delayed_cancel(self, request):
+    def phone_delayed_cancel(self, request):  # noqa: R007
         serializer = self.get_delayed_cancel_request_serializer_class()(
             data=request.data
         )
@@ -1817,7 +1817,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={201: DelayedInitiateResponseSerializer, 409: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="email/change/delayed/initiate")
-    def email_delayed_initiate(self, request):
+    def email_delayed_initiate(self, request):  # noqa: R007
         serializer = self.get_delayed_initiate_request_serializer_class()(
             data=request.data
         )
@@ -1855,7 +1855,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
     @extend_schema(responses={200: DelayedStatusResponseSerializer})
     @action(detail=False, methods=["get"], url_path="email/change/delayed/status")
-    def email_delayed_status(self, request):
+    def email_delayed_status(self, request):  # noqa: R007
         svc = AuthenticatorChangeService()
         info = svc.get_pending_status(request.user, "email")
         if info:
@@ -1871,7 +1871,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         responses={200: DelayedCancelResponseSerializer, 404: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="email/change/delayed/cancel")
-    def email_delayed_cancel(self, request):
+    def email_delayed_cancel(self, request):  # noqa: R007
         serializer = self.get_delayed_cancel_request_serializer_class()(
             data=request.data
         )

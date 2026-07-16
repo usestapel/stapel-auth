@@ -137,9 +137,9 @@ class OpenIDConfigurationView(viewsets.GenericViewSet):
         config = {
             "issuer": issuer,
             "jwks_uri": f"{base_url}/{url_prefix}.well-known/jwks.json",
-            "token_endpoint": f"{base_url}/{url_prefix}api/auth/token/",
-            "token_refresh_endpoint": f"{base_url}/{url_prefix}api/auth/token/refresh/",
-            "userinfo_endpoint": f"{base_url}/{url_prefix}api/auth/me/",
+            "token_endpoint": f"{base_url}/{url_prefix}api/v1/auth/token/",
+            "token_refresh_endpoint": f"{base_url}/{url_prefix}api/v1/auth/token/refresh/",
+            "userinfo_endpoint": f"{base_url}/{url_prefix}api/v1/auth/me/",
             "response_types_supported": ["token"],
             "subject_types_supported": ["public"],
             "id_token_signing_alg_values_supported": [algorithm],
@@ -190,7 +190,7 @@ class TokenIntrospectView(APIView):
         },
         tags=["OpenID"],
     )
-    def post(self, request):
+    def post(self, request):  # noqa: R007
         from stapel_auth.permissions import IsServiceAPIKey
 
         if not IsServiceAPIKey().has_permission(request, self):
@@ -206,7 +206,7 @@ class TokenIntrospectView(APIView):
         if not payload:
             return StapelResponse({"active": False})  # noqa: R006
 
-        return StapelResponse(
+        return StapelResponse(  # noqa: R006
             {  # noqa: R006
                 "active": True,
                 "sub": payload.get("user_id"),

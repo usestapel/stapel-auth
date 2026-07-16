@@ -122,7 +122,7 @@ class MagicLinkServiceTests(TestCase):
         kwargs = notify.call_args.kwargs
         self.assertEqual(kwargs["notification_type"], "magic_link_login")
         self.assertEqual(kwargs["email"], user.email)
-        self.assertIn("/auth/api/magic/verify/?token=", kwargs["variables"]["link"])
+        self.assertIn("/auth/api/v1/magic/verify/?token=", kwargs["variables"]["link"])
         self.assertTrue(kwargs["variables"]["link"].startswith("https://app.example.com"))
         audit.log.assert_called_once()
 

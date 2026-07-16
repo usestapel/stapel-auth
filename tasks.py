@@ -213,7 +213,7 @@ def _send_login_alert_email(user, session, is_suspicious: bool):
         signer = TimestampSigner()
         token = signer.sign(f'{session.user_id}:{session.id}')
         backend_url = auth_settings.BACKEND_URL or frontend_url
-        extra['revoke_url'] = f'{backend_url}/auth/api/security/revoke-suspicious/?token={token}'
+        extra['revoke_url'] = f'{backend_url}/auth/api/v1/security/revoke-suspicious/?token={token}'
 
     if user.email:
         try:

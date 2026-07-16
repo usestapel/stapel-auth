@@ -216,7 +216,7 @@ def test_capabilities_password_axis_gates_password_operations():
     axis = next(a for a in doc["axes"] if a["key"] == "AUTH_PASSWORD_LOGIN")
     ops = axis["gates"]["operations"]
     assert len(ops) == 10
-    assert all(op.startswith("auth_api_password_") for op in ops)
+    assert all(op.startswith("auth_api_v1_password_") for op in ops)
     # Co-gated with registration: the factory stays mounted while EITHER is on.
     assert axis["gates"]["co_gates"] == ["AUTH_PASSWORD_REGISTRATION"]
 
@@ -224,11 +224,11 @@ def test_capabilities_password_axis_gates_password_operations():
 def test_capabilities_anonymous_and_totp_axes():
     doc = _capabilities()
     anon = next(a for a in doc["axes"] if a["key"] == "AUTH_ANONYMOUS")
-    assert anon["gates"]["operations"] == ["auth_api_anonymous_create"]
+    assert anon["gates"]["operations"] == ["auth_api_v1_anonymous_create"]
     assert anon["gates"]["co_gates"] == []  # its own factory — the A1 fix
     totp = next(a for a in doc["axes"] if a["key"] == "AUTH_TOTP")
     assert totp["gates"]["operations"], "AUTH_TOTP gates no operations"
-    assert all(op.startswith("auth_api_totp_") for op in totp["gates"]["operations"])
+    assert all(op.startswith("auth_api_v1_totp_") for op in totp["gates"]["operations"])
     assert totp["gates"]["co_gates"] == []  # own block inside the mfa factory
 
 
