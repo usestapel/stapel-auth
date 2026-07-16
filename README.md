@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/usestapel/stapel-auth/graph/badge.svg)](https://codecov.io/gh/usestapel/stapel-auth)
 [![PyPI](https://img.shields.io/pypi/v/stapel-auth.svg)](https://pypi.org/project/stapel-auth/)
 
-> Full-featured authentication — JWT, passkeys (WebAuthn), TOTP, QR login, OAuth2, SSO (SAML/OIDC), magic link, phone OTP
+> Full-featured authentication — JWT, passkeys (WebAuthn), TOTP, QR login, OAuth2, SSO (SAML/OIDC), email link, phone OTP
 
 Part of the [Stapel framework](https://github.com/usestapel) — composable Django apps for building production-grade platforms.
 
