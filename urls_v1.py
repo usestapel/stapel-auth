@@ -23,6 +23,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from stapel_auth.sessions.views import CustomTokenObtainPairView, CustomTokenRefreshView, SessionViewSet
 from stapel_auth.otp.views import AuthViewSet, AuthenticatorChangeViewSet
+from stapel_auth.oauth.views import OAuthLinkViewSet
 from stapel_auth.password.views import PasswordViewSet
 from stapel_auth.qr.views import QRAuthViewSet
 from stapel_auth.mfa.views import TOTPViewSet, PasskeyViewSet
@@ -160,12 +161,15 @@ def get_otp_urls(enabled=None):
 
 
 def get_oauth_urls(enabled=None):
-    """OAuth login + server-side authorize/callback flows."""
+    """OAuth login + server-side authorize/callback flows + account links
+    (security-profile: connect/disconnect additional provider accounts)."""
     return _gated('oauth', enabled, ('AUTH_OAUTH_LOGIN', 'AUTH_OAUTH_REGISTRATION'), [
         path('oauth/login/', AuthViewSet.as_view({'post': 'oauth_login'}), name='oauth_login'),
         path('oauth/<str:provider>/authorize/', AuthViewSet.as_view({'get': 'oauth_authorize'}), name='oauth_authorize'),
         path('oauth/<str:provider>/callback/', AuthViewSet.as_view({'get': 'oauth_callback'}), name='oauth_callback'),
         path('oauth/<str:provider>/callback', AuthViewSet.as_view({'get': 'oauth_callback'}), name='oauth_callback_noslash'),
+        path('oauth/links/', OAuthLinkViewSet.as_view({'get': 'list_links', 'post': 'link'}), name='oauth_links'),
+        path('oauth/links/<str:provider>/', OAuthLinkViewSet.as_view({'delete': 'unlink'}), name='oauth_link_unlink'),
     ])
 
 

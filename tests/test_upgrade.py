@@ -409,6 +409,8 @@ _EXPECTED_URLS = {
     'oauth_authorize': 'oauth/<str:provider>/authorize/',
     'oauth_callback': 'oauth/<str:provider>/callback/',
     'oauth_callback_noslash': 'oauth/<str:provider>/callback',
+    'oauth_links': 'oauth/links/',
+    'oauth_link_unlink': 'oauth/links/<str:provider>/',
     'anonymous': 'anonymous/',
     'me': 'me/',
     'logout': 'logout/',

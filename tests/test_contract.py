@@ -187,7 +187,16 @@ _EXPECTED_AXES = {
     "AUTH_MAGIC_LINK_LOGIN",
     # auth.anonymous / auth.mfa / auth.stepup
     "AUTH_ANONYMOUS", "AUTH_TOTP", "OAUTH_STEP_UP", "PASSWORD_LOGIN_STEP_UP",
+    # auth.placement (§60-follow-up: per-method UI placement, sibling axis to
+    # the *_LOGIN gates above — presentational, enum-kind, gates no operations)
+    "AUTH_EMAIL_PLACEMENT", "AUTH_PHONE_PLACEMENT", "AUTH_PASSWORD_PLACEMENT",
+    "AUTH_MAGIC_LINK_PLACEMENT", "AUTH_SSO_PLACEMENT", "AUTH_OAUTH_PLACEMENT",
+    "AUTH_QR_PLACEMENT", "AUTH_PASSKEY_PLACEMENT",
 }
+
+#: Placement axes are enum-kind (string default) and gate no operations —
+#: everything else in _EXPECTED_AXES is a bool gate.
+_ENUM_AXES = {k for k in _EXPECTED_AXES if k.endswith("_PLACEMENT")}
 
 
 def _capabilities() -> dict:
@@ -195,12 +204,13 @@ def _capabilities() -> dict:
 
 
 def test_capabilities_axes_inventory():
-    """13 method gates + anonymous + totp + 2 step-up, all bool, all grouped."""
+    """13 method gates + anonymous + totp + 2 step-up + 8 placement, all grouped."""
     doc = _capabilities()
     assert {a["key"] for a in doc["axes"]} == _EXPECTED_AXES
-    assert len(doc["axes"]) == 17
+    assert len(doc["axes"]) == 25
     for axis in doc["axes"]:
-        assert axis["kind"] == "bool", axis["key"]
+        expected_kind = "enum" if axis["key"] in _ENUM_AXES else "bool"
+        assert axis["kind"] == expected_kind, axis["key"]
         assert axis["group"].startswith("auth."), axis["key"]
 
 
@@ -287,6 +297,7 @@ def test_capabilities_meta_out_of_sync_fails_loudly():
                     "_REGISTRATION": "auth.registration",
                     "_LOGIN": "auth.login",
                     "_STEP_UP": "auth.stepup",
+                    "_PLACEMENT": "auth.placement",
                 },
             ),
             canonical_prefix="/auth/api",

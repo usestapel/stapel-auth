@@ -75,9 +75,16 @@ class SecurityStatusViewSet(viewsets.GenericViewSet):
             user=user, is_active=True
         ).count()
 
+        from stapel_auth.models import LinkedOAuthAccount
+
         connected_oauth = []
         if user.oauth_provider:
             connected_oauth.append(user.oauth_provider)
+        connected_oauth.extend(
+            LinkedOAuthAccount.objects.filter(user=user)
+            .exclude(provider=user.oauth_provider)
+            .values_list("provider", flat=True)
+        )
 
         dto = SecurityStatusResponse(
             password=SecurityStatusPassword(is_set=user.has_usable_password()),

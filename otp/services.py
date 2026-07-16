@@ -10,8 +10,16 @@ import logging
 import secrets
 import uuid
 from stapel_auth.models import PhoneVerification
+from stapel_auth.otp.constants import OTP_CODE_LENGTH  # noqa: F401 — re-exported
 
 logger = logging.getLogger(__name__)
+
+
+def _generate_numeric_code(length: int) -> str:
+    """A random ``length``-digit numeric string with no leading zero."""
+    lo = 10 ** (length - 1)
+    span = 9 * lo
+    return str(secrets.randbelow(span) + lo)
 
 
 class PhoneVerificationService:
@@ -27,23 +35,25 @@ class PhoneVerificationService:
         self.verify_service_sid = getattr(settings, 'TWILIO_VERIFY_SERVICE_SID', '')
         self.use_mock_otp = auth_settings.USE_MOCK_SMS_OTP
         self.mock_code = auth_settings.MOCK_OTP_CODE
+        self.otp_ttl = auth_settings.OTP_TTL
+        self.resend_cooldown = auth_settings.OTP_RESEND_COOLDOWN
 
     def generate_code(self, force_real=False):
         """
-        Generate 4-digit verification code.
+        Generate an OTP_CODE_LENGTH-digit verification code.
 
         Args:
             force_real: If True, generate real OTP even in mock mode (for admin accounts)
         """
         if self.use_mock_otp and not force_real:
             return self.mock_code
-        return str(secrets.randbelow(9000) + 1000)
+        return _generate_numeric_code(OTP_CODE_LENGTH)
 
     def send_verification_code(self, phone, device_id=None, force_real_otp=False):
         """Send verification code to phone number"""
         try:
-            # Check for rate limiting - 30 seconds window
-            cutoff_time = timezone.now() - timedelta(seconds=30)
+            # Check for rate limiting - AUTH_OTP_RESEND_COOLDOWN window
+            cutoff_time = timezone.now() - timedelta(seconds=self.resend_cooldown)
 
             # Check recent requests by phone
             recent_by_phone = PhoneVerification.objects.filter(
@@ -53,7 +63,7 @@ class PhoneVerificationService:
 
             if recent_by_phone:
                 logger.warning(f"Rate limit exceeded for phone {phone}")
-                return {'error': 'rate_limit', 'retry_after': 30}
+                return {'error': 'rate_limit', 'retry_after': self.resend_cooldown}
 
             # Check recent requests by device_id if provided
             if device_id:
@@ -64,7 +74,7 @@ class PhoneVerificationService:
 
                 if recent_by_device:
                     logger.warning(f"Rate limit exceeded for device {device_id}")
-                    return {'error': 'rate_limit', 'retry_after': 30}
+                    return {'error': 'rate_limit', 'retry_after': self.resend_cooldown}
 
             # Check if there's a blocked verification for this phone/device
             latest_verification = PhoneVerification.objects.filter(
@@ -84,7 +94,7 @@ class PhoneVerificationService:
                 phone=phone,
                 code=code,
                 device_id=device_id,
-                expires_at=timezone.now() + timedelta(minutes=10)
+                expires_at=timezone.now() + timedelta(seconds=self.otp_ttl)
             )
 
             # Use mock OTP in development/testing (unless forced real)
@@ -97,7 +107,7 @@ class PhoneVerificationService:
             sent = request_notification(
                 notification_type="otp_code",
                 phone=phone,
-                variables={"code": code, "expiry_minutes": 10},
+                variables={"code": code, "expiry_minutes": self.otp_ttl // 60},
                 source_service="auth",
             )
             if not sent:
@@ -178,25 +188,27 @@ class EmailVerificationService:
 
         self.use_mock_otp = auth_settings.USE_MOCK_EMAIL_OTP
         self.mock_code = auth_settings.MOCK_OTP_CODE
+        self.otp_ttl = auth_settings.OTP_TTL
+        self.resend_cooldown = auth_settings.OTP_RESEND_COOLDOWN
 
     def generate_code(self, force_real=False):
         """
-        Generate 4-digit verification code.
+        Generate an OTP_CODE_LENGTH-digit verification code.
 
         Args:
             force_real: If True, generate real OTP even in mock mode (for admin accounts)
         """
         if self.use_mock_otp and not force_real:
             return self.mock_code
-        return str(secrets.randbelow(9000) + 1000)
+        return _generate_numeric_code(OTP_CODE_LENGTH)
 
     def send_verification_code(self, email, device_id=None, force_real_otp=False):
         """Send verification code to email address"""
         try:
             from stapel_auth.models import EmailVerification
 
-            # Check for rate limiting - 30 seconds window
-            cutoff_time = timezone.now() - timedelta(seconds=30)
+            # Check for rate limiting - AUTH_OTP_RESEND_COOLDOWN window
+            cutoff_time = timezone.now() - timedelta(seconds=self.resend_cooldown)
 
             # Check recent requests by email
             recent_by_email = EmailVerification.objects.filter(
@@ -206,7 +218,7 @@ class EmailVerificationService:
 
             if recent_by_email:
                 logger.warning(f"Rate limit exceeded for email {email}")
-                return {'error': 'rate_limit', 'retry_after': 30}
+                return {'error': 'rate_limit', 'retry_after': self.resend_cooldown}
 
             # Check recent requests by device_id if provided
             if device_id:
@@ -217,7 +229,7 @@ class EmailVerificationService:
 
                 if recent_by_device:
                     logger.warning(f"Rate limit exceeded for device {device_id}")
-                    return {'error': 'rate_limit', 'retry_after': 30}
+                    return {'error': 'rate_limit', 'retry_after': self.resend_cooldown}
 
             # Check if there's a blocked verification for this email/device
             latest_verification = EmailVerification.objects.filter(
@@ -237,7 +249,7 @@ class EmailVerificationService:
                 email=email,
                 code=code,
                 device_id=device_id,
-                expires_at=timezone.now() + timedelta(minutes=10)
+                expires_at=timezone.now() + timedelta(seconds=self.otp_ttl)
             )
 
             # Use mock OTP in development/testing (unless forced real)
@@ -250,7 +262,7 @@ class EmailVerificationService:
             sent = request_notification(
                 notification_type="otp_code",
                 email=email,
-                variables={"code": code, "expiry_minutes": 10},
+                variables={"code": code, "expiry_minutes": self.otp_ttl // 60},
                 source_service="auth",
             )
             if not sent:

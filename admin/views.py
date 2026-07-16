@@ -18,6 +18,7 @@ from stapel_auth.admin.serializers import (
     StaffRoleAssignmentSerializer,
     StaffRoleAssignRequestSerializer,
 )
+from stapel_auth.oauth.serializers import AuthCapabilitiesSerializer
 from stapel_auth.models import ServiceAPIKey, StaffRoleAssignment
 
 logger = logging.getLogger(__name__)
@@ -47,11 +48,10 @@ class CapabilitiesView(APIView):
     @extend_schema(
         tags=["Auth"],
         description="Return available authentication and registration methods for this deployment.",
-        responses={200: None},
+        responses={200: AuthCapabilitiesSerializer},
     )
     def get(self, request):  # noqa: R007
         from stapel_auth.oauth.services import AuthCapabilitiesService
-        from stapel_auth.serializers import AuthCapabilitiesSerializer
 
         caps = AuthCapabilitiesService.get_capabilities()
         return StapelResponse(AuthCapabilitiesSerializer(caps))

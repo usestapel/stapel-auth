@@ -15,6 +15,7 @@ from stapel_auth.errors import (
     ERR_400_INVALID_PHONE_FORMAT,
     ERR_400_PHONE_TOO_LONG,
 )
+from stapel_auth.otp.constants import OTP_CODE_LENGTH
 from stapel_auth.otp.dto import (
     DelayedCancelResponse,
     DelayedInitiateResponse,
@@ -56,7 +57,7 @@ class EmailAuthVerifySerializer(serializers.Serializer):
     """Serializer for email verification (OTP)"""
 
     email = serializers.EmailField()
-    code = serializers.CharField(max_length=4)
+    code = serializers.CharField(max_length=OTP_CODE_LENGTH)
 
 
 class PhoneAuthRequestSerializer(CaptchaMixin, serializers.Serializer):
@@ -78,7 +79,7 @@ class PhoneAuthVerifySerializer(serializers.Serializer):
     """Serializer for phone verification"""
 
     phone = serializers.CharField()
-    code = serializers.CharField(max_length=4)
+    code = serializers.CharField(max_length=OTP_CODE_LENGTH)
 
     def validate_phone(self, value):
         return normalize_phone(value)
@@ -107,7 +108,7 @@ class ConvertAnonymousUserSerializer(serializers.Serializer):
 
     email = serializers.EmailField(required=False)
     phone = serializers.CharField(required=False)
-    code = serializers.CharField(max_length=4, required=True)
+    code = serializers.CharField(max_length=OTP_CODE_LENGTH, required=True)
 
     def validate_phone(self, value):
         if not value:
@@ -136,7 +137,7 @@ class InstantChangeRequestOldSerializer(serializers.Serializer):
 class InstantChangeVerifyOldSerializer(serializers.Serializer):
     """Verify OTP from old authenticator."""
 
-    code = serializers.CharField(max_length=4)
+    code = serializers.CharField(max_length=OTP_CODE_LENGTH)
 
 
 class InstantChangeRequestNewSerializer(serializers.Serializer):
@@ -162,7 +163,7 @@ class InstantChangeVerifyNewSerializer(serializers.Serializer):
 
     phone = serializers.CharField(required=False)
     email = serializers.EmailField(required=False)
-    code = serializers.CharField(max_length=4)
+    code = serializers.CharField(max_length=OTP_CODE_LENGTH)
     change_token = serializers.UUIDField()
 
     def validate_phone(self, value):

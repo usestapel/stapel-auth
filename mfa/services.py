@@ -10,6 +10,12 @@ class TOTPService:
     CHALLENGE_TTL = 300      # 5 min
     TOTP_WINDOW = 1          # ±1 step tolerance
     MAX_CHALLENGE_FAILURES = 5   # challenge is invalidated after this many bad codes
+    # Digits per TOTP code — explicit here (rather than relying on pyotp's own
+    # default) so it is one source of truth for both the code every
+    # pyotp.TOTP(..., digits=cls.CODE_LENGTH) call below actually verifies
+    # against, and the contract metadata the frontend reads instead of
+    # guessing (AuthCapabilities.otp.totp_code_length, see oauth/services.py).
+    CODE_LENGTH = 6
 
     # ── setup ────────────────────────────────────────────────────────────────
 
@@ -26,7 +32,7 @@ class TOTPService:
         from stapel_auth.conf import auth_settings
         issuer = auth_settings.TOTP_ISSUER
         label = user.email or user.phone or str(user.id)
-        totp = pyotp.TOTP(secret)
+        totp = pyotp.TOTP(secret, digits=cls.CODE_LENGTH)
         uri = totp.provisioning_uri(name=label, issuer_name=issuer)
 
         TOTPDevice.objects.update_or_create(
@@ -52,7 +58,7 @@ class TOTPService:
         except TOTPDevice.DoesNotExist:
             raise ValueError('no_pending_device')
 
-        totp = pyotp.TOTP(device.secret)
+        totp = pyotp.TOTP(device.secret, digits=cls.CODE_LENGTH)
         if not totp.verify(code, valid_window=cls.TOTP_WINDOW):
             raise ValueError('invalid_code')
 
@@ -96,7 +102,7 @@ class TOTPService:
             device = TOTPDevice.objects.get(user=user, is_active=True)
         except TOTPDevice.DoesNotExist:
             return False
-        return pyotp.TOTP(device.secret).verify(code, valid_window=cls.TOTP_WINDOW)
+        return pyotp.TOTP(device.secret, digits=cls.CODE_LENGTH).verify(code, valid_window=cls.TOTP_WINDOW)
 
     @classmethod
     def verify_backup_code(cls, user, backup_code: str) -> bool:
@@ -116,7 +122,7 @@ class TOTPService:
     def _verify_any(cls, device, code=None, backup_code=None) -> bool:
         import pyotp
         if code:
-            return pyotp.TOTP(device.secret).verify(code, valid_window=cls.TOTP_WINDOW)
+            return pyotp.TOTP(device.secret, digits=cls.CODE_LENGTH).verify(code, valid_window=cls.TOTP_WINDOW)
         if backup_code:
             h = _hashlib.sha256(backup_code.replace('-', '').encode()).hexdigest()
             if h in device.backup_codes:

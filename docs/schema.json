@@ -208,7 +208,14 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthCapabilities"
+                }
+              }
+            },
+            "description": ""
           }
         }
       }
@@ -1119,7 +1126,7 @@
       "post": {
         "operationId": "auth_api_v1_magic_request_create",
         "description": "Overridable serializer seams for stapel-auth API views.\n\nViews declare ``<purpose>_serializer_class`` class attributes following the\n``*_request_serializer_class`` / ``*_response_serializer_class`` naming\nconvention (e.g. ``request_serializer_class`` or, when a view uses several\nserializers, purpose-prefixed names such as ``login_request_serializer_class``\nor ``auth_response_serializer_class``). For every such attribute this mixin\nsupplies the matching ``get_<purpose>_serializer_class()`` getter, so hosts\ncan swap a serializer by subclassing the view and overriding either the\nattribute or the getter::\n\n    class MyMagicLinkViewSet(MagicLinkViewSet):\n        response_serializer_class = MyResponseSerializer\n\nHandler bodies instantiate serializers exclusively through the getters, so\nan override is picked up everywhere the serializer is used.\n\n**Permissions:** `AllowAny`",
-        "summary": "Request a magic link login email",
+        "summary": "Request an email link for sign-in",
         "tags": [
           "Auth"
         ],
@@ -1167,7 +1174,7 @@
       "get": {
         "operationId": "auth_api_v1_magic_verify_retrieve",
         "description": "Overridable serializer seams for stapel-auth API views.\n\nViews declare ``<purpose>_serializer_class`` class attributes following the\n``*_request_serializer_class`` / ``*_response_serializer_class`` naming\nconvention (e.g. ``request_serializer_class`` or, when a view uses several\nserializers, purpose-prefixed names such as ``login_request_serializer_class``\nor ``auth_response_serializer_class``). For every such attribute this mixin\nsupplies the matching ``get_<purpose>_serializer_class()`` getter, so hosts\ncan swap a serializer by subclassing the view and overriding either the\nattribute or the getter::\n\n    class MyMagicLinkViewSet(MagicLinkViewSet):\n        response_serializer_class = MyResponseSerializer\n\nHandler bodies instantiate serializers exclusively through the getters, so\nan override is picked up everywhere the serializer is used.\n\n**Permissions:** `AllowAny`",
-        "summary": "Verify a magic link token and issue session",
+        "summary": "Verify an email link token and issue session",
         "parameters": [
           {
             "in": "query",
@@ -1337,6 +1344,120 @@
               }
             },
             "description": ""
+          }
+        }
+      }
+    },
+    "/auth/api/v1/oauth/links/": {
+      "get": {
+        "operationId": "auth_api_v1_oauth_links_retrieve",
+        "description": "Manage OAuth accounts connected to the current user.\n\n**Permissions:** `IsAuthenticated`",
+        "summary": "List OAuth accounts connected to the current user",
+        "tags": [
+          "OAuth"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthLinksResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "post": {
+        "operationId": "auth_api_v1_oauth_links_create",
+        "description": "Manage OAuth accounts connected to the current user.\n\n**Permissions:** `IsAuthenticated`",
+        "summary": "Link an additional OAuth provider account",
+        "tags": [
+          "OAuth"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthLinkRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthLinkRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthLinksResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "description": "No response body"
+          },
+          "409": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
+    "/auth/api/v1/oauth/links/{provider}/": {
+      "delete": {
+        "operationId": "auth_api_v1_oauth_links_destroy",
+        "description": "Manage OAuth accounts connected to the current user.\n\n**Permissions:** `IsAuthenticated`",
+        "summary": "Unlink an OAuth provider account",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "OAuth"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          },
+          "400": {
+            "description": "No response body"
+          },
+          "404": {
+            "description": "No response body"
           }
         }
       }
@@ -5713,6 +5834,96 @@
           "results"
         ]
       },
+      "AuthCapabilities": {
+        "type": "object",
+        "description": "Auth method availability for this deployment.",
+        "properties": {
+          "registration": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RegistrationCapabilities"
+              }
+            ],
+            "description": "Available registration methods"
+          },
+          "login": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LoginCapabilities"
+              }
+            ],
+            "description": "Available login methods"
+          },
+          "mfa": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MFACapabilities"
+              }
+            ],
+            "description": "Available multi-factor methods"
+          },
+          "methods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuthMethodInfo"
+            },
+            "description": "Per-method placement/interaction/icon descriptors for every"
+          },
+          "otp": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OtpMeta"
+              }
+            ],
+            "description": "Server-authoritative OTP parameters (code lengths, ttl, resend"
+          }
+        },
+        "required": [
+          "login",
+          "methods",
+          "mfa",
+          "otp",
+          "registration"
+        ]
+      },
+      "AuthMethodInfo": {
+        "type": "object",
+        "description": "Per-method display descriptor for the sign-in panel (owner directive:\nplacement is configured on the backend the same way availability is).\n\n``placement`` is configured per-method via ``AUTH_<METHOD>_PLACEMENT``\n(conf.py); ``order`` and ``interaction`` are derived server-side so the\nfrontend never has to guess: ``interaction`` follows the client rule\n\"main -> inline in the tab; overflow/bottom -> modal, except oauth/sso\nwhich always redirect to the provider\".",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Method identifier — one of email, phone, password, passkey, qr,"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether this method is currently available (mirrors the"
+          },
+          "placement": {
+            "type": "string",
+            "description": "Where the client renders this method's trigger. One of"
+          },
+          "order": {
+            "type": "integer",
+            "description": "Sort order among methods sharing the same placement (lower"
+          },
+          "interaction": {
+            "type": "string",
+            "description": "How the client should present the method once"
+          },
+          "icon_svg": {
+            "type": "string",
+            "description": "Inline SVG glyph for this method (24x24, currentColor) — a"
+          }
+        },
+        "required": [
+          "enabled",
+          "icon_svg",
+          "id",
+          "interaction",
+          "order",
+          "placement"
+        ]
+      },
       "AuthResponse": {
         "type": "object",
         "description": "Authentication response with user data and tokens.",
@@ -6192,6 +6403,102 @@
           "status"
         ]
       },
+      "LinkedOAuthAccountDTO": {
+        "type": "object",
+        "description": "One OAuth provider account connected to the current user.\n\n``primary`` distinguishes the account a user originally registered/logged\nin with (``User.oauth_provider``/``oauth_id`` — immutable through this\nendpoint) from a secondary link the user attached later from their\nsecurity settings page (an actual ``LinkedOAuthAccount`` row, removable\nvia DELETE /oauth/links/{provider}/).",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "Provider identifier",
+            "example": "google"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "description": "Email reported by the provider, if any",
+            "example": "user@example.com"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Provider display name/username, if any",
+            "example": "Jane Doe"
+          },
+          "linked_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "When this account was linked",
+            "example": "2026-07-16T12:00:00Z"
+          },
+          "primary": {
+            "type": "boolean",
+            "description": "Whether this is the account the user originally registered/"
+          }
+        },
+        "required": [
+          "display_name",
+          "email",
+          "linked_at",
+          "primary",
+          "provider"
+        ]
+      },
+      "LoginCapabilities": {
+        "type": "object",
+        "description": "Available login methods for this deployment.",
+        "properties": {
+          "oauth": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OAuthProviderInfo"
+            },
+            "description": "Enabled OAuth providers"
+          },
+          "phone": {
+            "type": "boolean",
+            "description": "Phone OTP login enabled",
+            "example": true
+          },
+          "email": {
+            "type": "boolean",
+            "description": "Email OTP login enabled",
+            "example": true
+          },
+          "password": {
+            "type": "boolean",
+            "description": "Password login enabled"
+          },
+          "sso": {
+            "type": "boolean",
+            "description": "SSO login enabled",
+            "example": true
+          },
+          "qr": {
+            "type": "boolean",
+            "description": "QR code login enabled",
+            "example": true
+          },
+          "passkey": {
+            "type": "boolean",
+            "description": "Passkey/WebAuthn login enabled",
+            "example": true
+          },
+          "magic_link": {
+            "type": "boolean",
+            "description": "Magic link login enabled",
+            "example": true
+          }
+        },
+        "required": [
+          "email",
+          "magic_link",
+          "oauth",
+          "passkey",
+          "password",
+          "phone",
+          "qr",
+          "sso"
+        ]
+      },
       "LoginResponse": {
         "oneOf": [
           {
@@ -6230,6 +6537,26 @@
         },
         "required": [
           "message"
+        ]
+      },
+      "MFACapabilities": {
+        "type": "object",
+        "description": "Available multi-factor methods for this deployment.",
+        "properties": {
+          "totp": {
+            "type": "boolean",
+            "description": "TOTP (authenticator app) MFA enabled",
+            "example": true
+          },
+          "passkey": {
+            "type": "boolean",
+            "description": "Passkey/WebAuthn enabled (also a login method)",
+            "example": true
+          }
+        },
+        "required": [
+          "passkey",
+          "totp"
         ]
       },
       "MagicLinkRequestBody": {
@@ -6289,6 +6616,97 @@
         "required": [
           "access_token",
           "provider"
+        ]
+      },
+      "OAuthLinkRequest": {
+        "type": "object",
+        "description": "Body for POST /oauth/links/ — same shape as OAuthSerializer (the login\nrequest), reusing the client-side OAuth exchange already in place: the\nfrontend runs the provider's OAuth flow and hands us the resulting\naccess_token, which we verify server-side via the provider before linking.",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "maxLength": 50
+          },
+          "access_token": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "access_token",
+          "provider"
+        ]
+      },
+      "OAuthLinksResponse": {
+        "type": "object",
+        "description": "All OAuth accounts connected to the current user.",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkedOAuthAccountDTO"
+            },
+            "description": "Connected provider accounts (primary first, then secondary"
+          }
+        },
+        "required": [
+          "links"
+        ]
+      },
+      "OAuthProviderInfo": {
+        "type": "object",
+        "description": "OAuth provider available for authentication.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Provider identifier",
+            "example": "google"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name",
+            "example": "Google"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "OtpMeta": {
+        "type": "object",
+        "description": "Server-authoritative OTP parameters — the frontend must read these\ninstead of guessing (e.g. hardcoding a 6-box code input when the backend\nactually issues 4-digit codes).\n\nEvery value here is sourced from the exact same constant/setting that\nthe backend validates against (otp/services.py.OTP_CODE_LENGTH,\nmfa/services.py.TOTPService.CODE_LENGTH, AUTH_OTP_TTL, AUTH_OTP_RESEND_COOLDOWN)\n— a guard test asserts the DB/serializer field widths agree with the\nsame constants, so this can't silently drift from what the server\nactually accepts.",
+        "properties": {
+          "email_code_length": {
+            "type": "integer",
+            "description": "Digits in an email OTP code",
+            "example": 4
+          },
+          "phone_code_length": {
+            "type": "integer",
+            "description": "Digits in a phone/SMS OTP code",
+            "example": 4
+          },
+          "totp_code_length": {
+            "type": "integer",
+            "description": "Digits in a TOTP authenticator-app code",
+            "example": 6
+          },
+          "ttl_seconds": {
+            "type": "integer",
+            "description": "Seconds an OTP code stays valid after being sent",
+            "example": 600
+          },
+          "resend_cooldown_seconds": {
+            "type": "integer",
+            "description": "Seconds the client must wait before requesting"
+          }
+        },
+        "required": [
+          "email_code_length",
+          "phone_code_length",
+          "resend_cooldown_seconds",
+          "totp_code_length",
+          "ttl_seconds"
         ]
       },
       "OtpSentResponse": {
@@ -6893,6 +7311,51 @@
         "type": "string",
         "description": "* `pending` - Waiting for scan or confirm\n* `fulfilled` - Action completed; tokens available for login_request\n* `expired` - Key not found (TTL elapsed)\n* `rejected` - Scanner or confirmer explicitly rejected the request"
       },
+      "RegistrationCapabilities": {
+        "type": "object",
+        "description": "Available registration methods for this deployment.",
+        "properties": {
+          "oauth": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OAuthProviderInfo"
+            },
+            "description": "Enabled OAuth providers"
+          },
+          "phone": {
+            "type": "boolean",
+            "description": "Phone OTP registration enabled",
+            "example": true
+          },
+          "email": {
+            "type": "boolean",
+            "description": "Email OTP registration enabled",
+            "example": true
+          },
+          "password": {
+            "type": "boolean",
+            "description": "Password registration enabled"
+          },
+          "sso": {
+            "type": "boolean",
+            "description": "SSO/SAML JIT provisioning enabled",
+            "example": true
+          },
+          "anonymous": {
+            "type": "boolean",
+            "description": "Anonymous registration enabled",
+            "example": true
+          }
+        },
+        "required": [
+          "anonymous",
+          "email",
+          "oauth",
+          "password",
+          "phone",
+          "sso"
+        ]
+      },
       "SSODomainLookupResponse": {
         "type": "object",
         "description": "SSO organization lookup result for a given email domain.",
@@ -7278,8 +7741,7 @@
           },
           "error": {
             "type": "string",
-            "description": "Human-readable message in English",
-            "example": "Requested resource not found"
+            "description": "Human-readable fallback/debug message — not reliably English,"
           },
           "params": {
             "type": "object",
@@ -7288,6 +7750,10 @@
             "example": {
               "retry_after": 30
             }
+          },
+          "error_language": {
+            "type": "string",
+            "description": "Active Django locale `error` was rendered in (e.g"
           }
         },
         "required": [

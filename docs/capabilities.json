@@ -1,6 +1,6 @@
 {
   "module": "stapel-auth",
-  "version": "0.5.9",
+  "version": "0.6.0",
   "provides": "User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.",
   "axes": [
     {
@@ -132,6 +132,9 @@
           "auth_api_v1_oauth_authorize_retrieve",
           "auth_api_v1_oauth_callback_retrieve",
           "auth_api_v1_oauth_callback_retrieve_2",
+          "auth_api_v1_oauth_links_create",
+          "auth_api_v1_oauth_links_destroy",
+          "auth_api_v1_oauth_links_retrieve",
           "auth_api_v1_oauth_login_create"
         ],
         "co_gates": [
@@ -291,6 +294,9 @@
           "auth_api_v1_oauth_authorize_retrieve",
           "auth_api_v1_oauth_callback_retrieve",
           "auth_api_v1_oauth_callback_retrieve_2",
+          "auth_api_v1_oauth_links_create",
+          "auth_api_v1_oauth_links_destroy",
+          "auth_api_v1_oauth_links_retrieve",
           "auth_api_v1_oauth_login_create"
         ],
         "co_gates": [
@@ -417,6 +423,118 @@
       }
     },
     {
+      "key": "AUTH_EMAIL_PLACEMENT",
+      "kind": "enum",
+      "default": "main",
+      "group": "auth.placement",
+      "gates": {
+        "operations": [],
+        "co_gates": []
+      },
+      "curated": {
+        "summary": "Controls whether the email one-time-code method renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational.",
+        "business_label": "Where the email sign-in method appears"
+      }
+    },
+    {
+      "key": "AUTH_PHONE_PLACEMENT",
+      "kind": "enum",
+      "default": "main",
+      "group": "auth.placement",
+      "gates": {
+        "operations": [],
+        "co_gates": []
+      },
+      "curated": {
+        "summary": "Controls whether the phone one-time-code method renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational.",
+        "business_label": "Where the phone sign-in method appears"
+      }
+    },
+    {
+      "key": "AUTH_PASSWORD_PLACEMENT",
+      "kind": "enum",
+      "default": "overflow",
+      "group": "auth.placement",
+      "gates": {
+        "operations": [],
+        "co_gates": []
+      },
+      "curated": {
+        "summary": "Controls whether password sign-in renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational.",
+        "business_label": "Where the password sign-in method appears"
+      }
+    },
+    {
+      "key": "AUTH_MAGIC_LINK_PLACEMENT",
+      "kind": "enum",
+      "default": "overflow",
+      "group": "auth.placement",
+      "gates": {
+        "operations": [],
+        "co_gates": []
+      },
+      "curated": {
+        "summary": "Controls whether the one-time email-link method renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational.",
+        "business_label": "Where the email-link sign-in method appears"
+      }
+    },
+    {
+      "key": "AUTH_SSO_PLACEMENT",
+      "kind": "enum",
+      "default": "bottom",
+      "group": "auth.placement",
+      "gates": {
+        "operations": [],
+        "co_gates": []
+      },
+      "curated": {
+        "summary": "Controls whether corporate SSO renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational.",
+        "business_label": "Where corporate SSO sign-in appears"
+      }
+    },
+    {
+      "key": "AUTH_OAUTH_PLACEMENT",
+      "kind": "enum",
+      "default": "bottom",
+      "group": "auth.placement",
+      "gates": {
+        "operations": [],
+        "co_gates": []
+      },
+      "curated": {
+        "summary": "Controls whether social (OAuth) sign-in renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational.",
+        "business_label": "Where social sign-in appears"
+      }
+    },
+    {
+      "key": "AUTH_QR_PLACEMENT",
+      "kind": "enum",
+      "default": "bottom",
+      "group": "auth.placement",
+      "gates": {
+        "operations": [],
+        "co_gates": []
+      },
+      "curated": {
+        "summary": "Controls whether QR hand-off sign-in renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational.",
+        "business_label": "Where QR sign-in appears"
+      }
+    },
+    {
+      "key": "AUTH_PASSKEY_PLACEMENT",
+      "kind": "enum",
+      "default": "bottom",
+      "group": "auth.placement",
+      "gates": {
+        "operations": [],
+        "co_gates": []
+      },
+      "curated": {
+        "summary": "Controls whether passkey sign-in renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational.",
+        "business_label": "Where passkey sign-in appears"
+      }
+    },
+    {
       "key": "OAUTH_STEP_UP",
       "kind": "bool",
       "default": false,
@@ -479,7 +597,7 @@
       "summary": "Compose your own URLconf from the get_*_urls() factories so disabled features 404 (include('stapel_auth.urls') mounts everything with per-request gating)."
     }
   ],
-  "operations_total": 104,
+  "operations_total": 107,
   "requires": [
     {
       "module": "stapel-core",

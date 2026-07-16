@@ -11,6 +11,7 @@ from stapel_auth.errors import (
     ERR_400_INVALID_PHONE_FORMAT,
     ERR_400_PHONE_TOO_LONG,
 )
+from stapel_auth.otp.constants import OTP_CODE_LENGTH
 from stapel_auth.password.dto import (
     PasswordMethod,
     PasswordMethodsResponse,
@@ -60,7 +61,7 @@ class PasswordOtpVerifySerializer(serializers.Serializer):
     method = serializers.ChoiceField(
         choices=[PasswordMethodType.EMAIL, PasswordMethodType.PHONE]
     )
-    code = serializers.CharField(max_length=4)
+    code = serializers.CharField(max_length=OTP_CODE_LENGTH)
     new_password = serializers.CharField(min_length=8)
 
     def validate_new_password(self, value):
@@ -81,7 +82,7 @@ class PasswordResetEmailRequestSerializer(CaptchaMixin, serializers.Serializer):
 
 class PasswordResetEmailVerifySerializer(serializers.Serializer):
     email = serializers.EmailField()
-    code = serializers.CharField(max_length=4)
+    code = serializers.CharField(max_length=OTP_CODE_LENGTH)
     new_password = serializers.CharField(min_length=8)
 
     def validate_new_password(self, value):
@@ -103,7 +104,7 @@ class PasswordResetPhoneRequestSerializer(CaptchaMixin, serializers.Serializer):
 
 class PasswordResetPhoneVerifySerializer(serializers.Serializer):
     phone = serializers.CharField()
-    code = serializers.CharField(max_length=4)
+    code = serializers.CharField(max_length=OTP_CODE_LENGTH)
     new_password = serializers.CharField(min_length=8)
 
     def validate_phone(self, value):

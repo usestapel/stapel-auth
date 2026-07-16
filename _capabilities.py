@@ -24,6 +24,7 @@ def main(argv=None):
                 "_REGISTRATION": "auth.registration",
                 "_LOGIN": "auth.login",
                 "_STEP_UP": "auth.stepup",
+                "_PLACEMENT": "auth.placement",
             },
         ),
         prog="stapel-auth-capabilities",

@@ -41,9 +41,17 @@ DEFAULTS = {
     'USE_MOCK_SMS_OTP': False,
     'USE_MOCK_EMAIL_OTP': False,
     'MOCK_OTP_CODE': '0000',
-    'OTP_TTL': 600,                 # seconds
+    'OTP_TTL': 600,                 # seconds — also the single source for the
+                                     # AuthCapabilities.otp.ttl_seconds contract
+                                     # value (otp/services.py wires this same
+                                     # setting into the actual expiry, so the
+                                     # two can't drift apart).
     'OTP_MAX_ATTEMPTS': 5,
     'OTP_RATE_LIMIT_PER_HOUR': 3,
+    'OTP_RESEND_COOLDOWN': 30,      # seconds between OTP sends per phone/email
+                                     # /device — same single-source relationship
+                                     # as OTP_TTL above, surfaced as
+                                     # AuthCapabilities.otp.resend_cooldown_seconds.
 
     # Magic links
     'MAGIC_LINK_TTL': 900,          # seconds (15 min)
@@ -127,6 +135,24 @@ DEFAULTS = {
     'AUTH_QR_LOGIN':         True,
     'AUTH_PASSKEY_LOGIN':    True,
     'AUTH_MAGIC_LINK_LOGIN': True,
+
+    # Login method placement (UI composition — capability-config.md §1 sibling
+    # axis to the *_LOGIN gates above): where the frontend renders each
+    # method's trigger. One of 'main' (inline in the primary tab strip),
+    # 'overflow' (behind the "more" / three-dot menu) or 'bottom' (bottom
+    # row of secondary buttons — social/QR/passkey territory). Purely
+    # presentational: it never gates availability (that's the *_LOGIN axis);
+    # a hidden method's placement is simply not emitted (docs/capabilities.json
+    # capabilities.py contract). Consumed by GET /auth/api/v1/capabilities/
+    # (AuthCapabilitiesService.get_capabilities → AuthMethodInfo.placement).
+    'AUTH_EMAIL_PLACEMENT':       'main',
+    'AUTH_PHONE_PLACEMENT':       'main',
+    'AUTH_PASSWORD_PLACEMENT':    'overflow',
+    'AUTH_MAGIC_LINK_PLACEMENT':  'overflow',
+    'AUTH_SSO_PLACEMENT':         'bottom',
+    'AUTH_OAUTH_PLACEMENT':       'bottom',
+    'AUTH_QR_PLACEMENT':          'bottom',
+    'AUTH_PASSKEY_PLACEMENT':     'bottom',
 
     # Step-up (TOTP challenge) on existing login flows.
     # OAuth: off by default — the provider already authenticated the user;

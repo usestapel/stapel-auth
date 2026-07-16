@@ -6,8 +6,8 @@ Agent-facing map of this module: what it provides, its fork-free extension point
 
 Full-featured authentication as a single pip-installable Django app (`stapel_auth`, app label `authentication`):
 
-- **Login/registration methods** (each gated by an `AUTH_*` flag): email/phone OTP, anonymous, password (+ optional TOTP step-up), OAuth2 (9 built-in providers), enterprise SSO (SAML SP + OIDC RP, per-org DB config), magic link, QR login, passkeys (WebAuthn), TOTP.
-- **Sessions**: JWT (cookie + token pair), `UserSession` tracking, revoke one/all, suspicious-session detection and revocation, login notifications (new device / suspicious IP).
+- **Login/registration methods** (each gated by an `AUTH_*` flag): email/phone OTP, anonymous, password (+ optional TOTP step-up), OAuth2 (9 built-in providers), enterprise SSO (SAML SP + OIDC RP, per-org DB config), email link, QR login, passkeys (WebAuthn), TOTP. Each method's UI placement (`main`/`overflow`/`bottom`) is a sibling `AUTH_*_PLACEMENT` axis; `GET /capabilities/` emits both availability and placement/interaction/icon per method, plus OTP metadata (code length, ttl, resend cooldown) so a frontend never hardcodes these.
+- **Sessions**: JWT (cookie + token pair), `UserSession` tracking, revoke one/all, suspicious-session detection and revocation, login notifications (new device / suspicious IP). OAuth account links (`/oauth/links/`): connect/disconnect additional provider accounts beyond the one a user registered/logged in with.
 - **Step-up verification factors** (`otp_email`, `otp_phone`, `totp`, `passkey`) registered into the `stapel_core.verification` factor registry, plus the challenge endpoints (`/verification/...`) and per-user preferences backing the `auth.verification.policy` comm function.
 - **Security surface**: audit log (`AuthAuditLog`), login attempt lockout, authenticator (email/phone) change flows — instant and delayed with day-1/7/13 notifications.
 - **Admin/service API**: service API keys, capabilities, admin user broker, admin audit log; OpenID discovery + JWKS + token introspection; nginx `auth_request` monitoring proxy (`monitoring_proxy.py`).
@@ -28,9 +28,10 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 | `BACKEND_URL` | `None` (env `BACKEND_URL`) | Absolute backend URL for SAML/OIDC endpoints and revoke-suspicious links |
 | `USE_MOCK_SMS_OTP` / `USE_MOCK_EMAIL_OTP` | `False` | Mock OTP delivery (dev/test) |
 | `MOCK_OTP_CODE` | `'0000'` | The accepted code in mock mode |
-| `OTP_TTL` | `600` | OTP code lifetime, seconds |
+| `OTP_TTL` | `600` | OTP code lifetime, seconds — the single source for both the actual expiry (`otp/services.py`) and the `capabilities.otp.ttl_seconds` contract value |
 | `OTP_MAX_ATTEMPTS` | `5` | Wrong-code attempts before block |
 | `OTP_RATE_LIMIT_PER_HOUR` | `3` | OTP send rate limit |
+| `OTP_RESEND_COOLDOWN` | `30` | Seconds between OTP sends per phone/email/device — single source for both the rate-limit window and `capabilities.otp.resend_cooldown_seconds` |
 | `MAGIC_LINK_TTL` | `900` | Magic link lifetime, seconds |
 | `MAGIC_LINK_RATE_LIMIT_PER_HOUR` | `3` | Magic link send rate limit |
 | `QR_TOKEN_TTL` | `300` | QR login token lifetime, seconds |
@@ -55,6 +56,9 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 | `AUTH_PASSWORD_LOGIN` | `False` | Password login gate |
 | `OAUTH_STEP_UP` | `False` | TOTP challenge after OAuth login |
 | `PASSWORD_LOGIN_STEP_UP` | `True` | TOTP challenge after password login |
+| `AUTH_EMAIL_PLACEMENT` / `AUTH_PHONE_PLACEMENT` | `'main'` | Where the sign-in panel renders this method: `main` (inline tab) / `overflow` (behind "more") / `bottom` (bottom button row). Presentational only — never gates availability |
+| `AUTH_PASSWORD_PLACEMENT` / `AUTH_MAGIC_LINK_PLACEMENT` | `'overflow'` | Same axis as above |
+| `AUTH_SSO_PLACEMENT` / `AUTH_OAUTH_PLACEMENT` / `AUTH_QR_PLACEMENT` / `AUTH_PASSKEY_PLACEMENT` | `'bottom'` | Same axis as above |
 
 The `AUTH_*` gates also drive the URL factories in `urls.py`: `include('stapel_auth.urls')` mounts everything (per-request 403 gating), or compose your own URLconf from `get_*_urls()` factories so disabled features 404.
 

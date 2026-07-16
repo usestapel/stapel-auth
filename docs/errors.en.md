@@ -1,6 +1,6 @@
 # Errors — English
 
-`116` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
+`119` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
 
 | Code | Status | Params | Remediation | Text |
 |---|---|---|---|---|
@@ -85,6 +85,7 @@
 | `error.404.gdpr.export_not_found` | 404 | — | `retry` | Export request not found. |
 | `error.404.gdpr.no_active_closure` | 404 | — | `fix_input` | No pending account closure found. |
 | `error.404.not_found` | 404 | — | `retry` | Not found. |
+| `error.404.oauth_link_not_found` | 404 | — | `retry` | No linked account found for this provider. |
 | `error.404.passkey_not_found` | 404 | — | `retry` | Passkey not found. |
 | `error.404.qr_not_found` | 404 | — | `retry` | QR code not found or expired. |
 | `error.404.sso_org_not_found` | 404 | — | `fix_input` | Organization not found. |
@@ -99,6 +100,8 @@
 | `error.409.gdpr.closure_already_pending` | 409 | — | `fix_input` | Account closure is already in progress. |
 | `error.409.gdpr.export_cooldown` | 409 | — | `fix_input` | A data export was already requested in the last 30 days. |
 | `error.409.gdpr.legal_hold` | 409 | — | `fix_input` | Account data is under a legal hold and cannot be deleted. |
+| `error.409.oauth_account_linked_elsewhere` | 409 | — | `fix_input` | This provider account is already linked to a different user. |
+| `error.409.oauth_already_linked` | 409 | — | `fix_input` | This provider is already linked to your account. |
 | `error.409.passkey_already_registered` | 409 | — | `fix_input` | This passkey is already registered. |
 | `error.409.phone_reserved` | 409 | — | `fix_input` | This phone number is reserved by another pending change request. |
 | `error.409.phone_taken` | 409 | — | `fix_input` | This phone number is already registered to another account. |

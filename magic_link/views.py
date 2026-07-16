@@ -33,7 +33,7 @@ class MagicLinkViewSet(SerializerSeamsMixin, ViewSet):
     response_serializer_class = MagicLinkRequestResponseSerializer
 
     @extend_schema(
-        summary="Request a magic link login email",
+        summary="Request an email link for sign-in",
         request=MagicLinkRequestBodySerializer,
         responses={200: MagicLinkRequestResponseSerializer},
     )
@@ -57,12 +57,12 @@ class MagicLinkViewSet(SerializerSeamsMixin, ViewSet):
             pass
         return StapelResponse(
             self.get_response_serializer_class()(
-                {"message": "If this email is registered, a login link has been sent."}
+                {"message": "If this email is registered, an email link has been sent."}
             )
         )
 
     @extend_schema(
-        summary="Verify a magic link token and issue session",
+        summary="Verify an email link token and issue session",
         parameters=[OpenApiParameter("token", str, required=True)],
         responses={302: None},
     )

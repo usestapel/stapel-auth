@@ -865,6 +865,116 @@ class CapabilitiesViewTests(APITestCase):
 
 
 # =============================================================================
+# Method placement + OTP metadata (owner directive: placement/interaction/icon
+# per method, plus otp code-length/ttl/resend-cooldown metadata) — the
+# contract the frontend builds its sign-in panel from instead of guessing.
+# =============================================================================
+
+@override_settings(URL_PREFIX='')
+class CapabilitiesMethodsAndOtpMetaTests(APITestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    def _methods_by_id(self, response):
+        return {m['id']: m for m in response.data['methods']}
+
+    def test_methods_present_for_every_channel(self):
+        response = self.client.get(reverse('capabilities'))
+        methods = self._methods_by_id(response)
+        self.assertEqual(
+            set(methods),
+            {'email', 'phone', 'password', 'passkey', 'qr', 'magic_link', 'sso', 'oauth'},
+        )
+        for m in methods.values():
+            self.assertIn(m['placement'], ('main', 'overflow', 'bottom'))
+            self.assertIn(m['interaction'], ('inline', 'modal', 'redirect'))
+            self.assertIsInstance(m['order'], int)
+            self.assertTrue(m['icon_svg'].startswith('<svg'))
+
+    def test_default_placements_match_owner_directive(self):
+        response = self.client.get(reverse('capabilities'))
+        methods = self._methods_by_id(response)
+        self.assertEqual(methods['email']['placement'], 'main')
+        self.assertEqual(methods['phone']['placement'], 'main')
+        self.assertEqual(methods['password']['placement'], 'overflow')
+        self.assertEqual(methods['magic_link']['placement'], 'overflow')
+        self.assertEqual(methods['sso']['placement'], 'bottom')
+        self.assertEqual(methods['oauth']['placement'], 'bottom')
+        self.assertEqual(methods['qr']['placement'], 'bottom')
+        self.assertEqual(methods['passkey']['placement'], 'bottom')
+
+    def test_main_placement_is_inline_overflow_is_modal(self):
+        response = self.client.get(reverse('capabilities'))
+        methods = self._methods_by_id(response)
+        self.assertEqual(methods['email']['interaction'], 'inline')
+        self.assertEqual(methods['phone']['interaction'], 'inline')
+        self.assertEqual(methods['password']['interaction'], 'modal')
+        self.assertEqual(methods['magic_link']['interaction'], 'modal')
+
+    def test_oauth_and_sso_always_redirect_regardless_of_placement(self):
+        response = self.client.get(reverse('capabilities'))
+        methods = self._methods_by_id(response)
+        self.assertEqual(methods['oauth']['interaction'], 'redirect')
+        self.assertEqual(methods['sso']['interaction'], 'redirect')
+
+    @override_settings(STAPEL_AUTH={'AUTH_QR_PLACEMENT': 'main'})
+    def test_placement_overridable_per_method(self):
+        from stapel_auth.conf import auth_settings
+        auth_settings.reload()
+        response = self.client.get(reverse('capabilities'))
+        methods = self._methods_by_id(response)
+        self.assertEqual(methods['qr']['placement'], 'main')
+        self.assertEqual(methods['qr']['interaction'], 'inline')
+
+    @override_settings(STAPEL_AUTH={'AUTH_EMAIL_PLACEMENT': 'not_a_real_zone'})
+    def test_invalid_placement_falls_back_to_main(self):
+        from stapel_auth.conf import auth_settings
+        auth_settings.reload()
+        response = self.client.get(reverse('capabilities'))
+        methods = self._methods_by_id(response)
+        self.assertEqual(methods['email']['placement'], 'main')
+
+    def test_otp_meta_default_values(self):
+        response = self.client.get(reverse('capabilities'))
+        otp = response.data['otp']
+        self.assertEqual(otp['email_code_length'], 4)
+        self.assertEqual(otp['phone_code_length'], 4)
+        self.assertEqual(otp['totp_code_length'], 6)
+        self.assertEqual(otp['ttl_seconds'], 600)
+        self.assertEqual(otp['resend_cooldown_seconds'], 30)
+
+    @override_settings(STAPEL_AUTH={'OTP_TTL': 120, 'OTP_RESEND_COOLDOWN': 15})
+    def test_otp_meta_reflects_settings_overrides(self):
+        from stapel_auth.conf import auth_settings
+        auth_settings.reload()
+        response = self.client.get(reverse('capabilities'))
+        otp = response.data['otp']
+        self.assertEqual(otp['ttl_seconds'], 120)
+        self.assertEqual(otp['resend_cooldown_seconds'], 15)
+
+    def test_otp_code_length_matches_db_field_width(self):
+        """Single-source guarantee: the contract value is the same constant
+        that sizes the DB CharField, not an independently hand-copied number."""
+        from stapel_auth.models import EmailVerification, PhoneVerification
+        from stapel_auth.otp.constants import OTP_CODE_LENGTH
+
+        response = self.client.get(reverse('capabilities'))
+        self.assertEqual(response.data['otp']['email_code_length'], OTP_CODE_LENGTH)
+        self.assertEqual(
+            PhoneVerification._meta.get_field('code').max_length, OTP_CODE_LENGTH
+        )
+        self.assertEqual(
+            EmailVerification._meta.get_field('code').max_length, OTP_CODE_LENGTH
+        )
+
+    def test_totp_code_length_matches_service_constant(self):
+        from stapel_auth.mfa.services import TOTPService
+
+        response = self.client.get(reverse('capabilities'))
+        self.assertEqual(response.data['otp']['totp_code_length'], TOTPService.CODE_LENGTH)
+
+
+# =============================================================================
 # Feature Flag Gate Tests
 # =============================================================================
 

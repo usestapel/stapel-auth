@@ -324,6 +324,10 @@
       "hash": "0802559db1375af3",
       "origin": "seed:stapel-builtin"
     },
+    "error.404.oauth_link_not_found": {
+      "hash": "38d7b0c793e27d49",
+      "origin": "llm"
+    },
     "error.404.passkey_not_found": {
       "hash": "fabb97387b90c907",
       "origin": "seed:stapel-builtin"
@@ -379,6 +383,14 @@
     "error.409.gdpr.legal_hold": {
       "hash": "d5f80bdbab3ec545",
       "origin": "seed:stapel-builtin"
+    },
+    "error.409.oauth_account_linked_elsewhere": {
+      "hash": "4bb3d181c36468e4",
+      "origin": "llm"
+    },
+    "error.409.oauth_already_linked": {
+      "hash": "67a730fa6039a26c",
+      "origin": "llm"
     },
     "error.409.passkey_already_registered": {
       "hash": "81e308e425ebc295",

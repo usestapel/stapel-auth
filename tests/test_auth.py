@@ -818,6 +818,31 @@ class PhoneVerificationServiceTests(TestCase):
         self.assertEqual(result.get("error"), "blocked")
         self.assertIn("retry_after", result)
 
+    @override_settings(STAPEL_AUTH={"OTP_RESEND_COOLDOWN": 5})
+    def test_resend_cooldown_setting_drives_actual_rate_limit(self):
+        """AUTH_OTP_RESEND_COOLDOWN isn't just contract metadata — it is the
+        exact window send_verification_code() enforces (single source)."""
+        from stapel_auth.conf import auth_settings
+        from stapel_auth.services import PhoneVerificationService
+        auth_settings.reload()
+        service = PhoneVerificationService()
+        service.send_verification_code("+15557654321")
+        result = service.send_verification_code("+15557654321")
+        self.assertEqual(result.get("error"), "rate_limit")
+        self.assertEqual(result.get("retry_after"), 5)
+
+    @override_settings(STAPEL_AUTH={"OTP_TTL": 120})
+    def test_otp_ttl_setting_drives_actual_expiry(self):
+        """AUTH_OTP_TTL isn't just contract metadata — it is the exact
+        lifetime the created PhoneVerification record gets (single source)."""
+        from stapel_auth.conf import auth_settings
+        from stapel_auth.services import PhoneVerificationService
+        auth_settings.reload()
+        service = PhoneVerificationService()
+        verification = service.send_verification_code("+15559998888")
+        delta = verification.expires_at - verification.created_at
+        self.assertAlmostEqual(delta.total_seconds(), 120, delta=5)
+
 
 @override_settings(USE_MOCK_EMAIL_OTP=True, MOCK_OTP_CODE="5678")
 class EmailVerificationServiceTests(TestCase):

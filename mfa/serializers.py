@@ -9,24 +9,28 @@ from stapel_auth.mfa.dto import (
     TOTPSetupConfirmResponse,
     TOTPStepUpResponse,
 )
+from stapel_auth.mfa.services import TOTPService
+from stapel_auth.otp.constants import OTP_CODE_LENGTH
+
+_TOTP_LEN = TOTPService.CODE_LENGTH
 
 
 # ── TOTP serializers ─────────────────────────────────────────────────────────
 
 class TOTPChallengeVerifySerializer(serializers.Serializer):
     challenge_token = serializers.CharField(help_text='Opaque token from TOTPChallengeResponse.')
-    code = serializers.CharField(max_length=6, required=False,
-                                 help_text='6-digit TOTP code from authenticator app.')
+    code = serializers.CharField(max_length=_TOTP_LEN, required=False,
+                                 help_text=f'{_TOTP_LEN}-digit TOTP code from authenticator app.')
     backup_code = serializers.CharField(required=False,
                                         help_text='One-time backup code.')
 
 
 class TOTPSetupConfirmSerializer(serializers.Serializer):
-    code = serializers.CharField(max_length=6, help_text='6-digit code from authenticator app.')
+    code = serializers.CharField(max_length=_TOTP_LEN, help_text=f'{_TOTP_LEN}-digit code from authenticator app.')
 
 
 class TOTPStepUpSerializer(serializers.Serializer):
-    code = serializers.CharField(max_length=6, help_text='6-digit TOTP code.')
+    code = serializers.CharField(max_length=_TOTP_LEN, help_text=f'{_TOTP_LEN}-digit TOTP code.')
 
 
 class TOTPDisableOtpRequestSerializer(serializers.Serializer):
@@ -35,7 +39,7 @@ class TOTPDisableOtpRequestSerializer(serializers.Serializer):
 
 class _TOTPDisableByTOTPSerializer(serializers.Serializer):
     method = serializers.ChoiceField(choices=['totp'])
-    code = serializers.CharField(max_length=6, help_text='6-digit TOTP code from authenticator app.')
+    code = serializers.CharField(max_length=_TOTP_LEN, help_text=f'{_TOTP_LEN}-digit TOTP code from authenticator app.')
 
 
 class _TOTPDisableByBackupSerializer(serializers.Serializer):
@@ -45,8 +49,8 @@ class _TOTPDisableByBackupSerializer(serializers.Serializer):
 
 class _TOTPDisableByOTPSerializer(serializers.Serializer):
     method = serializers.ChoiceField(choices=['otp'])
-    otp_code = serializers.CharField(max_length=4,
-                                     help_text='4-digit code sent to phone via /totp/disable-otp/request/.')
+    otp_code = serializers.CharField(max_length=OTP_CODE_LENGTH,
+                                     help_text=f'{OTP_CODE_LENGTH}-digit code sent to phone via /totp/disable-otp/request/.')
 
 
 TOTPDisableSerializer = PolymorphicProxySerializer(

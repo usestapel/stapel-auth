@@ -5,6 +5,7 @@ import uuid
 from datetime import timedelta
 
 from stapel_core.access import access
+from stapel_auth.otp.constants import OTP_CODE_LENGTH
 
 
 @access.ops  # TTL-expiring OTP junk (admin-suite AS-5)
@@ -13,7 +14,7 @@ class PhoneVerification(models.Model):
     Model to store phone verification codes
     """
     phone = models.CharField(max_length=18, db_index=True)
-    code = models.CharField(max_length=4)
+    code = models.CharField(max_length=OTP_CODE_LENGTH)  # digits: OTP_CODE_LENGTH (otp/constants.py)
     is_verified = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
@@ -53,7 +54,7 @@ class EmailVerification(models.Model):
     Model to store email verification codes
     """
     email = models.EmailField(db_index=True)
-    code = models.CharField(max_length=4)
+    code = models.CharField(max_length=OTP_CODE_LENGTH)  # digits: OTP_CODE_LENGTH (otp/constants.py)
     is_verified = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
@@ -378,6 +379,55 @@ class PasskeyCredential(models.Model):
     class Meta:
         db_table = 'passkey_credentials'
         indexes = [models.Index(fields=['user', 'is_active'])]
+
+
+# =============================================================================
+# OAuth account links (security-profile inventory: additional linked accounts
+# beyond the one a user registered/logged in with — see oauth/services.py
+# OAuthLinkService and GET/POST/DELETE /oauth/links/)
+# =============================================================================
+
+class LinkedOAuthAccount(models.Model):
+    """An additional OAuth provider account linked to an existing user.
+
+    Deliberately separate from ``User.oauth_provider``/``oauth_id`` (the
+    provider a user originally registered/logged in with, resolved by
+    ``AuthViewSet._resolve_oauth_user``): that pair is immutable through this
+    model on purpose — unlinking it would change how the account authenticates
+    at all, which is a bigger decision than "manage my connected accounts" and
+    is out of scope for this endpoint. A row here is always a *secondary*
+    link a signed-in user attached from their security settings page.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='linked_oauth_accounts',
+        help_text='The account this link belongs to.',
+    )
+    provider = models.CharField(max_length=50, help_text='OAuth provider id, e.g. google, github.')
+    provider_user_id = models.CharField(
+        max_length=255,
+        help_text="The provider's own user id — keyed on this (not email) for account-takeover-safe uniqueness.",
+    )
+    email = models.EmailField(
+        blank=True, null=True, help_text='Email reported by the provider, if any (display only).',
+    )
+    display_name = models.CharField(
+        max_length=255, blank=True, help_text='Provider display name/username, if any (display only).',
+    )
+    linked_at = models.DateTimeField(auto_now_add=True, help_text='When this account was linked.')
+
+    class Meta:
+        db_table = 'linked_oauth_accounts'
+        ordering = ['-linked_at']
+        constraints = [
+            # One link per provider per user (re-linking the same provider updates the existing row).
+            models.UniqueConstraint(fields=['user', 'provider'], name='unique_provider_per_user'),
+            # The same external provider account can't be linked to two different users.
+            models.UniqueConstraint(fields=['provider', 'provider_user_id'], name='unique_provider_account'),
+        ]
+
+    def __str__(self):
+        return f'{self.user_id} ↔ {self.provider}'
+
 
 # =============================================================================
 # SSO — Organizations and Identity Provider Configs

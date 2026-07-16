@@ -120,6 +120,38 @@
       "business_label": "Extra verification after password sign-in",
       "summary": "Require a two-factor code after password login for TOTP-enrolled accounts. On by default — a password alone is phishable.",
       "behavior": "When on, a successful password login with a TOTP-enrolled account returns a TOTP challenge instead of tokens."
+    },
+    "AUTH_EMAIL_PLACEMENT": {
+      "business_label": "Where the email sign-in method appears",
+      "summary": "Controls whether the email one-time-code method renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational."
+    },
+    "AUTH_PHONE_PLACEMENT": {
+      "business_label": "Where the phone sign-in method appears",
+      "summary": "Controls whether the phone one-time-code method renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational."
+    },
+    "AUTH_PASSWORD_PLACEMENT": {
+      "business_label": "Where the password sign-in method appears",
+      "summary": "Controls whether password sign-in renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational."
+    },
+    "AUTH_MAGIC_LINK_PLACEMENT": {
+      "business_label": "Where the email-link sign-in method appears",
+      "summary": "Controls whether the one-time email-link method renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational."
+    },
+    "AUTH_SSO_PLACEMENT": {
+      "business_label": "Where corporate SSO sign-in appears",
+      "summary": "Controls whether corporate SSO renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational."
+    },
+    "AUTH_OAUTH_PLACEMENT": {
+      "business_label": "Where social sign-in appears",
+      "summary": "Controls whether social (OAuth) sign-in renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational."
+    },
+    "AUTH_QR_PLACEMENT": {
+      "business_label": "Where QR sign-in appears",
+      "summary": "Controls whether QR hand-off sign-in renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational."
+    },
+    "AUTH_PASSKEY_PLACEMENT": {
+      "business_label": "Where passkey sign-in appears",
+      "summary": "Controls whether passkey sign-in renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational."
     }
   }
 }

@@ -75,6 +75,10 @@ ERR_400_PASSKEY_CHALLENGE_EXPIRED = 'error.400.passkey_challenge_expired'
 ERR_409_PASSKEY_ALREADY_REGISTERED = 'error.409.passkey_already_registered'
 ERR_400_LAST_AUTH_METHOD = 'error.400.last_auth_method'
 ERR_404_PASSKEY_NOT_FOUND = 'error.404.passkey_not_found'
+# OAuth account links (security-profile inventory)
+ERR_409_OAUTH_ALREADY_LINKED = 'error.409.oauth_already_linked'
+ERR_409_OAUTH_ACCOUNT_LINKED_ELSEWHERE = 'error.409.oauth_account_linked_elsewhere'
+ERR_404_OAUTH_LINK_NOT_FOUND = 'error.404.oauth_link_not_found'
 # SSO
 ERR_404_SSO_ORG_NOT_FOUND = 'error.404.sso_org_not_found'
 ERR_400_SSO_NOT_CONFIGURED = 'error.400.sso_not_configured'
@@ -158,6 +162,10 @@ AUTH_ERRORS = {
     ERR_409_PASSKEY_ALREADY_REGISTERED: 'This passkey is already registered.',
     ERR_400_LAST_AUTH_METHOD: 'Cannot remove the last authentication method.',
     ERR_404_PASSKEY_NOT_FOUND: 'Passkey not found.',
+    # OAuth account links
+    ERR_409_OAUTH_ALREADY_LINKED: 'This provider is already linked to your account.',
+    ERR_409_OAUTH_ACCOUNT_LINKED_ELSEWHERE: 'This provider account is already linked to a different user.',
+    ERR_404_OAUTH_LINK_NOT_FOUND: 'No linked account found for this provider.',
     # SSO
     ERR_404_SSO_ORG_NOT_FOUND: 'Organization not found.',
     ERR_400_SSO_NOT_CONFIGURED: 'SSO is not configured for this organization.',
@@ -255,6 +263,10 @@ AUTH_REMEDIATION = {
     ERR_409_PASSKEY_ALREADY_REGISTERED: 'fix_input',
     ERR_400_LAST_AUTH_METHOD: 'fix_input',
     ERR_404_PASSKEY_NOT_FOUND: 'retry',
+    # OAuth account links
+    ERR_409_OAUTH_ALREADY_LINKED: 'fix_input',
+    ERR_409_OAUTH_ACCOUNT_LINKED_ELSEWHERE: 'fix_input',
+    ERR_404_OAUTH_LINK_NOT_FOUND: 'retry',
     # SSO
     ERR_404_SSO_ORG_NOT_FOUND: 'fix_input',
     ERR_400_SSO_NOT_CONFIGURED: 'contact_support',

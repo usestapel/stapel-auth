@@ -1,6 +1,6 @@
 # Errors — Русский
 
-`116` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
+`119` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
 
 | Код | Статус | Параметры | Действие | Текст |
 |---|---|---|---|---|
@@ -85,6 +85,7 @@
 | `error.404.gdpr.export_not_found` | 404 | — | `retry` | Запрос на экспорт не найден. |
 | `error.404.gdpr.no_active_closure` | 404 | — | `fix_input` | Незавершённый запрос на закрытие учётной записи не найден. |
 | `error.404.not_found` | 404 | — | `retry` | Запрошенный ресурс не найден |
+| `error.404.oauth_link_not_found` | 404 | — | `retry` | Привязанная учётная запись для этого провайдера не найдена. |
 | `error.404.passkey_not_found` | 404 | — | `retry` | Ключ доступа не найден. |
 | `error.404.qr_not_found` | 404 | — | `retry` | QR-код не найден или истёк. |
 | `error.404.sso_org_not_found` | 404 | — | `fix_input` | Организация не найдена. |
@@ -99,6 +100,8 @@
 | `error.409.gdpr.closure_already_pending` | 409 | — | `fix_input` | Закрытие учётной записи уже выполняется. |
 | `error.409.gdpr.export_cooldown` | 409 | — | `fix_input` | Экспорт данных уже был запрошен за последние 30 дней. |
 | `error.409.gdpr.legal_hold` | 409 | — | `fix_input` | Данные учётной записи находятся под юридическим удержанием и не могут быть удалены. |
+| `error.409.oauth_account_linked_elsewhere` | 409 | — | `fix_input` | Эта учётная запись провайдера уже привязана к другому пользователю. |
+| `error.409.oauth_already_linked` | 409 | — | `fix_input` | Этот провайдер уже привязан к вашей учётной записи. |
 | `error.409.passkey_already_registered` | 409 | — | `fix_input` | Этот ключ доступа уже зарегистрирован. |
 | `error.409.phone_reserved` | 409 | — | `fix_input` | Этот номер телефона зарезервирован другим незавершённым запросом на изменение. |
 | `error.409.phone_taken` | 409 | — | `fix_input` | Этот номер телефона уже привязан к другой учётной записи. |

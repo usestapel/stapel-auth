@@ -595,6 +595,13 @@
     "en": "Not found."
   },
   {
+    "code": "error.404.oauth_link_not_found",
+    "status": 404,
+    "params": [],
+    "remediation": "retry",
+    "en": "No linked account found for this provider."
+  },
+  {
     "code": "error.404.passkey_not_found",
     "status": 404,
     "params": [],
@@ -691,6 +698,20 @@
     "params": [],
     "remediation": "fix_input",
     "en": "Account data is under a legal hold and cannot be deleted."
+  },
+  {
+    "code": "error.409.oauth_account_linked_elsewhere",
+    "status": 409,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "This provider account is already linked to a different user."
+  },
+  {
+    "code": "error.409.oauth_already_linked",
+    "status": 409,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "This provider is already linked to your account."
   },
   {
     "code": "error.409.passkey_already_registered",

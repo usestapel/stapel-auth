@@ -14,5 +14,17 @@
   "error.403.verification_enrollment_required": {
     "hash": "726adb4e63e9ae80",
     "text": "Требуется регистрация фактора подтверждения."
+  },
+  "error.404.oauth_link_not_found": {
+    "hash": "38d7b0c793e27d49",
+    "text": "Привязанная учётная запись для этого провайдера не найдена."
+  },
+  "error.409.oauth_account_linked_elsewhere": {
+    "hash": "4bb3d181c36468e4",
+    "text": "Эта учётная запись провайдера уже привязана к другому пользователю."
+  },
+  "error.409.oauth_already_linked": {
+    "hash": "67a730fa6039a26c",
+    "text": "Этот провайдер уже привязан к вашей учётной записи."
   }
 }

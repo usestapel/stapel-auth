@@ -2,6 +2,68 @@
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-07-17
+
+Owner directive: how each auth method is *displayed* must be configurable on
+the backend exactly like its *availability* already is. Contract-expanding
+minor (postmortem §60: expansion is never a patch), plus the security-profile
+inventory pass (owner directive p.5) and an owner follow-up on OTP metadata.
+
+### Added — per-method placement + icon in the capabilities contract
+- `AUTH_<METHOD>_PLACEMENT` settings (email/phone/password/magic_link/sso/oauth/qr/passkey)
+  — sibling axis to the existing `AUTH_*_LOGIN` gates, `main | overflow | bottom`.
+  Sane defaults: email/phone=`main`, password/magic_link=`overflow`,
+  sso/oauth/qr/passkey=`bottom`.
+- `GET /auth/api/v1/capabilities/` now emits `methods: AuthMethodInfo[]` —
+  one entry per login method with `placement`, a fixed `order`, a derived
+  `interaction` (`inline` for `main`; `modal` for everything else, except
+  oauth/sso which always `redirect`) and a bundled `icon_svg` (hand-drawn,
+  license-clean, 24x24, `currentColor`) a host frontend may override.
+- `docs/capabilities.json`: 8 new `auth.placement` axes (25 axes total, up
+  from 17).
+
+### Added — OTP metadata (frontend must not guess code length/ttl/cooldown)
+- `GET /auth/api/v1/capabilities/` now emits `otp: OtpMeta` —
+  `email_code_length`/`phone_code_length` (4), `totp_code_length` (6),
+  `ttl_seconds` (600) and `resend_cooldown_seconds` (30), single-sourced
+  from the same constants/settings the backend actually validates against
+  (`otp/constants.py::OTP_CODE_LENGTH`, `TOTPService.CODE_LENGTH`,
+  `AUTH_OTP_TTL`, new `AUTH_OTP_RESEND_COOLDOWN` setting) — a frontend that
+  previously hardcoded a 6-box code input against a 4-digit backend now has
+  a contract field to read instead.
+- `AUTH_OTP_RESEND_COOLDOWN` (default 30s) is a new setting; `AUTH_OTP_TTL`
+  (already existed, default 600s) is now actually wired into OTP expiry —
+  previously the setting was read nowhere and the expiry was a hardcoded
+  `timedelta(minutes=10)` that merely happened to match the default.
+
+### Added — OAuth account links (security-profile inventory)
+- `GET/POST /oauth/links/`, `DELETE /oauth/links/{provider}/` — connect/
+  disconnect additional OAuth provider accounts on an already-authenticated
+  user, distinct from the login/registration OAuth flow. New
+  `LinkedOAuthAccount` model; the account a user originally registered/
+  logged in with is reported as `primary` and is not removable through this
+  endpoint. Unlink is blocked (`error.400.last_auth_method`) when it would
+  leave the account with no way to sign in.
+- `security/status` (`connected_oauth`) now reports every linked provider,
+  not just the primary one.
+
+### Changed — "magic link" renamed to "email link" in user-facing text
+- English error/summary strings and the response message updated
+  (`error.400.magic_link_invalid`, `error.429.magic_link_rate`, the
+  `MagicLinkViewSet` endpoint summaries). Error *keys* are unchanged.
+
+### Security-profile inventory (owner directive p.5)
+Sessions (list/revoke-one/revoke-all), TOTP (setup/confirm/disable +
+recovery codes) and passkeys (list/register/authenticate/remove) were
+already complete. Password change (old+new) was already complete. OAuth
+account links (list/link/unlink) were missing entirely — implemented above.
+
+### Changed — dependency ceiling
+- `stapel-core>=0.10,<0.11` → `<0.12` (stapel-core released 0.11.x — bus
+  singleton lifecycle, config-checks, validation error params/language).
+  Suite passes against stapel-core 0.11.2; lower bound stays `>=0.10` since
+  nothing here depends on a 0.11-only feature.
+
 ## [0.5.9] — 2026-07-16
 
 ### Fixed
