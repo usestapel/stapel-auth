@@ -222,11 +222,41 @@ def _blacklist_jti(jti: str, expires_at) -> None:
         logging.getLogger(__name__).exception('_blacklist_jti failed')
 
 
+def _emit_session_revoked(user_id, session_id) -> None:
+    """Write the ``user.session_revoked`` outbox row (schemas/emits/).
+
+    Caller MUST hold the transaction that flips ``is_revoked`` — the outbox
+    guarantee is "event leaves iff the revocation commits".
+    """
+    from stapel_core.comm import emit
+
+    from stapel_auth.events import EVENT_USER_SESSION_REVOKED
+
+    emit(  # emit-check: ok — every caller wraps this in the atomic that performs the revocation write
+        EVENT_USER_SESSION_REVOKED,
+        {"user_id": str(user_id), "session_id": str(session_id)},
+        key=str(user_id),
+        service="auth",
+    )
+
+
 class SessionService:
-    """Manages UserSession lifecycle: creation, rotation, revocation."""
+    """Manages UserSession lifecycle: creation, rotation, revocation.
+
+    Lifecycle milestones go to the transactional outbox
+    (``user.session_created`` / ``user.session_revoked``, schemas in
+    ``schemas/emits/``) atomically with the ORM write, mirroring
+    ``staff_roles`` — subscribers (audit trails, device dashboards,
+    security analytics) see exactly the sessions that committed.
+    """
 
     @staticmethod
     def create(user, jti: str, expires_at, request=None, access_jti: str = '') -> 'UserSession':
+        from django.db import transaction
+
+        from stapel_core.comm import emit
+
+        from stapel_auth.events import EVENT_USER_SESSION_CREATED
         from stapel_auth.models import UserSession
         ua = ''
         ip = None
@@ -238,17 +268,34 @@ class SessionService:
             ch_version  = request.META.get('HTTP_SEC_CH_UA_PLATFORM_VERSION', '').strip('"')
             ch_model    = request.META.get('HTTP_SEC_CH_UA_MODEL', '').strip('"')
         parsed = _parse_ua(ua, ch_platform=ch_platform, ch_version=ch_version, ch_model=ch_model)
-        return UserSession.objects.create(
-            user=user,
-            jti=jti,
-            access_jti=access_jti,
-            device_name=parsed['name'],
-            device_type=parsed['type'],
-            device_details=parsed['details'],
-            user_agent=ua[:500],
-            ip_address=ip or None,
-            expires_at=expires_at,
-        )
+        with transaction.atomic():
+            session = UserSession.objects.create(
+                user=user,
+                jti=jti,
+                access_jti=access_jti,
+                device_name=parsed['name'],
+                device_type=parsed['type'],
+                device_details=parsed['details'],
+                user_agent=ua[:500],
+                ip_address=ip or None,
+                expires_at=expires_at,
+            )
+            payload = {
+                'user_id': str(user.pk),
+                'session_id': str(session.pk),
+                'device_type': session.device_type,
+                'created_at': session.created_at.isoformat(),
+            }
+            if session.ip_address:
+                # Schema field is a plain (non-nullable) string — omit when unknown.
+                payload['ip_address'] = str(session.ip_address)
+            emit(
+                EVENT_USER_SESSION_CREATED,
+                payload,
+                key=str(user.pk),
+                service='auth',
+            )
+        return session
 
     @staticmethod
     def rotate(old_jti: str, new_jti: str, new_expires_at, user_id=None, new_access_jti: str = ''):
@@ -281,17 +328,53 @@ class SessionService:
 
     @staticmethod
     def revoke_by_jti(jti: str) -> bool:
+        """Revoke the session holding ``jti``. Returns True iff a session row
+        exists for the JTI (same contract as before). The outbox event is
+        emitted only when the flag actually flips (idempotent re-revokes stay
+        silent)."""
+        from django.db import transaction
+
         from stapel_auth.models import UserSession
-        return UserSession.objects.filter(jti=jti).update(is_revoked=True) > 0
+        with transaction.atomic():
+            session = (
+                UserSession.objects.filter(jti=jti)
+                .values('pk', 'user_id', 'is_revoked')
+                .first()
+            )
+            if session is None:
+                return False
+            if not session['is_revoked']:
+                UserSession.objects.filter(pk=session['pk']).update(is_revoked=True)
+                _emit_session_revoked(session['user_id'], session['pk'])
+        return True
+
+    @staticmethod
+    def revoke_session(session) -> None:
+        """Revoke one concrete session row (the per-device "revoke this
+        session" surface). No-op if already revoked; emits atomically with
+        the flag flip."""
+        from django.db import transaction
+        with transaction.atomic():
+            if session.is_revoked:
+                return
+            session.is_revoked = True
+            session.save(update_fields=['is_revoked'])
+            _emit_session_revoked(session.user_id, session.pk)
 
     @staticmethod
     def revoke_all(user, except_jti: str = None):
+        from django.db import transaction
+
         from stapel_auth.models import UserSession
         qs = UserSession.objects.filter(user=user, is_revoked=False)
         if except_jti:
             qs = qs.exclude(jti=except_jti)
-        sessions = list(qs.values('jti', 'access_jti', 'expires_at'))
-        qs.update(is_revoked=True)
+        with transaction.atomic():
+            sessions = list(qs.values('pk', 'jti', 'access_jti', 'expires_at'))
+            qs.update(is_revoked=True)
+            for s in sessions:
+                _emit_session_revoked(user.pk, s['pk'])
+        # Redis blacklisting is non-transactional — outside the atomic block.
         for s in sessions:
             _blacklist_jti(s['jti'], s['expires_at'])
             _blacklist_jti(s['access_jti'], s['expires_at'])

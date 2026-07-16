@@ -374,10 +374,11 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             session = UserSession.objects.get(id=session_id, user=request.user)
         except UserSession.DoesNotExist:
             return StapelErrorResponse(404, ERR_404_NOT_FOUND)
-        session.is_revoked = True
-        session.save(update_fields=["is_revoked"])
-        from .services import _blacklist_jti
+        from .services import SessionService, _blacklist_jti
 
+        # Flips is_revoked + writes the user.session_revoked outbox row
+        # atomically (no-op if already revoked).
+        SessionService.revoke_session(session)
         _blacklist_jti(session.jti, session.expires_at)
         _blacklist_jti(session.access_jti, session.expires_at)
         from stapel_auth.dto import SimpleStatusResponse

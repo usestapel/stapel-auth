@@ -674,9 +674,11 @@ class UserRegisteredEventTests(APITestCase):
         self.assertEqual(len(received), 1)
         self.assertEqual(received[0]['user'].email, email)
 
-        m_emit.assert_called_once()
-        args, kwargs = m_emit.call_args
-        self.assertEqual(args[0], 'user.registered')
+        # Registration auto-login also emits user.session_created now, so
+        # filter for the registration milestone specifically.
+        reg_calls = [c for c in m_emit.call_args_list if c[0][0] == 'user.registered']
+        self.assertEqual(len(reg_calls), 1)
+        args, kwargs = reg_calls[0]
         payload = args[1]
         self.assertIsInstance(payload['user_id'], str)
         self.assertEqual(payload['email'], email)
@@ -703,8 +705,8 @@ class UserRegisteredEventTests(APITestCase):
             )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(received), 1)
-        m_emit.assert_called_once()
-        self.assertEqual(m_emit.call_args[0][0], 'user.registered')
+        reg_calls = [c for c in m_emit.call_args_list if c[0][0] == 'user.registered']
+        self.assertEqual(len(reg_calls), 1)
 
     def test_oauth_registration_emits_avatar_url(self):
         """New OAuth users carry User.avatar (set from OAuthUserData.avatar
@@ -731,7 +733,17 @@ class UserRegisteredEventTests(APITestCase):
     def test_registration_survives_emit_failure(self):
         email = f'boom_{uuid.uuid4().hex[:8]}@example.com'
         self.client.post(reverse('email_request'), {'email': email})
-        with patch('stapel_core.comm.emit', side_effect=RuntimeError('broker down')):
+        def _fail_registered(name, *args, **kwargs):
+            # Fail the best-effort registration fan-out only. The session
+            # lifecycle events are transactional-outbox writes: their failure
+            # is a DB failure and legitimately fails the request (EMIT002 —
+            # a swallowed outbox failure would commit a session without its
+            # event), so it is not part of this survives-property.
+            if name == 'user.registered':
+                raise RuntimeError('broker down')
+            return None
+
+        with patch('stapel_core.comm.emit', side_effect=_fail_registered):
             resp = self.client.post(
                 reverse('email_verify'), {'email': email, 'code': '0000'}
             )

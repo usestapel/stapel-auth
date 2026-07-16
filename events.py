@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 EVENT_USER_REGISTERED = "user.registered"
 EVENT_STAFF_ROLE_ASSIGNED = "staff.role.assigned"
 EVENT_STAFF_ROLE_REVOKED = "staff.role.revoked"
+EVENT_USER_SESSION_CREATED = "user.session_created"
+EVENT_USER_SESSION_REVOKED = "user.session_revoked"
 
 # Back-compat alias for any importer still referencing the old name.
 TOPIC_USER_REGISTERED = EVENT_USER_REGISTERED
@@ -63,9 +65,40 @@ class StaffRoleRevokedPayload:
     actor_id: str | None = None
 
 
+@dataclass
+class UserSessionCreatedPayload:
+    """Payload for the user.session_created event
+    (schemas/emits/user.session_created.json).
+
+    Fields:
+        user_id: UUID of the authenticated user.
+        session_id: UUID of the UserSession row.
+        device_type: Parsed device class (desktop/mobile/tablet/unknown).
+        created_at: ISO-8601 creation instant of the session.
+        ip_address: Client IP when known; omitted from the wire payload when
+            None (the schema field is a plain string, not nullable).
+    """
+    user_id: str
+    session_id: str
+    device_type: str
+    created_at: str
+    ip_address: str | None = None
+
+
+@dataclass
+class UserSessionRevokedPayload:
+    """Payload for the user.session_revoked event
+    (schemas/emits/user.session_revoked.json) — logout, per-session revoke,
+    revoke-all, or an admin/security action."""
+    user_id: str
+    session_id: str
+
+
 # Canonical event registry — keyed by the action name actually emitted.
 EVENT_REGISTRY = {
     EVENT_USER_REGISTERED: UserRegisteredPayload,
     EVENT_STAFF_ROLE_ASSIGNED: StaffRoleAssignedPayload,
     EVENT_STAFF_ROLE_REVOKED: StaffRoleRevokedPayload,
+    EVENT_USER_SESSION_CREATED: UserSessionCreatedPayload,
+    EVENT_USER_SESSION_REVOKED: UserSessionRevokedPayload,
 }

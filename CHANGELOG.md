@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-07-16
+
+### Fixed — user.session_created / user.session_revoked are now actually emitted
+
+The emit schemas (`schemas/emits/user.session_created.json` /
+`user.session_revoked.json`) were published without any `emit()` in the
+code — a silent contract lie (2026-07-16 audit). Session lifecycle events
+now go through the transactional outbox atomically with the `UserSession`
+write, mirroring `staff_roles`:
+
+- `SessionService.create` emits `user.session_created` (login, refresh
+  legacy-token path, SSO, QR) — `ip_address` omitted when unknown (the
+  schema field is a plain string).
+- `SessionService.revoke_by_jti` (logout), the new
+  `SessionService.revoke_session` (per-device revoke endpoint) and
+  `SessionService.revoke_all` (password change, revoke-all endpoint) emit
+  `user.session_revoked` — once per session, idempotent re-revokes stay
+  silent.
+- The suspicious-login "this wasn't me" endpoint now revokes through
+  `SessionService.revoke_all` — its raw queryset update previously skipped
+  JTI blacklisting *and* would have skipped the event.
+- `events.py`: payload dataclasses + registry entries for both events.
+
+Tests validate the outbox payloads against the published JSON schemas.
+
 ## [0.5.6] - 2026-07-14
 
 ### Fixed — contract drift blocking every publish since 2026-07-09

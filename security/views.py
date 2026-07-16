@@ -251,7 +251,7 @@ class RevokeSuspiciousView(APIView):
         from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
         from stapel_core.notifications import request_notification
 
-        from stapel_auth.models import AuthEventType, UserSession
+        from stapel_auth.models import AuthEventType
         from stapel_auth.services import AuditService
 
         token = request.query_params.get("token", "")
@@ -273,7 +273,12 @@ class RevokeSuspiciousView(APIView):
         except U.DoesNotExist:
             return StapelErrorResponse(404, ERR_404_NOT_FOUND)
 
-        UserSession.objects.filter(user=user, is_revoked=False).update(is_revoked=True)
+        # Service path: revokes atomically with the user.session_revoked
+        # outbox events and blacklists the live JTIs (the raw .update() here
+        # skipped both).
+        from stapel_auth.sessions.services import SessionService
+
+        SessionService.revoke_all(user)
         AuditService.log(
             AuthEventType.SESSION_REVOKE_ALL,
             user=user,
