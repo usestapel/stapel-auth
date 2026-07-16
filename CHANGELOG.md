@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.5.9] — 2026-07-16
+
+### Fixed
+- Release hygiene: v0.5.8 CI was red because `docs/capabilities.json` was
+  regenerated before the version bump (envelope pinned `0.5.7`). Regenerated
+  at `0.5.9`; retag per house precedent (0.5.8 never reached PyPI).
+
 ## [0.5.8] — 2026-07-16
 
 ### Changed
