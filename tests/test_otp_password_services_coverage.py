@@ -598,14 +598,14 @@ class OtpSerializerValidationTests(TestCase):
 class PasswordMaskTests(TestCase):
     def test_mask_email_no_at(self):
         # line 22-23
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
 
         self.assertEqual(PasswordService.mask_email("noatsign"), "***")
         self.assertEqual(PasswordService.mask_email(""), "***")
 
     def test_mask_phone_too_short(self):
         # line 30-31
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
 
         self.assertEqual(PasswordService.mask_phone("12"), "***")
         self.assertEqual(PasswordService.mask_phone(""), "***")
@@ -614,7 +614,7 @@ class PasswordMaskTests(TestCase):
 class RaiseForOtpResultTests(TestCase):
     def test_falsy_non_dict_raises_500(self):
         # not a dict and falsy -> line 62-63
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
         from stapel_core.django.api.errors import StapelServiceError
 
         with self.assertRaises(StapelServiceError) as ctx:
@@ -623,7 +623,7 @@ class RaiseForOtpResultTests(TestCase):
 
     def test_truthy_non_dict_is_success(self):
         # not a dict and truthy -> line 64 (return, no raise)
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
 
         # a truthy object (e.g. a model instance stand-in) -> no exception
         self.assertIsNone(PasswordService._raise_for_otp_result(object()))
@@ -633,7 +633,7 @@ class GetAvailableMethodsTests(TestCase):
     def test_includes_totp_when_enabled(self):
         # line 112-113
         from stapel_auth.password.dto import PasswordMethodType
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
 
         user = _make_user()
         with patch(
@@ -649,7 +649,7 @@ class SendChangeOtpTests(TestCase):
     def test_phone_no_verified_contact(self):
         # line 157-159
         from stapel_auth.password.dto import PasswordMethodType
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
         from stapel_core.django.api.errors import StapelServiceError
 
         user = _make_user()  # no phone
@@ -659,7 +659,7 @@ class SendChangeOtpTests(TestCase):
 
     def test_phone_success_returns_masked(self):
         from stapel_auth.password.dto import PasswordMethodType
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
 
         user = _make_user()
         user.phone = "+79991234570"
@@ -671,7 +671,7 @@ class SendChangeOtpTests(TestCase):
     def test_totp_not_enabled_raises(self):
         # line 163-165
         from stapel_auth.password.dto import PasswordMethodType
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
         from stapel_core.django.api.errors import StapelServiceError
 
         user = _make_user()
@@ -685,7 +685,7 @@ class SendChangeOtpTests(TestCase):
     def test_totp_enabled_returns_empty(self):
         # line 166
         from stapel_auth.password.dto import PasswordMethodType
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
 
         user = _make_user()
         with patch(
@@ -696,7 +696,7 @@ class SendChangeOtpTests(TestCase):
 
     def test_invalid_method_raises(self):
         # line 167
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
         from stapel_core.django.api.errors import StapelServiceError
 
         user = _make_user()
@@ -709,7 +709,7 @@ class ChangeViaOtpTests(TestCase):
     def test_email_no_verified_contact(self):
         # line 181-182
         from stapel_auth.password.dto import PasswordMethodType
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
         from stapel_core.django.api.errors import StapelServiceError
 
         user = _make_user(email="")
@@ -722,7 +722,7 @@ class ChangeViaOtpTests(TestCase):
     def test_phone_no_verified_contact(self):
         # line 185-187
         from stapel_auth.password.dto import PasswordMethodType
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
         from stapel_core.django.api.errors import StapelServiceError
 
         user = _make_user()  # no phone
@@ -735,7 +735,7 @@ class ChangeViaOtpTests(TestCase):
     def test_phone_success_updates_password(self):
         # line 188-189 + set_password/save/revoke
         from stapel_auth.password.dto import PasswordMethodType
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
 
         user = _make_user()
         user.phone = "+79991234571"
@@ -754,7 +754,7 @@ class ChangeViaOtpTests(TestCase):
     def test_totp_not_enabled_raises(self):
         # line 190-192
         from stapel_auth.password.dto import PasswordMethodType
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
         from stapel_core.django.api.errors import StapelServiceError
 
         user = _make_user()
@@ -770,7 +770,7 @@ class ChangeViaOtpTests(TestCase):
     def test_totp_invalid_code_raises(self):
         # line 193-194
         from stapel_auth.password.dto import PasswordMethodType
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
         from stapel_core.django.api.errors import StapelServiceError
 
         user = _make_user()
@@ -789,7 +789,7 @@ class ChangeViaOtpTests(TestCase):
 
     def test_totp_success(self):
         from stapel_auth.password.dto import PasswordMethodType
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
 
         user = _make_user()
         with patch(
@@ -807,7 +807,7 @@ class ChangeViaOtpTests(TestCase):
 
     def test_invalid_method_raises(self):
         # line 195-196
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
         from stapel_core.django.api.errors import StapelServiceError
 
         user = _make_user()
@@ -819,7 +819,7 @@ class ChangeViaOtpTests(TestCase):
 class RevokeAllSessionsTests(TestCase):
     def test_exception_is_swallowed(self):
         # SessionService.revoke_all raises -> except lines 209-210 (logged, not raised)
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
 
         user = _make_user()
         with patch(

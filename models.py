@@ -319,7 +319,6 @@ class AuthEventType(models.TextChoices):
     TOTP_ENABLED        = 'totp_enabled'
     TOTP_DISABLED       = 'totp_disabled'
     TOTP_LOGIN          = 'totp_login'
-    TOTP_STEP_UP        = 'totp_step_up'
     SESSION_REVOKED     = 'session_revoked'
     SESSION_REVOKE_ALL  = 'session_revoke_all'
     ACCOUNT_LOCKED      = 'account_locked'

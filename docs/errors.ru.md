@@ -1,6 +1,6 @@
 # Errors — Русский
 
-`119` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
+`118` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
 
 | Код | Статус | Параметры | Действие | Текст |
 |---|---|---|---|---|
@@ -77,7 +77,6 @@
 | `error.403.qr_device_mismatch` | 403 | — | `retry` | Этот QR-код принадлежит другому устройству. |
 | `error.403.qr_unauth_scan` | 403 | — | `reauthenticate` | Этот QR-код нельзя отсканировать с неаутентифицированного устройства. |
 | `error.403.sso_required` | 403 | — | `reauthenticate` | Для этой учётной записи вход возможен только через SSO. Используйте SSO-ссылку вашей организации. |
-| `error.403.step_up_required` | 403 | — | `verify` | Для этого действия требуется подтверждение TOTP. Сначала получите step-up-токен. |
 | `error.403.verification_enrollment_required` | 403 | — | `verify` | Требуется регистрация фактора подтверждения. |
 | `error.403.verification_required` | 403 | — | `verify` | Требуется дополнительная проверка |
 | `error.404.ad_not_found` | 404 | — | `retry` | Объявление не найдено |

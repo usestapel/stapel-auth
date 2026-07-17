@@ -249,45 +249,6 @@ class TOTPChallengeTests(TestCase):
 
 
 # =============================================================================
-# TOTPService — deprecated step-up wrappers
-# =============================================================================
-
-class TOTPStepUpTests(TestCase):
-    def setUp(self):
-        cache.clear()
-        self.user = _make_user()
-        self.secret = pyotp.random_base32()
-        TOTPDevice.objects.create(
-            user=self.user, secret=self.secret, is_active=True, backup_codes=[],
-        )
-
-    def test_create_step_up_valid_emits_deprecation_and_returns_token(self):
-        code = pyotp.TOTP(self.secret).now()
-        with self.assertWarns(DeprecationWarning):
-            token = TOTPService.create_step_up(self.user, code)
-        self.assertIsNotNone(token)
-        self.assertIsNotNone(cache.get(f'step_up:{self.user.id}:{token}'))
-
-    def test_create_step_up_invalid_returns_none(self):
-        with self.assertWarns(DeprecationWarning):
-            token = TOTPService.create_step_up(self.user, '000000')
-        self.assertIsNone(token)
-
-    def test_consume_step_up_valid_then_invalid(self):
-        token = TOTPService._issue_step_up_token(self.user, pyotp.TOTP(self.secret).now())
-        self.assertIsNotNone(token)
-        with self.assertWarns(DeprecationWarning):
-            self.assertTrue(TOTPService.consume_step_up(self.user, token))
-        # Second consume fails — token is one-time.
-        with self.assertWarns(DeprecationWarning):
-            self.assertFalse(TOTPService.consume_step_up(self.user, token))
-
-    def test_consume_step_up_unknown_token(self):
-        with self.assertWarns(DeprecationWarning):
-            self.assertFalse(TOTPService.consume_step_up(self.user, 'nope'))
-
-
-# =============================================================================
 # PasskeyService helpers
 # =============================================================================
 

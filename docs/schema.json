@@ -4877,71 +4877,6 @@
         }
       }
     },
-    "/auth/api/v1/totp/step-up/": {
-      "post": {
-        "operationId": "auth_api_v1_totp_step_up_create",
-        "description": "DEPRECATED (removed in 1.0). Issue a one-time step-up token after TOTP verification (valid 15 min, X-Step-Up-Token). Superseded by the unified step-up contract: guard sensitive actions with @requires_verification and drive the /verification/ envelope flow instead. For transit, a successful call ALSO writes a server-side verification grant for the LEGACY_STEP_UP_GRANT_SCOPES scopes, so deployed legacy frontends keep passing @requires_verification while the backend migrates. See auth-stepup-unification.md.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
-        "tags": [
-          "auth"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TOTPStepUp"
-              }
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "$ref": "#/components/schemas/TOTPStepUp"
-              }
-            },
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/TOTPStepUp"
-              }
-            }
-          },
-          "required": true
-        },
-        "security": [
-          {
-            "JWTCookieAuth": []
-          }
-        ],
-        "deprecated": true,
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TOTPStepUpResponse"
-                },
-                "examples": {
-                  "TOTPStepUpResponse": {
-                    "value": {
-                      "step_up_token": "su_abc123",
-                      "expires_in": 300
-                    }
-                  }
-                }
-              }
-            },
-            "description": ""
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StapelError"
-                }
-              }
-            },
-            "description": ""
-          }
-        }
-      }
-    },
     "/auth/api/v1/user/account/cancel-close": {
       "post": {
         "operationId": "auth_api_v1_user_account_cancel_close_create",
@@ -7893,39 +7828,6 @@
           "expires_in",
           "qr_uri",
           "secret"
-        ]
-      },
-      "TOTPStepUp": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "description": "6-digit TOTP code.",
-            "maxLength": 6
-          }
-        },
-        "required": [
-          "code"
-        ]
-      },
-      "TOTPStepUpResponse": {
-        "type": "object",
-        "description": "Issued step-up token after TOTP verification.",
-        "properties": {
-          "step_up_token": {
-            "type": "string",
-            "description": "Opaque token proving recent TOTP verification",
-            "example": "su_abc123"
-          },
-          "expires_in": {
-            "type": "integer",
-            "description": "Seconds until the step-up token expires",
-            "example": 300
-          }
-        },
-        "required": [
-          "expires_in",
-          "step_up_token"
         ]
       },
       "TokenIntrospectRequest": {

@@ -28,7 +28,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from stapel_core.django.jwt_provider import jwt_provider
+from stapel_core.django.jwt.provider import jwt_provider
 from stapel_core.django.outbox.models import OutboxEvent
 
 from stapel_auth.models import StaffRoleAssignment

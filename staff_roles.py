@@ -200,7 +200,7 @@ def serialize_user_to_jwt_data(user) -> dict:
     the empty list is the authoritative "zero roles" that consumer sync-down
     (REPLACE, в.3) needs to make revocation land.
     """
-    from stapel_core.django.utils import serialize_user_to_jwt_data as core_serialize
+    from stapel_core.django.jwt.utils import serialize_user_to_jwt_data as core_serialize
 
     data = core_serialize(user)
     if data.get("is_staff") or data.get("is_superuser"):
@@ -223,7 +223,7 @@ def create_tokens_for_user(user) -> tuple[str, str]:
     token-issuance path in stapel-auth goes through here so the claim can
     never be forgotten on a new login flow.
     """
-    from stapel_core.django.jwt_provider import jwt_provider
+    from stapel_core.django.jwt.provider import jwt_provider
 
     return jwt_provider.create_tokens_from_data(serialize_user_to_jwt_data(user))
 

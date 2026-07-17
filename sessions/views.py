@@ -63,7 +63,7 @@ class CustomTokenObtainPairView(SerializerSeamsMixin, APIView):
     response_serializer_class = TokenPairSerializer
 
     def post(self, request):
-        from stapel_core.django.utils import set_jwt_cookies
+        from stapel_core.django.jwt.utils import set_jwt_cookies
 
         # Accept both 'username' and 'email' as login field (for backwards compatibility)
         username = request.data.get("username") or request.data.get("email")
@@ -157,8 +157,8 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
 
     def _refresh_token(self, request):
         """Internal method to handle token refresh with rotation."""
-        from stapel_core.django.jwt_provider import jwt_provider
-        from stapel_core.django.utils import extract_jwt_from_request, set_jwt_cookies
+        from stapel_core.django.jwt.provider import jwt_provider
+        from stapel_core.django.jwt.utils import extract_jwt_from_request, set_jwt_cookies
 
         from .services import SessionService
 
@@ -181,7 +181,7 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
         old_jti = _payload.get("jti")
         _uid = _payload.get("user_id")
 
-        from stapel_core.django.authentication import is_user_blacklisted
+        from stapel_core.django.jwt.authentication import is_user_blacklisted
 
         if _uid and is_user_blacklisted(_uid):
             logger.warning(f"Token refresh blocked: user {_uid} is blacklisted")
@@ -283,7 +283,7 @@ def _issue_session_tokens(user, request):
     """Create a token pair, register a UserSession, return (access_str, refresh_str)."""
     import datetime
 
-    from stapel_core.django.jwt_provider import jwt_provider
+    from stapel_core.django.jwt.provider import jwt_provider
 
     from stapel_auth.staff_roles import create_tokens_for_user
 
@@ -329,7 +329,7 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["get"], url_path="")
     def list_sessions(self, request):  # noqa: R007
-        from stapel_core.django.jwt_provider import jwt_provider
+        from stapel_core.django.jwt.provider import jwt_provider
 
         from .services import SessionService
 
@@ -419,7 +419,7 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["delete"], url_path="")
     def revoke_all(self, request):  # noqa: R007
-        from stapel_core.django.jwt_provider import jwt_provider
+        from stapel_core.django.jwt.provider import jwt_provider
 
         from .services import SessionService
 

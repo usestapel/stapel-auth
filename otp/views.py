@@ -566,7 +566,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 self.get_auth_response_serializer_class()(auth_dto).data,
                 status=status.HTTP_200_OK,
             )
-            from stapel_core.django.utils import set_jwt_cookies
+            from stapel_core.django.jwt.utils import set_jwt_cookies
 
             set_jwt_cookies(response, access_token, refresh_token)
             return _add_login_hints(response)
@@ -852,7 +852,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 self.get_auth_response_serializer_class()(auth_dto).data,
                 status=status.HTTP_200_OK,
             )
-            from stapel_core.django.utils import set_jwt_cookies
+            from stapel_core.django.jwt.utils import set_jwt_cookies
 
             set_jwt_cookies(response, access_token, refresh_token)
             return _add_login_hints(response)
@@ -914,7 +914,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 self.get_auth_response_serializer_class()(auth_dto).data,
                 status=status.HTTP_201_CREATED,
             )
-            from stapel_core.django.utils import set_jwt_cookies
+            from stapel_core.django.jwt.utils import set_jwt_cookies
 
             set_jwt_cookies(response, access_token, refresh_token)
             return response
@@ -986,7 +986,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             self.get_auth_response_serializer_class()(auth_dto).data,
             status=status.HTTP_200_OK,
         )
-        from stapel_core.django.utils import set_jwt_cookies
+        from stapel_core.django.jwt.utils import set_jwt_cookies
 
         set_jwt_cookies(response, access_token, refresh_token)
         return _add_login_hints(response)
@@ -1121,7 +1121,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if redirect_after:
             # Tokens travel as httponly cookies, never in the URL — query
             # strings end up in proxy logs, browser history and referrers.
-            from stapel_core.django.utils import set_jwt_cookies
+            from stapel_core.django.jwt.utils import set_jwt_cookies
 
             response = redirect(redirect_after)
             set_jwt_cookies(response, access_token, refresh_token)
@@ -1135,7 +1135,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             self.get_auth_response_serializer_class()(auth_dto).data,
             status=status.HTTP_200_OK,
         )
-        from stapel_core.django.utils import set_jwt_cookies
+        from stapel_core.django.jwt.utils import set_jwt_cookies
 
         set_jwt_cookies(response, access_token, refresh_token)
         return response
@@ -1241,7 +1241,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
             from stapel_core.core.jwt_handler import JWTHandler
             from stapel_core.core.token_blacklist import TokenBlacklist
-            from stapel_core.django.utils import (
+            from stapel_core.django.jwt.utils import (
                 extract_jwt_from_request,
                 load_jwt_config_from_settings,
             )
@@ -1395,7 +1395,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     @action(detail=False, methods=["post"])
     def verify_token(self, request):  # noqa: R007
         """Verify JWT token"""
-        from stapel_core.django.jwt_provider import jwt_provider
+        from stapel_core.django.jwt.provider import jwt_provider
 
         token = request.data.get("token")
         if not token:
@@ -1608,7 +1608,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             response = Response(
                 self.get_auth_response_serializer_class()(auth_dto).data
             )
-            from stapel_core.django.utils import set_jwt_cookies
+            from stapel_core.django.jwt.utils import set_jwt_cookies
 
             set_jwt_cookies(response, access_token, refresh_token)
             return response
@@ -1725,7 +1725,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             response = Response(
                 self.get_auth_response_serializer_class()(auth_dto).data
             )
-            from stapel_core.django.utils import set_jwt_cookies
+            from stapel_core.django.jwt.utils import set_jwt_cookies
 
             set_jwt_cookies(response, access_token, refresh_token)
             return response
@@ -1747,7 +1747,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if not new_value:
             return StapelErrorResponse(400, ERR_400_PHONE_REQUIRED)
         svc = AuthenticatorChangeService()
-        from .utils import mask_value
+        from stapel_auth.utils import mask_value
 
         ip = request.headers.get("x-forwarded-for", request.META.get("REMOTE_ADDR", ""))
         if ip and "," in ip:
@@ -1826,7 +1826,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if not new_value:
             return StapelErrorResponse(400, ERR_400_EMAIL_REQUIRED)
         svc = AuthenticatorChangeService()
-        from .utils import mask_value
+        from stapel_auth.utils import mask_value
 
         ip = request.headers.get("x-forwarded-for", request.META.get("REMOTE_ADDR", ""))
         if ip and "," in ip:

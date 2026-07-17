@@ -76,7 +76,7 @@ class TokenService:
     def verify_token(token):
         """Verify JWT token and return payload"""
         try:
-            from stapel_core.django.jwt_provider import jwt_provider
+            from stapel_core.django.jwt.provider import jwt_provider
             return jwt_provider.validate_token(token)
         except Exception as e:
             logger.error(f"Failed to verify token: {e}")
@@ -86,7 +86,7 @@ class TokenService:
     def blacklist_token(token):
         """Blacklist token (access or refresh)"""
         try:
-            from stapel_core.django.jwt_provider import jwt_provider
+            from stapel_core.django.jwt.provider import jwt_provider
             return jwt_provider.blacklist_token(token)
         except Exception as e:
             logger.error(f"Failed to blacklist token: {e}")

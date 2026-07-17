@@ -292,7 +292,7 @@ class AuditLogTests(APITestCase):
 class MagicLinkRequestTests(APITestCase):
     def test_request_existing_user_sends_link(self):
         user = _make_user()
-        with patch('stapel_auth.services.MagicLinkService.send', return_value=True):
+        with patch('stapel_auth.magic_link.services.MagicLinkService.send', return_value=True):
             resp = self.client.post(reverse('magic_request'), {'email': user.email}, format='json')
         self.assertEqual(resp.status_code, 200)
 
@@ -302,7 +302,7 @@ class MagicLinkRequestTests(APITestCase):
 
     def test_request_rate_limited_returns_429(self):
         user = _make_user()
-        with patch('stapel_auth.services.MagicLinkService.send', return_value=False):
+        with patch('stapel_auth.magic_link.services.MagicLinkService.send', return_value=False):
             resp = self.client.post(reverse('magic_request'), {'email': user.email}, format='json')
         self.assertEqual(resp.status_code, 429)
 
@@ -312,7 +312,7 @@ class MagicLinkRequestTests(APITestCase):
         self.assertIn('invalid_link', resp['Location'])
 
     def test_verify_invalid_token_redirects_to_error(self):
-        with patch('stapel_auth.services.MagicLinkService.peek', return_value=None):
+        with patch('stapel_auth.magic_link.services.MagicLinkService.peek', return_value=None):
             resp = self.client.get(reverse('magic_verify') + '?token=badtoken')
         self.assertIn(resp.status_code, [302, 301])
         self.assertIn('invalid_link', resp['Location'])
@@ -320,18 +320,18 @@ class MagicLinkRequestTests(APITestCase):
     def test_verify_valid_token_sets_cookies(self):
         user = _make_user()
         token_data = {'user_id': str(user.id), 'redirect_url': '/home'}
-        with patch('stapel_auth.services.MagicLinkService.peek', return_value=token_data), \
-             patch('stapel_auth.services.MagicLinkService.consume', return_value=token_data), \
-             patch('stapel_auth.services.AuditService.log'), \
-             patch('stapel_auth.views._issue_session_tokens', return_value=('acc', 'ref')), \
+        with patch('stapel_auth.magic_link.services.MagicLinkService.peek', return_value=token_data), \
+             patch('stapel_auth.magic_link.services.MagicLinkService.consume', return_value=token_data), \
+             patch('stapel_auth.sessions.services.AuditService.log'), \
+             patch('stapel_auth.sessions.views._issue_session_tokens', return_value=('acc', 'ref')), \
              patch('stapel_core.django.jwt.utils.set_jwt_cookies'):
             resp = self.client.get(reverse('magic_verify') + '?token=validtoken')
         self.assertIn(resp.status_code, [302, 301])
 
     def test_verify_consumed_token_redirects_to_error(self):
         token_data = {'user_id': '999999', 'redirect_url': '/'}
-        with patch('stapel_auth.services.MagicLinkService.peek', return_value=token_data), \
-             patch('stapel_auth.services.MagicLinkService.consume', return_value=None):
+        with patch('stapel_auth.magic_link.services.MagicLinkService.peek', return_value=token_data), \
+             patch('stapel_auth.magic_link.services.MagicLinkService.consume', return_value=None):
             resp = self.client.get(reverse('magic_verify') + '?token=usedtoken')
         self.assertIn(resp.status_code, [302, 301])
         self.assertIn('invalid_link', resp['Location'])
@@ -342,8 +342,8 @@ class MagicLinkRequestTests(APITestCase):
         access, _ = jwt_provider.create_tokens(user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
         token_data = {'user_id': str(user.id), 'redirect_url': '/home'}
-        with patch('stapel_auth.services.MagicLinkService.peek', return_value=token_data), \
-             patch('stapel_auth.services.MagicLinkService.consume', return_value=token_data):
+        with patch('stapel_auth.magic_link.services.MagicLinkService.peek', return_value=token_data), \
+             patch('stapel_auth.magic_link.services.MagicLinkService.consume', return_value=token_data):
             resp = self.client.get(reverse('magic_verify') + '?token=validtoken')
         self.assertIn(resp.status_code, [302, 301])
 
@@ -354,7 +354,7 @@ class MagicLinkRequestTests(APITestCase):
         access, _ = jwt_provider.create_tokens(user1)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
         token_data = {'user_id': str(user2.id), 'redirect_url': '/home'}
-        with patch('stapel_auth.services.MagicLinkService.peek', return_value=token_data):
+        with patch('stapel_auth.magic_link.services.MagicLinkService.peek', return_value=token_data):
             resp = self.client.get(reverse('magic_verify') + '?token=validtoken')
         self.assertIn(resp.status_code, [302, 301])
         self.assertIn('account_conflict', resp['Location'])
@@ -390,7 +390,7 @@ class RevokeSuspiciousTests(APITestCase):
         signer = TimestampSigner()
         token = signer.sign(f'{user.id}:{session.id}')
         with patch('stapel_core.notifications.request_notification', return_value=True), \
-             patch('stapel_auth.services.AuditService.log'):
+             patch('stapel_auth.sessions.services.AuditService.log'):
             resp = self.client.get(reverse('revoke_suspicious') + f'?token={token}')
         self.assertIn(resp.status_code, [302, 301])
         self.assertIn('sessions_revoked', resp['Location'])
@@ -416,30 +416,30 @@ class PasskeyListTests(APITestCase):
 
     def test_register_begin_returns_options(self):
         fake_options = {'challenge': 'abc123', 'rp': {'id': 'example.com'}, 'user': {}}
-        with patch('stapel_auth.services.PasskeyService.registration_begin', return_value=fake_options):
+        with patch('stapel_auth.mfa.services.PasskeyService.registration_begin', return_value=fake_options):
             resp = self.client.post(reverse('passkey_register_begin'), {}, format='json')
         self.assertEqual(resp.status_code, 200)
         self.assertIn('options', resp.data)
 
     def test_register_begin_service_error_returns_400(self):
-        with patch('stapel_auth.services.PasskeyService.registration_begin', side_effect=Exception('fail')):
+        with patch('stapel_auth.mfa.services.PasskeyService.registration_begin', side_effect=Exception('fail')):
             resp = self.client.post(reverse('passkey_register_begin'), {}, format='json')
         self.assertEqual(resp.status_code, 400)
 
     def test_auth_begin_no_email(self):
         fake_opts = {'challenge': 'xyz'}
-        with patch('stapel_auth.services.PasskeyService.authentication_begin', return_value=('key123', fake_opts)):
+        with patch('stapel_auth.mfa.services.PasskeyService.authentication_begin', return_value=('key123', fake_opts)):
             resp = self.client.post(reverse('passkey_auth_begin'), {}, format='json')
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data['session_key'], 'key123')
 
     def test_auth_begin_service_error_returns_400(self):
-        with patch('stapel_auth.services.PasskeyService.authentication_begin', side_effect=Exception('fail')):
+        with patch('stapel_auth.mfa.services.PasskeyService.authentication_begin', side_effect=Exception('fail')):
             resp = self.client.post(reverse('passkey_auth_begin'), {}, format='json')
         self.assertEqual(resp.status_code, 400)
 
     def test_register_complete_challenge_expired(self):
-        with patch('stapel_auth.services.PasskeyService.registration_complete',
+        with patch('stapel_auth.mfa.services.PasskeyService.registration_complete',
                    side_effect=ValueError('challenge_expired')):
             resp = self.client.post(reverse('passkey_register_complete'),
                                     {'credential': {}, 'device_name': 'Test'}, format='json')
@@ -472,19 +472,19 @@ class PasskeyAuthAnonTests(APITestCase):
     def test_auth_begin_with_email_hint(self):
         user = _make_user()
         fake_opts = {'challenge': 'abc'}
-        with patch('stapel_auth.services.PasskeyService.authentication_begin', return_value=('key', fake_opts)):
+        with patch('stapel_auth.mfa.services.PasskeyService.authentication_begin', return_value=('key', fake_opts)):
             resp = self.client.post(reverse('passkey_auth_begin'), {'email': user.email}, format='json')
         self.assertEqual(resp.status_code, 200)
 
     def test_auth_complete_challenge_expired(self):
-        with patch('stapel_auth.services.PasskeyService.authentication_complete',
+        with patch('stapel_auth.mfa.services.PasskeyService.authentication_complete',
                    side_effect=ValueError('challenge_expired')):
             resp = self.client.post(reverse('passkey_auth_complete'),
                                     {'session_key': 'k', 'credential': {}}, format='json')
         self.assertEqual(resp.status_code, 400)
 
     def test_auth_complete_invalid_credential(self):
-        with patch('stapel_auth.services.PasskeyService.authentication_complete',
+        with patch('stapel_auth.mfa.services.PasskeyService.authentication_complete',
                    side_effect=ValueError('invalid')):
             resp = self.client.post(reverse('passkey_auth_complete'),
                                     {'session_key': 'k', 'credential': {}}, format='json')
@@ -500,8 +500,8 @@ class PasskeyAuthAnonTests(APITestCase):
             sign_count=0,
             aaguid='00000000-0000-0000-0000-000000000000',
         )
-        with patch('stapel_auth.services.PasskeyService.authentication_complete', return_value=(user, pc)), \
-             patch('stapel_auth.views._issue_session_tokens', return_value=('acc', 'ref')), \
+        with patch('stapel_auth.mfa.services.PasskeyService.authentication_complete', return_value=(user, pc)), \
+             patch('stapel_auth.sessions.views._issue_session_tokens', return_value=('acc', 'ref')), \
              patch('stapel_core.django.jwt.utils.set_jwt_cookies'):
             resp = self.client.post(reverse('passkey_auth_complete'),
                                     {'session_key': 'k', 'credential': {}}, format='json')
@@ -627,8 +627,8 @@ class ExecutePendingChangesTaskTests(TestCase):
             scheduled_at=timezone.now() - timedelta(minutes=5),
             change_token=uuid.uuid4(),
         )
-        with patch('stapel_auth.services.AuthenticatorChangeService._apply_change'), \
-             patch('stapel_auth.services.AuthenticatorChangeService._invalidate_all_tokens'), \
+        with patch('stapel_auth.otp.services.AuthenticatorChangeService._apply_change'), \
+             patch('stapel_auth.otp.services.AuthenticatorChangeService._invalidate_all_tokens'), \
              patch('stapel_auth.tasks.request_notification', return_value=True):
             from stapel_auth.tasks import execute_pending_changes
             result = execute_pending_changes()
@@ -690,8 +690,8 @@ class EvaluateLoginNotificationTaskTests(TestCase):
             device_type='desktop',
             expires_at=timezone.now() + timedelta(days=30),
         )
-        with patch('stapel_auth.services.LoginNotificationService.is_new_device', return_value=True), \
-             patch('stapel_auth.services.LoginNotificationService.is_suspicious_ip', return_value=False), \
+        with patch('stapel_auth.sessions.services.LoginNotificationService.is_new_device', return_value=True), \
+             patch('stapel_auth.sessions.services.LoginNotificationService.is_suspicious_ip', return_value=False), \
              patch('stapel_auth.tasks._send_login_alert_email') as mock_send:
             evaluate_login_notification(str(self.user.id), str(session.id))
         mock_send.assert_called_once()
@@ -706,9 +706,9 @@ class EvaluateLoginNotificationTaskTests(TestCase):
             device_type='desktop',
             expires_at=timezone.now() + timedelta(days=30),
         )
-        with patch('stapel_auth.services.LoginNotificationService.is_new_device', return_value=False), \
-             patch('stapel_auth.services.LoginNotificationService.is_suspicious_ip', return_value=True), \
-             patch('stapel_auth.services.AuditService.log'), \
+        with patch('stapel_auth.sessions.services.LoginNotificationService.is_new_device', return_value=False), \
+             patch('stapel_auth.sessions.services.LoginNotificationService.is_suspicious_ip', return_value=True), \
+             patch('stapel_auth.sessions.services.AuditService.log'), \
              patch('stapel_auth.tasks._send_login_alert_email') as mock_send:
             evaluate_login_notification(str(self.user.id), str(session.id))
         mock_send.assert_called_once()
@@ -745,7 +745,7 @@ class ProviderRegistryTests(TestCase):
         self.assertEqual(providers[0].id, 'google')
 
     def test_unsupported_provider_returns_none(self):
-        from stapel_auth.services import OAuthService
+        from stapel_auth.oauth.services import OAuthService
         result = OAuthService().get_user_data('tiktok', 'token')
         self.assertIsNone(result)
 
@@ -1393,7 +1393,7 @@ class OAuthCallbackTests(APITestCase):
         )
         from unittest.mock import patch
         self._store_state()
-        with patch('stapel_auth.services.TOTPService.is_enabled', return_value=True):
+        with patch('stapel_auth.mfa.services.TOTPService.is_enabled', return_value=True):
             response = self.client.get(
                 reverse('oauth_callback', kwargs={'provider': 'test'}),
                 {'code': 'valid-code', 'state': 'test-state-abc'},
@@ -1411,8 +1411,8 @@ class OAuthCallbackTests(APITestCase):
         )
         from unittest.mock import patch
         self._store_state()
-        with patch('stapel_auth.services.TOTPService.is_enabled', return_value=True), \
-             patch('stapel_auth.services.TOTPService.create_challenge', return_value='totp-challenge-tok'):
+        with patch('stapel_auth.mfa.services.TOTPService.is_enabled', return_value=True), \
+             patch('stapel_auth.mfa.services.TOTPService.create_challenge', return_value='totp-challenge-tok'):
             response = self.client.get(
                 reverse('oauth_callback', kwargs={'provider': 'test'}),
                 {'code': 'valid-code', 'state': 'test-state-abc'},
@@ -1452,7 +1452,7 @@ class CaptchaSerializerTests(TestCase):
         ser = EmailAuthRequestSerializer(data=self._email_request_data())
         self.assertTrue(ser.is_valid(), ser.errors)
 
-    @override_settings(CAPTCHA_BACKEND='turnstile', CAPTCHA_SECRET='test-secret')
+    @override_settings(STAPEL_CAPTCHA={'BACKEND': 'turnstile', 'SECRET': 'test-secret'})
     def test_captcha_configured_invalid_token_raises_error(self):
         """With captcha configured, an invalid token raises validation error."""
         from stapel_auth.otp.serializers import PhoneAuthRequestSerializer
@@ -1466,7 +1466,7 @@ class CaptchaSerializerTests(TestCase):
             self.assertFalse(ser.is_valid())
             self.assertIn('captcha_token', ser.errors)
 
-    @override_settings(CAPTCHA_BACKEND='turnstile', CAPTCHA_SECRET='test-secret')
+    @override_settings(STAPEL_CAPTCHA={'BACKEND': 'turnstile', 'SECRET': 'test-secret'})
     def test_captcha_configured_valid_token_passes(self):
         """With captcha configured, a valid token passes validation."""
         from stapel_auth.otp.serializers import PhoneAuthRequestSerializer
@@ -1479,7 +1479,7 @@ class CaptchaSerializerTests(TestCase):
             )
             self.assertTrue(ser.is_valid(), ser.errors)
 
-    @override_settings(CAPTCHA_BACKEND='turnstile', CAPTCHA_SECRET='test-secret')
+    @override_settings(STAPEL_CAPTCHA={'BACKEND': 'turnstile', 'SECRET': 'test-secret'})
     def test_captcha_configured_missing_token_raises_required(self):
         """With captcha configured, missing captcha_token raises a required error."""
         from stapel_auth.otp.serializers import PhoneAuthRequestSerializer
@@ -1491,7 +1491,7 @@ class CaptchaSerializerTests(TestCase):
         errors = str(ser.errors)
         self.assertIn('captcha', errors.lower())
 
-    @override_settings(CAPTCHA_BACKEND='noop', CAPTCHA_SECRET='dummy-secret')
+    @override_settings(STAPEL_CAPTCHA={'BACKEND': 'noop', 'SECRET': 'dummy-secret'})
     def test_captcha_noop_backend_always_passes(self):
         """NoopVerifier with a secret still passes any token — useful for CI."""
         from stapel_auth.otp.serializers import EmailAuthRequestSerializer

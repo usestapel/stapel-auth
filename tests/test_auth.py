@@ -23,7 +23,7 @@ from stapel_auth.models import (
     PhoneVerification,
 )
 from stapel_auth.oauth_providers import OAuthUserData
-from stapel_auth.services import TokenService
+from stapel_auth.sessions.services import TokenService
 
 User = get_user_model()
 
@@ -167,7 +167,7 @@ class EmailAuthenticationTests(APITestCase):
             auth_type="email",
         )
 
-    @patch("stapel_auth.services.EmailVerificationService.send_verification_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.send_verification_code")
     def test_email_request_otp_success(self, mock_send):
         """Request OTP for email should succeed"""
         mock_send.return_value = True
@@ -178,7 +178,7 @@ class EmailAuthenticationTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @patch("stapel_auth.services.EmailVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.verify_code")
     def test_email_verify_new_user_returns_registered(self, mock_verify):
         """Verifying OTP for new email should return REGISTERED status"""
         mock_verify.return_value = {"success": True}
@@ -193,7 +193,7 @@ class EmailAuthenticationTests(APITestCase):
         self.assertIn("access", response.data["tokens"])
         self.assertIn("refresh", response.data["tokens"])
 
-    @patch("stapel_auth.services.EmailVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.verify_code")
     def test_email_verify_existing_user_returns_logged_in(self, mock_verify):
         """Verifying OTP for existing user should return LOGGED_IN status"""
         mock_verify.return_value = {"success": True}
@@ -205,7 +205,7 @@ class EmailAuthenticationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["status"], "LOGGED_IN")
 
-    @patch("stapel_auth.services.EmailVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.verify_code")
     def test_email_verify_returns_token_with_admin_claims(self, mock_verify):
         """Email verify should return token with is_staff and is_superuser claims"""
         mock_verify.return_value = {"success": True}
@@ -242,7 +242,7 @@ class PhoneAuthenticationTests(APITestCase):
             auth_type="phone",
         )
 
-    @patch("stapel_auth.services.PhoneVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.PhoneVerificationService.verify_code")
     def test_phone_verify_new_user_returns_registered(self, mock_verify):
         """Verifying OTP for new phone should return REGISTERED status"""
         mock_verify.return_value = {"success": True}
@@ -255,7 +255,7 @@ class PhoneAuthenticationTests(APITestCase):
         self.assertEqual(response.data["status"], "REGISTERED")
         self.assertIn("tokens", response.data)
 
-    @patch("stapel_auth.services.PhoneVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.PhoneVerificationService.verify_code")
     def test_phone_verify_existing_user_returns_logged_in(self, mock_verify):
         """Verifying OTP for existing phone user should return LOGGED_IN status"""
         mock_verify.return_value = {"success": True}
@@ -267,7 +267,7 @@ class PhoneAuthenticationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["status"], "LOGGED_IN")
 
-    @patch("stapel_auth.services.PhoneVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.PhoneVerificationService.verify_code")
     def test_phone_verify_returns_token_with_admin_claims(self, mock_verify):
         """Phone verify should return token with is_staff and is_superuser claims"""
         mock_verify.return_value = {"success": True}
@@ -331,7 +331,7 @@ class OAuthAuthenticationTests(APITestCase):
     def setUp(self):
         self.client = APIClient()
 
-    @patch("stapel_auth.services.OAuthService.get_user_data")
+    @patch("stapel_auth.oauth.services.OAuthService.get_user_data")
     def test_oauth_google_returns_token_with_claims(self, mock_get_user_data):
         """OAuth Google auth should return token with admin claims"""
         mock_get_user_data.return_value = OAuthUserData(
@@ -357,7 +357,7 @@ class OAuthAuthenticationTests(APITestCase):
         self.assertFalse(decoded["is_staff"])
         self.assertFalse(decoded["is_superuser"])
 
-    @patch("stapel_auth.services.OAuthService.get_user_data")
+    @patch("stapel_auth.oauth.services.OAuthService.get_user_data")
     def test_oauth_long_avatar_url_does_not_crash(self, mock_get_user_data):
         """Regression: a provider avatar URL longer than the old varchar(200)
         must not 500 the OAuth signup (StringDataRightTruncation in prod)."""
@@ -378,7 +378,7 @@ class OAuthAuthenticationTests(APITestCase):
         # Fits in the widened field (<=500) → stored as-is.
         self.assertEqual(user.avatar, long_avatar)
 
-    @patch("stapel_auth.services.OAuthService.get_user_data")
+    @patch("stapel_auth.oauth.services.OAuthService.get_user_data")
     def test_oauth_pathological_avatar_url_dropped(self, mock_get_user_data):
         """An avatar URL exceeding even the widened field degrades to no-avatar,
         never a crash."""
@@ -398,7 +398,7 @@ class OAuthAuthenticationTests(APITestCase):
         user = User.objects.get(email="hugeavatar@example.com")
         self.assertIsNone(user.avatar)
 
-    @patch("stapel_auth.services.OAuthService.get_user_data")
+    @patch("stapel_auth.oauth.services.OAuthService.get_user_data")
     def test_oauth_existing_staff_user_preserves_permissions(self, mock_get_user_data):
         """OAuth for existing staff user should preserve is_staff=True"""
         # Create existing staff user
@@ -759,7 +759,7 @@ class PhoneVerificationServiceTests(TestCase):
     """Tests for PhoneVerificationService"""
 
     def setUp(self):
-        from stapel_auth.services import PhoneVerificationService
+        from stapel_auth.otp.services import PhoneVerificationService
 
         self.service = PhoneVerificationService()
 
@@ -823,7 +823,7 @@ class PhoneVerificationServiceTests(TestCase):
         """AUTH_OTP_RESEND_COOLDOWN isn't just contract metadata — it is the
         exact window send_verification_code() enforces (single source)."""
         from stapel_auth.conf import auth_settings
-        from stapel_auth.services import PhoneVerificationService
+        from stapel_auth.otp.services import PhoneVerificationService
         auth_settings.reload()
         service = PhoneVerificationService()
         service.send_verification_code("+15557654321")
@@ -836,7 +836,7 @@ class PhoneVerificationServiceTests(TestCase):
         """AUTH_OTP_TTL isn't just contract metadata — it is the exact
         lifetime the created PhoneVerification record gets (single source)."""
         from stapel_auth.conf import auth_settings
-        from stapel_auth.services import PhoneVerificationService
+        from stapel_auth.otp.services import PhoneVerificationService
         auth_settings.reload()
         service = PhoneVerificationService()
         verification = service.send_verification_code("+15559998888")
@@ -849,7 +849,7 @@ class EmailVerificationServiceTests(TestCase):
     """Tests for EmailVerificationService"""
 
     def setUp(self):
-        from stapel_auth.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService
 
         self.service = EmailVerificationService()
 
@@ -893,7 +893,7 @@ class OAuthServiceTests(TestCase):
     """Tests for OAuthService"""
 
     def setUp(self):
-        from stapel_auth.services import OAuthService
+        from stapel_auth.oauth.services import OAuthService
 
         self.service = OAuthService()
 
@@ -1207,7 +1207,7 @@ class EmailVerificationEdgeCaseTests(APITestCase):
         from datetime import timedelta
 
         from stapel_auth.models import EmailVerification
-        from stapel_auth.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService
 
         service = EmailVerificationService()
         service.send_verification_code("blocked@example.com")
@@ -1250,7 +1250,7 @@ class EmailVerificationEdgeCaseTests(APITestCase):
 
     def test_email_verify_invalid_code_shows_attempts(self):
         """Email verify with invalid code should show attempts remaining"""
-        from stapel_auth.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService
 
         service = EmailVerificationService()
         service.send_verification_code("attempts@example.com")
@@ -1268,7 +1268,7 @@ class EmailVerificationEdgeCaseTests(APITestCase):
 
     def test_email_verify_authenticated_user_modifies_email(self):
         """Authenticated user verifying email should get MODIFIED status"""
-        from stapel_auth.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService
 
         # Create and authenticate user
         user = User.objects.create_user(
@@ -1292,7 +1292,7 @@ class EmailVerificationEdgeCaseTests(APITestCase):
 
     def test_email_verify_anonymous_user_registers(self):
         """Anonymous user verifying new email should get REGISTERED status"""
-        from stapel_auth.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService
 
         # Create anonymous user and authenticate
         anon_user = User.create_anonymous_user()
@@ -1320,7 +1320,7 @@ class EmailVerificationEdgeCaseTests(APITestCase):
 
     def test_email_verify_anonymous_user_merges_with_existing(self):
         """Anonymous user verifying existing email should get MERGED status"""
-        from stapel_auth.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService
 
         # Create existing user
         User.objects.create_user(
@@ -1373,7 +1373,7 @@ class OAuthViewEdgeCaseTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("stapel_auth.services.OAuthService.get_user_data")
+    @patch("stapel_auth.oauth.services.OAuthService.get_user_data")
     def test_oauth_failed_auth_returns_400(self, mock_get_user_data):
         """OAuth with failed provider auth should return 400"""
         mock_get_user_data.return_value = None
@@ -1625,7 +1625,7 @@ class PhoneVerificationEdgeCaseTests(APITestCase):
 
     def test_phone_verify_invalid_code_shows_attempts(self):
         """Invalid phone code should show attempts remaining"""
-        from stapel_auth.services import PhoneVerificationService
+        from stapel_auth.otp.services import PhoneVerificationService
 
         service = PhoneVerificationService()
         service.send_verification_code("+12345678903")
@@ -1640,7 +1640,7 @@ class PhoneVerificationEdgeCaseTests(APITestCase):
 
     def test_phone_verify_authenticated_user_modifies_phone(self):
         """Authenticated user verifying phone should get MODIFIED status"""
-        from stapel_auth.services import PhoneVerificationService
+        from stapel_auth.otp.services import PhoneVerificationService
 
         # Create and authenticate user
         user = User.objects.create_user(
@@ -1662,7 +1662,7 @@ class PhoneVerificationEdgeCaseTests(APITestCase):
 
     def test_phone_verify_anonymous_user_registers(self):
         """Anonymous user verifying new phone should get REGISTERED status"""
-        from stapel_auth.services import PhoneVerificationService
+        from stapel_auth.otp.services import PhoneVerificationService
 
         # Create anonymous user and authenticate
         anon_user = User.create_anonymous_user()
@@ -1688,7 +1688,7 @@ class PhoneVerificationEdgeCaseTests(APITestCase):
 
     def test_phone_verify_anonymous_user_merges_with_existing(self):
         """Anonymous user verifying existing phone should get MERGED status"""
-        from stapel_auth.services import PhoneVerificationService
+        from stapel_auth.otp.services import PhoneVerificationService
 
         # Create existing user with phone
         User.objects.create_user(
@@ -1720,7 +1720,7 @@ class PhoneRequestEdgeCaseTests(APITestCase):
 
     def test_phone_request_rate_limit(self):
         """Rapid phone requests should be rate limited"""
-        from stapel_auth.services import PhoneVerificationService
+        from stapel_auth.otp.services import PhoneVerificationService
 
         service = PhoneVerificationService()
         # First request
@@ -1761,7 +1761,7 @@ class CookieAuthenticationTests(APITestCase):
 
     def test_email_verify_sets_cookies(self):
         """Email verification should set JWT cookies"""
-        from stapel_auth.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService
 
         service = EmailVerificationService()
         service.send_verification_code("newcookie@example.com")
@@ -1780,7 +1780,7 @@ class CookieAuthenticationTests(APITestCase):
 
     def test_phone_verify_sets_cookies(self):
         """Phone verification should set JWT cookies"""
-        from stapel_auth.services import PhoneVerificationService
+        from stapel_auth.otp.services import PhoneVerificationService
 
         service = PhoneVerificationService()
         service.send_verification_code("+12345678920")
@@ -1805,7 +1805,7 @@ class CookieAuthenticationTests(APITestCase):
 
     def test_logout_clears_cookies(self):
         """Logout should clear JWT cookies"""
-        from stapel_auth.services import TokenService
+        from stapel_auth.sessions.services import TokenService
 
         # Get tokens and authenticate
         refresh = TokenService.get_refresh_token_for_user(self.user)
@@ -1823,7 +1823,7 @@ class CookieAuthenticationTests(APITestCase):
 
     def test_token_refresh_via_cookie(self):
         """Token refresh should work via cookie"""
-        from stapel_auth.services import TokenService
+        from stapel_auth.sessions.services import TokenService
 
         refresh = TokenService.get_refresh_token_for_user(self.user)
         self.client.cookies["stapel_refresh_jwt"] = str(refresh)
@@ -1835,7 +1835,7 @@ class CookieAuthenticationTests(APITestCase):
 
     def test_token_refresh_via_body(self):
         """Token refresh should work via request body"""
-        from stapel_auth.services import TokenService
+        from stapel_auth.sessions.services import TokenService
 
         refresh = TokenService.get_refresh_token_for_user(self.user)
 
@@ -1971,7 +1971,7 @@ class UserUpgradeTests(APITestCase):
 
     def test_anonymous_upgrade_to_email_changes_auth_type(self):
         """Anonymous user upgrading via email should change auth_type"""
-        from stapel_auth.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService
 
         anon_user = User.create_anonymous_user()
         self.assertEqual(anon_user.auth_type, "anonymous")
@@ -1991,7 +1991,7 @@ class UserUpgradeTests(APITestCase):
 
     def test_anonymous_upgrade_to_phone_changes_auth_type(self):
         """Anonymous user upgrading via phone should change auth_type"""
-        from stapel_auth.services import PhoneVerificationService
+        from stapel_auth.otp.services import PhoneVerificationService
 
         anon_user = User.create_anonymous_user()
         self.assertEqual(anon_user.auth_type, "anonymous")
@@ -2011,7 +2011,7 @@ class UserUpgradeTests(APITestCase):
 
     def test_email_user_adding_phone(self):
         """Email user adding phone should get MODIFIED and keep auth_type"""
-        from stapel_auth.services import PhoneVerificationService
+        from stapel_auth.otp.services import PhoneVerificationService
 
         user = User.objects.create_user(
             email="addphone@example.com",
@@ -2037,7 +2037,7 @@ class UserUpgradeTests(APITestCase):
 
     def test_phone_user_adding_email(self):
         """Phone user adding email should get MODIFIED and keep auth_type"""
-        from stapel_auth.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService
 
         user = User.objects.create_user(
             username="addemailuser",
@@ -2068,7 +2068,7 @@ class AdminOTPSecurityTests(APITestCase):
     def setUp(self):
         self.client = APIClient()
 
-    @patch("stapel_auth.services.EmailVerificationService.generate_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.generate_code")
     def test_admin_email_gets_real_otp(self, mock_generate):
         """Admin accounts should get real OTP even in mock mode"""
         mock_generate.return_value = "5678"
@@ -2086,7 +2086,7 @@ class AdminOTPSecurityTests(APITestCase):
         # Verify generate_code was called with force_real=True
         mock_generate.assert_called_with(force_real=True)
 
-    @patch("stapel_auth.services.PhoneVerificationService.generate_code")
+    @patch("stapel_auth.otp.services.PhoneVerificationService.generate_code")
     def test_admin_phone_gets_real_otp(self, mock_generate):
         """Admin accounts should get real OTP for phone even in mock mode"""
         mock_generate.return_value = "5678"
@@ -2101,7 +2101,7 @@ class AdminOTPSecurityTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_generate.assert_called_with(force_real=True)
 
-    @patch("stapel_auth.services.EmailVerificationService.generate_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.generate_code")
     def test_superuser_email_gets_real_otp(self, mock_generate):
         """Superuser accounts should get real OTP"""
         mock_generate.return_value = "5678"
@@ -2212,7 +2212,7 @@ class LoginAttemptTests(TestCase):
     def test_login_attempt_created_on_failed_email_verify(self):
         """Failed email verification should create login attempt"""
         from stapel_auth.models import LoginAttempt
-        from stapel_auth.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService
 
         client = APIClient()
         service = EmailVerificationService()
@@ -2231,7 +2231,7 @@ class LoginAttemptTests(TestCase):
     def test_login_attempt_created_on_successful_email_verify(self):
         """Successful email verification should create success login attempt"""
         from stapel_auth.models import LoginAttempt
-        from stapel_auth.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService
 
         client = APIClient()
         service = EmailVerificationService()
@@ -2296,7 +2296,7 @@ class PhoneSerializerValidationTests(TestCase):
 
     def test_invalid_phone_number_format(self):
         """Invalid phone number format should raise validation error"""
-        from stapel_auth.serializers import PhoneAuthRequestSerializer
+        from stapel_auth.otp.serializers import PhoneAuthRequestSerializer
 
         serializer = PhoneAuthRequestSerializer(data={"phone": "not-a-phone"})
         self.assertFalse(serializer.is_valid())
@@ -2304,7 +2304,7 @@ class PhoneSerializerValidationTests(TestCase):
 
     def test_invalid_phone_number(self):
         """Invalid phone number should raise validation error"""
-        from stapel_auth.serializers import PhoneAuthRequestSerializer
+        from stapel_auth.otp.serializers import PhoneAuthRequestSerializer
 
         serializer = PhoneAuthRequestSerializer(data={"phone": "+1234"})
         self.assertFalse(serializer.is_valid())
@@ -2312,7 +2312,7 @@ class PhoneSerializerValidationTests(TestCase):
 
     def test_valid_phone_number(self):
         """Valid phone number should pass validation"""
-        from stapel_auth.serializers import PhoneAuthRequestSerializer
+        from stapel_auth.otp.serializers import PhoneAuthRequestSerializer
 
         serializer = PhoneAuthRequestSerializer(data={"phone": "+12025551234"})
         self.assertTrue(serializer.is_valid())
@@ -2323,14 +2323,14 @@ class ConvertAnonymousUserSerializerTests(TestCase):
 
     def test_convert_anonymous_requires_email_or_phone(self):
         """ConvertAnonymousUserSerializer requires email or phone"""
-        from stapel_auth.serializers import ConvertAnonymousUserSerializer
+        from stapel_auth.otp.serializers import ConvertAnonymousUserSerializer
 
         serializer = ConvertAnonymousUserSerializer(data={})
         self.assertFalse(serializer.is_valid())
 
     def test_convert_anonymous_email_valid(self):
         """ConvertAnonymousUserSerializer with email should be valid"""
-        from stapel_auth.serializers import ConvertAnonymousUserSerializer
+        from stapel_auth.otp.serializers import ConvertAnonymousUserSerializer
 
         serializer = ConvertAnonymousUserSerializer(
             data={"email": "test@example.com", "code": "1234"}
@@ -2339,7 +2339,7 @@ class ConvertAnonymousUserSerializerTests(TestCase):
 
     def test_convert_anonymous_phone_valid(self):
         """ConvertAnonymousUserSerializer with phone should be valid"""
-        from stapel_auth.serializers import ConvertAnonymousUserSerializer
+        from stapel_auth.otp.serializers import ConvertAnonymousUserSerializer
 
         serializer = ConvertAnonymousUserSerializer(
             data={"phone": "+12025551234", "code": "1234"}
@@ -2353,7 +2353,7 @@ class EmailRequestErrorTests(APITestCase):
     def setUp(self):
         self.client = APIClient()
 
-    @patch("stapel_auth.services.EmailVerificationService.send_verification_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.send_verification_code")
     def test_email_request_service_failure(self, mock_send):
         """Service failure should return 500"""
         mock_send.return_value = None
@@ -2378,7 +2378,7 @@ class PhoneRequestErrorTests(APITestCase):
     def setUp(self):
         self.client = APIClient()
 
-    @patch("stapel_auth.services.PhoneVerificationService.send_verification_code")
+    @patch("stapel_auth.otp.services.PhoneVerificationService.send_verification_code")
     def test_phone_request_service_failure(self, mock_send):
         """Service failure should return 500"""
         mock_send.return_value = None
@@ -2388,7 +2388,7 @@ class PhoneRequestErrorTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.assertIn("error", response.data)
 
-    @patch("stapel_auth.services.PhoneVerificationService.send_verification_code")
+    @patch("stapel_auth.otp.services.PhoneVerificationService.send_verification_code")
     def test_phone_request_blocked(self, mock_send):
         """Blocked account should return 422"""
         mock_send.return_value = {"error": "blocked", "retry_after": 600}
@@ -2415,7 +2415,7 @@ class TokenRefreshErrorTests(APITestCase):
     @patch("stapel_core.core.token_manager.TokenManager.refresh_access_token")
     def test_token_refresh_user_not_found(self, mock_refresh):
         """Token refresh with deleted user should fail"""
-        from stapel_auth.services import TokenService
+        from stapel_auth.sessions.services import TokenService
 
         # Create user and get refresh token
         user = User.objects.create_user(
@@ -2449,7 +2449,7 @@ class OAuthEdgeCaseTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("stapel_auth.services.OAuthService.get_user_data")
+    @patch("stapel_auth.oauth.services.OAuthService.get_user_data")
     def test_oauth_user_data_fetch_failure(self, mock_get_user_data):
         """OAuth user data fetch failure should return 400"""
         mock_get_user_data.return_value = None
@@ -2516,7 +2516,7 @@ class EmailVerifyMaxAttemptsTests(APITestCase):
         from datetime import timedelta
 
         from stapel_auth.models import EmailVerification
-        from stapel_auth.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService
 
         service = EmailVerificationService()
         service.send_verification_code("maxattempts@example.com")
@@ -2546,7 +2546,7 @@ class PhoneVerifyMaxAttemptsTests(APITestCase):
         """Max failed attempts should block verification"""
         from datetime import timedelta
 
-        from stapel_auth.services import PhoneVerificationService
+        from stapel_auth.otp.services import PhoneVerificationService
 
         service = PhoneVerificationService()
         service.send_verification_code("+12025559999")
@@ -2719,7 +2719,7 @@ class AuthenticatorChangeServiceTests(TestCase):
     """Tests for AuthenticatorChangeService"""
 
     def setUp(self):
-        from stapel_auth.services import AuthenticatorChangeService
+        from stapel_auth.otp.services import AuthenticatorChangeService
 
         self.service = AuthenticatorChangeService()
         self.user = User.objects.create_user(
@@ -3599,7 +3599,7 @@ class ChangeSerializerTests(TestCase):
     """Tests for authenticator change serializers"""
 
     def test_instant_request_new_requires_phone_or_email(self):
-        from stapel_auth.serializers import InstantChangeRequestNewSerializer
+        from stapel_auth.otp.serializers import InstantChangeRequestNewSerializer
 
         serializer = InstantChangeRequestNewSerializer(
             data={
@@ -3609,7 +3609,7 @@ class ChangeSerializerTests(TestCase):
         self.assertFalse(serializer.is_valid())
 
     def test_instant_request_new_valid_phone(self):
-        from stapel_auth.serializers import InstantChangeRequestNewSerializer
+        from stapel_auth.otp.serializers import InstantChangeRequestNewSerializer
 
         serializer = InstantChangeRequestNewSerializer(
             data={
@@ -3620,7 +3620,7 @@ class ChangeSerializerTests(TestCase):
         self.assertTrue(serializer.is_valid())
 
     def test_instant_request_new_invalid_phone(self):
-        from stapel_auth.serializers import InstantChangeRequestNewSerializer
+        from stapel_auth.otp.serializers import InstantChangeRequestNewSerializer
 
         serializer = InstantChangeRequestNewSerializer(
             data={
@@ -3631,13 +3631,13 @@ class ChangeSerializerTests(TestCase):
         self.assertFalse(serializer.is_valid())
 
     def test_delayed_initiate_requires_value(self):
-        from stapel_auth.serializers import DelayedChangeInitiateSerializer
+        from stapel_auth.otp.serializers import DelayedChangeInitiateSerializer
 
         serializer = DelayedChangeInitiateSerializer(data={})
         self.assertFalse(serializer.is_valid())
 
     def test_delayed_initiate_valid_email(self):
-        from stapel_auth.serializers import DelayedChangeInitiateSerializer
+        from stapel_auth.otp.serializers import DelayedChangeInitiateSerializer
 
         serializer = DelayedChangeInitiateSerializer(
             data={
@@ -3647,7 +3647,7 @@ class ChangeSerializerTests(TestCase):
         self.assertTrue(serializer.is_valid())
 
     def test_delayed_cancel_requires_uuid(self):
-        from stapel_auth.serializers import DelayedChangeCancelSerializer
+        from stapel_auth.otp.serializers import DelayedChangeCancelSerializer
 
         serializer = DelayedChangeCancelSerializer(
             data={"change_request_id": "not-a-uuid"}
@@ -3655,7 +3655,7 @@ class ChangeSerializerTests(TestCase):
         self.assertFalse(serializer.is_valid())
 
     def test_delayed_cancel_valid_uuid(self):
-        from stapel_auth.serializers import DelayedChangeCancelSerializer
+        from stapel_auth.otp.serializers import DelayedChangeCancelSerializer
 
         serializer = DelayedChangeCancelSerializer(
             data={
@@ -3935,7 +3935,7 @@ class PasswordChangeOtpTests(APITestCase):
         access, _ = create_token_for_user(self.user)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
 
-    @patch("stapel_auth.services.EmailVerificationService.send_verification_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.send_verification_code")
     def test_request_otp_email(self, mock_send):
         mock_send.return_value = MagicMock()
         response = self.client.post(
@@ -3945,7 +3945,7 @@ class PasswordChangeOtpTests(APITestCase):
         self.assertIn("target", response.data)
         self.assertIn("***", response.data["target"])
 
-    @patch("stapel_auth.services.PhoneVerificationService.send_verification_code")
+    @patch("stapel_auth.otp.services.PhoneVerificationService.send_verification_code")
     def test_request_otp_phone(self, mock_send):
         mock_send.return_value = MagicMock()
         response = self.client.post(
@@ -3975,7 +3975,7 @@ class PasswordChangeOtpTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("stapel_auth.services.EmailVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.verify_code")
     def test_verify_otp_email_success(self, mock_verify):
         mock_verify.return_value = {"success": True}
         response = self.client.post(
@@ -3991,7 +3991,7 @@ class PasswordChangeOtpTests(APITestCase):
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password("brandnew456!"))
 
-    @patch("stapel_auth.services.EmailVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.verify_code")
     def test_verify_otp_wrong_code(self, mock_verify):
         mock_verify.return_value = {"error": "invalid_code", "attempts_remaining": 2}
         response = self.client.post(
@@ -4008,7 +4008,7 @@ class PasswordChangeOtpTests(APITestCase):
         )
         self.assertEqual(response.data["params"]["attempts_remaining"], 2)
 
-    @patch("stapel_auth.services.EmailVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.verify_code")
     def test_verify_otp_expired_code(self, mock_verify):
         mock_verify.return_value = {"error": "expired"}
         response = self.client.post(
@@ -4022,7 +4022,7 @@ class PasswordChangeOtpTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["localizable_error"], "error.400.code_expired")
 
-    @patch("stapel_auth.services.EmailVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.verify_code")
     def test_verify_otp_rate_limited(self, mock_verify):
         mock_verify.return_value = {"error": "rate_limit", "retry_after": 30}
         response = self.client.post(
@@ -4061,7 +4061,7 @@ class PasswordResetEmailTests(APITestCase):
             is_email_verified=True,
         )
 
-    @patch("stapel_auth.services.EmailVerificationService.send_verification_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.send_verification_code")
     def test_request_success(self, mock_send):
         mock_send.return_value = MagicMock()
         response = self.client.post(
@@ -4107,7 +4107,7 @@ class PasswordResetEmailTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("stapel_auth.services.EmailVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.verify_code")
     def test_verify_success_logs_in_user(self, mock_verify):
         mock_verify.return_value = {"success": True}
         response = self.client.post(
@@ -4125,7 +4125,7 @@ class PasswordResetEmailTests(APITestCase):
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password("freshpass789!"))
 
-    @patch("stapel_auth.services.EmailVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.verify_code")
     def test_verify_sets_cookies(self, mock_verify):
         mock_verify.return_value = {"success": True}
         response = self.client.post(
@@ -4138,7 +4138,7 @@ class PasswordResetEmailTests(APITestCase):
         )
         self.assertIn("stapel_jwt", response.cookies)
 
-    @patch("stapel_auth.services.EmailVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.verify_code")
     def test_verify_wrong_code(self, mock_verify):
         mock_verify.return_value = {"error": "invalid_code"}
         response = self.client.post(
@@ -4152,7 +4152,7 @@ class PasswordResetEmailTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["localizable_error"], "error.400.invalid_code")
 
-    @patch("stapel_auth.services.EmailVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.EmailVerificationService.verify_code")
     def test_verify_blocked(self, mock_verify):
         mock_verify.return_value = {"error": "blocked", "retry_after": 300}
         response = self.client.post(
@@ -4184,7 +4184,7 @@ class PasswordResetPhoneTests(APITestCase):
             is_phone_verified=True,
         )
 
-    @patch("stapel_auth.services.PhoneVerificationService.send_verification_code")
+    @patch("stapel_auth.otp.services.PhoneVerificationService.send_verification_code")
     def test_request_success(self, mock_send):
         mock_send.return_value = MagicMock()
         response = self.client.post(
@@ -4216,7 +4216,7 @@ class PasswordResetPhoneTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("stapel_auth.services.PhoneVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.PhoneVerificationService.verify_code")
     def test_verify_success_logs_in_user(self, mock_verify):
         mock_verify.return_value = {"success": True}
         response = self.client.post(
@@ -4233,7 +4233,7 @@ class PasswordResetPhoneTests(APITestCase):
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password("freshpass789!"))
 
-    @patch("stapel_auth.services.PhoneVerificationService.verify_code")
+    @patch("stapel_auth.otp.services.PhoneVerificationService.verify_code")
     def test_verify_wrong_code(self, mock_verify):
         mock_verify.return_value = {"error": "invalid_code", "attempts_remaining": 1}
         response = self.client.post(
@@ -4305,7 +4305,7 @@ class MockAdminOtpBlockTests(APITestCase):
     def test_regular_user_not_blocked(self):
         self._auth(self.regular)
         with patch(
-            "stapel_auth.services.EmailVerificationService.send_verification_code"
+            "stapel_auth.otp.services.EmailVerificationService.send_verification_code"
         ) as m:
             m.return_value = MagicMock()
             response = self.client.post(
@@ -4337,7 +4337,7 @@ class MockAdminOtpBlockTests(APITestCase):
 
     def test_regular_reset_not_blocked(self):
         with patch(
-            "stapel_auth.services.EmailVerificationService.send_verification_code"
+            "stapel_auth.otp.services.EmailVerificationService.send_verification_code"
         ) as m:
             m.return_value = MagicMock()
             response = self.client.post(

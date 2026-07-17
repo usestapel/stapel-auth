@@ -565,7 +565,7 @@ class OAuthStepUpTests(APITestCase):
 
     def test_oauth_login_totp_user_gets_tokens_by_default(self):
         with patch(
-            "stapel_auth.services.OAuthService.get_user_data",
+            "stapel_auth.oauth.services.OAuthService.get_user_data",
             return_value=self._oauth_user_data(),
         ):
             resp = self.client.post(
@@ -579,7 +579,7 @@ class OAuthStepUpTests(APITestCase):
     @override_settings(OAUTH_STEP_UP=True)
     def test_oauth_login_totp_challenge_with_step_up_enabled(self):
         with patch(
-            "stapel_auth.services.OAuthService.get_user_data",
+            "stapel_auth.oauth.services.OAuthService.get_user_data",
             return_value=self._oauth_user_data(),
         ):
             resp = self.client.post(
@@ -597,7 +597,7 @@ class OAuthStepUpTests(APITestCase):
 
         TOTPService.force_disable(self.user)
         with patch(
-            "stapel_auth.services.OAuthService.get_user_data",
+            "stapel_auth.oauth.services.OAuthService.get_user_data",
             return_value=self._oauth_user_data(),
         ):
             resp = self.client.post(

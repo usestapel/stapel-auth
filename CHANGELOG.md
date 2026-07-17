@@ -2,6 +2,37 @@
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-07-17
+
+Legacy scrub (owner directive: only current code, no back-compat shims).
+Removals of public surface ⇒ minor bump per house semver.
+
+### Removed — legacy X-Step-Up-Token surface (was deprecated, slated for 1.0)
+- `POST /totp/step-up/` endpoint (`totp_step_up`), `TOTPService.create_step_up`
+  / `consume_step_up` / `_issue_step_up_token` / `STEP_UP_TTL`, the
+  `TOTPStepUpSerializer` / `TOTPStepUpResponseSerializer` / `TOTPStepUpResponse`
+  contract types, the `LEGACY_STEP_UP_GRANT_SCOPES` setting (server-side grant
+  bridge) and the `error.403.step_up_required` key. The unified step-up
+  contract (`@requires_verification` + the `/verification/` envelope flow) is
+  the only mechanism now. `AuthEventType.TOTP_STEP_UP` audit choice dropped
+  (migration 0016); MODULE.md migration recipe deleted.
+
+### Removed — backward-compatibility shim modules
+- `stapel_auth.services`, `stapel_auth.serializers`, `stapel_auth.views`,
+  `stapel_auth.otp.utils` — pure re-export shims deleted; import from the
+  owning sub-packages (`sessions/`, `otp/`, `oauth/`, `security/`,
+  `password/`, `mfa/`, `magic_link/`). `stapel_auth.dto` keeps only the
+  cross-cutting `SimpleStatusResponse`; sub-package DTOs import from their
+  home modules. Root `UserSerializer` duplicate dropped (canonical one lives
+  in `sessions/serializers.py`); dead `MagicLinkRequestDTO` deleted.
+- `events.TOPIC_USER_REGISTERED` back-compat alias — use
+  `EVENT_USER_REGISTERED`.
+
+### Changed
+- Adapted to stapel-core's shim scrub: imports moved to
+  `stapel_core.django.jwt.{provider,utils,authentication}`; captcha test
+  overrides use the namespaced `STAPEL_CAPTCHA` setting.
+
 ## [0.6.0] — 2026-07-17
 
 Owner directive: how each auth method is *displayed* must be configurable on

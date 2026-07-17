@@ -58,11 +58,6 @@ ERR_404_NOT_FOUND = 'error.404.not_found'
 # TOTP
 ERR_400_CODE_REQUIRED = 'error.400.code_required'
 ERR_400_TOTP_NOT_PENDING = 'error.400.totp_not_pending'
-# DEPRECATED (removed in 1.0): the legacy X-Step-Up-Token enforcement key. No
-# stapel-auth code raises it — it was raised by hosts guarding sensitive actions
-# by hand. The unified step-up contract raises `error.403.verification_required`
-# instead. See auth-stepup-unification.md.
-ERR_403_STEP_UP_REQUIRED = 'error.403.step_up_required'
 # Lockout
 ERR_423_ACCOUNT_LOCKED = 'error.423.account_locked'
 # Magic links
@@ -149,7 +144,6 @@ AUTH_ERRORS = {
     # TOTP
     ERR_400_CODE_REQUIRED: 'A verification code is required.',
     ERR_400_TOTP_NOT_PENDING: 'No pending TOTP setup. Call /totp/setup/ first.',
-    ERR_403_STEP_UP_REQUIRED: 'This action requires TOTP verification. Obtain a step-up token first.',
     # Lockout
     ERR_423_ACCOUNT_LOCKED: 'Account temporarily locked due to too many failed attempts. Try again in {retry_after_minutes} minutes.',
     ERR_400_INVALID_REDIRECT_URL: 'redirect_url must be a relative path starting with /  — absolute URLs are not allowed.',
@@ -250,9 +244,8 @@ AUTH_REMEDIATION = {
     ERR_403_QR_UNAUTH_SCAN: 'reauthenticate',
     # Sessions
     ERR_404_NOT_FOUND: 'retry',
-    # TOTP / step-up
+    # TOTP
     ERR_400_TOTP_NOT_PENDING: 'retry',
-    ERR_403_STEP_UP_REQUIRED: 'verify',
     # Magic links
     ERR_400_INVALID_REDIRECT_URL: 'fix_input',
     ERR_400_MAGIC_LINK_INVALID: 'retry',

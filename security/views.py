@@ -53,7 +53,8 @@ class SecurityStatusViewSet(viewsets.GenericViewSet):
             SecurityStatusSessions,
             SecurityStatusTOTP,
         )
-        from stapel_auth.services import SessionService, TOTPService
+        from stapel_auth.mfa.services import TOTPService
+        from stapel_auth.sessions.services import SessionService
 
         user = request.user
 
@@ -259,7 +260,7 @@ class RevokeSuspiciousView(APIView):
         from stapel_core.notifications import request_notification
 
         from stapel_auth.models import AuthEventType
-        from stapel_auth.services import AuditService
+        from stapel_auth.sessions.services import AuditService
 
         token = request.query_params.get("token", "")
         signer = TimestampSigner()

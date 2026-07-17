@@ -7,7 +7,6 @@ from stapel_auth.mfa.dto import (
     TOTPChallengeResponse,
     TOTPSetupResponse,
     TOTPSetupConfirmResponse,
-    TOTPStepUpResponse,
 )
 from stapel_auth.mfa.services import TOTPService
 from stapel_auth.otp.constants import OTP_CODE_LENGTH
@@ -27,10 +26,6 @@ class TOTPChallengeVerifySerializer(serializers.Serializer):
 
 class TOTPSetupConfirmSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=_TOTP_LEN, help_text=f'{_TOTP_LEN}-digit code from authenticator app.')
-
-
-class TOTPStepUpSerializer(serializers.Serializer):
-    code = serializers.CharField(max_length=_TOTP_LEN, help_text=f'{_TOTP_LEN}-digit TOTP code.')
 
 
 class TOTPDisableOtpRequestSerializer(serializers.Serializer):
@@ -73,11 +68,6 @@ class TOTPSetupResponseSerializer(StapelDataclassSerializer):
 class TOTPSetupConfirmResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = TOTPSetupConfirmResponse
-
-
-class TOTPStepUpResponseSerializer(StapelDataclassSerializer):
-    class Meta:
-        dataclass = TOTPStepUpResponse
 
 
 # ── Passkey serializers ───────────────────────────────────────────────────────

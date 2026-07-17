@@ -13,14 +13,9 @@ from stapel_core.django.api.errors import (
 )
 from stapel_core.django.openapi.schemas import StapelErrorSerializer
 
-from stapel_auth.dto import (
-    AuthResponse,
-    AuthStatus,
-    OtpSentResponse,
-    TokenPairResponse,
-    TOTPChallengeResponse,
-    TOTPChallengeStatus,
-)
+from stapel_auth.mfa.dto import TOTPChallengeResponse, TOTPChallengeStatus
+from stapel_auth.otp.dto import OtpSentResponse
+from stapel_auth.sessions.dto import AuthResponse, AuthStatus, TokenPairResponse
 from stapel_auth.errors import (
     ERR_400_NO_PASSWORD,
     ERR_400_WRONG_PASSWORD,
@@ -44,12 +39,12 @@ from stapel_auth.password.serializers import (
     PasswordResetPhoneVerifySerializer,
 )
 from stapel_auth.password.services import PasswordService
-from stapel_auth.serializers import (
+from stapel_auth.mfa.serializers import TOTPChallengeResponseSerializer
+from stapel_auth.otp.serializers import OtpSentResponseSerializer
+from stapel_auth.sessions.serializers import (
     AuthResponseSerializer,
     LoginResponseSerializer,
-    OtpSentResponseSerializer,
     SimpleStatusSerializer,
-    TOTPChallengeResponseSerializer,
 )
 from stapel_auth.sessions.views import _add_login_hints, _issue_session_tokens
 from stapel_auth.utils import SerializerSeamsMixin
@@ -127,7 +122,9 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
         from stapel_auth.errors import ERR_423_ACCOUNT_LOCKED, retry_params
-        from stapel_auth.services import AuditService, LockoutService, TOTPService
+        from stapel_auth.mfa.services import TOTPService
+        from stapel_auth.security.services import LockoutService
+        from stapel_auth.sessions.services import AuditService
 
         serializer = self.get_login_request_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)

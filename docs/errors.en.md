@@ -1,6 +1,6 @@
 # Errors — English
 
-`119` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
+`118` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
 
 | Code | Status | Params | Remediation | Text |
 |---|---|---|---|---|
@@ -77,7 +77,6 @@
 | `error.403.qr_device_mismatch` | 403 | — | `retry` | This QR code belongs to another device. |
 | `error.403.qr_unauth_scan` | 403 | — | `reauthenticate` | This QR code cannot be scanned by an unauthenticated device. |
 | `error.403.sso_required` | 403 | — | `reauthenticate` | This account must sign in via SSO. Use your organization SSO link. |
-| `error.403.step_up_required` | 403 | — | `verify` | This action requires TOTP verification. Obtain a step-up token first. |
 | `error.403.verification_enrollment_required` | 403 | — | `verify` | Verification factor enrollment required |
 | `error.403.verification_required` | 403 | — | `verify` | Additional verification required |
 | `error.404.ad_not_found` | 404 | — | `retry` | Listing not found |

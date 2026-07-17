@@ -1,12 +1,10 @@
 """Service classes for MFA (TOTP and Passkey) domain."""
 import hashlib as _hashlib
 import secrets as _secrets
-import warnings as _warnings
 
 
 class TOTPService:
     BACKUP_CODE_COUNT = 8
-    STEP_UP_TTL = 900        # 15 min
     CHALLENGE_TTL = 300      # 5 min
     TOTP_WINDOW = 1          # ±1 step tolerance
     MAX_CHALLENGE_FAILURES = 5   # challenge is invalidated after this many bad codes
@@ -199,69 +197,6 @@ class TOTPService:
             cache.delete(fail_key)
         return None
 
-    # ── step-up (LEGACY, deprecated — removed in 1.0) ─────────────────────────
-    #
-    # The one-time X-Step-Up-Token mechanism is superseded by the unified
-    # step-up contract: @requires_verification + the verification envelope
-    # (stapel_core.verification). Migrate sensitive actions to
-    # ``@requires_verification(scope=..., factors=["totp"], max_age=900)`` and
-    # drop any hand-rolled X-Step-Up-Token check. See auth-stepup-unification.md.
-
-    @classmethod
-    def _issue_step_up_token(cls, user, code: str) -> str | None:
-        """Verify TOTP and mint a one-time step-up token. None on bad code.
-
-        Internal, warning-free entry point used by the (already deprecated)
-        /totp/step-up/ endpoint. Public deprecated wrappers below delegate here.
-        """
-        if not cls.verify_code(user, code):
-            return None
-        from django.core.cache import cache
-        token = _secrets.token_urlsafe(32)
-        cache.set(f'step_up:{user.id}:{token}', '1', cls.STEP_UP_TTL)
-        return token
-
-    @classmethod
-    def create_step_up(cls, user, code: str) -> str | None:
-        """Verify TOTP code and issue a step-up token. Returns None on bad code.
-
-        .. deprecated::
-            The legacy one-time step-up token is superseded by the verification
-            envelope. Use ``@requires_verification`` instead; this method is
-            removed in stapel-auth 1.0.
-        """
-        _warnings.warn(
-            "TOTPService.create_step_up is deprecated and will be removed in "
-            "stapel-auth 1.0 — use @requires_verification (scope + factors + "
-            "max_age) instead of the one-time X-Step-Up-Token.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return cls._issue_step_up_token(user, code)
-
-    @classmethod
-    def consume_step_up(cls, user, token: str) -> bool:
-        """Check (and delete) a step-up token for the given user.
-
-        .. deprecated::
-            Enforcement moves to ``@requires_verification`` /
-            ``stapel_core.verification.has_grant``. Removed in stapel-auth 1.0.
-        """
-        _warnings.warn(
-            "TOTPService.consume_step_up is deprecated and will be removed in "
-            "stapel-auth 1.0 — enforce step-up with @requires_verification "
-            "(server-side grant) instead of reading X-Step-Up-Token.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        from django.core.cache import cache
-        key = f'step_up:{user.id}:{token}'
-        val = cache.get(key)
-        if val:
-            cache.delete(key)
-            return True
-        return False
-
 
 class PasskeyService:
     @staticmethod
@@ -371,7 +306,7 @@ class PasskeyService:
             device_name=device_name or 'Passkey',
             transports=list(credential.response.transports or []),
         )
-        from stapel_auth.services import AuditService
+        from stapel_auth.sessions.services import AuditService
         AuditService.log('passkey_registered', user=user, device_name=pc.device_name)
         return pc
 
@@ -436,6 +371,6 @@ class PasskeyService:
         from django.utils import timezone
         pc.last_used_at = timezone.now()
         pc.save(update_fields=['sign_count', 'last_used_at'])
-        from stapel_auth.services import AuditService
+        from stapel_auth.sessions.services import AuditService
         AuditService.log('passkey_login', user=pc.user, device_name=pc.device_name)
         return pc.user, pc

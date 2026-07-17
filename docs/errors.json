@@ -539,13 +539,6 @@
     "en": "This account must sign in via SSO. Use your organization SSO link."
   },
   {
-    "code": "error.403.step_up_required",
-    "status": 403,
-    "params": [],
-    "remediation": "verify",
-    "en": "This action requires TOTP verification. Obtain a step-up token first."
-  },
-  {
     "code": "error.403.verification_enrollment_required",
     "status": 403,
     "params": [],

@@ -98,11 +98,11 @@ class SecurityStatusTests(APITestCase):
             is_active=True,
         )
         with patch(
-            "stapel_auth.services.SessionService.get_active"
+            "stapel_auth.sessions.services.SessionService.get_active"
         ) as mock_active, patch(
-            "stapel_auth.services.TOTPService.is_enabled", return_value=True
+            "stapel_auth.mfa.services.TOTPService.is_enabled", return_value=True
         ), patch(
-            "stapel_auth.services.TOTPService.backup_codes_remaining", return_value=6
+            "stapel_auth.mfa.services.TOTPService.backup_codes_remaining", return_value=6
         ):
             mock_active.return_value.count.return_value = 3
             resp = self.client.get(reverse("security_status"))
@@ -288,7 +288,7 @@ class RevokeSuspiciousEdgeTests(TestCase):
         token = self._token(user.id, session.id)
         with patch(
             "stapel_core.notifications.request_notification"
-        ) as mock_notify, patch("stapel_auth.services.AuditService.log"):
+        ) as mock_notify, patch("stapel_auth.sessions.services.AuditService.log"):
             resp = self.client.get(
                 reverse("revoke_suspicious") + f"?token={token}"
             )
@@ -313,7 +313,7 @@ class RevokeSuspiciousEdgeTests(TestCase):
         with patch(
             "stapel_core.notifications.request_notification",
             side_effect=Exception("boom"),
-        ), patch("stapel_auth.services.AuditService.log"):
+        ), patch("stapel_auth.sessions.services.AuditService.log"):
             resp = self.client.get(
                 reverse("revoke_suspicious") + f"?token={token}"
             )

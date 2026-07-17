@@ -1,9 +1,5 @@
-"""Backward-compatibility shim — imports from sub-packages."""
+"""Cross-cutting DTOs shared by several sub-packages."""
 from dataclasses import dataclass
-
-from stapel_auth.sessions.dto import AuthResponse, AuthStatus, TokenPairResponse  # noqa: F401
-from stapel_auth.otp.dto import OtpSentResponse  # noqa: F401
-from stapel_auth.mfa.dto import TOTPChallengeResponse, TOTPChallengeStatus  # noqa: F401
 
 
 @dataclass
@@ -15,14 +11,3 @@ class SimpleStatusResponse:
         status: Short status key describing the completed action. Example: ok
     """
     status: str
-
-
-@dataclass
-class MagicLinkRequestDTO:
-    """
-    Response to an email link request.
-
-    Attributes:
-        message: Status message. Example: If this email is registered, an email link has been sent.
-    """
-    message: str

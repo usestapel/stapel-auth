@@ -235,7 +235,7 @@ class LogoutRevokeFaultTests(APITestCase):
 class PasswordLoginLockoutTests(APITestCase):
     def test_locked_identifier_gets_423(self):
         with patch(
-            "stapel_auth.services.LockoutService.check", return_value=(True, 60)
+            "stapel_auth.security.services.LockoutService.check", return_value=(True, 60)
         ):
             resp = self.client.post(
                 reverse("password_login"),
@@ -246,13 +246,13 @@ class PasswordLoginLockoutTests(APITestCase):
 
     def test_failure_crossing_threshold_gets_423(self):
         with patch(
-            "stapel_auth.services.LockoutService.check", return_value=(False, 0)
+            "stapel_auth.security.services.LockoutService.check", return_value=(False, 0)
         ), patch(
-            "stapel_auth.services.PasswordService.login", return_value=None
+            "stapel_auth.password.services.PasswordService.login", return_value=None
         ), patch(
-            "stapel_auth.services.LockoutService.record_failure", return_value=20
+            "stapel_auth.security.services.LockoutService.record_failure", return_value=20
         ), patch(
-            "stapel_auth.services.LockoutService.apply_lockout", return_value=3600
+            "stapel_auth.security.services.LockoutService.apply_lockout", return_value=3600
         ):
             resp = self.client.post(
                 reverse("password_login"),

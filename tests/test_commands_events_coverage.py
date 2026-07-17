@@ -40,10 +40,9 @@ def _make_phone_only_user():
 # =============================================================================
 
 class EventsModuleTests(TestCase):
-    def test_constants_and_backcompat_alias(self):
+    def test_constants(self):
         from stapel_auth import events
         self.assertEqual(events.EVENT_USER_REGISTERED, 'user.registered')
-        self.assertEqual(events.TOPIC_USER_REGISTERED, events.EVENT_USER_REGISTERED)
 
     def test_payload_dataclass_fields(self):
         from stapel_auth.events import UserRegisteredPayload

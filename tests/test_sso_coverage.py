@@ -414,7 +414,7 @@ class IssueSessionTests(TestCase):
         # unique(jti) constraint. Run fully end-to-end with the real
         # SessionService and assert exactly one session row is persisted.
         from stapel_auth.models import UserSession
-        from stapel_auth.services import LoginNotificationService
+        from stapel_auth.sessions.services import LoginNotificationService
 
         request = RequestFactory().post("/auth/api/v1/sso/acmecorp/saml/acs/")
         with patch.object(LoginNotificationService, "check_and_notify"):
@@ -430,7 +430,7 @@ class IssueSessionTests(TestCase):
     def test_redirects_when_no_session_created(self):
         # SessionService.create returns None (e.g. jti absent) → the notify
         # branch is skipped but the redirect still issues.
-        from stapel_auth.services import LoginNotificationService, SessionService
+        from stapel_auth.sessions.services import LoginNotificationService, SessionService
 
         request = RequestFactory().post("/auth/api/v1/sso/acmecorp/saml/acs/")
         with patch.object(

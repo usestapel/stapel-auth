@@ -55,18 +55,6 @@ class TOTPSetupConfirmResponse:
     backup_codes: list
 
 
-@dataclass
-class TOTPStepUpResponse:
-    """
-    Issued step-up token after TOTP verification.
-
-    Attributes:
-        step_up_token: Opaque token proving recent TOTP verification. Example: su_abc123
-        expires_in: Seconds until the step-up token expires. Example: 300
-    """
-    step_up_token: str
-    expires_in: int
-
 
 @dataclass
 class PasskeyDTO:

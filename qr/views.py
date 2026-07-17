@@ -22,7 +22,7 @@ from stapel_auth.qr.serializers import (
     QRStatusResponseSerializer,
 )
 from stapel_auth.qr.services import QRAuthService
-from stapel_auth.serializers import SimpleStatusSerializer
+from stapel_auth.sessions.serializers import SimpleStatusSerializer
 from stapel_auth.sessions.services import (
     AuditService,
     LoginNotificationService,

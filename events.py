@@ -15,9 +15,6 @@ EVENT_STAFF_ROLE_REVOKED = "staff.role.revoked"
 EVENT_USER_SESSION_CREATED = "user.session_created"
 EVENT_USER_SESSION_REVOKED = "user.session_revoked"
 
-# Back-compat alias for any importer still referencing the old name.
-TOPIC_USER_REGISTERED = EVENT_USER_REGISTERED
-
 
 @dataclass
 class UserRegisteredPayload:

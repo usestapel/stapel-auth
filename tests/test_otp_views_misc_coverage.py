@@ -465,7 +465,7 @@ class OAuthAuthorizeCallbackBranchTests(APITestCase):
         )
         self._store_state(state="st-stepup1")
         with patch(
-            "stapel_auth.services.TOTPService.is_enabled", return_value=False
+            "stapel_auth.mfa.services.TOTPService.is_enabled", return_value=False
         ):
             resp = self.client.get(
                 reverse("oauth_callback", kwargs={"provider": "test"}),
@@ -482,9 +482,9 @@ class OAuthAuthorizeCallbackBranchTests(APITestCase):
             is_email_verified=True,
         )
         self._store_state(state="st-stepup2", redirect_after="/dashboard")
-        with patch("stapel_auth.services.TOTPService.is_enabled", return_value=True), \
+        with patch("stapel_auth.mfa.services.TOTPService.is_enabled", return_value=True), \
              patch(
-                 "stapel_auth.services.TOTPService.create_challenge",
+                 "stapel_auth.mfa.services.TOTPService.create_challenge",
                  return_value="chal-tok",
              ):
             resp = self.client.get(
@@ -584,7 +584,7 @@ class LogoutBranchTests(APITestCase):
 
     def test_logout_outer_exception_returns_500(self):
         with patch(
-            "stapel_core.django.utils.extract_jwt_from_request",
+            "stapel_core.django.jwt.utils.extract_jwt_from_request",
             side_effect=Exception("kaboom"),
         ):
             resp = self.client.post(reverse("logout"), {})
@@ -622,7 +622,7 @@ class VerifyTokenBranchTests(APITestCase):
     def setUp(self):
         self.client = APIClient()
 
-    _JP = "stapel_core.django.jwt_provider.jwt_provider"
+    _JP = "stapel_core.django.jwt.provider.jwt_provider"
 
     def test_verify_token_blacklisted_returns_401(self):
         with patch(f"{self._JP}.validate_token", return_value={"user_id": "x"}), \
@@ -1078,10 +1078,10 @@ class TasksBranchTests(TestCase):
             expires_at=timezone.now() + timedelta(days=30),
         )
         with patch(
-            "stapel_auth.services.LoginNotificationService.is_new_device",
+            "stapel_auth.sessions.services.LoginNotificationService.is_new_device",
             return_value=False,
         ), patch(
-            "stapel_auth.services.LoginNotificationService.is_suspicious_ip",
+            "stapel_auth.sessions.services.LoginNotificationService.is_suspicious_ip",
             return_value=False,
         ), patch("stapel_auth.tasks._send_login_alert_email") as mock_send:
             evaluate_login_notification(str(self.user.id), str(session.id))

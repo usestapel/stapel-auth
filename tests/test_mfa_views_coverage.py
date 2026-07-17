@@ -100,9 +100,9 @@ class TOTPDisableRequestOtpTests(_AuthedMixin, APITestCase):
             phone="+14155552671", is_phone_verified=True
         )
         with patch(
-            "stapel_auth.services.PhoneVerificationService.send_verification_code"
+            "stapel_auth.otp.services.PhoneVerificationService.send_verification_code"
         ) as send, patch(
-            "stapel_auth.services.PasswordService.mask_phone", return_value="+1***2671"
+            "stapel_auth.password.services.PasswordService.mask_phone", return_value="+1***2671"
         ):
             resp = self.client.post(
                 reverse("totp_disable_otp_request"), {}, format="json"
@@ -121,7 +121,7 @@ class TOTPDisableTests(_AuthedMixin, APITestCase):
     def test_disable_totp_success(self):
         with patch(
             "stapel_auth.mfa.services.TOTPService.disable", return_value=True
-        ), patch("stapel_auth.services.AuditService.log"):
+        ), patch("stapel_auth.sessions.services.AuditService.log"):
             resp = self.client.post(
                 reverse("totp_disable"),
                 {"method": "totp", "code": "123456"},
@@ -142,7 +142,7 @@ class TOTPDisableTests(_AuthedMixin, APITestCase):
     def test_disable_backup_success(self):
         with patch(
             "stapel_auth.mfa.services.TOTPService.disable", return_value=True
-        ), patch("stapel_auth.services.AuditService.log"):
+        ), patch("stapel_auth.sessions.services.AuditService.log"):
             resp = self.client.post(
                 reverse("totp_disable"),
                 {"method": "backup", "backup_code": "AAAA-BBBB"},
@@ -170,7 +170,7 @@ class TOTPDisableTests(_AuthedMixin, APITestCase):
     def test_disable_otp_bad_code_returns_400(self):
         self._verify_phone()
         with patch(
-            "stapel_auth.services.PhoneVerificationService.verify_code",
+            "stapel_auth.otp.services.PhoneVerificationService.verify_code",
             return_value={"success": False},
         ):
             resp = self.client.post(
@@ -183,11 +183,11 @@ class TOTPDisableTests(_AuthedMixin, APITestCase):
     def test_disable_otp_success(self):
         self._verify_phone()
         with patch(
-            "stapel_auth.services.PhoneVerificationService.verify_code",
+            "stapel_auth.otp.services.PhoneVerificationService.verify_code",
             return_value={"success": True},
         ), patch(
             "stapel_auth.mfa.services.TOTPService.force_disable", return_value=True
-        ), patch("stapel_auth.services.AuditService.log"):
+        ), patch("stapel_auth.sessions.services.AuditService.log"):
             resp = self.client.post(
                 reverse("totp_disable"),
                 {"method": "otp", "otp_code": "0000"},
@@ -267,12 +267,6 @@ class TOTPChallengeVerifyTests(APITestCase):
         self.assertEqual(resp.status_code, 200)
 
 
-class TOTPStepUpTests(_AuthedMixin, APITestCase):
-    def test_step_up_missing_code_returns_400(self):
-        resp = self.client.post(reverse("totp_step_up"), {}, format="json")
-        self.assertEqual(resp.status_code, 400)
-
-
 # =============================================================================
 # PasskeyViewSet
 # =============================================================================
@@ -306,7 +300,7 @@ class PasskeyDestroyTests(_AuthedMixin, APITestCase):
     def test_destroy_success_when_password_present(self):
         # Fresh user was created with a usable password → not the last method.
         pc = _make_passkey(self.user)
-        with patch("stapel_auth.services.AuditService.log"):
+        with patch("stapel_auth.sessions.services.AuditService.log"):
             resp = self.client.delete(
                 reverse("passkey_destroy", kwargs={"pk": str(pc.id)})
             )

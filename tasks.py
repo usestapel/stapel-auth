@@ -101,7 +101,7 @@ def send_change_notifications():
 def execute_pending_changes():
     """Execute authenticator changes that have reached their scheduled time."""
     from .models import AuthenticatorChangeRequest, AuthenticatorChangeStatus
-    from .services import AuthenticatorChangeService
+    from .otp.services import AuthenticatorChangeService
 
     now = timezone.now()
     due_ids = list(
@@ -177,7 +177,7 @@ def evaluate_login_notification(user_id: str, session_id: str):
     """Check if login is from new/suspicious device and send appropriate email."""
     from django.contrib.auth import get_user_model
     from .models import UserSession, AuthEventType
-    from .services import LoginNotificationService, AuditService
+    from .sessions.services import LoginNotificationService, AuditService
 
     User = get_user_model()
     try:

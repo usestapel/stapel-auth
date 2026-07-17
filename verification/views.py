@@ -213,7 +213,7 @@ class VerificationViewSet(SerializerSeamsMixin, viewsets.ViewSet):
             return StapelErrorResponse(400, ERR_400_VERIFICATION_FAILED)
 
         token = complete_challenge(challenge)
-        from stapel_auth.services import AuditService
+        from stapel_auth.sessions.services import AuditService
 
         AuditService.log(
             "step_up_verified",
@@ -314,7 +314,7 @@ class VerificationPreferenceViewSet(SerializerSeamsMixin, viewsets.ViewSet):
         # entry so the change is visible on the next protected request.
         invalidate_policy_cache(request.user.pk)
 
-        from stapel_auth.services import AuditService
+        from stapel_auth.sessions.services import AuditService
 
         AuditService.log(
             "verification_preference_changed",

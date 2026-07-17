@@ -137,7 +137,6 @@ class TOTPAxisFactoryTests(TestCase):
     def test_on_by_default(self):
         names = self._names()
         self.assertIn('totp_setup', names)
-        self.assertIn('totp_step_up', names)
         self.assertIn('passkey_list', names)
 
     @override_settings(STAPEL_AUTH={'AUTH_TOTP': False})
@@ -145,7 +144,6 @@ class TOTPAxisFactoryTests(TestCase):
         names = self._names()
         self.assertNotIn('totp_setup', names)
         self.assertNotIn('totp_challenge_verify', names)
-        self.assertNotIn('totp_step_up', names)
         self.assertIn('passkey_list', names)
 
     @override_settings(STAPEL_AUTH={'AUTH_TOTP': False, 'AUTH_PASSKEY_LOGIN': False})

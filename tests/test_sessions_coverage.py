@@ -226,7 +226,7 @@ class TokenRefreshTests(APITestCase):
     def test_refresh_user_blacklisted_returns_401(self):
         _, refresh = self._tokens()
         with patch(
-            "stapel_core.django.authentication.is_user_blacklisted",
+            "stapel_core.django.jwt.authentication.is_user_blacklisted",
             return_value=True,
         ):
             resp = self.client.post(reverse("token_refresh"), {"refresh": refresh})

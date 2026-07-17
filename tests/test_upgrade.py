@@ -455,7 +455,6 @@ _EXPECTED_URLS = {
     'totp_disable': 'totp/disable/',
     'totp_disable_otp_request': 'totp/disable-otp/request/',
     'totp_challenge_verify': 'totp/challenge/verify/',
-    'totp_step_up': 'totp/step-up/',
     'magic_request': 'magic/request/',
     'magic_verify': 'magic/verify/',
     'passkey_list': 'passkey/',

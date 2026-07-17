@@ -90,7 +90,7 @@ class LockoutService:
     def apply_lockout(cls, identifier: str, count: int, user=None, request=None):
         """Lock the identifier if count crosses a threshold. Logs audit event."""
         from django.core.cache import cache
-        from stapel_auth.services import AuditService
+        from stapel_auth.sessions.services import AuditService
         _, lock_key = cls._keys(identifier)
         for threshold, duration in reversed(cls.THRESHOLDS):
             if count >= threshold:

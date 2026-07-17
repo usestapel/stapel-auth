@@ -17,7 +17,7 @@ from django.utils import timezone
 
 class ParseUATests(TestCase):
     def _ua(self, ua, **kw):
-        from stapel_auth.services import _parse_ua
+        from stapel_auth.sessions.services import _parse_ua
 
         return _parse_ua(ua, **kw)
 
@@ -27,7 +27,7 @@ class ParseUATests(TestCase):
         self.assertEqual(r["name"], "Unknown device")
 
     def test_none_treated_as_empty(self):
-        from stapel_auth.services import _parse_ua
+        from stapel_auth.sessions.services import _parse_ua
 
         r = _parse_ua(None)  # type: ignore[arg-type]
         self.assertEqual(r["type"], "unknown")
@@ -190,7 +190,7 @@ class ParseUATests(TestCase):
         self.assertEqual(r["type"], "desktop")
 
     def test_parse_device_name_returns_name_field(self):
-        from stapel_auth.services import _parse_device_name
+        from stapel_auth.sessions.services import _parse_device_name
 
         name = _parse_device_name(
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -207,7 +207,7 @@ class ParseUATests(TestCase):
 class SecurityServiceCheckLoginAttemptsTests(TestCase):
     def test_below_threshold_returns_false(self):
         from stapel_auth.models import LoginAttempt
-        from stapel_auth.services import SecurityService
+        from stapel_auth.security.services import SecurityService
 
         ident = f"test_{uuid.uuid4().hex}@example.com"
         LoginAttempt.objects.create(
@@ -217,7 +217,7 @@ class SecurityServiceCheckLoginAttemptsTests(TestCase):
 
     def test_at_threshold_returns_true(self):
         from stapel_auth.models import LoginAttempt
-        from stapel_auth.services import SecurityService
+        from stapel_auth.security.services import SecurityService
 
         ident = f"threshold_{uuid.uuid4().hex}@example.com"
         for _ in range(5):
@@ -228,7 +228,7 @@ class SecurityServiceCheckLoginAttemptsTests(TestCase):
 
     def test_old_attempts_not_counted(self):
         from stapel_auth.models import LoginAttempt
-        from stapel_auth.services import SecurityService
+        from stapel_auth.security.services import SecurityService
 
         ident = f"old_{uuid.uuid4().hex}@example.com"
         old = timezone.now() - timedelta(hours=1)
@@ -241,7 +241,7 @@ class SecurityServiceCheckLoginAttemptsTests(TestCase):
 
     def test_successful_attempts_not_counted(self):
         from stapel_auth.models import LoginAttempt
-        from stapel_auth.services import SecurityService
+        from stapel_auth.security.services import SecurityService
 
         ident = f"success_{uuid.uuid4().hex}@example.com"
         for _ in range(10):
@@ -254,7 +254,7 @@ class SecurityServiceCheckLoginAttemptsTests(TestCase):
 class SecurityServiceCleanupTests(TestCase):
     def test_cleanup_expired_verifications_deletes_expired(self):
         from stapel_auth.models import PhoneVerification
-        from stapel_auth.services import SecurityService
+        from stapel_auth.security.services import SecurityService
 
         past = timezone.now() - timedelta(hours=1)
         v = PhoneVerification.objects.create(
@@ -268,7 +268,7 @@ class SecurityServiceCleanupTests(TestCase):
 
     def test_cleanup_expired_verifications_keeps_active(self):
         from stapel_auth.models import PhoneVerification
-        from stapel_auth.services import SecurityService
+        from stapel_auth.security.services import SecurityService
 
         future = timezone.now() + timedelta(hours=1)
         v = PhoneVerification.objects.create(
@@ -281,7 +281,7 @@ class SecurityServiceCleanupTests(TestCase):
 
     def test_cleanup_expired_verifications_keeps_verified(self):
         from stapel_auth.models import PhoneVerification
-        from stapel_auth.services import SecurityService
+        from stapel_auth.security.services import SecurityService
 
         past = timezone.now() - timedelta(hours=1)
         v = PhoneVerification.objects.create(
@@ -307,7 +307,7 @@ class SecurityServiceCleanupTests(TestCase):
         # Regression: the method read settings.ANONYMOUS_USER_LIFETIME (missing
         # key, timedelta-typed) and raised AttributeError on every call. It now
         # reads auth_settings.ANONYMOUS_USER_LIFETIME_DAYS (int days).
-        from stapel_auth.services import SecurityService
+        from stapel_auth.security.services import SecurityService
 
         old = self._make_anon("anon_old", timezone.now() - timedelta(days=31))
         count = SecurityService.cleanup_expired_anonymous_users()
@@ -315,7 +315,7 @@ class SecurityServiceCleanupTests(TestCase):
         self.assertFalse(type(old).objects.filter(pk=old.pk).exists())
 
     def test_cleanup_expired_anonymous_users_keeps_recent(self):
-        from stapel_auth.services import SecurityService
+        from stapel_auth.security.services import SecurityService
 
         recent = self._make_anon("anon_recent", timezone.now() - timedelta(days=1))
         SecurityService.cleanup_expired_anonymous_users()
@@ -323,7 +323,7 @@ class SecurityServiceCleanupTests(TestCase):
 
     def test_cleanup_expired_anonymous_users_keeps_non_anonymous(self):
         from django.contrib.auth import get_user_model
-        from stapel_auth.services import SecurityService
+        from stapel_auth.security.services import SecurityService
 
         User = get_user_model()
         regular = User.objects.create(
@@ -337,7 +337,7 @@ class SecurityServiceCleanupTests(TestCase):
 
     def test_cleanup_expired_anonymous_users_respects_configured_lifetime(self):
         from django.test import override_settings
-        from stapel_auth.services import SecurityService
+        from stapel_auth.security.services import SecurityService
 
         User = type(self._make_anon("anon_seed", timezone.now() - timedelta(days=5)))
         User.objects.filter(username="anon_seed").delete()
@@ -358,7 +358,7 @@ class SecurityServiceCleanupTests(TestCase):
 
 class PhoneVerificationSendErrorTests(TestCase):
     def setUp(self):
-        from stapel_auth.services import PhoneVerificationService
+        from stapel_auth.otp.services import PhoneVerificationService
 
         self.svc = PhoneVerificationService()
 
@@ -411,7 +411,7 @@ class PhoneVerificationSendErrorTests(TestCase):
 
 class PhoneVerificationVerifyErrorTests(TestCase):
     def setUp(self):
-        from stapel_auth.services import PhoneVerificationService
+        from stapel_auth.otp.services import PhoneVerificationService
 
         self.svc = PhoneVerificationService()
 
@@ -444,7 +444,7 @@ class PhoneVerificationVerifyErrorTests(TestCase):
 
 class EmailVerificationSendErrorTests(TestCase):
     def setUp(self):
-        from stapel_auth.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService
 
         self.svc = EmailVerificationService()
 
@@ -497,7 +497,7 @@ class EmailVerificationSendErrorTests(TestCase):
 
 class EmailVerificationVerifyErrorTests(TestCase):
     def setUp(self):
-        from stapel_auth.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService
 
         self.svc = EmailVerificationService()
 
@@ -537,7 +537,7 @@ class EmailVerificationVerifyErrorTests(TestCase):
         self.assertEqual(result.get("error"), "server_error")
 
     def test_no_verification_returns_invalid_code(self):
-        from stapel_auth.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService
 
         svc = EmailVerificationService()
         result = svc.verify_code("norecord@example.com", "0000")
@@ -551,7 +551,7 @@ class EmailVerificationVerifyErrorTests(TestCase):
 
 class OAuthServiceTests(TestCase):
     def setUp(self):
-        from stapel_auth.services import OAuthService
+        from stapel_auth.oauth.services import OAuthService
 
         self.svc = OAuthService()
 
@@ -584,7 +584,7 @@ class OAuthServiceTests(TestCase):
 
 class TokenServiceExceptionTests(TestCase):
     def test_verify_token_exception_returns_none(self):
-        from stapel_auth.services import TokenService
+        from stapel_auth.sessions.services import TokenService
 
         with patch(
             "stapel_core.django.jwt.provider.jwt_provider.validate_token",
@@ -594,7 +594,7 @@ class TokenServiceExceptionTests(TestCase):
         self.assertIsNone(result)
 
     def test_blacklist_token_exception_returns_false(self):
-        from stapel_auth.services import TokenService
+        from stapel_auth.sessions.services import TokenService
 
         with patch(
             "stapel_core.django.jwt.provider.jwt_provider.blacklist_token",
@@ -613,7 +613,7 @@ class PasswordServiceRaiseForOTPTests(TestCase):
     def _call(self, error):
         from stapel_core.django.api.errors import StapelServiceError
 
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
 
         with self.assertRaises(StapelServiceError) as ctx:
             PasswordService._raise_for_otp_result({"error": error})
@@ -650,10 +650,10 @@ class PasswordServiceResetVerifyUserNotFoundTests(TestCase):
     def test_reset_verify_email_user_not_found_raises(self):
         from stapel_core.django.api.errors import StapelServiceError
 
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
 
         with patch(
-            "stapel_auth.services.EmailVerificationService.verify_code",
+            "stapel_auth.otp.services.EmailVerificationService.verify_code",
             return_value={"success": True},
         ):
             with self.assertRaises(StapelServiceError) as ctx:
@@ -667,10 +667,10 @@ class PasswordServiceResetVerifyUserNotFoundTests(TestCase):
     def test_reset_verify_phone_user_not_found_raises(self):
         from stapel_core.django.api.errors import StapelServiceError
 
-        from stapel_auth.services import PasswordService
+        from stapel_auth.password.services import PasswordService
 
         with patch(
-            "stapel_auth.services.PhoneVerificationService.verify_code",
+            "stapel_auth.otp.services.PhoneVerificationService.verify_code",
             return_value={"success": True},
         ):
             with self.assertRaises(StapelServiceError) as ctx:

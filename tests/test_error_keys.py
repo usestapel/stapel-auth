@@ -77,5 +77,4 @@ def test_pilot_keys_present_with_expected_remediation():
     assert entries["error.401.invalid_credentials"]["remediation"] == "reauthenticate"
     assert entries["error.422.blocked"]["remediation"] == "wait_and_retry"
     # Cross-cutting verification keys (registered by stapel_core) are included.
-    assert entries["error.403.step_up_required"]["remediation"] == "verify"
     assert entries["error.404.verification_challenge_not_found"]["remediation"] == "verify"

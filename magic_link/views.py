@@ -68,7 +68,7 @@ class MagicLinkViewSet(SerializerSeamsMixin, ViewSet):
     )
     def verify(self, request):
         from django.shortcuts import redirect
-        from stapel_core.django.utils import set_jwt_cookies
+        from stapel_core.django.jwt.utils import set_jwt_cookies
 
         from stapel_auth.conf import auth_settings
 
