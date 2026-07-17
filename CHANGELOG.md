@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-07-17
+
+Fleet follow-up to stapel-core 0.12.0 (legacy shim sweep). No source changes
+were needed — `stapel-auth` already imports the canonical
+`stapel_core.django.jwt.*` paths, not the removed `django.{utils,jwt_provider,
+authentication}` shims. Full suite green against core 0.12.0.
+
+### Changed
+- `stapel-core` dependency ceiling `<0.12` → `<0.13`.
+
 ## [0.7.0] — 2026-07-17
 
 Legacy scrub (owner directive: only current code, no back-compat shims).
