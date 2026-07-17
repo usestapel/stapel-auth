@@ -4375,6 +4375,10 @@ class QRAuthGenerateTests(APITestCase):
         self.assertIn("scan", response.data["scan_url"])
         self.assertEqual(response.data["type"], "login_request")
         self.assertEqual(response.data["expires_in"], 300)
+        # No redirect_url/allow_unauthenticated_scanner supplied — response
+        # echoes the applied defaults, not silence.
+        self.assertIsNone(response.data["redirect_url"])
+        self.assertFalse(response.data["allow_unauthenticated_scanner"])
 
     def test_generate_session_share_requires_auth(self):
         response = self.client.post(reverse("qr_generate"), {"type": "session_share"})
@@ -4399,6 +4403,66 @@ class QRAuthGenerateTests(APITestCase):
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["redirect_url"], "/home")
+
+    def test_generate_redirect_url_blank_echoes_null(self):
+        # A blank redirect_url is normalized to null both in the response
+        # and in what QRAuthService actually persists against the key.
+        self._auth()
+        response = self.client.post(
+            reverse("qr_generate"),
+            {
+                "type": "session_share",
+                "redirect_url": "",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNone(response.data["redirect_url"])
+
+        from stapel_auth.qr.services import QRAuthService
+
+        stored = QRAuthService.get(response.data["key"])
+        self.assertIsNone(stored["redirect_url"])
+
+    def test_generate_echoes_allow_unauthenticated_scanner(self):
+        self._auth()
+        response = self.client.post(
+            reverse("qr_generate"),
+            {
+                "type": "session_share",
+                "allow_unauthenticated_scanner": True,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data["allow_unauthenticated_scanner"])
+
+        from stapel_auth.qr.services import QRAuthService
+
+        stored = QRAuthService.get(response.data["key"])
+        self.assertTrue(stored["allow_unauthenticated_scanner"])
+
+    def test_generate_echo_matches_stored_record(self):
+        # The echoed fields must match exactly what's saved in the QR
+        # record — not merely the raw request payload.
+        self._auth()
+        response = self.client.post(
+            reverse("qr_generate"),
+            {
+                "type": "session_share",
+                "redirect_url": "/dashboard",
+                "allow_unauthenticated_scanner": True,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        from stapel_auth.qr.services import QRAuthService
+
+        stored = QRAuthService.get(response.data["key"])
+        self.assertEqual(response.data["redirect_url"], stored["redirect_url"])
+        self.assertEqual(
+            response.data["allow_unauthenticated_scanner"],
+            stored["allow_unauthenticated_scanner"],
+        )
 
     def test_generate_absolute_redirect_url_rejected(self):
         self._auth()

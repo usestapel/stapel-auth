@@ -70,7 +70,7 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
 **`redirect_url`** (optional) — where to send the scanner after the auth flow completes. Defaults to `/`.
 
-**Response:** encode `scan_url` into a QR image (e.g. via qrcode.js) and display it. Poll `GET /qr/{key}/status/` to know when the flow completes.
+**Response:** encode `scan_url` into a QR image (e.g. via qrcode.js) and display it. Poll `GET /qr/{key}/status/` to know when the flow completes. `redirect_url` and `allow_unauthenticated_scanner` echo back the accepted, normalized values actually stored against the key (including applied defaults), so the response is never silent about what was recorded.
 """,
         request=QRGenerateSerializer,
         responses={
@@ -111,11 +111,17 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         # (STAPEL_MOUNTS / include()), so the scan URL never hardcodes the
         # historical "/auth/api/" mount point and stays correct under any mount.
         scan_url = request.build_absolute_uri(reverse("qr_scan", kwargs={"key": key}))
+        # Echo back what was actually stored against the key (see
+        # QRAuthService.generate) rather than the raw request payload, so the
+        # response is honest about applied defaults/normalization — e.g. a
+        # blank redirect_url collapses to null, matching the cached record.
         dto = QRGenerateResponse(
             key=key,
             type=qr_type,
             expires_in=self.QR_TTL,
             scan_url=scan_url,
+            redirect_url=redirect_url or None,
+            allow_unauthenticated_scanner=bool(allow_unauth),
         )
         response = StapelResponse(
             self.get_generate_response_serializer_class()(dto),

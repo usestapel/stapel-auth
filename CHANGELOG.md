@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [0.7.4] — 2026-07-17
+
+Contract-transparency fix-up: `POST /qr/generate/` accepted `redirect_url`
+and `allow_unauthenticated_scanner` but never echoed them back, so a caller
+had no way to confirm what was actually recorded against the key (the flow
+itself worked — scan-redirect was already covered by tests — but the
+response looked like the fields were silently dropped).
+
+### Added
+- `QRGenerateResponse` gains `redirect_url` (normalized, `null` if not
+  supplied — mirrors what `QRAuthService` actually stores, e.g. a blank
+  string collapses to `null`) and `allow_unauthenticated_scanner` (the
+  actually-applied boolean, defaulting `false`). Additive — existing fields
+  unchanged.
+
+### Changed
+- `docs/schema.json` / `docs/capabilities.json` regenerated via
+  `make contract` for the new response fields and version bump.
+
 ## [0.7.3] — 2026-07-17
 
 Fix-up #2: 0.7.2's regen still baked the *old* version into

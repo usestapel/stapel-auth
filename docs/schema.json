@@ -3276,7 +3276,7 @@
     "/auth/api/v1/qr/generate/": {
       "post": {
         "operationId": "auth_api_v1_qr_generate_create",
-        "description": "Generate a short-lived QR auth key (5 min TTL).\n\n**Types:**\n- `session_share` — a logged-in device generates a QR; when another device scans it, that device receives the same session. Requires authentication.\n- `login_request` — an unauthenticated device generates a QR and polls for approval; a logged-in scanner confirms the login.\n\n**`redirect_url`** (optional) — where to send the scanner after the auth flow completes. Defaults to `/`.\n\n**Response:** encode `scan_url` into a QR image (e.g. via qrcode.js) and display it. Poll `GET /qr/{key}/status/` to know when the flow completes.\n\n\n**Permissions:** `AllowAny`",
+        "description": "Generate a short-lived QR auth key (5 min TTL).\n\n**Types:**\n- `session_share` — a logged-in device generates a QR; when another device scans it, that device receives the same session. Requires authentication.\n- `login_request` — an unauthenticated device generates a QR and polls for approval; a logged-in scanner confirms the login.\n\n**`redirect_url`** (optional) — where to send the scanner after the auth flow completes. Defaults to `/`.\n\n**Response:** encode `scan_url` into a QR image (e.g. via qrcode.js) and display it. Poll `GET /qr/{key}/status/` to know when the flow completes. `redirect_url` and `allow_unauthenticated_scanner` echo back the accepted, normalized values actually stored against the key (including applied defaults), so the response is never silent about what was recorded.\n\n\n**Permissions:** `AllowAny`",
         "tags": [
           "QR Auth"
         ],
@@ -3319,7 +3319,8 @@
                       "key": "abc123xyz",
                       "type": "session_share",
                       "expires_in": 300,
-                      "scan_url": "https://app.example.com/auth/api/v1/qr/abc123xyz/scan/"
+                      "scan_url": "https://app.example.com/auth/api/v1/qr/abc123xyz/scan/",
+                      "redirect_url": "/home"
                     }
                   }
                 }
@@ -7181,6 +7182,16 @@
             "type": "string",
             "description": "The URL to encode inside the QR image. When a phone camera scans the QR code it opens this URL on the scanner's device, which triggers the auth flow. Pass this to your QR-code renderer (e.g. qrcode.js)",
             "example": "https://app.example.com/auth/api/v1/qr/abc123xyz/scan/"
+          },
+          "redirect_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Echoes the accepted, normalized `redirect_url` as stored against this key — null if none was supplied (the `/` default applies at scan time)",
+            "example": "/home"
+          },
+          "allow_unauthenticated_scanner": {
+            "type": "boolean",
+            "description": "Echoes the `allow_unauthenticated_scanner` flag as actually applied and stored against this key (false unless explicitly set true on a `session_share` request)"
           }
         },
         "required": [

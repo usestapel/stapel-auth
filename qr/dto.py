@@ -42,11 +42,15 @@ class QRGenerateResponse:
         type: QR type. Example: session_share
         expires_in: Seconds until the key expires. Example: 300
         scan_url: The URL to encode inside the QR image. When a phone camera scans the QR code it opens this URL on the scanner's device, which triggers the auth flow. Pass this to your QR-code renderer (e.g. qrcode.js). Example: https://app.example.com/auth/api/v1/qr/abc123xyz/scan/
+        redirect_url: Echoes the accepted, normalized `redirect_url` as stored against this key — null if none was supplied (the `/` default applies at scan time). Example: /home
+        allow_unauthenticated_scanner: Echoes the `allow_unauthenticated_scanner` flag as actually applied and stored against this key (false unless explicitly set true on a `session_share` request). Example: false
     """
     key: str
     type: QRType
     expires_in: int
     scan_url: str
+    redirect_url: Optional[str] = None
+    allow_unauthenticated_scanner: bool = False
 
 
 @dataclass
