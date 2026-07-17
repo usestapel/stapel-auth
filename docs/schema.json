@@ -5849,6 +5849,10 @@
           "icon_svg": {
             "type": "string",
             "description": "Inline SVG glyph for this method (24x24, currentColor) — a"
+          },
+          "mock": {
+            "type": "boolean",
+            "description": "Whether this method's OTP delivery is mocked in this"
           }
         },
         "required": [
@@ -6422,6 +6426,14 @@
             "type": "boolean",
             "description": "Magic link login enabled",
             "example": true
+          },
+          "email_mock": {
+            "type": "boolean",
+            "description": "Email OTP delivery is mocked in this environment (the"
+          },
+          "phone_mock": {
+            "type": "boolean",
+            "description": "Same as ``email_mock``, for phone/SMS OTP delivery"
           }
         },
         "required": [
@@ -7291,6 +7303,14 @@
             "type": "boolean",
             "description": "Anonymous registration enabled",
             "example": true
+          },
+          "email_mock": {
+            "type": "boolean",
+            "description": "Email OTP delivery is mocked in this environment (the"
+          },
+          "phone_mock": {
+            "type": "boolean",
+            "description": "Same as ``email_mock``, for phone/SMS OTP delivery"
           }
         },
         "required": [

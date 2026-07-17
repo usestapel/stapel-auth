@@ -62,6 +62,13 @@ class RegistrationCapabilities:
         oauth: Enabled OAuth providers. Example: []
         sso: SSO/SAML JIT provisioning enabled. Example: true
         anonymous: Anonymous registration enabled. Example: true
+        email_mock: Email OTP delivery is mocked in this environment (the
+            code is written to logs instead of actually sent) — purely
+            informational, does not affect ``email`` above: a mocked channel
+            is still enabled, just not really delivering. Lets a host
+            frontend show a "dev mode" badge. Example: false
+        phone_mock: Same as ``email_mock``, for phone/SMS OTP delivery.
+            Example: false
     """
     phone: bool
     email: bool
@@ -69,6 +76,8 @@ class RegistrationCapabilities:
     oauth: List[OAuthProviderInfo]
     sso: bool
     anonymous: bool
+    email_mock: bool = False
+    phone_mock: bool = False
 
 
 @dataclass
@@ -84,6 +93,13 @@ class LoginCapabilities:
         qr: QR code login enabled. Example: true
         passkey: Passkey/WebAuthn login enabled. Example: true
         magic_link: Magic link login enabled. Example: true
+        email_mock: Email OTP delivery is mocked in this environment (the
+            code is written to logs instead of actually sent) — purely
+            informational, does not affect ``email`` above: a mocked channel
+            is still enabled, just not really delivering. Lets a host
+            frontend show a "dev mode" badge. Example: false
+        phone_mock: Same as ``email_mock``, for phone/SMS OTP delivery.
+            Example: false
     """
     phone: bool
     email: bool
@@ -93,6 +109,8 @@ class LoginCapabilities:
     qr: bool
     passkey: bool
     magic_link: bool
+    email_mock: bool = False
+    phone_mock: bool = False
 
 
 @dataclass
@@ -136,6 +154,13 @@ class AuthMethodInfo:
         icon_svg: Inline SVG glyph for this method (24x24, currentColor) — a
             host frontend may render its own icon and ignore this field.
             Example: <svg>...</svg>
+        mock: Whether this method's OTP delivery is mocked in this
+            environment (code goes to logs, not a real email/SMS) rather
+            than the channel being disabled — ``enabled`` already reflects
+            true availability; this is additional transparency so a host
+            frontend can show a "dev mode" badge next to email/phone. Always
+            false for methods without an OTP delivery leg (password,
+            passkey, qr, magic_link, sso, oauth). Example: false
     """
     id: str
     enabled: bool
@@ -143,6 +168,7 @@ class AuthMethodInfo:
     order: int
     interaction: str
     icon_svg: str
+    mock: bool = False
 
 
 @dataclass

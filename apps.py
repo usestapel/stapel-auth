@@ -50,3 +50,6 @@ class StapelAuthConfig(AppConfig):
             from stapel_core.gdpr import gdpr_registry
             from .gdpr import AuthGDPRProvider
             gdpr_registry.register(AuthGDPRProvider())
+
+        # System check: USE_MOCK_*_OTP left on with DEBUG=False (checks.py).
+        from . import checks as _checks  # noqa: F401

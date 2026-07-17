@@ -817,13 +817,53 @@ class CapabilitiesViewTests(APITestCase):
             self.assertIn('email', response.data[section])
             self.assertIn('oauth', response.data[section])
 
-    def test_mock_otp_disables_phone_and_email_in_capabilities(self):
-        # conftest sets USE_MOCK_SMS_OTP=True and USE_MOCK_EMAIL_OTP=True
+    def test_mock_otp_keeps_phone_and_email_enabled_with_mock_flag(self):
+        # conftest sets USE_MOCK_SMS_OTP=True and USE_MOCK_EMAIL_OTP=True. A
+        # mock OTP provider changes delivery (code goes to logs instead of a
+        # real SMS/email), not availability — the channel must stay enabled
+        # (owner-caught regression: this used to read `not USE_MOCK_*` and
+        # inverted the meaning of a mock, hiding the login tabs dev mode
+        # exists to keep usable). The mock state is surfaced separately as
+        # additive transparency fields instead of gating `enabled`.
         response = self.client.get(reverse('capabilities'))
-        self.assertFalse(response.data['registration']['phone'])
+        self.assertTrue(response.data['registration']['phone'])
+        self.assertTrue(response.data['registration']['email'])
+        self.assertTrue(response.data['login']['phone'])
+        self.assertTrue(response.data['login']['email'])
+        self.assertTrue(response.data['registration']['phone_mock'])
+        self.assertTrue(response.data['registration']['email_mock'])
+        self.assertTrue(response.data['login']['phone_mock'])
+        self.assertTrue(response.data['login']['email_mock'])
+
+    @override_settings(STAPEL_AUTH={'USE_MOCK_SMS_OTP': False, 'USE_MOCK_EMAIL_OTP': False})
+    def test_real_otp_reports_mock_false(self):
+        from stapel_auth.conf import auth_settings
+        auth_settings.reload()
+        response = self.client.get(reverse('capabilities'))
+        self.assertTrue(response.data['registration']['phone'])
+        self.assertTrue(response.data['registration']['email'])
+        self.assertFalse(response.data['registration']['phone_mock'])
+        self.assertFalse(response.data['registration']['email_mock'])
+        self.assertFalse(response.data['login']['phone_mock'])
+        self.assertFalse(response.data['login']['email_mock'])
+
+    @override_settings(STAPEL_AUTH={
+        'AUTH_EMAIL_LOGIN': False,
+        'AUTH_EMAIL_REGISTRATION': False,
+        'AUTH_PHONE_LOGIN': False,
+        'AUTH_PHONE_REGISTRATION': False,
+    })
+    def test_axis_disabled_wins_over_mock(self):
+        # Mock stays on (conftest default) but the AUTH_*_LOGIN/REGISTRATION
+        # axis is what gates `enabled` — turning the axis off must disable
+        # the channel regardless of the mock setting.
+        from stapel_auth.conf import auth_settings
+        auth_settings.reload()
+        response = self.client.get(reverse('capabilities'))
         self.assertFalse(response.data['registration']['email'])
-        self.assertFalse(response.data['login']['phone'])
+        self.assertFalse(response.data['registration']['phone'])
         self.assertFalse(response.data['login']['email'])
+        self.assertFalse(response.data['login']['phone'])
 
     def test_password_disabled_by_default(self):
         response = self.client.get(reverse('capabilities'))
@@ -925,6 +965,27 @@ class CapabilitiesMethodsAndOtpMetaTests(APITestCase):
         methods = self._methods_by_id(response)
         self.assertEqual(methods['qr']['placement'], 'main')
         self.assertEqual(methods['qr']['interaction'], 'inline')
+
+    def test_methods_mock_flag_set_for_email_and_phone_only(self):
+        # conftest default: USE_MOCK_SMS_OTP=True, USE_MOCK_EMAIL_OTP=True.
+        response = self.client.get(reverse('capabilities'))
+        methods = self._methods_by_id(response)
+        self.assertTrue(methods['email']['mock'])
+        self.assertTrue(methods['phone']['mock'])
+        for method_id in ('password', 'passkey', 'qr', 'magic_link', 'sso', 'oauth'):
+            self.assertFalse(methods[method_id]['mock'], method_id)
+        # And still enabled — mock is delivery-mode transparency, not a gate.
+        self.assertTrue(methods['email']['enabled'])
+        self.assertTrue(methods['phone']['enabled'])
+
+    @override_settings(STAPEL_AUTH={'USE_MOCK_SMS_OTP': False, 'USE_MOCK_EMAIL_OTP': False})
+    def test_methods_mock_flag_false_with_real_providers(self):
+        from stapel_auth.conf import auth_settings
+        auth_settings.reload()
+        response = self.client.get(reverse('capabilities'))
+        methods = self._methods_by_id(response)
+        self.assertFalse(methods['email']['mock'])
+        self.assertFalse(methods['phone']['mock'])
 
     @override_settings(STAPEL_AUTH={'AUTH_EMAIL_PLACEMENT': 'not_a_real_zone'})
     def test_invalid_placement_falls_back_to_main(self):

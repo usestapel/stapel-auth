@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+## [0.7.5] — 2026-07-17
+
+Fixed an inverted-logic bug in `AuthCapabilitiesService.get_capabilities()`
+(owner-caught in a live review): `phone_real = not USE_MOCK_SMS_OTP` /
+`email_real = not USE_MOCK_EMAIL_OTP` treated a mock OTP provider as a
+*disabled* channel. A mock provider does not disable delivery — it changes
+delivery (the code goes to logs instead of a real SMS/email), which is the
+whole point of the dev-canon default (`.env.local` ships mocks on so login
+tabs stay usable without real providers wired up). The bug did the opposite:
+it hid the email/phone login tabs exactly when mock was on.
+
+### Fixed
+- `email`/`phone` in `RegistrationCapabilities`/`LoginCapabilities` and the
+  corresponding entries in `methods[]` are now gated **only** by the
+  matching `AUTH_*_LOGIN`/`AUTH_*_REGISTRATION` axis — a mock OTP provider
+  no longer disables the channel.
+
+### Added
+- `RegistrationCapabilities.email_mock` / `.phone_mock` and
+  `LoginCapabilities.email_mock` / `.phone_mock` — additive transparency
+  fields reporting whether that channel's OTP delivery is currently mocked
+  (`USE_MOCK_EMAIL_OTP`/`USE_MOCK_SMS_OTP`), independent of `enabled`, so a
+  host frontend can show a "dev mode" badge.
+- `AuthMethodInfo.mock` — same transparency, per entry in `methods[]`
+  (always `false` for methods with no OTP delivery leg: password, passkey,
+  qr, magic_link, sso, oauth).
+- System check `stapel_auth.E001` (tag `stapel_auth`): errors at
+  `manage.py check` time if `USE_MOCK_SMS_OTP`/`USE_MOCK_EMAIL_OTP` is still
+  on with `DEBUG=False` — the prodguard-class gate for "mock OTP shipped to
+  production" (`stapel_auth/checks.py`), the same failure shape
+  `stapel_core.django.prodguard` catches for secrets/DB passwords.
+
 ## [0.7.4] — 2026-07-17
 
 Contract-transparency fix-up: `POST /qr/generate/` accepted `redirect_url`

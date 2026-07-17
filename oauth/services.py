@@ -29,12 +29,17 @@ _METHOD_ORDER = {
 _ALWAYS_REDIRECT = frozenset({'oauth', 'sso'})
 
 
-def _method_info(method_id: str, enabled: bool):
+def _method_info(method_id: str, enabled: bool, *, mock: bool = False):
     """Build one ``AuthMethodInfo`` for a login method (capabilities.py contract).
 
     ``interaction`` is derived, not configured: 'main' placement renders
     inline in the tab; everything else opens a modal, except oauth/sso which
     always redirect to the provider (client rule from the owner directive).
+
+    ``mock`` is purely informational transparency (see AuthMethodInfo.mock
+    docstring) — it never affects ``enabled``. A mock OTP provider still
+    delivers the channel (the code goes to logs instead of a real
+    email/SMS); only the corresponding AUTH_*_LOGIN axis turns a channel off.
     """
     from stapel_auth.conf import auth_settings
     from stapel_auth.oauth.dto import AuthMethodInfo
@@ -59,6 +64,7 @@ def _method_info(method_id: str, enabled: bool):
         order=order,
         interaction=interaction,
         icon_svg=METHOD_ICONS[method_id],
+        mock=mock,
     )
 
 
@@ -215,38 +221,50 @@ class AuthCapabilitiesService:
         from stapel_auth.otp.services import OTP_CODE_LENGTH
 
         s = auth_settings
-        phone_real = not s.USE_MOCK_SMS_OTP
-        email_real = not s.USE_MOCK_EMAIL_OTP
+        # Mock OTP providers do NOT turn a channel off — they change how the
+        # code is delivered (to logs instead of a real SMS/email), which is
+        # exactly the point of a mock in dev (.env.local ships mocks on by
+        # default so login tabs stay usable without real providers wired
+        # up). Availability is gated ONLY by the corresponding AUTH_*_LOGIN/
+        # REGISTRATION axis; the mock state is surfaced separately below as
+        # additive transparency (email_mock/phone_mock, methods[].mock) so a
+        # host frontend can show a "dev mode" badge instead of hiding the tab.
+        email_mock = bool(s.USE_MOCK_EMAIL_OTP)
+        phone_mock = bool(s.USE_MOCK_SMS_OTP)
         oauth_infos = [
             OAuthProviderInfo(id=p.id, name=p.display_name)
             for p in get_enabled_providers()
         ]
         return AuthCapabilities(
             registration=RegistrationCapabilities(
-                phone=s.AUTH_PHONE_REGISTRATION and phone_real,
-                email=s.AUTH_EMAIL_REGISTRATION and email_real,
+                phone=s.AUTH_PHONE_REGISTRATION,
+                email=s.AUTH_EMAIL_REGISTRATION,
                 password=s.AUTH_PASSWORD_REGISTRATION,
                 oauth=oauth_infos if s.AUTH_OAUTH_REGISTRATION else [],
                 sso=s.AUTH_SSO_REGISTRATION,
                 anonymous=s.AUTH_ANONYMOUS,
+                email_mock=email_mock,
+                phone_mock=phone_mock,
             ),
             login=LoginCapabilities(
-                phone=s.AUTH_PHONE_LOGIN and phone_real,
-                email=s.AUTH_EMAIL_LOGIN and email_real,
+                phone=s.AUTH_PHONE_LOGIN,
+                email=s.AUTH_EMAIL_LOGIN,
                 password=s.AUTH_PASSWORD_LOGIN,
                 oauth=oauth_infos if s.AUTH_OAUTH_LOGIN else [],
                 sso=s.AUTH_SSO_LOGIN,
                 qr=s.AUTH_QR_LOGIN,
                 passkey=s.AUTH_PASSKEY_LOGIN,
                 magic_link=s.AUTH_MAGIC_LINK_LOGIN,
+                email_mock=email_mock,
+                phone_mock=phone_mock,
             ),
             mfa=MFACapabilities(
                 totp=s.AUTH_TOTP,
                 passkey=s.AUTH_PASSKEY_LOGIN,
             ),
             methods=[
-                _method_info('email', s.AUTH_EMAIL_LOGIN and email_real),
-                _method_info('phone', s.AUTH_PHONE_LOGIN and phone_real),
+                _method_info('email', s.AUTH_EMAIL_LOGIN, mock=email_mock),
+                _method_info('phone', s.AUTH_PHONE_LOGIN, mock=phone_mock),
                 _method_info('password', s.AUTH_PASSWORD_LOGIN),
                 _method_info('passkey', s.AUTH_PASSKEY_LOGIN),
                 _method_info('qr', s.AUTH_QR_LOGIN),
