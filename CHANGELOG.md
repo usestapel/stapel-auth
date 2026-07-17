@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [0.7.3] — 2026-07-17
+
+Fix-up #2: 0.7.2's regen still baked the *old* version into
+`docs/capabilities.json` — `make contract` was run before the version bump
+landed in `pyproject.toml`, so the artifact still said 0.7.1 while the
+package said 0.7.2. Re-ran `make contract` with 0.7.3 already in
+`pyproject.toml`; confirmed `docs/capabilities.json` now says 0.7.3 and the
+full suite (1242 passed) is green.
+
 ## [0.7.2] — 2026-07-17
 
 Fix-up: 0.7.1's CI/publish failed on contract drift — `docs/capabilities.json`
