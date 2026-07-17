@@ -1,6 +1,6 @@
 {
   "module": "stapel-auth",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "provides": "User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.",
   "axes": [
     {
