@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [0.7.7] — 2026-07-20
+
+Closes a deployment trap in the delayed (14-day, no-old-channel-proof)
+authenticator-change strategy: `tasks.py`'s `send_change_notifications`,
+`execute_pending_changes` and `cleanup_expired_requests` had no documented
+Celery beat schedule anywhere — a host that installs this app and wires
+`include('stapel_auth.urls')` gets working delayed-change *endpoints* but a
+`PENDING` request just sits there forever unless the host happens to already
+run these three tasks on some schedule of its own devising.
+
+### Added
+- `stapel_auth.BEAT_SCHEDULE` (also `stapel_auth.tasks.BEAT_SCHEDULE`) — a
+  `CELERY_BEAT_SCHEDULE`-shaped dict naming the three tasks with concrete
+  intervals (`execute_pending_changes` every 5 min, `send_change_notifications`
+  hourly, `cleanup_expired_requests` daily), namespaced entry keys
+  (`stapel-auth-*`) so merging into a host's own schedule can't collide with
+  an unrelated task of the same short name. Discoverable, not auto-wired —
+  installing this app still never touches a host's `celery.py`; see
+  MODULE.md's new "Celery beat schedule" section for the exact merge snippet
+  and the reasoning behind each interval.
+
 ## [0.7.6] — 2026-07-19
 
 Consumer-facing fix (real report, meettoday migrators): a `session_share` QR

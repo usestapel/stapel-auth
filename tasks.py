@@ -12,6 +12,41 @@ from stapel_core.notifications import request_notification
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# Beat schedule (MODULE.md "Celery beat schedule") — a HOST APP concern, not
+# auto-wired by this module (installing this app does not touch a host's
+# celery.py). Without a beat entry, `send_change_notifications`,
+# `execute_pending_changes` and `cleanup_expired_requests` below never run on
+# their own: a delayed (14-day) authenticator change is created, its day-1/7/13
+# notifications never fire, and it never actually applies at `scheduled_at` —
+# the request just sits `PENDING` forever. A host merges this dict into its own
+# `CELERY_BEAT_SCHEDULE` (see MODULE.md for the exact merge snippet); this
+# constant is the single source of truth for the task names + intervals so the
+# three tasks stay discoverable from the code that defines them, not only from
+# prose.
+BEAT_SCHEDULE = {
+    "stapel-auth-send-change-notifications": {
+        "task": "stapel_auth.tasks.send_change_notifications",
+        # Hourly: cheap (a `PENDING`-status filter + a per-day-threshold flag
+        # check), and keeps the day-1/7/13 notifications from lagging a
+        # full day behind the actual threshold.
+        "schedule": timedelta(hours=1),
+    },
+    "stapel-auth-execute-pending-changes": {
+        "task": "stapel_auth.tasks.execute_pending_changes",
+        # Every 5 minutes: this is what actually flips the user's email/phone
+        # at `scheduled_at` — a coarser interval would mean the change sits
+        # applied-but-not-yet-executed for up to a full schedule tick.
+        "schedule": timedelta(minutes=5),
+    },
+    "stapel-auth-cleanup-expired-requests": {
+        "task": "stapel_auth.tasks.cleanup_expired_requests",
+        # Daily: pure bookkeeping (marks >30-day-old abandoned requests
+        # EXPIRED), nothing time-sensitive depends on it running sooner.
+        "schedule": timedelta(hours=24),
+    },
+}
+
 
 def _contact_kwargs(change_type: str, value: str) -> dict:
     """Build email/phone kwargs for request_notification based on change_type."""

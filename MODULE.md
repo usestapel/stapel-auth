@@ -14,7 +14,7 @@ Full-featured authentication as a single pip-installable Django app (`stapel_aut
 - **GDPR provider** (`gdpr.py: AuthGDPRProvider`, section `auth`): export/delete of auth data; registered in-process in monolith mode, or run as a bus consumer (`manage.py consume_gdpr`) in microservices mode.
 - **Flow registry** (`flows.py`): documented business flows consumed by `stapel_core.flows` tooling.
 
-Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`, `PROVIDER_REGISTRY`, the staff-role assignment services `assign_staff_role`, `revoke_staff_role`, `staff_roles_for` (admin-suite AS-2, see below), and the per-feature URL factories `get_admin_api_urls`, `get_anonymous_urls`, `get_magic_link_urls`, `get_mfa_urls`, `get_oauth_urls`, `get_openid_urls`, `get_otp_urls`, `get_password_urls`, `get_qr_urls`, `get_security_urls`, `get_sessions_urls`, `get_sso_urls`, `get_verification_urls`.
+Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`, `PROVIDER_REGISTRY`, `BEAT_SCHEDULE` (Celery beat schedule for the delayed-change tasks, see below), the staff-role assignment services `assign_staff_role`, `revoke_staff_role`, `staff_roles_for` (admin-suite AS-2, see below), and the per-feature URL factories `get_admin_api_urls`, `get_anonymous_urls`, `get_magic_link_urls`, `get_mfa_urls`, `get_oauth_urls`, `get_openid_urls`, `get_otp_urls`, `get_password_urls`, `get_qr_urls`, `get_security_urls`, `get_sessions_urls`, `get_sso_urls`, `get_verification_urls`.
 
 ## Extension points (fork-free)
 
@@ -63,6 +63,30 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 The `AUTH_*` gates also drive the URL factories in `urls.py`: `include('stapel_auth.urls')` mounts everything (per-request 403 gating), or compose your own URLconf from `get_*_urls()` factories so disabled features 404.
 
 The boolean gates above are this module's **config axes** (capability-config.md §1 in the stapel workspace root): machine-readable metadata over `STAPEL_AUTH`, published as the fourth contract artifact `docs/capabilities.json` (see below). Each factory declares its gating flags and contributed URL patterns in `urls.py: GATE_REGISTRY` via the `_gated()` helper — the declaration lives where the gating executes, so the artifact cannot drift from the code.
+
+### Celery beat schedule
+
+`tasks.py` defines three periodic tasks the **delayed** (14-day, no-old-channel-proof) authenticator-change strategy depends on end-to-end — `send_change_notifications` (day-1/7/13 emails/SMS to the old contact), `execute_pending_changes` (actually flips the email/phone once `scheduled_at` is reached), `cleanup_expired_requests` (marks >30-day abandoned requests `EXPIRED`). Installing this app does **not** wire a host's `celery.py` — with no beat entry, a `PENDING` delayed change just sits there forever: no notifications, and it never applies. This is a fork-free extension point the same way OAuth providers and verification factors are: a **discoverability + documentation** contract, not auto-wiring (auto-editing a host's celery config is a scaffold concern, out of scope for a library).
+
+`stapel_auth.BEAT_SCHEDULE` (also importable as `stapel_auth.tasks.BEAT_SCHEDULE`) is the single source of truth for the three task names + intervals — merge it into your own `CELERY_BEAT_SCHEDULE`:
+
+```python
+# celery.py (or wherever your project defines CELERY_BEAT_SCHEDULE)
+from stapel_auth import BEAT_SCHEDULE as AUTH_BEAT_SCHEDULE
+
+app.conf.beat_schedule = {
+    **app.conf.beat_schedule,  # your own project's periodic tasks, if any
+    **AUTH_BEAT_SCHEDULE,
+}
+```
+
+| Task | Interval | Why |
+|---|---|---|
+| `send_change_notifications` | hourly | Cheap query; keeps day-1/7/13 notifications from lagging a full day behind the actual threshold |
+| `execute_pending_changes` | every 5 min | This is what applies the change at `scheduled_at` — a coarser interval leaves it applied-but-not-yet-executed for longer |
+| `cleanup_expired_requests` | daily | Pure bookkeeping; nothing time-sensitive depends on it running sooner |
+
+The **instant** strategy (old-channel OTP proof, applied synchronously in the request) does not depend on beat at all — only the delayed strategy does.
 
 ### Swappable models
 

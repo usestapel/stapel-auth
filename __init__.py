@@ -12,6 +12,10 @@ from importlib import import_module
 _LAZY_EXPORTS = {
     "auth_settings": (".conf", "auth_settings"),
     "PROVIDER_REGISTRY": (".oauth_providers", "PROVIDER_REGISTRY"),
+    # Celery beat schedule for the delayed-authenticator-change tasks — a host
+    # merges this into its own `CELERY_BEAT_SCHEDULE` (see MODULE.md "Celery
+    # beat schedule" + `tasks.py`'s module doc for why it's required).
+    "BEAT_SCHEDULE": (".tasks", "BEAT_SCHEDULE"),
     # Staff roles (admin-suite AS-2) — single-writer assignment services.
     "assign_staff_role": (".staff_roles", "assign_staff_role"),
     "revoke_staff_role": (".staff_roles", "revoke_staff_role"),
