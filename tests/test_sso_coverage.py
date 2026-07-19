@@ -426,6 +426,12 @@ class IssueSessionTests(TestCase):
         # JWT cookies were set on the redirect.
         self.assertTrue(any(response.cookies))
         self.assertEqual(UserSession.objects.filter(user=self.user).count(), 1)
+        # `stapel_auth_hint` (auth-react bootstrapProbe "auto" gate,
+        # 2026-07-19) rides every redirect-based cookie mint, SSO included.
+        from stapel_auth.hint_cookie import HINT_COOKIE_NAME
+
+        self.assertIn(HINT_COOKIE_NAME, response.cookies)
+        self.assertEqual(response.cookies[HINT_COOKIE_NAME].value, "1")
 
     def test_redirects_when_no_session_created(self):
         # SessionService.create returns None (e.g. jti absent) → the notify

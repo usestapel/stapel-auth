@@ -122,6 +122,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
         from stapel_auth.errors import ERR_423_ACCOUNT_LOCKED, retry_params
+        from stapel_auth.hint_cookie import set_auth_hint_cookie
         from stapel_auth.mfa.services import TOTPService
         from stapel_auth.security.services import LockoutService
         from stapel_auth.sessions.services import AuditService
@@ -178,6 +179,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         )
         response = Response(self.get_auth_response_serializer_class()(dto).data)
         set_jwt_cookies(response, access_token, refresh_token)
+        set_auth_hint_cookie(response)
         return _add_login_hints(response, critical=True)
 
     @extend_schema(
@@ -329,6 +331,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     def reset_email_verify(self, request):  # noqa: R007
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
+        from stapel_auth.hint_cookie import set_auth_hint_cookie
         from stapel_auth.staff_roles import create_tokens_for_user
 
         serializer = self.get_reset_email_verify_request_serializer_class()(
@@ -348,6 +351,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         )
         response = Response(self.get_auth_response_serializer_class()(dto).data)
         set_jwt_cookies(response, access_token, refresh_token)
+        set_auth_hint_cookie(response)
         return response
 
     @extend_schema(
@@ -394,6 +398,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     def reset_phone_verify(self, request):  # noqa: R007
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
+        from stapel_auth.hint_cookie import set_auth_hint_cookie
         from stapel_auth.staff_roles import create_tokens_for_user
 
         serializer = self.get_reset_phone_verify_request_serializer_class()(
@@ -413,6 +418,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         )
         response = Response(self.get_auth_response_serializer_class()(dto).data)
         set_jwt_cookies(response, access_token, refresh_token)
+        set_auth_hint_cookie(response)
         return response
 
     @extend_schema(
@@ -485,8 +491,11 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         )
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
+        from stapel_auth.hint_cookie import set_auth_hint_cookie
+
         response = StapelResponse(self.get_auth_response_serializer_class()(dto))
         set_jwt_cookies(response, access_token, refresh_token)
+        set_auth_hint_cookie(response)
         return response
 
     def _publish_user_registered(self, user, request=None) -> None:

@@ -237,6 +237,7 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     def challenge_verify(self, request):  # noqa: R007
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
+        from stapel_auth.hint_cookie import set_auth_hint_cookie
         from stapel_auth.sessions.dto import AuthResponse, AuthStatus, TokenPairResponse
         from stapel_auth.mfa.services import TOTPService
         from stapel_auth.sessions.views import _add_login_hints, _issue_session_tokens
@@ -282,6 +283,7 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         )
         response = StapelResponse(self.get_auth_response_serializer_class()(auth_dto))
         set_jwt_cookies(response, access_token, refresh_token)
+        set_auth_hint_cookie(response)
         return _add_login_hints(response)
 
 
@@ -464,6 +466,7 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
         access_token, refresh_token = _issue_session_tokens(user, request)
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
+        from stapel_auth.hint_cookie import set_auth_hint_cookie
         from stapel_auth.sessions.dto import AuthResponse, AuthStatus, TokenPairResponse
 
         dto = AuthResponse(
@@ -473,4 +476,5 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
         )
         response = StapelResponse(self.get_auth_response_serializer_class()(dto))
         set_jwt_cookies(response, access_token, refresh_token)
+        set_auth_hint_cookie(response)
         return _add_login_hints(response)

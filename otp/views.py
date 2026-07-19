@@ -568,7 +568,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             )
             from stapel_core.django.jwt.utils import set_jwt_cookies
 
+            from stapel_auth.hint_cookie import set_auth_hint_cookie
+
             set_jwt_cookies(response, access_token, refresh_token)
+            set_auth_hint_cookie(response)
             return _add_login_hints(response)
 
     @extend_schema(
@@ -854,7 +857,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             )
             from stapel_core.django.jwt.utils import set_jwt_cookies
 
+            from stapel_auth.hint_cookie import set_auth_hint_cookie
+
             set_jwt_cookies(response, access_token, refresh_token)
+            set_auth_hint_cookie(response)
             return _add_login_hints(response)
 
     @extend_schema(
@@ -916,7 +922,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             )
             from stapel_core.django.jwt.utils import set_jwt_cookies
 
+            from stapel_auth.hint_cookie import set_auth_hint_cookie
+
             set_jwt_cookies(response, access_token, refresh_token)
+            set_auth_hint_cookie(response)
             return response
 
     @extend_schema(
@@ -988,7 +997,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         )
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
+        from stapel_auth.hint_cookie import set_auth_hint_cookie
+
         set_jwt_cookies(response, access_token, refresh_token)
+        set_auth_hint_cookie(response)
         return _add_login_hints(response)
 
     @extend_schema(
@@ -1123,8 +1135,11 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             # strings end up in proxy logs, browser history and referrers.
             from stapel_core.django.jwt.utils import set_jwt_cookies
 
+            from stapel_auth.hint_cookie import set_auth_hint_cookie
+
             response = redirect(redirect_after)
             set_jwt_cookies(response, access_token, refresh_token)
+            set_auth_hint_cookie(response)
             return response
 
         tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
@@ -1137,7 +1152,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         )
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
+        from stapel_auth.hint_cookie import set_auth_hint_cookie
+
         set_jwt_cookies(response, access_token, refresh_token)
+        set_auth_hint_cookie(response)
         return response
 
     def _resolve_oauth_user(self, provider, user_data):
@@ -1330,6 +1348,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
             response.delete_cookie(cookie_name, path="/", domain=cookie_domain)
             response.delete_cookie(refresh_cookie_name, path="/", domain=cookie_domain)
+
+            from stapel_auth.hint_cookie import clear_auth_hint_cookie
+
+            clear_auth_hint_cookie(response)
 
             return response
         except Exception as e:
@@ -1610,7 +1632,10 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             )
             from stapel_core.django.jwt.utils import set_jwt_cookies
 
+            from stapel_auth.hint_cookie import set_auth_hint_cookie
+
             set_jwt_cookies(response, access_token, refresh_token)
+            set_auth_hint_cookie(response)
             return response
         return self._service_error_to_response(result)
 
@@ -1727,7 +1752,10 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             )
             from stapel_core.django.jwt.utils import set_jwt_cookies
 
+            from stapel_auth.hint_cookie import set_auth_hint_cookie
+
             set_jwt_cookies(response, access_token, refresh_token)
+            set_auth_hint_cookie(response)
             return response
         return self._service_error_to_response(result)
 

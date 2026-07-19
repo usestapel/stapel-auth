@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+## [0.7.6] — 2026-07-19
+
+Consumer-facing fix (real report, meettoday migrators): a `session_share` QR
+scan (`QRAuthViewSet.scan`) — and every other redirect-based login (magic-link
+verify, SSO SAML/OIDC callback, OAuth social callback) — mints fresh httponly
+JWT cookies via a plain HTTP redirect, entirely outside the SPA's own login
+call. A bearer-mode `@stapel/auth-react` host had no way to tell "a redirect
+just minted a live session for me" from "there was never a session" without
+attempting a network refresh on every cold load — so it silently never
+attempted one, and users landed on those flows looked logged out despite a
+valid server-side session.
+
+### Added
+- `stapel_auth_hint` — a non-httponly, non-sensitive (`"1"`) companion cookie
+  now set alongside the refresh-token cookie by every flow that mints one
+  (`stapel_auth/hint_cookie.py`): QR `session_share` scan, magic-link verify,
+  SSO SAML/OIDC callback, OAuth social callback, and the direct JSON-response
+  login/refresh endpoints (harmless, for consistency). Same
+  lifetime/Secure/SameSite/domain/path as the refresh cookie it accompanies;
+  cleared alongside it on logout. `@stapel/auth-react ^0.5.3`'s
+  `bootstrapProbe: "auto"` reads this cookie via `document.cookie` to decide
+  whether a bearer-mode cold load is worth a refresh-probe, closing the QR
+  session-share/magic-link/SSO/OAuth blind spot without paying a network
+  round trip on visitors who were never on a cookie-issuing backend.
+
 ## [0.7.5] — 2026-07-17
 
 Fixed an inverted-logic bug in `AuthCapabilitiesService.get_capabilities()`

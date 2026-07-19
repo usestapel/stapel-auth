@@ -1391,6 +1391,11 @@ class OAuthCallbackTests(APITestCase):
         # Tokens must travel as cookies, never in the redirect URL
         self.assertNotIn('access_token', response['Location'])
         self.assertTrue(response.cookies)
+        # `stapel_auth_hint` rides every redirect-based cookie mint, OAuth
+        # social-login callback included (auth-react bootstrapProbe "auto"
+        # gate, 2026-07-19).
+        from stapel_auth.hint_cookie import HINT_COOKIE_NAME
+        self.assertIn(HINT_COOKIE_NAME, response.cookies)
 
     def test_callback_redirect_after_to_foreign_origin_is_ignored(self):
         self._store_state(redirect_after='https://evil.example.net/steal')

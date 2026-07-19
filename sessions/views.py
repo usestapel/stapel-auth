@@ -65,6 +65,8 @@ class CustomTokenObtainPairView(SerializerSeamsMixin, APIView):
     def post(self, request):
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
+        from stapel_auth.hint_cookie import set_auth_hint_cookie
+
         # Accept both 'username' and 'email' as login field (for backwards compatibility)
         username = request.data.get("username") or request.data.get("email")
         password = request.data.get("password")
@@ -110,6 +112,7 @@ class CustomTokenObtainPairView(SerializerSeamsMixin, APIView):
 
         # Set cookies
         set_jwt_cookies(response, access_token, refresh_token)
+        set_auth_hint_cookie(response)
 
         return response
 
@@ -159,6 +162,8 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
         """Internal method to handle token refresh with rotation."""
         from stapel_core.django.jwt.provider import jwt_provider
         from stapel_core.django.jwt.utils import extract_jwt_from_request, set_jwt_cookies
+
+        from stapel_auth.hint_cookie import set_auth_hint_cookie
 
         from .services import SessionService
 
@@ -265,6 +270,7 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
             status=status.HTTP_200_OK,
         )
         set_jwt_cookies(response, new_access_token, new_refresh_token)
+        set_auth_hint_cookie(response)
         return response
 
 

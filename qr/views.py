@@ -255,6 +255,8 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         from django.http import HttpResponseRedirect
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
+        from stapel_auth.hint_cookie import set_auth_hint_cookie
+
         data = QRAuthService.get(key)
         if data is None:
             return StapelErrorResponse(404, ERR_404_QR_NOT_FOUND)
@@ -285,6 +287,7 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 access_token, refresh_token = _issue_session_tokens(owner, request)
                 response = HttpResponseRedirect(redirect_url)
                 set_jwt_cookies(response, access_token, refresh_token)
+                set_auth_hint_cookie(response)
                 return response
 
             if str(scanner.id) == str(owner.id):

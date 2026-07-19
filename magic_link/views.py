@@ -71,6 +71,7 @@ class MagicLinkViewSet(SerializerSeamsMixin, ViewSet):
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
         from stapel_auth.conf import auth_settings
+        from stapel_auth.hint_cookie import set_auth_hint_cookie
 
         frontend_url = auth_settings.FRONTEND_URL or ""
 
@@ -123,6 +124,7 @@ class MagicLinkViewSet(SerializerSeamsMixin, ViewSet):
         access_token, refresh_token = _issue_session_tokens(user, request)
         response = redirect(redirect_url)
         set_jwt_cookies(response, access_token, refresh_token)
+        set_auth_hint_cookie(response)
         return _add_login_hints(response)
 
 

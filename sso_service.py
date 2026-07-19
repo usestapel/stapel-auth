@@ -408,6 +408,7 @@ class SSOUserService:
         """Issue JWT session, set cookies, redirect to frontend."""
         from django.http import HttpResponseRedirect
         from stapel_core.django.jwt.utils import set_jwt_cookies
+        from .hint_cookie import set_auth_hint_cookie
         from .sessions.views import _add_login_hints
         from .sessions.services import LoginNotificationService
 
@@ -436,4 +437,5 @@ class SSOUserService:
         redirect_url = f'{frontend_url}/'
         response = HttpResponseRedirect(redirect_url)
         set_jwt_cookies(response, access_token, refresh_token)
+        set_auth_hint_cookie(response)
         return _add_login_hints(response)
