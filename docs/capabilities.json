@@ -1,6 +1,6 @@
 {
   "module": "stapel-auth",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "provides": "User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.",
   "axes": [
     {
@@ -27,6 +27,9 @@
       "gates": {
         "operations": [
           "auth_api_v1_totp_challenge_verify_create",
+          "auth_api_v1_totp_change_delayed_cancel_create",
+          "auth_api_v1_totp_change_delayed_initiate_create",
+          "auth_api_v1_totp_change_delayed_status_retrieve",
           "auth_api_v1_totp_disable_create",
           "auth_api_v1_totp_disable_otp_request_create",
           "auth_api_v1_totp_setup_confirm_create",
@@ -596,7 +599,7 @@
       "summary": "Compose your own URLconf from the get_*_urls() factories so disabled features 404 (include('stapel_auth.urls') mounts everything with per-request gating)."
     }
   ],
-  "operations_total": 106,
+  "operations_total": 109,
   "requires": [
     {
       "module": "stapel-core",

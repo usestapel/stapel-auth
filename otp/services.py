@@ -546,6 +546,78 @@ class AuthenticatorChangeService:
             'scheduled_at': scheduled_at.isoformat(),
         }
 
+    def initiate_delayed_totp(self, user, device_id='', ip=None, user_agent=''):
+        """Delayed TOTP removal — for a user who LOST their device (cannot
+        produce a code or a backup code), so the instant proof-gated path
+        (``mfa.services.TOTPService.setup``/``disable``) is unavailable.
+
+        Unlike the phone/email delayed flow there is no "new address" to
+        pre-commit: this schedules a DISABLE (same ``scheduled_at``/
+        cancel/notify machinery, `DELAYED_PERIOD_DAYS`-day cooldown). Once
+        it executes (``tasks.execute_pending_changes``), the account has no
+        TOTP device and the user re-enrolls via the normal instant
+        ``setup``/``confirm_setup`` pair — this IS the "replace", just
+        split at the safety boundary instead of pre-provisioning a secret
+        the user can't act on until the window closes anyway.
+
+        Requires a verified email or phone — that is the channel the
+        day-1/7/13 notifications and the legitimate owner's cancellation
+        depend on. A user with a lost TOTP device AND no verified contact
+        has no self-serve path left; this returns 'no_verified_contact'
+        deliberately rather than silently degrading to an unnotified,
+        uncancellable change — that combination is a support case.
+        """
+        from stapel_auth.models import AuthenticatorChangeRequest, AuthenticatorChangeStatus
+        from stapel_auth.mfa.services import TOTPService
+
+        if not TOTPService.is_enabled(user):
+            return {'error': 'not_enabled', 'message': 'TOTP is not enabled on this account.'}
+
+        has_verified_contact = (
+            (user.email and getattr(user, 'is_email_verified', False))
+            or (user.phone and getattr(user, 'is_phone_verified', False))
+        )
+        if not has_verified_contact:
+            return {
+                'error': 'no_verified_contact',
+                'message': (
+                    'A verified email or phone is required to request a delayed '
+                    'TOTP change (used to notify you and let you cancel it). '
+                    'This account has neither — contact support.'
+                ),
+            }
+
+        # Cancel any existing pending TOTP change request for this user.
+        AuthenticatorChangeRequest.objects.filter(
+            user=user,
+            change_type='totp',
+            status=AuthenticatorChangeStatus.PENDING,
+        ).update(status=AuthenticatorChangeStatus.CANCELLED, cancelled_at=timezone.now())
+
+        scheduled_at = timezone.now() + timedelta(days=self.DELAYED_PERIOD_DAYS)
+
+        request_obj = AuthenticatorChangeRequest.objects.create(
+            user=user,
+            change_type='totp',
+            old_value='',
+            # Opaque, unique-per-request marker — satisfies the
+            # unique_pending_reservation constraint (fields=[new_value,
+            # change_type], condition=pending); TOTP has no real "new
+            # value" to reserve, so this is never displayed (see
+            # get_pending_status's 'authenticator app' override).
+            new_value=f'totp:{uuid.uuid4().hex}',
+            scheduled_at=scheduled_at,
+            device_id=device_id,
+            ip_address=ip,
+            user_agent=user_agent,
+        )
+
+        return {
+            'success': True,
+            'change_request_id': str(request_obj.id),
+            'scheduled_at': scheduled_at.isoformat(),
+        }
+
     def get_pending_status(self, user, change_type):
         """Return pending delayed change info or None."""
         from stapel_auth.models import AuthenticatorChangeRequest, AuthenticatorChangeStatus
@@ -570,10 +642,18 @@ class AuthenticatorChangeService:
         if request_obj.notification_day_13_sent:
             notifications_sent.append('day_13')
 
+        # TOTP has no "new address" — new_value is an opaque internal
+        # reservation marker (see AuthenticatorChangeRequest docstring),
+        # never meant for display.
+        if request_obj.change_type == 'totp':
+            new_value_masked = 'authenticator app'
+        else:
+            new_value_masked = mask_value(request_obj.new_value, request_obj.change_type)
+
         return {
             'change_request_id': str(request_obj.id),
             'type': request_obj.change_type,
-            'new_value_masked': mask_value(request_obj.new_value, request_obj.change_type),
+            'new_value_masked': new_value_masked,
             'created_at': request_obj.created_at.isoformat(),
             'scheduled_at': request_obj.scheduled_at.isoformat(),
             'days_remaining': days_remaining,

@@ -200,9 +200,17 @@
       "hash": "6c7181611e64a4aa",
       "origin": "seed:stapel-builtin"
     },
+    "error.400.totp_not_enabled": {
+      "hash": "4d979883a61a067f",
+      "origin": "human"
+    },
     "error.400.totp_not_pending": {
       "hash": "e57dfcf3392eb352",
       "origin": "seed:stapel-builtin"
+    },
+    "error.400.totp_proof_required": {
+      "hash": "ab64ffb3cf345d6b",
+      "origin": "human"
     },
     "error.400.unknown_staff_role": {
       "hash": "3389b9cd42708025",

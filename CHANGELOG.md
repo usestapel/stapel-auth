@@ -2,6 +2,79 @@
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-07-20
+
+TOTP anti-takeover hardening — brings TOTP up to the same standard the
+phone/email authenticator change flow already had. Previously TOTP only had
+instant enroll (`setup`→`confirm_setup`) and instant disable: no atomic
+replace, no delayed/cancellable mode for a lost device, and no notification
+on change — a stolen session (or a leaked code/backup code) could strip 2FA
+instantly with the owner never told. Closes that gap by reusing the
+`AuthenticatorChangeRequest` model/status machine and the delayed-change
+Celery tasks (`send_change_notifications` / `execute_pending_changes` /
+`cleanup_expired_requests`) that already back phone/email changes, adding
+`change_type="totp"` rather than a parallel model.
+
+### Security fix
+- `mfa.services.TOTPService.setup()` now requires proof of the CURRENT
+  device (`code` or `backup_code`) when one is already active. Previously
+  `setup()` unconditionally deactivated any existing active device with
+  **zero proof** — an authenticated session (stolen or otherwise) could
+  silently strip working 2FA by calling `/totp/setup/` then
+  `/totp/setup/confirm/` with a code it computed itself, bypassing
+  `disable()`'s proof requirement entirely. First-time enrollment (no
+  active device yet) is unaffected — no proof required. Callers without
+  the old device's code/backup code use the new delayed flow below instead.
+
+### Added
+- **Instant replace**: `POST /totp/setup/` now accepts optional `code` /
+  `backup_code` in the body — proof of the current device, gating the
+  re-enrollment that `POST /totp/setup/confirm/` completes as before.
+- **Delayed (anti-takeover) mode for a lost device** — `change_type="totp"`
+  on `AuthenticatorChangeRequest` (see `models.py` docstring for the
+  encoding: `old_value` unused, `new_value` an opaque per-request marker
+  since TOTP has no "new address" to reserve, unlike phone/email):
+  - `otp.services.AuthenticatorChangeService.initiate_delayed_totp(user, ...)`
+    — schedules a TOTP disable `DELAYED_PERIOD_DAYS` (14) out. Requires a
+    verified email or phone (the notify/cancel channel); returns
+    `{'error': 'no_verified_contact'}` cleanly otherwise — a lost device
+    AND no recovery contact is a support case, not a silent path.
+  - `POST /totp/change/delayed/initiate/`, `GET /totp/change/delayed/status/`,
+    `POST /totp/change/delayed/cancel/` — same shape as the phone/email
+    delayed endpoints, reusing their DTOs/serializers (`DelayedInitiateResponse`
+    / `DelayedStatusResponse` / `DelayedCancelResponse` /
+    `DelayedChangeCancelSerializer`).
+  - Once the cooldown elapses, `tasks.execute_pending_changes` (already
+    polled by the existing `BEAT_SCHEDULE`, no new beat entry needed) force-
+    disables the device instead of swapping a contact field; the user
+    re-enrolls afterward via the normal instant `setup`/`confirm_setup`
+    pair. `tasks.send_change_notifications` sends the same day-1/7/13
+    notifications, resolved to the user's current verified contact
+    (`tasks._notify_kwargs_for_request`) since TOTP has no "old address" —
+    `get_pending_status`/`send_change_notifications` display it as
+    `"authenticator app"` rather than a masked address.
+- **Notify on every TOTP change** (item 3): `mfa.services.notify_totp_change`
+  — best-effort notification to the verified contact, wired into
+  `confirm_setup` (`totp_enabled`), `disable` (`totp_disabled`, all three
+  proof methods), and the delayed flow's day-1/7/13 + completion
+  notifications above.
+- New error keys `error.400.totp_proof_required` (setup called without
+  proof while a device is active) and `error.400.totp_not_enabled`
+  (delayed-mode initiate with no active device).
+- Migration `0017_alter_authenticatorchangerequest_change_type` — adds the
+  `totp` choice (additive, no data migration).
+
+### Frontend follow-up (separate track)
+- `POST /totp/setup/` needs `code`/`backup_code` fields wired for the
+  "replace" case (only when TOTP is already enabled) — 400
+  `totp_proof_required` if omitted.
+- New delayed-mode screen: initiate (no body beyond optional `device_id`)
+  → show `scheduled_at`/cancel affordance for 14 days → poll
+  `/totp/change/delayed/status/` → cancel via
+  `/totp/change/delayed/cancel/` with `change_request_id`. On
+  `no_verified_contact`, surface a "contact support" dead-end rather than
+  a retry.
+
 ## [0.8.0] — 2026-07-20
 
 THE IDENTITY MODEL, enforced end to end: an account is REGISTERED

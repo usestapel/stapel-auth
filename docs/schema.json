@@ -4717,6 +4717,175 @@
         }
       }
     },
+    "/auth/api/v1/totp/change/delayed/cancel/": {
+      "post": {
+        "operationId": "auth_api_v1_totp_change_delayed_cancel_create",
+        "description": "Cancel a pending delayed TOTP removal.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
+        "tags": [
+          "auth"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DelayedChangeCancel"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/DelayedChangeCancel"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/DelayedChangeCancel"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DelayedCancelResponse"
+                },
+                "examples": {
+                  "DelayedCancelResponse": {
+                    "value": {
+                      "status": "CANCELLED",
+                      "message": "Change request cancelled"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/auth/api/v1/totp/change/delayed/initiate/": {
+      "post": {
+        "operationId": "auth_api_v1_totp_change_delayed_initiate_create",
+        "description": "Request a delayed TOTP removal — for when the current device is LOST (no code or backup code available), so the instant `/totp/setup/` (replace) or `/totp/disable/` proof-gated paths can't be used. Requires a verified email or phone: it is notified on day 1/7/13 of the cooldown and can cancel the request at any point before it applies. No verified contact on the account -> 400 `no_verified_contact` (a support case, not a self-serve path).\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
+        "tags": [
+          "auth"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TOTPDelayedInitiate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TOTPDelayedInitiate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TOTPDelayedInitiate"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DelayedInitiateResponse"
+                },
+                "examples": {
+                  "DelayedInitiateResponse": {
+                    "value": {
+                      "status": "PENDING",
+                      "change_request_id": "550e8400-e29b-41d4-a716-446655440000",
+                      "new_value_masked": "n***@example.com",
+                      "scheduled_at": "2025-01-22T00:00:00Z",
+                      "can_cancel_until": "2025-01-20T00:00:00Z"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/auth/api/v1/totp/change/delayed/status/": {
+      "get": {
+        "operationId": "auth_api_v1_totp_change_delayed_status_retrieve",
+        "description": "Status of a pending delayed TOTP removal, if any.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DelayedStatusResponse"
+                },
+                "examples": {
+                  "DelayedStatusResponse": {
+                    "value": {
+                      "has_pending_change": true,
+                      "change_request_id": "550e8400-e29b-41d4-a716-446655440000",
+                      "type": "email",
+                      "new_value_masked": "n***@example.com",
+                      "created_at": "2025-01-15T12:00:00Z",
+                      "scheduled_at": "2025-01-22T00:00:00Z",
+                      "days_remaining": 5
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
     "/auth/api/v1/totp/disable/": {
       "post": {
         "operationId": "auth_api_v1_totp_disable_create",
@@ -4797,10 +4966,29 @@
     "/auth/api/v1/totp/setup/": {
       "post": {
         "operationId": "auth_api_v1_totp_setup_create",
-        "description": "Start TOTP enrollment. Returns a secret and otpauth URI for QR display.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
+        "description": "Start TOTP enrollment. Returns a secret and otpauth URI for QR display. If TOTP is already enabled (replacing an existing device), `code` or `backup_code` proving the CURRENT device is required — otherwise this returns 400 `totp_proof_required`. Lost the current device entirely? Use `/totp/change/delayed/initiate/` instead.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
         "tags": [
           "auth"
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TOTPSetupRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TOTPSetupRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TOTPSetupRequest"
+              }
+            }
+          }
+        },
         "security": [
           {
             "JWTCookieAuth": []
@@ -4821,6 +5009,16 @@
                       "expires_in": 300
                     }
                   }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
                 }
               }
             },
@@ -7818,6 +8016,16 @@
           "challenge_token"
         ]
       },
+      "TOTPDelayedInitiate": {
+        "type": "object",
+        "description": "Initiate a delayed (14-day) TOTP removal — no old-device proof available.",
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "maxLength": 255
+          }
+        }
+      },
       "TOTPDisableRequest": {
         "oneOf": [
           {
@@ -7867,6 +8075,21 @@
         "required": [
           "backup_codes"
         ]
+      },
+      "TOTPSetupRequest": {
+        "type": "object",
+        "description": "Optional proof for a *replace* (an active device already exists).\n\nBoth fields are optional because first-time enrollment (no active\ndevice) needs neither — TOTPService.setup() only enforces one of them\nwhen there is something to prove possession of.",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "6-digit code from the CURRENT authenticator app (required to replace an active device).",
+            "maxLength": 6
+          },
+          "backup_code": {
+            "type": "string",
+            "description": "A current backup code (alternative to code, to replace an active device)."
+          }
+        }
       },
       "TOTPSetupResponse": {
         "type": "object",

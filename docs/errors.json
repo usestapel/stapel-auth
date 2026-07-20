@@ -378,11 +378,25 @@
     "en": "Token is required"
   },
   {
+    "code": "error.400.totp_not_enabled",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "TOTP is not enabled on this account."
+  },
+  {
     "code": "error.400.totp_not_pending",
     "status": 400,
     "params": [],
     "remediation": "retry",
     "en": "No pending TOTP setup. Call /totp/setup/ first."
+  },
+  {
+    "code": "error.400.totp_proof_required",
+    "status": 400,
+    "params": [],
+    "remediation": "verify",
+    "en": "A TOTP already exists on this account. Provide the current code or a backup code to replace it, or use the delayed change flow if you lost your authenticator."
   },
   {
     "code": "error.400.unknown_staff_role",

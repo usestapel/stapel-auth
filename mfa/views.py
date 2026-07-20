@@ -17,20 +17,33 @@ from stapel_auth.errors import (
     ERR_400_CODE_REQUIRED,
     ERR_400_INVALID_CODE,
     ERR_400_LAST_AUTH_METHOD,
+    ERR_400_NO_VERIFIED_CONTACT,
     ERR_400_PASSKEY_CHALLENGE_EXPIRED,
     ERR_400_PASSKEY_INVALID,
+    ERR_400_TOTP_NOT_ENABLED,
     ERR_400_TOTP_NOT_PENDING,
+    ERR_400_TOTP_PROOF_REQUIRED,
+    ERR_404_CHANGE_NOT_FOUND,
     ERR_404_PASSKEY_NOT_FOUND,
 )
 from stapel_auth.mfa.serializers import (
     PasskeyItemSerializer,
     TOTPChallengeVerifySerializer,
+    TOTPDelayedInitiateSerializer,
     TOTPDisableSerializer,
     TOTPSetupConfirmResponseSerializer,
     TOTPSetupConfirmSerializer,
+    TOTPSetupRequestSerializer,
     TOTPSetupResponseSerializer,
 )
-from stapel_auth.otp.serializers import OtpSentResponseSerializer
+from stapel_auth.otp.dto import DelayedCancelResponse, DelayedInitiateResponse, DelayedStatusResponse
+from stapel_auth.otp.serializers import (
+    DelayedCancelResponseSerializer,
+    DelayedChangeCancelSerializer,
+    DelayedInitiateResponseSerializer,
+    DelayedStatusResponseSerializer,
+    OtpSentResponseSerializer,
+)
 from stapel_auth.sessions.serializers import (
     AuthResponseSerializer,
     SimpleStatusSerializer,
@@ -97,6 +110,9 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     otp_sent_response_serializer_class = OtpSentResponseSerializer
     status_response_serializer_class = SimpleStatusSerializer
     auth_response_serializer_class = AuthResponseSerializer
+    delayed_initiate_response_serializer_class = DelayedInitiateResponseSerializer
+    delayed_status_response_serializer_class = DelayedStatusResponseSerializer
+    delayed_cancel_response_serializer_class = DelayedCancelResponseSerializer
 
     def get_permissions(self):
         # challenge_verify is unauthenticated (user has no token yet)
@@ -105,16 +121,30 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         return [permissions.IsAuthenticated()]
 
     @extend_schema(
-        description="Start TOTP enrollment. Returns a secret and otpauth URI for QR display.",
-        request=None,
-        responses={200: TOTPSetupResponseSerializer},
+        description=(
+            "Start TOTP enrollment. Returns a secret and otpauth URI for QR display. "
+            "If TOTP is already enabled (replacing an existing device), `code` or "
+            "`backup_code` proving the CURRENT device is required — otherwise this "
+            "returns 400 `totp_proof_required`. Lost the current device entirely? "
+            "Use `/totp/change/delayed/initiate/` instead."
+        ),
+        request=TOTPSetupRequestSerializer,
+        responses={200: TOTPSetupResponseSerializer, 400: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="setup")
     def setup(self, request):  # noqa: R007
         from stapel_auth.mfa.dto import TOTPSetupResponse
         from stapel_auth.mfa.services import TOTPService
 
-        result = TOTPService.setup(request.user)
+        data = request.data or {}
+        try:
+            result = TOTPService.setup(
+                request.user,
+                code=data.get("code") or None,
+                backup_code=data.get("backup_code") or None,
+            )
+        except ValueError:
+            return StapelErrorResponse(400, ERR_400_TOTP_PROOF_REQUIRED)
         dto = TOTPSetupResponse(
             secret=result["secret"],
             qr_uri=result["qr_uri"],
@@ -130,7 +160,8 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     @action(detail=False, methods=["post"], url_path="setup/confirm")
     def confirm_setup(self, request):  # noqa: R007
         from stapel_auth.mfa.dto import TOTPSetupConfirmResponse
-        from stapel_auth.mfa.services import TOTPService
+        from stapel_auth.mfa.services import TOTPService, notify_totp_change
+        from stapel_auth.sessions.services import AuditService
 
         code = (request.data or {}).get("code", "")
         if not code:
@@ -141,6 +172,10 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             if str(e) == "invalid_code":
                 return StapelErrorResponse(400, ERR_400_INVALID_CODE)
             return StapelErrorResponse(400, ERR_400_TOTP_NOT_PENDING)
+
+        AuditService.log("totp_enabled", user=request.user, request=request)
+        notify_totp_change(request.user, "totp_enabled")
+
         dto = TOTPSetupConfirmResponse(backup_codes=plain_codes)
         return StapelResponse(self.get_confirm_setup_response_serializer_class()(dto))
 
@@ -190,7 +225,7 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     def disable(self, request):  # noqa: R007
         from stapel_auth.dto import SimpleStatusResponse
         from stapel_auth.errors import ERR_400_NO_VERIFIED_CONTACT
-        from stapel_auth.mfa.services import TOTPService
+        from stapel_auth.mfa.services import TOTPService, notify_totp_change
         from stapel_auth.otp.services import PhoneVerificationService
         from stapel_auth.sessions.services import AuditService
 
@@ -222,6 +257,7 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             return StapelErrorResponse(400, ERR_400_CODE_REQUIRED)
 
         AuditService.log("totp_disabled", user=request.user, request=request)
+        notify_totp_change(request.user, "totp_disabled")
         return StapelResponse(
             self.get_status_response_serializer_class()(
                 SimpleStatusResponse(status="disabled")
@@ -285,6 +321,113 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         set_jwt_cookies(response, access_token, refresh_token)
         set_auth_hint_cookie(response)
         return _add_login_hints(response)
+
+    # ── Delayed change (lost device — no code/backup code available) ────────
+    #
+    # Mirrors the phone/email delayed authenticator-change flow (otp.views.
+    # AuthenticatorChangeViewSet) end to end: same AuthenticatorChangeRequest
+    # model/status machine, same DELAYED_PERIOD_DAYS cooldown, same day-1/7/13
+    # notifications + cancel window (tasks.send_change_notifications /
+    # execute_pending_changes / cleanup_expired_requests). The only
+    # difference is what gets applied at the end — a TOTP disable, not a
+    # contact swap (see AuthenticatorChangeService.initiate_delayed_totp).
+
+    def _totp_change_error_response(self, result):
+        error = result.get("error", "unknown_error")
+        if error == "not_enabled":
+            return StapelErrorResponse(400, ERR_400_TOTP_NOT_ENABLED)
+        if error == "no_verified_contact":
+            return StapelErrorResponse(400, ERR_400_NO_VERIFIED_CONTACT)
+        if error == "not_found":
+            return StapelErrorResponse(404, ERR_404_CHANGE_NOT_FOUND)
+        return StapelErrorResponse(400, ERR_400_CODE_REQUIRED)
+
+    @extend_schema(
+        description=(
+            "Request a delayed TOTP removal — for when the current device is "
+            "LOST (no code or backup code available), so the instant "
+            "`/totp/setup/` (replace) or `/totp/disable/` proof-gated paths "
+            "can't be used. Requires a verified email or phone: it is "
+            "notified on day 1/7/13 of the cooldown and can cancel the "
+            "request at any point before it applies. No verified contact on "
+            "the account -> 400 `no_verified_contact` (a support case, not "
+            "a self-serve path)."
+        ),
+        request=TOTPDelayedInitiateSerializer,
+        responses={201: DelayedInitiateResponseSerializer, 400: StapelErrorSerializer},
+    )
+    @action(detail=False, methods=["post"], url_path="change/delayed/initiate")
+    def delayed_initiate(self, request):  # noqa: R007
+        from rest_framework import status as drf_status
+
+        from stapel_auth.otp.services import AuthenticatorChangeService
+
+        serializer = TOTPDelayedInitiateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        ip = request.headers.get("x-forwarded-for", request.META.get("REMOTE_ADDR", ""))
+        if ip and "," in ip:
+            ip = ip.split(",")[0].strip()
+
+        svc = AuthenticatorChangeService()
+        result = svc.initiate_delayed_totp(
+            request.user,
+            device_id=serializer.validated_data.get("device_id", ""),
+            ip=ip or None,
+            user_agent=request.headers.get("user-agent", ""),
+        )
+        if result.get("success"):
+            dto = DelayedInitiateResponse(
+                status="PENDING",
+                change_request_id=result["change_request_id"],
+                new_value_masked="authenticator app",
+                scheduled_at=result["scheduled_at"],
+                can_cancel_until=result["scheduled_at"],
+            )
+            return StapelResponse(
+                self.get_delayed_initiate_response_serializer_class()(dto),
+                status=drf_status.HTTP_201_CREATED,
+            )
+        return self._totp_change_error_response(result)
+
+    @extend_schema(
+        description="Status of a pending delayed TOTP removal, if any.",
+        responses={200: DelayedStatusResponseSerializer},
+    )
+    @action(detail=False, methods=["get"], url_path="change/delayed/status")
+    def delayed_status(self, request):  # noqa: R007
+        from stapel_auth.otp.services import AuthenticatorChangeService
+
+        svc = AuthenticatorChangeService()
+        info = svc.get_pending_status(request.user, "totp")
+        if info:
+            dto = DelayedStatusResponse(has_pending_change=True, **info)
+        else:
+            dto = DelayedStatusResponse(has_pending_change=False)
+        return StapelResponse(self.get_delayed_status_response_serializer_class()(dto))
+
+    @extend_schema(
+        description="Cancel a pending delayed TOTP removal.",
+        request=DelayedChangeCancelSerializer,
+        responses={200: DelayedCancelResponseSerializer, 404: StapelErrorSerializer},
+    )
+    @action(detail=False, methods=["post"], url_path="change/delayed/cancel")
+    def delayed_cancel(self, request):  # noqa: R007
+        from stapel_auth.otp.services import AuthenticatorChangeService
+
+        serializer = DelayedChangeCancelSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        svc = AuthenticatorChangeService()
+        result = svc.cancel_pending(
+            request.user, "totp", serializer.validated_data["change_request_id"]
+        )
+        if result.get("success"):
+            dto = DelayedCancelResponse(
+                status="CANCELLED", message="TOTP change request cancelled"
+            )
+            return StapelResponse(self.get_delayed_cancel_response_serializer_class()(dto))
+        return self._totp_change_error_response(result)
 
 
 # =============================================================================

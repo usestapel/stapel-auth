@@ -1,6 +1,49 @@
 """Service classes for MFA (TOTP and Passkey) domain."""
 import hashlib as _hashlib
+import logging as _logging
 import secrets as _secrets
+
+_logger = _logging.getLogger(__name__)
+
+
+def notify_totp_change(user, notification_type: str, variables: dict | None = None) -> None:
+    """Notify the user's verified contact that their TOTP factor changed.
+
+    Mirrors the "always tell the owner" principle ``otp.services.
+    AuthenticatorChangeService`` already applies to phone/email changes: a
+    stolen session that enrolls, replaces, or disables 2FA must not do so
+    silently — this is the anti-takeover awareness leg for TOTP (item 3 of
+    the TOTP security hardening). Prefers the verified email, falls back
+    to the verified phone; a no-argument no-op if neither is verified
+    (delayed-mode initiation is the only place that HARD-requires a
+    verified contact — see ``AuthenticatorChangeService.
+    initiate_delayed_totp``; instant changes proceed either way since the
+    proof-of-possession already establishes the actor is trusted).
+
+    Best-effort: failures are logged, never raised — matches every other
+    ``request_notification`` call site in this module family.
+    """
+    from stapel_core.notifications import request_notification
+
+    email = user.email if (user.email and getattr(user, 'is_email_verified', False)) else None
+    phone = None
+    if not email:
+        phone = user.phone if (user.phone and getattr(user, 'is_phone_verified', False)) else None
+    if not email and not phone:
+        return
+    try:
+        request_notification(
+            notification_type=notification_type,
+            user_id=str(user.id),
+            email=email,
+            phone=phone,
+            variables=variables or {},
+            source_service="auth",
+        )
+    except Exception:
+        _logger.exception(
+            "Failed to send %s notification for user %s", notification_type, user.id,
+        )
 
 
 class TOTPService:
@@ -18,13 +61,40 @@ class TOTPService:
     # ── setup ────────────────────────────────────────────────────────────────
 
     @classmethod
-    def setup(cls, user) -> dict:
+    def setup(cls, user, code: str = None, backup_code: str = None) -> dict:
         """
         Start TOTP enrollment. Returns secret + otpauth URI.
         Creates/replaces a pending (is_active=False) TOTPDevice.
+
+        SECURITY: if the user already has an ACTIVE device, this is a
+        *replace* and requires proof of possession of the CURRENT device
+        (``code`` or ``backup_code``) — otherwise a stolen session could
+        silently strip 2FA by re-enrolling without ever proving the old
+        device, bypassing ``disable()``'s proof requirement entirely
+        (previously: anyone authenticated could call this with zero proof
+        and immediately deactivate the existing device — the exact gap
+        this hardening closes). Raises ``ValueError('proof_required')`` in
+        that case. First-time enrollment (no active device yet) needs no
+        proof, unchanged from before.
+
+        The old device is only actually invalidated once ``confirm()``
+        activates the new one (same as the pre-existing overwrite
+        behavior) — there is no separate "pending device" slot
+        (``TOTPDevice`` is one row per user) — but reaching that state now
+        requires the caller to have proven the old device first.
         """
         import pyotp
         from stapel_auth.models import TOTPDevice
+
+        try:
+            existing_active = TOTPDevice.objects.get(user=user, is_active=True)
+        except TOTPDevice.DoesNotExist:
+            existing_active = None
+
+        if existing_active is not None and not cls._verify_any(
+            existing_active, code=code, backup_code=backup_code,
+        ):
+            raise ValueError('proof_required')
 
         secret = pyotp.random_base32()
         from stapel_auth.conf import auth_settings

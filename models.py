@@ -209,6 +209,7 @@ class TOTPDevice(models.Model):
 class AuthenticatorChangeType(models.TextChoices):
     PHONE = 'phone', 'Phone'
     EMAIL = 'email', 'Email'
+    TOTP = 'totp', 'TOTP'
 
 
 class AuthenticatorChangeStatus(models.TextChoices):
@@ -222,8 +223,19 @@ class AuthenticatorChangeStatus(models.TextChoices):
 # live change_token is masked explicitly on the admin (see admin/__init__.py)
 class AuthenticatorChangeRequest(models.Model):
     """
-    Tracks pending authenticator (phone/email) change requests.
-    Supports both instant (double OTP) and delayed (14-day) flows.
+    Tracks pending authenticator (phone/email/TOTP) change requests.
+    Supports both instant (double OTP / TOTP proof-of-possession) and
+    delayed (14-day) flows.
+
+    TOTP rows are a "disable only" flavour of the delayed flow (see
+    ``otp.services.AuthenticatorChangeService.initiate_delayed_totp``): a
+    user who lost their authenticator has no address to prove — the
+    request just schedules removal of the device (with the same
+    notify/cancel window), after which they re-enroll via the normal
+    instant ``setup``/``confirm_setup`` pair. ``old_value`` is unused
+    (blank) and ``new_value`` holds an opaque, per-request unique marker
+    (never displayed) purely to satisfy the ``unique_pending_reservation``
+    constraint below — TOTP has no "new address" to reserve.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='auth_change_requests')

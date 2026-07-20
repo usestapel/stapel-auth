@@ -208,6 +208,10 @@ def get_mfa_urls(enabled=None):
         path('totp/disable/', TOTPViewSet.as_view({'post': 'disable'}), name='totp_disable'),
         path('totp/disable-otp/request/', TOTPViewSet.as_view({'post': 'disable_request_otp'}), name='totp_disable_otp_request'),
         path('totp/challenge/verify/', TOTPViewSet.as_view({'post': 'challenge_verify'}), name='totp_challenge_verify'),
+        # ── TOTP delayed change (lost device, anti-takeover) ──
+        path('totp/change/delayed/initiate/', TOTPViewSet.as_view({'post': 'delayed_initiate'}), name='totp_delayed_initiate'),
+        path('totp/change/delayed/status/', TOTPViewSet.as_view({'get': 'delayed_status'}), name='totp_delayed_status'),
+        path('totp/change/delayed/cancel/', TOTPViewSet.as_view({'post': 'delayed_cancel'}), name='totp_delayed_cancel'),
     ]) + _gated('mfa.passkey', enabled, ('AUTH_PASSKEY_LOGIN',), [
         path('passkey/', PasskeyViewSet.as_view({'get': 'get_list'}), name='passkey_list'),
         path('passkey/register/begin/', PasskeyViewSet.as_view({'post': 'register_begin'}), name='passkey_register_begin'),

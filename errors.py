@@ -58,6 +58,8 @@ ERR_404_NOT_FOUND = 'error.404.not_found'
 # TOTP
 ERR_400_CODE_REQUIRED = 'error.400.code_required'
 ERR_400_TOTP_NOT_PENDING = 'error.400.totp_not_pending'
+ERR_400_TOTP_PROOF_REQUIRED = 'error.400.totp_proof_required'
+ERR_400_TOTP_NOT_ENABLED = 'error.400.totp_not_enabled'
 # Lockout
 ERR_423_ACCOUNT_LOCKED = 'error.423.account_locked'
 # Magic links
@@ -144,6 +146,12 @@ AUTH_ERRORS = {
     # TOTP
     ERR_400_CODE_REQUIRED: 'A verification code is required.',
     ERR_400_TOTP_NOT_PENDING: 'No pending TOTP setup. Call /totp/setup/ first.',
+    ERR_400_TOTP_PROOF_REQUIRED: (
+        'A TOTP already exists on this account. Provide the current code or a '
+        'backup code to replace it, or use the delayed change flow if you lost '
+        'your authenticator.'
+    ),
+    ERR_400_TOTP_NOT_ENABLED: 'TOTP is not enabled on this account.',
     # Lockout
     ERR_423_ACCOUNT_LOCKED: 'Account temporarily locked due to too many failed attempts. Try again in {retry_after_minutes} minutes.',
     ERR_400_INVALID_REDIRECT_URL: 'redirect_url must be a relative path starting with /  — absolute URLs are not allowed.',
@@ -246,6 +254,8 @@ AUTH_REMEDIATION = {
     ERR_404_NOT_FOUND: 'retry',
     # TOTP
     ERR_400_TOTP_NOT_PENDING: 'retry',
+    ERR_400_TOTP_PROOF_REQUIRED: 'verify',
+    ERR_400_TOTP_NOT_ENABLED: 'fix_input',
     # Magic links
     ERR_400_INVALID_REDIRECT_URL: 'fix_input',
     ERR_400_MAGIC_LINK_INVALID: 'retry',

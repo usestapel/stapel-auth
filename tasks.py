@@ -56,11 +56,41 @@ def _contact_kwargs(change_type: str, value: str) -> dict:
     }
 
 
+def _notify_kwargs_for_request(req) -> dict:
+    """Resolve the email/phone kwargs to notify for a change request.
+
+    Phone/email changes notify the OLD (pre-change) contact — the address
+    the account is being taken away from — via ``req.old_value``. TOTP
+    changes have no such address (see AuthenticatorChangeRequest
+    docstring): they notify the user's CURRENT verified email (falling
+    back to verified phone), since that channel is unaffected by a TOTP
+    change and is exactly what ``initiate_delayed_totp`` required to
+    exist before it would create the request.
+    """
+    if req.change_type in ("email", "phone"):
+        return _contact_kwargs(req.change_type, req.old_value)
+
+    user = req.user
+    if user.email and getattr(user, "is_email_verified", False):
+        return {"email": user.email, "phone": None}
+    if user.phone and getattr(user, "is_phone_verified", False):
+        return {"email": None, "phone": user.phone}
+    return {"email": None, "phone": None}
+
+
+def _masked_new_value_for_request(req) -> str:
+    """Display-safe 'new value' for a change request (see get_pending_status)."""
+    if req.change_type == "totp":
+        return "authenticator app"
+    from .utils import mask_value
+
+    return mask_value(req.new_value, req.change_type)
+
+
 @shared_task
 def send_change_notifications():
     """Send notifications for pending delayed authenticator changes (day 1/7/13)."""
     from .models import AuthenticatorChangeRequest, AuthenticatorChangeStatus
-    from .utils import mask_value
 
     now = timezone.now()
     pending = AuthenticatorChangeRequest.objects.filter(
@@ -79,11 +109,11 @@ def send_change_notifications():
                     user_id=str(req.user_id),
                     variables={
                         "change_type": req.change_type,
-                        "masked_new_value": mask_value(req.new_value, req.change_type),
+                        "masked_new_value": _masked_new_value_for_request(req),
                         "scheduled_date": req.scheduled_at.strftime("%Y-%m-%d %H:%M UTC"),
                     },
                     source_service="auth",
-                    **_contact_kwargs(req.change_type, req.old_value),
+                    **_notify_kwargs_for_request(req),
                 )
                 req.notification_day_1_sent = True
                 req.save(update_fields=['notification_day_1_sent'])
@@ -98,11 +128,11 @@ def send_change_notifications():
                     user_id=str(req.user_id),
                     variables={
                         "change_type": req.change_type,
-                        "masked_new_value": mask_value(req.new_value, req.change_type),
+                        "masked_new_value": _masked_new_value_for_request(req),
                         "days_remaining": "7",
                     },
                     source_service="auth",
-                    **_contact_kwargs(req.change_type, req.old_value),
+                    **_notify_kwargs_for_request(req),
                 )
                 req.notification_day_7_sent = True
                 req.save(update_fields=['notification_day_7_sent'])
@@ -120,7 +150,7 @@ def send_change_notifications():
                         "scheduled_date": req.scheduled_at.strftime("%Y-%m-%d"),
                     },
                     source_service="auth",
-                    **_contact_kwargs(req.change_type, req.old_value),
+                    **_notify_kwargs_for_request(req),
                 )
                 req.notification_day_13_sent = True
                 req.save(update_fields=['notification_day_13_sent'])
@@ -157,25 +187,49 @@ def execute_pending_changes():
                 )
                 user = req.user
 
-                AuthenticatorChangeService._apply_change(user, req.change_type, req.new_value)
+                if req.change_type == "totp":
+                    # No "new value" to apply — TOTP delayed mode is a
+                    # scheduled disable (see initiate_delayed_totp); the
+                    # user re-enrolls afterward via the normal instant
+                    # setup/confirm_setup pair.
+                    from .mfa.services import TOTPService
+
+                    TOTPService.force_disable(user)
+                else:
+                    AuthenticatorChangeService._apply_change(user, req.change_type, req.new_value)
                 AuthenticatorChangeService._invalidate_all_tokens(user)
 
                 req.status = AuthenticatorChangeStatus.COMPLETED
                 req.completed_at = now
                 req.save(update_fields=['status', 'completed_at'])
 
-            # Notify both old and new contact
-            for target_value in (req.new_value, req.old_value):
+            # Notify. Phone/email changes notify BOTH the old and new
+            # contact (the address gained the account, and the address
+            # that lost it); TOTP has no "new contact" — a single
+            # notification to the verified contact suffices.
+            if req.change_type == "totp":
                 try:
                     request_notification(
                         notification_type="auth_change_completed",
                         user_id=str(req.user_id),
                         variables={"change_type": req.change_type},
                         source_service="auth",
-                        **_contact_kwargs(req.change_type, target_value),
+                        **_notify_kwargs_for_request(req),
                     )
                 except Exception:
                     logger.exception("Failed to send auth_change_completed notification for request %s", req.id)
+            else:
+                for target_value in (req.new_value, req.old_value):
+                    try:
+                        request_notification(
+                            notification_type="auth_change_completed",
+                            user_id=str(req.user_id),
+                            variables={"change_type": req.change_type},
+                            source_service="auth",
+                            **_contact_kwargs(req.change_type, target_value),
+                        )
+                    except Exception:
+                        logger.exception("Failed to send auth_change_completed notification for request %s", req.id)
 
             executed += 1
         except AuthenticatorChangeRequest.DoesNotExist:

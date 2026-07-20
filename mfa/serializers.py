@@ -24,8 +24,26 @@ class TOTPChallengeVerifySerializer(serializers.Serializer):
                                         help_text='One-time backup code.')
 
 
+class TOTPSetupRequestSerializer(serializers.Serializer):
+    """Optional proof for a *replace* (an active device already exists).
+
+    Both fields are optional because first-time enrollment (no active
+    device) needs neither — TOTPService.setup() only enforces one of them
+    when there is something to prove possession of.
+    """
+    code = serializers.CharField(max_length=_TOTP_LEN, required=False, allow_blank=True,
+                                 help_text=f'{_TOTP_LEN}-digit code from the CURRENT authenticator app (required to replace an active device).')
+    backup_code = serializers.CharField(required=False, allow_blank=True,
+                                        help_text='A current backup code (alternative to code, to replace an active device).')
+
+
 class TOTPSetupConfirmSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=_TOTP_LEN, help_text=f'{_TOTP_LEN}-digit code from authenticator app.')
+
+
+class TOTPDelayedInitiateSerializer(serializers.Serializer):
+    """Initiate a delayed (14-day) TOTP removal — no old-device proof available."""
+    device_id = serializers.CharField(max_length=255, required=False)
 
 
 class TOTPDisableOtpRequestSerializer(serializers.Serializer):
