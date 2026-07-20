@@ -5,7 +5,11 @@ import logging
 from stapel_core.django.api.errors import ERR_500_INTERNAL, StapelServiceError
 
 from stapel_auth.mfa.services import TOTPService
-from stapel_auth.otp.services import EmailVerificationService, PhoneVerificationService
+from stapel_auth.otp.services import (
+    EmailVerificationService,
+    PhoneVerificationService,
+    promote_anonymous_session,
+)
 from stapel_auth.password.dto import PasswordMethod, PasswordMethodType
 
 logger = logging.getLogger(__name__)
@@ -169,24 +173,40 @@ class PasswordService:
     @classmethod
     def change_via_otp(
         cls, user, method: PasswordMethodType, code: str, new_password: str
-    ) -> None:
-        """Verify OTP/TOTP and update password. Raises StapelServiceError on any error."""
+    ):
+        """Verify OTP/TOTP and update password. Raises StapelServiceError on any error.
+
+        Returns the (possibly mutated) *user*. If *user* was still an
+        anonymous guest session — normally unreachable here since EMAIL/PHONE
+        both require the contact to already be verified, but defensive in
+        case that invariant is ever violated upstream — a successful contact
+        OTP verification is itself proof of the same anchor
+        email_verify/phone_verify promote on, so it promotes too rather than
+        leaving the account anon after their password is already set on it.
+        """
         from stapel_auth.errors import (
             ERR_400_INVALID_CODE,
             ERR_400_INVALID_METHOD,
             ERR_400_NO_VERIFIED_CONTACT,
         )
 
+        was_anonymous = False
         if method == PasswordMethodType.EMAIL:
             if not user.email or not user.is_email_verified:
                 raise StapelServiceError(400, ERR_400_NO_VERIFIED_CONTACT)
             result = EmailVerificationService().verify_code(user.email, code)
             cls._raise_for_otp_result(result)
+            if user.is_anonymous:
+                was_anonymous = True
+                promote_anonymous_session(user, auth_type="email")
         elif method == PasswordMethodType.PHONE:
             if not user.phone or not user.is_phone_verified:
                 raise StapelServiceError(400, ERR_400_NO_VERIFIED_CONTACT)
             result = PhoneVerificationService().verify_code(user.phone, code)
             cls._raise_for_otp_result(result)
+            if user.is_anonymous:
+                was_anonymous = True
+                promote_anonymous_session(user, auth_type="phone")
         elif method == PasswordMethodType.TOTP:
             if not TOTPService.is_enabled(user):
                 raise StapelServiceError(400, ERR_400_INVALID_METHOD)
@@ -195,8 +215,12 @@ class PasswordService:
         else:
             raise StapelServiceError(400, ERR_400_INVALID_METHOD)
         user.set_password(new_password)
-        user.save(update_fields=["password"])
+        update_fields = ["password"]
+        if was_anonymous:
+            update_fields += ["is_anonymous", "auth_type", "username"]
+        user.save(update_fields=update_fields)
         cls._revoke_all_sessions(user)
+        return user
 
     @staticmethod
     def _revoke_all_sessions(user):

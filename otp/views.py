@@ -66,6 +66,7 @@ from stapel_auth.otp.services import (
     AuthenticatorChangeService,
     EmailVerificationService,
     PhoneVerificationService,
+    promote_anonymous_session,
 )
 from stapel_auth.sessions.dto import (
     AuthResponse,
@@ -535,9 +536,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     # REGISTERED: Convert anonymous to registered user
                     request_user.email = email
                     request_user.is_email_verified = True
-                    request_user.is_anonymous = False
-                    request_user.auth_type = "email"
-                    request_user.upgrade_username_from_anonymous()
+                    promote_anonymous_session(request_user, auth_type="email")
                     request_user.save()
                     user = request_user
                     auth_status = AuthStatus.REGISTERED
@@ -825,9 +824,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     # REGISTERED: Convert anonymous to registered user
                     request_user.phone = phone
                     request_user.is_phone_verified = True
-                    request_user.is_anonymous = False
-                    request_user.auth_type = "phone"
-                    request_user.upgrade_username_from_anonymous()
+                    promote_anonymous_session(request_user, auth_type="phone")
                     request_user.save()
                     user = request_user
                     auth_status = AuthStatus.REGISTERED
@@ -964,8 +961,9 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if not user_data:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 
+        request_user = request.user if request.user.is_authenticated else None
         try:
-            user = self._resolve_oauth_user(provider, user_data)
+            user = self._resolve_oauth_user(provider, user_data, request_user=request_user)
         except OAuthEmailNotVerified:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
         self.log_login_attempt(str(user.id), "success", request)
@@ -1101,8 +1099,9 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if not user_data:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 
+        request_user = request.user if request.user.is_authenticated else None
         try:
-            user = self._resolve_oauth_user(provider, user_data)
+            user = self._resolve_oauth_user(provider, user_data, request_user=request_user)
         except OAuthEmailNotVerified:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
         self.log_login_attempt(str(user.id), "success", request)
@@ -1158,14 +1157,27 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         set_auth_hint_cookie(response)
         return response
 
-    def _resolve_oauth_user(self, provider, user_data):
+    def _resolve_oauth_user(self, provider, user_data, request_user=None):
         """Find or create a user for an OAuth login, merging by email when possible.
 
         Priority:
         1. Exact match by (oauth_provider, oauth_id) — returning user.
         2. Existing account with the same verified email — authenticate as that
            user without overwriting their auth_type or existing OAuth link.
-        3. Create a fresh user.
+        3. *request_user* is an anonymous guest session and neither of the
+           above found a pre-existing account for this provider identity —
+           attach the OAuth anchor to the SAME guest row (promote) instead
+           of creating a brand-new one, which would orphan it.
+        4. Create a fresh user.
+
+        *request_user* is ``request.user`` from the caller (may be ``None``
+        for an unauthenticated caller, or a non-anonymous authenticated user
+        — in either case this falls through to case 4 exactly as before).
+        Cases 1-2 are pre-existing-account collisions and intentionally
+        ignore *request_user* — merging a guest session into a DIFFERENT
+        existing account is a separate (not-yet-built) merge flow; see
+        otp/views.py's email_verify/phone_verify AuthStatus.MERGED case for
+        the equivalent OTP-side handling.
         """
         oauth_id = str(user_data.id)
         email = user_data.email
@@ -1191,12 +1203,26 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 # account's original method.
                 raise OAuthEmailNotVerified(email)
 
-        # 3. Brand-new user
         # Avatar is untrusted external data; a pathologically long provider URL
         # must degrade to no-avatar, never 500 the login (field is 500 wide).
         avatar = user_data.avatar
         if avatar and len(avatar) > 500:
             avatar = None
+
+        # 3. Fresh anchor + an anonymous guest session already in progress —
+        # attach to that row instead of creating (and thereby orphaning) a
+        # second one.
+        if request_user is not None and request_user.is_authenticated and request_user.is_anonymous:
+            request_user.email = email
+            request_user.oauth_provider = provider
+            request_user.oauth_id = oauth_id
+            request_user.avatar = avatar
+            request_user.is_email_verified = email_verified
+            promote_anonymous_session(request_user, auth_type="oauth")
+            request_user.save()
+            return request_user
+
+        # 4. Brand-new user
         user = User.objects.create(
             email=email,
             oauth_provider=provider,

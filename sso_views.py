@@ -232,7 +232,8 @@ class SAMLACSView(APIView):
             )
 
         try:
-            user, _ = SSOUserService.get_or_create_user(org, attrs)
+            request_user = request.user if request.user.is_authenticated else None
+            user, _ = SSOUserService.get_or_create_user(org, attrs, request_user=request_user)
         except ValueError as e:
             logger.warning(f"SAML JIT provisioning failed [{slug}]: {e}")
             return HttpResponseRedirect(
@@ -303,7 +304,8 @@ class OIDCCallbackView(APIView):
             )
 
         try:
-            user, _ = SSOUserService.get_or_create_user(org, attrs)
+            request_user = request.user if request.user.is_authenticated else None
+            user, _ = SSOUserService.get_or_create_user(org, attrs, request_user=request_user)
         except ValueError as e:
             logger.warning(f"OIDC JIT provisioning failed [{slug}]: {e}")
             return HttpResponseRedirect(

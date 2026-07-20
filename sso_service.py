@@ -367,23 +367,49 @@ class OIDCService:
 
 class SSOUserService:
     @staticmethod
-    def get_or_create_user(org, attrs: dict):
-        """JIT provision: find existing user by email or create; link membership."""
+    def get_or_create_user(org, attrs: dict, request_user=None):
+        """JIT provision: find existing user by email or create; link membership.
+
+        *request_user* — ``request.user`` from the callback view, when it was
+        an anonymous guest session (may be ``None``/absent otherwise). When
+        the IdP's email is FRESH (no pre-existing account, the ``created``
+        branch below) and a guest session is in progress, the anchor is
+        attached to that SAME row (promote) instead of creating a second,
+        orphaning the guest row. An email that already belongs to an
+        existing account is a collision/merge case, left exactly as before
+        — request_user is intentionally ignored there.
+        """
         from django.contrib.auth import get_user_model
         from .models import OrgMembership
+        from .otp.services import promote_anonymous_session
         U = get_user_model()
         email = attrs['email']
         if not email:
             raise ValueError('SSO assertion missing email')
 
-        user, created = U.objects.get_or_create(
-            email=email,
-            defaults={
-                'is_active': True,
-                'first_name': attrs.get('first_name', ''),
-                'last_name': attrs.get('last_name', ''),
-            },
-        )
+        existing = U.objects.filter(email=email).first()
+        if existing is None and request_user is not None and getattr(
+            request_user, 'is_authenticated', False
+        ) and request_user.is_anonymous:
+            request_user.email = email
+            request_user.is_email_verified = True
+            request_user.is_active = True
+            if attrs.get('first_name'):
+                request_user.first_name = attrs['first_name']
+            if attrs.get('last_name'):
+                request_user.last_name = attrs['last_name']
+            promote_anonymous_session(request_user, auth_type='sso')
+            request_user.save()
+            user, created = request_user, True
+        else:
+            user, created = U.objects.get_or_create(
+                email=email,
+                defaults={
+                    'is_active': True,
+                    'first_name': attrs.get('first_name', ''),
+                    'last_name': attrs.get('last_name', ''),
+                },
+            )
         if not created:
             # Sync name if it came from IdP
             changed = False

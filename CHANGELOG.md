@@ -2,6 +2,54 @@
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-07-20
+
+THE IDENTITY MODEL, enforced end to end: an account is REGISTERED
+(`is_anonymous=False`) iff it has a verified identity ANCHOR (email, phone,
+or a federated identity — OAuth/SSO). Credentials (password/passkey/TOTP)
+never promote on their own — an anonymous user who sets a password stays
+anonymous; the password only makes that SAME guest account portable
+(loginable from another device).
+
+### Added
+- `otp.services.promote_anonymous_session(user, *, auth_type)` — the
+  primitive that flips `is_anonymous`/`auth_type` and upgrades the
+  `anon_*` placeholder username, factored out of the two inline branches
+  that used to hand-roll it (`otp/views.py` `email_verify`/`phone_verify`).
+  Now also called from the password module's OTP-verify-contact path
+  (defensive — the precondition there normally makes an anon+verified state
+  unreachable), OAuth login/callback, and SSO JIT provisioning.
+- `AuthMethodInfo.can_login`/`.can_register` on every entry of
+  `GET /auth/api/v1/capabilities/`'s `methods[]` — per-method capability,
+  derived from the existing `AUTH_<M>_LOGIN`/`AUTH_<M>_REGISTRATION` settings
+  pairs (kept for back-compat). `can_register` is always `false` for
+  passkey/qr/magic_link — no registration axis exists for them.
+- `"sso"` added to `AbstractStapelUser.AUTH_TYPE_CHOICES` (stapel-core
+  0.12.5) — SSO-promoted accounts now get an accurate `auth_type` instead of
+  being mislabeled.
+
+### Fixed
+- **Orphaning**: `password/views.py` `register()`, OAuth login/callback
+  (`otp/views.py` `_resolve_oauth_user`), and SSO JIT provisioning
+  (`sso_service.py` `SSOUserService.get_or_create_user`) used to silently
+  create a brand-new account when called on an already-anonymous session,
+  abandoning the guest row. All three now attach a FRESH anchor to the SAME
+  anonymous row (promoting it) instead — a collision with a DIFFERENT
+  existing account still resolves exactly as it did before (a genuine
+  account-merge flow is a follow-up, not built here).
+- **Response contract**: `password/change/otp/verify/` used to always
+  return the contentless `SimpleStatusResponse`, even in the (normally
+  unreachable, now defended) case where it promoted an anonymous session —
+  a client's `session.adopt()` never fires without a `user`. It now returns
+  a `PasswordOtpChangeResponse` (`AuthResponse | SimpleStatusResponse`):
+  a full `AuthResponse` with fresh tokens when promotion happened, the
+  original bare status otherwise.
+- **Password registration on an existing anon session**: `register()` used
+  to always create a new account, even when called with only a `password`
+  and no email/phone (no anchor) — now correctly leaves the guest account
+  anonymous (portable, not promoted) per THE IDENTITY MODEL, while still
+  reusing the same row rather than orphaning it.
+
 ## [0.7.7] — 2026-07-20
 
 Closes a deployment trap in the delayed (14-day, no-old-channel-proof)

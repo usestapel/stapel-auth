@@ -44,6 +44,7 @@ from stapel_auth.otp.serializers import OtpSentResponseSerializer
 from stapel_auth.sessions.serializers import (
     AuthResponseSerializer,
     LoginResponseSerializer,
+    PasswordOtpChangeResponseSerializer,
     SimpleStatusSerializer,
 )
 from stapel_auth.sessions.views import _add_login_hints, _issue_session_tokens
@@ -258,9 +259,18 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         return StapelResponse(self.get_otp_sent_response_serializer_class()(dto))
 
     @extend_schema(
-        description="Verify OTP and set new password (for authenticated users).",
+        description=(
+            "Verify OTP and set new password (for authenticated users). Returns "
+            "`SimpleStatusResponse` (status=password_changed) normally. If the "
+            "caller was an anonymous guest session, a successful contact OTP "
+            "verification here is itself an identity anchor — the same one "
+            "email_verify/phone_verify promote on — so the account is promoted "
+            "to registered and this instead returns a full `AuthResponse` "
+            "(status=REGISTERED) with fresh tokens, since the promotion "
+            "invalidated the session that was just revoked below."
+        ),
         request=PasswordOtpVerifySerializer,
-        responses={200: None, 400: StapelErrorSerializer},
+        responses={200: PasswordOtpChangeResponseSerializer, 400: StapelErrorSerializer},
     )
     @action(
         detail=False,
@@ -273,19 +283,44 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             data=request.data
         )
         serializer.is_valid(raise_exception=True)
-        PasswordService.change_via_otp(
+        was_anonymous = request.user.is_anonymous
+        user = PasswordService.change_via_otp(
             request.user,
             method=serializer.validated_data["method"],
             code=serializer.validated_data["code"],
             new_password=serializer.validated_data["new_password"],
         )
-        from stapel_auth.dto import SimpleStatusResponse
 
-        return StapelResponse(
-            self.get_status_response_serializer_class()(
-                SimpleStatusResponse(status="password_changed")
+        if not was_anonymous:
+            from stapel_auth.dto import SimpleStatusResponse
+
+            return StapelResponse(
+                self.get_status_response_serializer_class()(
+                    SimpleStatusResponse(status="password_changed")
+                )
             )
+
+        # The guest session was promoted mid-flow — `change_via_otp` already
+        # revoked ALL sessions (including this request's own, same as the
+        # `reset_email_verify`/`reset_phone_verify` precedent below), so a
+        # fresh one is minted here and returned as a User-bearing AuthResponse
+        # so the client's `session.adopt()` sees `user.is_anonymous === false`
+        # and flips the local session to registered.
+        from stapel_core.django.jwt.utils import set_jwt_cookies
+
+        from stapel_auth.hint_cookie import set_auth_hint_cookie
+        from stapel_auth.staff_roles import create_tokens_for_user
+
+        access_token, refresh_token = create_tokens_for_user(user)
+        dto = AuthResponse(
+            status=AuthStatus.REGISTERED,
+            user=user,
+            tokens=TokenPairResponse(refresh=refresh_token, access=access_token),
         )
+        response = Response(self.get_auth_response_serializer_class()(dto).data)
+        set_jwt_cookies(response, access_token, refresh_token)
+        set_auth_hint_cookie(response)
+        return response
 
     @extend_schema(
         description="Request OTP to verified email to reset a forgotten password (unauthenticated).",
@@ -471,21 +506,59 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if username and User.objects.filter(username=username).exists():
             return StapelErrorResponse(409, ERR_409_USERNAME_TAKEN)
 
-        user = User.objects.create(
-            email=email,
-            phone=phone,
-            username=username or (email.split("@")[0] if email else phone),
-            is_email_verified=bool(email),
-            is_phone_verified=bool(phone),
-        )
-        user.set_password(data["password"])
-        user.save(update_fields=["password"])
+        # A caller already on an anonymous guest session: attach the new
+        # fields to that SAME row instead of creating a second one, which
+        # would silently orphan the guest row (and any data already hung off
+        # it) — uniqueness against any OTHER account was already cleared
+        # above. A logged-in NON-anonymous caller re-hitting this endpoint,
+        # or no session at all, keeps the original behavior of creating a
+        # brand-new account.
+        auth_status = AuthStatus.REGISTERED
+        if request.user.is_authenticated and request.user.is_anonymous:
+            user = request.user
+            if email:
+                user.email = email
+                user.is_email_verified = True
+            if phone:
+                user.phone = phone
+                user.is_phone_verified = True
+            if username:
+                user.username = username
+            user.set_password(data["password"])
+            if email or phone:
+                # THE IDENTITY MODEL: a verified anchor (email/phone) was
+                # just attached — promote. Matches the auth_type the
+                # fresh-account branch below gets implicitly (the model
+                # field's default, since that branch never sets auth_type
+                # explicitly either) when email is present; phone-only picks
+                # "phone" for the same reason.
+                from stapel_auth.otp.services import promote_anonymous_session
 
-        self._publish_user_registered(user, request=request)
+                promote_anonymous_session(user, auth_type="email" if email else "phone")
+            else:
+                # No anchor — password/passkey/TOTP are CREDENTIALS, not
+                # identity (THE IDENTITY MODEL): this only makes the SAME
+                # anonymous account portable (loginable from another
+                # device), it does not promote it. `auth_status` reflects
+                # that: MODIFIED (credential added), not REGISTERED.
+                auth_status = AuthStatus.MODIFIED
+            user.save()
+        else:
+            user = User.objects.create(
+                email=email,
+                phone=phone,
+                username=username or (email.split("@")[0] if email else phone),
+                is_email_verified=bool(email),
+                is_phone_verified=bool(phone),
+            )
+            user.set_password(data["password"])
+            user.save(update_fields=["password"])
+
+            self._publish_user_registered(user, request=request)
 
         access_token, refresh_token = _issue_session_tokens(user, request)
         dto = AuthResponse(
-            status=AuthStatus.REGISTERED,
+            status=auth_status,
             user=user,
             tokens=TokenPairResponse(refresh=refresh_token, access=access_token),
         )

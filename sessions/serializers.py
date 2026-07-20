@@ -93,3 +93,17 @@ from stapel_auth.dto import SimpleStatusResponse
 class SimpleStatusSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = SimpleStatusResponse
+
+
+# Polymorphic union: PasswordViewSet.change_otp_verify returns either a plain
+# SimpleStatusResponse (ordinary password change — no promotion, no user
+# change) or a full User-bearing AuthResponse (the caller was an anonymous
+# guest session and the contact OTP verification promoted it — the client's
+# session.adopt() needs the `user` to flip anon -> registered). See
+# password/services.py PasswordService.change_via_otp and
+# password/views.py PasswordViewSet.change_otp_verify.
+PasswordOtpChangeResponseSerializer = PolymorphicProxySerializer(
+    component_name='PasswordOtpChangeResponse',
+    serializers=[AuthResponseSerializer, SimpleStatusSerializer],
+    resource_type_field_name='status',
+)

@@ -139,8 +139,22 @@ class AuthMethodInfo:
     Attributes:
         id: Method identifier — one of email, phone, password, passkey, qr,
             magic_link, sso, oauth. Example: email
-        enabled: Whether this method is currently available (mirrors the
-            corresponding AUTH_*_LOGIN gate / oauth provider count). Example: true
+        enabled: Whether this method is currently available for LOGIN
+            (mirrors the corresponding AUTH_*_LOGIN gate / oauth provider
+            count — identical to ``can_login`` below; kept for back-compat
+            with clients reading this field before ``can_login`` existed).
+            Example: true
+        can_login: Whether this method can be used to sign in to an EXISTING
+            account (mirrors the corresponding ``AUTH_<M>_LOGIN`` setting —
+            same value as ``enabled``). Example: true
+        can_register: Whether this method can be used to establish a NEW
+            identity anchor / complete registration (mirrors the
+            corresponding ``AUTH_<M>_REGISTRATION`` setting). Always
+            ``false`` for passkey, qr and magic_link — THE IDENTITY MODEL:
+            those are credentials/convenience-login methods with no
+            registration axis of their own (no ``AUTH_*_REGISTRATION``
+            setting exists for them; registering ends with a verified email,
+            phone, or federated identity, never a passkey). Example: true
         placement: Where the client renders this method's trigger. One of
             main (inline in the primary tab strip), overflow (behind the
             "more"/three-dot menu) or bottom (bottom row of secondary
@@ -169,6 +183,8 @@ class AuthMethodInfo:
     interaction: str
     icon_svg: str
     mock: bool = False
+    can_login: bool = False
+    can_register: bool = False
 
 
 @dataclass

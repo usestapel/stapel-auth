@@ -15,6 +15,28 @@ from stapel_auth.otp.constants import OTP_CODE_LENGTH  # noqa: F401 — re-expor
 logger = logging.getLogger(__name__)
 
 
+def promote_anonymous_session(user, *, auth_type: str) -> None:
+    """Flip an anonymous guest account to registered.
+
+    THE IDENTITY MODEL: a user becomes registered exactly when a verified
+    identity ANCHOR (email, phone, or a federated identity) is attached to
+    their account — never for a mere credential (password/passkey/TOTP).
+    Call this once the caller has ALREADY set the anchor field(s) (email/
+    phone/oauth_provider+oauth_id/etc.) and the matching ``is_*_verified``
+    flag on *user*; this only flips the anonymous state itself and upgrades
+    the placeholder ``anon_*`` username.
+
+    Does NOT call ``.save()`` — the caller saves once, together with the
+    anchor field(s) it just set (matching the historical single-write
+    behavior of the inline branches this factors out; if the caller uses
+    ``update_fields``, remember to include ``is_anonymous``, ``auth_type``
+    and ``username``).
+    """
+    user.is_anonymous = False
+    user.auth_type = auth_type
+    user.upgrade_username_from_anonymous()
+
+
 def _generate_numeric_code(length: int) -> str:
     """A random ``length``-digit numeric string with no leading zero."""
     lo = 10 ** (length - 1)

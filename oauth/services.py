@@ -29,7 +29,7 @@ _METHOD_ORDER = {
 _ALWAYS_REDIRECT = frozenset({'oauth', 'sso'})
 
 
-def _method_info(method_id: str, enabled: bool, *, mock: bool = False):
+def _method_info(method_id: str, enabled: bool, *, mock: bool = False, can_register: bool = False):
     """Build one ``AuthMethodInfo`` for a login method (capabilities.py contract).
 
     ``interaction`` is derived, not configured: 'main' placement renders
@@ -40,6 +40,11 @@ def _method_info(method_id: str, enabled: bool, *, mock: bool = False):
     docstring) — it never affects ``enabled``. A mock OTP provider still
     delivers the channel (the code goes to logs instead of a real
     email/SMS); only the corresponding AUTH_*_LOGIN axis turns a channel off.
+
+    ``enabled``/``can_login`` are always the same value (``enabled`` kept
+    for back-compat — see AuthMethodInfo.enabled). ``can_register`` defaults
+    to ``False`` — callers for passkey/qr/magic_link never pass it, matching
+    THE IDENTITY MODEL: those methods have no registration axis.
     """
     from stapel_auth.conf import auth_settings
     from stapel_auth.oauth.dto import AuthMethodInfo
@@ -65,6 +70,8 @@ def _method_info(method_id: str, enabled: bool, *, mock: bool = False):
         interaction=interaction,
         icon_svg=METHOD_ICONS[method_id],
         mock=mock,
+        can_login=enabled,
+        can_register=can_register,
     )
 
 
@@ -263,14 +270,21 @@ class AuthCapabilitiesService:
                 passkey=s.AUTH_PASSKEY_LOGIN,
             ),
             methods=[
-                _method_info('email', s.AUTH_EMAIL_LOGIN, mock=email_mock),
-                _method_info('phone', s.AUTH_PHONE_LOGIN, mock=phone_mock),
-                _method_info('password', s.AUTH_PASSWORD_LOGIN),
+                _method_info('email', s.AUTH_EMAIL_LOGIN, mock=email_mock, can_register=s.AUTH_EMAIL_REGISTRATION),
+                _method_info('phone', s.AUTH_PHONE_LOGIN, mock=phone_mock, can_register=s.AUTH_PHONE_REGISTRATION),
+                _method_info('password', s.AUTH_PASSWORD_LOGIN, can_register=s.AUTH_PASSWORD_REGISTRATION),
+                # passkey/qr/magic_link: login-only, no AUTH_*_REGISTRATION
+                # axis exists for them (RegistrationCapabilities has no field
+                # for any of the three) — can_register stays the default False.
                 _method_info('passkey', s.AUTH_PASSKEY_LOGIN),
                 _method_info('qr', s.AUTH_QR_LOGIN),
                 _method_info('magic_link', s.AUTH_MAGIC_LINK_LOGIN),
-                _method_info('sso', s.AUTH_SSO_LOGIN),
-                _method_info('oauth', bool(oauth_infos) and s.AUTH_OAUTH_LOGIN),
+                _method_info('sso', s.AUTH_SSO_LOGIN, can_register=s.AUTH_SSO_REGISTRATION),
+                _method_info(
+                    'oauth',
+                    bool(oauth_infos) and s.AUTH_OAUTH_LOGIN,
+                    can_register=bool(oauth_infos) and s.AUTH_OAUTH_REGISTRATION,
+                ),
             ],
             otp=OtpMeta(
                 email_code_length=OTP_CODE_LENGTH,
