@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-07-20
+
+Configurable password-as-identity policy (`AUTH_PASSWORD_DEANONYMIZES`, THE
+IDENTITY MODEL knob). By default a password stays a CREDENTIAL, not an
+identity: setting one on an anonymous guest session only makes that same
+account portable (loginable from another device) and `register()` returns
+`MODIFIED` — the row stays anonymous; only a verified anchor (email/phone/
+social) deanonymizes. A deployment that deliberately wants classic
+login/password accounts ("90s-style" — username+password IS the account)
+sets `AUTH_PASSWORD_DEANONYMIZES=True`, and a password-only `register()` on
+an anonymous session then promotes it (`auth_type="password"`, `REGISTERED`).
+Off by default. Exposed as an `auth.registration` capability axis. Pair it
+with the frontend's `registrationAnchors` including `"password"` so the
+register surface actually offers the form (@stapel/auth-react ≥0.8.0).
+
 ## [0.9.0] — 2026-07-20
 
 TOTP anti-takeover hardening — brings TOTP up to the same standard the

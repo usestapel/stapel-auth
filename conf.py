@@ -126,6 +126,20 @@ DEFAULTS = {
     'AUTH_SSO_REGISTRATION':      True,
     'AUTH_PASSWORD_REGISTRATION': False,
 
+    # THE IDENTITY MODEL knob (owner directive 2026-07-20). By default a
+    # password is a CREDENTIAL, not an identity: setting one on an anonymous
+    # guest session only makes that SAME account portable (loginable from
+    # another device) — it does NOT deanonymize/promote (register() returns
+    # MODIFIED, the row stays anonymous). A deployment that deliberately wants
+    # classic login/password accounts ("90s-style" — username+password IS the
+    # account) flips this to True: a password-only register() on an anonymous
+    # session then promotes it (auth_type="password", returns REGISTERED).
+    # Pair it with the frontend's `registrationAnchors` including "password"
+    # so the register surface actually offers the form. Independent of
+    # AUTH_PASSWORD_REGISTRATION, which gates whether password can register at
+    # all; this gates whether that registration DEANONYMIZES.
+    'AUTH_PASSWORD_DEANONYMIZES':  False,
+
     # Login method gates
     'AUTH_PHONE_LOGIN':      True,
     'AUTH_EMAIL_LOGIN':      True,

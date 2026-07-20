@@ -20,7 +20,11 @@ def promote_anonymous_session(user, *, auth_type: str) -> None:
 
     THE IDENTITY MODEL: a user becomes registered exactly when a verified
     identity ANCHOR (email, phone, or a federated identity) is attached to
-    their account — never for a mere credential (password/passkey/TOTP).
+    their account — never for a mere credential (password/passkey/TOTP). The
+    ONE opt-in exception is a deployment that sets
+    ``AUTH_PASSWORD_DEANONYMIZES=True`` to run classic login/password accounts,
+    where password-only register() promotes with ``auth_type="password"``;
+    that policy decision lives in the caller (password/views.py), not here.
     Call this once the caller has ALREADY set the anchor field(s) (email/
     phone/oauth_provider+oauth_id/etc.) and the matching ``is_*_verified``
     flag on *user*; this only flips the anonymous state itself and upgrades

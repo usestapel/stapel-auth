@@ -180,7 +180,7 @@ def test_matches_monolith_auth_slice():
 _EXPECTED_AXES = {
     # auth.registration
     "AUTH_PHONE_REGISTRATION", "AUTH_EMAIL_REGISTRATION", "AUTH_OAUTH_REGISTRATION",
-    "AUTH_SSO_REGISTRATION", "AUTH_PASSWORD_REGISTRATION",
+    "AUTH_SSO_REGISTRATION", "AUTH_PASSWORD_REGISTRATION", "AUTH_PASSWORD_DEANONYMIZES",
     # auth.login
     "AUTH_PHONE_LOGIN", "AUTH_EMAIL_LOGIN", "AUTH_OAUTH_LOGIN", "AUTH_SSO_LOGIN",
     "AUTH_PASSWORD_LOGIN", "AUTH_QR_LOGIN", "AUTH_PASSKEY_LOGIN",
@@ -204,10 +204,11 @@ def _capabilities() -> dict:
 
 
 def test_capabilities_axes_inventory():
-    """13 method gates + anonymous + totp + 2 step-up + 8 placement, all grouped."""
+    """13 method gates + anonymous + totp + 2 step-up + 8 placement +
+    password-deanonymizes policy, all grouped."""
     doc = _capabilities()
     assert {a["key"] for a in doc["axes"]} == _EXPECTED_AXES
-    assert len(doc["axes"]) == 25
+    assert len(doc["axes"]) == 26
     for axis in doc["axes"]:
         expected_kind = "enum" if axis["key"] in _ENUM_AXES else "bool"
         assert axis["kind"] == expected_kind, axis["key"]
@@ -292,7 +293,11 @@ def test_capabilities_meta_out_of_sync_fails_loudly():
             meta=broken_meta,
             is_axis=lambda k: k.startswith("AUTH_") or k.endswith("_STEP_UP"),
             axis_group=axis_group_rules(
-                exact={"AUTH_ANONYMOUS": "auth.anonymous", "AUTH_TOTP": "auth.mfa"},
+                exact={
+                    "AUTH_ANONYMOUS": "auth.anonymous",
+                    "AUTH_TOTP": "auth.mfa",
+                    "AUTH_PASSWORD_DEANONYMIZES": "auth.registration",
+                },
                 suffix={
                     "_REGISTRATION": "auth.registration",
                     "_LOGIN": "auth.login",

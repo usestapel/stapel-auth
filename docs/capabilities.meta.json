@@ -71,6 +71,10 @@
       "business_label": "Classic sign-up with a password",
       "summary": "New users can register with a login and password. Off by default — passwordless methods are the house default."
     },
+    "AUTH_PASSWORD_DEANONYMIZES": {
+      "business_label": "A password counts as signing up (90s-style accounts)",
+      "summary": "When on, setting a password on a guest session turns it into a full registered account (login/password IS the identity). Off by default — a password is normally just a credential that makes a guest account portable, and only a verified anchor (email/phone/social) registers."
+    },
     "AUTH_PHONE_LOGIN": {
       "business_label": "Sign-in with a phone number",
       "summary": "Existing users sign in by receiving a one-time SMS code."

@@ -19,7 +19,13 @@ def main(argv=None):
         registry=GATE_REGISTRY,
         is_axis=lambda k: k.startswith("AUTH_") or k.endswith("_STEP_UP"),
         axis_group=axis_group_rules(
-            exact={"AUTH_ANONYMOUS": "auth.anonymous", "AUTH_TOTP": "auth.mfa"},
+            exact={
+                "AUTH_ANONYMOUS": "auth.anonymous",
+                "AUTH_TOTP": "auth.mfa",
+                # Registration-policy axis (no *_REGISTRATION suffix to ride):
+                # governs whether a password-only sign-up deanonymizes.
+                "AUTH_PASSWORD_DEANONYMIZES": "auth.registration",
+            },
             suffix={
                 "_REGISTRATION": "auth.registration",
                 "_LOGIN": "auth.login",

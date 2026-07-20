@@ -535,12 +535,20 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 from stapel_auth.otp.services import promote_anonymous_session
 
                 promote_anonymous_session(user, auth_type="email" if email else "phone")
+            elif auth_settings.AUTH_PASSWORD_DEANONYMIZES:
+                # Opt-in (THE IDENTITY MODEL knob): this deployment treats a
+                # password AS identity ("90s-style" login/password accounts),
+                # so a password-only register() on an anonymous session
+                # promotes it just like an anchor would.
+                from stapel_auth.otp.services import promote_anonymous_session
+
+                promote_anonymous_session(user, auth_type="password")
             else:
-                # No anchor — password/passkey/TOTP are CREDENTIALS, not
-                # identity (THE IDENTITY MODEL): this only makes the SAME
-                # anonymous account portable (loginable from another
-                # device), it does not promote it. `auth_status` reflects
-                # that: MODIFIED (credential added), not REGISTERED.
+                # Default: password/passkey/TOTP are CREDENTIALS, not identity
+                # (THE IDENTITY MODEL): this only makes the SAME anonymous
+                # account portable (loginable from another device), it does
+                # not promote it. `auth_status` reflects that: MODIFIED
+                # (credential added), not REGISTERED.
                 auth_status = AuthStatus.MODIFIED
             user.save()
         else:

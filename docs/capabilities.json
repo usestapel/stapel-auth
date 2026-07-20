@@ -1,6 +1,6 @@
 {
   "module": "stapel-auth",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "provides": "User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.",
   "axes": [
     {
@@ -202,6 +202,20 @@
       "curated": {
         "summary": "New users can register with a login and password. Off by default — passwordless methods are the house default.",
         "business_label": "Classic sign-up with a password"
+      }
+    },
+    {
+      "key": "AUTH_PASSWORD_DEANONYMIZES",
+      "kind": "bool",
+      "default": false,
+      "group": "auth.registration",
+      "gates": {
+        "operations": [],
+        "co_gates": []
+      },
+      "curated": {
+        "summary": "When on, setting a password on a guest session turns it into a full registered account (login/password IS the identity). Off by default — a password is normally just a credential that makes a guest account portable, and only a verified anchor (email/phone/social) registers.",
+        "business_label": "A password counts as signing up (90s-style accounts)"
       }
     },
     {

@@ -161,6 +161,35 @@ class PasswordSetDoesNotPromoteTests(APITestCase):
         self.assertTrue(anon.is_anonymous)
         self.assertTrue(anon.check_password("brandnew456!"))
 
+    @override_settings(
+        STAPEL_AUTH={
+            "AUTH_PASSWORD_REGISTRATION": True,
+            "AUTH_PASSWORD_DEANONYMIZES": True,
+        }
+    )
+    def test_register_password_only_promotes_when_deanonymizes_optin(self):
+        """Opt-in (THE IDENTITY MODEL knob): a deployment running classic
+        login/password accounts sets AUTH_PASSWORD_DEANONYMIZES=True, and then
+        a password-only register() on an anonymous session PROMOTES the same
+        row (auth_type="password", REGISTERED) instead of staying a portable
+        guest — the mirror of the default test above."""
+        anon = User.create_anonymous_user()
+        client = _bearer_client_for(anon)
+        before_count = User.objects.count()
+        response = client.post(
+            reverse("password_register"),
+            {"password": "brandnew456!", "username": "classic_user_1"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "REGISTERED")
+        self.assertEqual(response.data["user"]["id"], str(anon.id))
+        self.assertFalse(response.data["user"]["is_anonymous"])
+        self.assertEqual(User.objects.count(), before_count)  # no orphan row
+        anon.refresh_from_db()
+        self.assertFalse(anon.is_anonymous)
+        self.assertEqual(anon.auth_type, "password")
+        self.assertTrue(anon.check_password("brandnew456!"))
+
     @override_settings(STAPEL_AUTH={"AUTH_PASSWORD_REGISTRATION": True})
     def test_register_with_email_on_anonymous_session_promotes_same_row(self):
         anon = User.create_anonymous_user()
