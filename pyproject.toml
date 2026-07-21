@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-auth"
-version = "0.10.0"
+version = "0.10.1"
 description = "Full-featured authentication Django app for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -26,7 +26,7 @@ classifiers = [
 
 # Core auth — always installed
 dependencies = [
-    "stapel-core>=0.10,<0.13",
+    "stapel-core>=0.10,<1.0",
     "pyotp>=2.10",
     "webauthn>=2.8",
     "phonenumbers>=8.13",
