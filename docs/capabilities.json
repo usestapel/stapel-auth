@@ -1,6 +1,6 @@
 {
   "module": "stapel-auth",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "provides": "User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.",
   "axes": [
     {
@@ -439,6 +439,23 @@
       }
     },
     {
+      "key": "AUTH_LOGIN_GRANT",
+      "kind": "bool",
+      "default": false,
+      "group": "auth.login",
+      "gates": {
+        "operations": [
+          "auth_api_v1_grant_exchange_create"
+        ],
+        "co_gates": [],
+        "behavior": "When on, POST /grant/exchange/ trades a token minted by the auth.issue_login_grant comm function for a JWT session; a grant minted with create_if_missing provisions an email account with a verified address and no usable password."
+      },
+      "curated": {
+        "summary": "Trusted modules (e.g. the workspaces invite flow) mint a short-lived single-use grant token through an internal call; exchanging it signs the user in and can auto-create a verified account. Off by default.",
+        "business_label": "Sign-in via a service-issued login grant"
+      }
+    },
+    {
       "key": "AUTH_EMAIL_PLACEMENT",
       "kind": "enum",
       "default": "main",
@@ -613,7 +630,7 @@
       "summary": "Compose your own URLconf from the get_*_urls() factories so disabled features 404 (include('stapel_auth.urls') mounts everything with per-request gating)."
     }
   ],
-  "operations_total": 109,
+  "operations_total": 110,
   "requires": [
     {
       "module": "stapel-core",

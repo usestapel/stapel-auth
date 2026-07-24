@@ -66,6 +66,8 @@ ERR_423_ACCOUNT_LOCKED = 'error.423.account_locked'
 ERR_400_INVALID_REDIRECT_URL = 'error.400.invalid_redirect_url'
 ERR_400_MAGIC_LINK_INVALID = 'error.400.magic_link_invalid'
 ERR_429_MAGIC_LINK_RATE = 'error.429.magic_link_rate'
+# Login grant (workspaces-org-program §B3)
+ERR_400_GRANT_INVALID = 'error.400.grant_invalid'
 # Passkeys
 ERR_400_PASSKEY_INVALID = 'error.400.passkey_invalid'
 ERR_400_PASSKEY_CHALLENGE_EXPIRED = 'error.400.passkey_challenge_expired'
@@ -158,6 +160,8 @@ AUTH_ERRORS = {
     # Magic links
     ERR_400_MAGIC_LINK_INVALID: 'Magic link is invalid or has expired.',
     ERR_429_MAGIC_LINK_RATE: 'Too many magic link requests. Please try again later.',
+    # Login grant
+    ERR_400_GRANT_INVALID: 'Login grant is invalid, already used, or has expired.',
     # Passkeys
     ERR_400_PASSKEY_INVALID: 'Passkey verification failed.',
     ERR_400_PASSKEY_CHALLENGE_EXPIRED: 'Passkey challenge has expired. Please try again.',
@@ -260,6 +264,9 @@ AUTH_REMEDIATION = {
     ERR_400_INVALID_REDIRECT_URL: 'fix_input',
     ERR_400_MAGIC_LINK_INVALID: 'retry',
     ERR_429_MAGIC_LINK_RATE: 'wait_and_retry',
+    # Login grant — the grant is single-use/short-TTL; the fix is to restart
+    # the issuing flow (e.g. reopen the invite link), i.e. retry, not re-login
+    ERR_400_GRANT_INVALID: 'retry',
     # Passkeys — WebAuthn ceremonies are retryable
     ERR_400_PASSKEY_INVALID: 'retry',
     ERR_400_PASSKEY_CHALLENGE_EXPIRED: 'retry',

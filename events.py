@@ -28,11 +28,17 @@ class UserRegisteredPayload:
             populated for OAuth registrations — see ``User.avatar``), None
             otherwise. Dead-reckoning consumers (e.g. profiles) decide what
             to do with it; auth itself never fetches or stores the image.
+        language: UI language hint captured at registration (currently only
+            populated by login-grant provisioning — workspaces-org-program
+            §B3), None otherwise. Same dead-reckoning contract as avatar_url:
+            auth stores no language field; consumers (e.g. profiles
+            ``app_language``) decide what to do with it.
     """
     user_id: str
     auth_type: str
     email: str | None = None
     avatar_url: str | None = None
+    language: str | None = None
 
 
 @dataclass

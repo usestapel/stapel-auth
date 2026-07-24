@@ -107,6 +107,11 @@
       "business_label": "Sign-in via a one-time email link",
       "summary": "Users sign in by clicking a short-lived link sent to their email — no code entry."
     },
+    "AUTH_LOGIN_GRANT": {
+      "business_label": "Sign-in via a service-issued login grant",
+      "summary": "Trusted modules (e.g. the workspaces invite flow) mint a short-lived single-use grant token through an internal call; exchanging it signs the user in and can auto-create a verified account. Off by default.",
+      "behavior": "When on, POST /grant/exchange/ trades a token minted by the auth.issue_login_grant comm function for a JWT session; a grant minted with create_if_missing provisions an email account with a verified address and no usable password."
+    },
     "AUTH_ANONYMOUS": {
       "business_label": "Guest access without an account",
       "summary": "Visitors get a temporary anonymous account (e.g. to browse or fill a cart) that can later be upgraded to a full account; guest data merges on upgrade."

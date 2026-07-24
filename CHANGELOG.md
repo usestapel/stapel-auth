@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+## [0.11.0]
+
+Login grant primitive (workspaces-org-program §B3, Wave 2) — the magic-link
+mechanic generalized for service-to-service use. New `login_grant/` package:
+a cache-stored, single-use, 15-minute token minted **by comm** instead of by
+email — `auth.issue_login_grant` `{email, verified_email?, create_if_missing?,
+language?}` → `{grant_token}` (registered in `apps.ready()`, committed schema
+in `schemas/functions/auth.issue_login_grant.json`). The holder exchanges it
+at `POST /grant/exchange/` for a full JWT session (same session mint, cookies
+and audit as every other login flow; `AuthResponse` with
+`LOGGED_IN`/`REGISTERED`). A grant minted with `create_if_missing` provisions
+the account on exchange when the email is unregistered: `auth_type="email"`,
+`is_email_verified` per the issuer's `verified_email` assertion (default
+true), unusable password, `user.registered` emitted. The event payload (and
+`schemas/emits/user.registered.json`) gains an additive nullable `language`
+field — a dead-reckoning hint like `avatar_url` for downstream consumers
+(profiles `app_language`); only login-grant provisioning populates it today.
+New gate `AUTH_LOGIN_GRANT` (default **off**): gates the
+`get_login_grant_urls()` factory (404 on host-assembled URLconfs) and the
+view per-request (403 on the always-on `include('stapel_auth.urls')` mount),
+surfaced as an `auth.login` capability axis. New error key
+`error.400.grant_invalid` (expired/consumed/unknown grant) with ru
+translation. Canonical caller: the workspaces invitation claim flow — the
+invite email already proved mailbox ownership, so clicking the link can mean
+"the account is ready" without a second email.
+
 ## [0.10.0] — 2026-07-20
 
 Configurable password-as-identity policy (`AUTH_PASSWORD_DEANONYMIZES`, THE

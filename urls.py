@@ -14,6 +14,7 @@ from stapel_auth.urls_v1 import (  # noqa: F401  (re-export, see docstring)
     GATE_REGISTRY,
     get_admin_api_urls,
     get_anonymous_urls,
+    get_login_grant_urls,
     get_magic_link_urls,
     get_mfa_urls,
     get_oauth_urls,
@@ -31,8 +32,9 @@ __all__ = [
     'GATE_REGISTRY',
     'get_otp_urls', 'get_anonymous_urls', 'get_password_urls', 'get_oauth_urls',
     'get_sso_urls', 'get_mfa_urls', 'get_qr_urls', 'get_magic_link_urls',
-    'get_sessions_urls', 'get_admin_api_urls', 'get_security_urls',
-    'get_openid_urls', 'get_verification_urls', 'urlpatterns',
+    'get_login_grant_urls', 'get_sessions_urls', 'get_admin_api_urls',
+    'get_security_urls', 'get_openid_urls', 'get_verification_urls',
+    'urlpatterns',
 ]
 
 urlpatterns = [

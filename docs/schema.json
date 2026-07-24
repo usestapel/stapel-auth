@@ -1017,6 +1017,81 @@
         }
       }
     },
+    "/auth/api/v1/grant/exchange/": {
+      "post": {
+        "operationId": "auth_api_v1_grant_exchange_create",
+        "description": "Consumes a single-use login grant (minted service-side via the auth.issue_login_grant comm function — the workspaces invitation claim flow) and issues a full JWT session. When the grant was minted with create_if_missing and no account exists for its email, a verified email account is created (status=REGISTERED instead of LOGGED_IN).\n\n**Permissions:** `AllowAny`",
+        "summary": "Exchange a login grant token for a JWT session",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginGrantExchangeBody"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginGrantExchangeBody"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginGrantExchangeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                },
+                "examples": {
+                  "AuthResponse": {
+                    "value": {
+                      "status": "LOGGED_IN"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
     "/auth/api/v1/logout/": {
       "get": {
         "operationId": "auth_api_v1_logout_retrieve",
@@ -6131,10 +6206,11 @@
           "phone",
           "oauth",
           "sso",
-          "anonymous"
+          "anonymous",
+          "login"
         ],
         "type": "string",
-        "description": "* `email` - Email\n* `phone` - Phone\n* `oauth` - OAuth\n* `sso` - SSO\n* `anonymous` - Anonymous"
+        "description": "* `email` - Email\n* `phone` - Phone\n* `oauth` - OAuth\n* `sso` - SSO\n* `anonymous` - Anonymous\n* `login` - Login"
       },
       "ClosureStatusDTO": {
         "type": "object",
@@ -6659,6 +6735,18 @@
           "phone",
           "qr",
           "sso"
+        ]
+      },
+      "LoginGrantExchangeBody": {
+        "type": "object",
+        "properties": {
+          "grant_token": {
+            "type": "string",
+            "description": "Single-use grant token minted via the auth.issue_login_grant comm function (workspaces invitation claim flow)."
+          }
+        },
+        "required": [
+          "grant_token"
         ]
       },
       "LoginResponse": {
@@ -8262,8 +8350,8 @@
           },
           "username": {
             "type": "string",
-            "description": "Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only.",
-            "pattern": "^[\\w.@+-]+$",
+            "description": "Required. 150 characters or fewer. Letters, digits and @/./+/-/_ characters, with at most one '/' as an organization separator.",
+            "pattern": "^[\\w.@+-]+(?:/[\\w.@+-]+)?$",
             "maxLength": 150
           },
           "email": {

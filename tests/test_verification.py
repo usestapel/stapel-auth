@@ -677,6 +677,10 @@ LEGACY_FLOW_ALLOWLIST = (
     "/totp/",
     "/passkey",
     "/magic/",
+    # Login grant exchange (workspaces-org-program §B3) — same class as
+    # /magic/: a token-for-session exchange, the user journey (the invite
+    # flow) is documented by its issuer (stapel-workspaces), not here.
+    "/grant/",
     "/sso/",
     "/.well-known/",
 )

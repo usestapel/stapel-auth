@@ -119,7 +119,7 @@ def _sanitize_redirect_after(value: str) -> str:
 User = get_user_model()
 
 
-def _notify_user_registered(user, request=None) -> None:
+def _notify_user_registered(user, request=None, language=None) -> None:
     """Fan out the registration milestone.
 
     1. stapel_core.signals.user_registered — in-process extension point.
@@ -163,6 +163,10 @@ def _notify_user_registered(user, request=None) -> None:
                     # (_resolve_oauth_user); "" normalizes to None so the
                     # schema's ["string", "null"] holds for every auth_type.
                     "avatar_url": user.avatar or None,
+                    # Dead-reckoning hint like avatar_url: auth stores no
+                    # language field — only login-grant provisioning passes
+                    # one today (workspaces-org-program §B3).
+                    "language": language or None,
                 },
                 key=str(user.id),
                 service="auth",

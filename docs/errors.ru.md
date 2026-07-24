@@ -1,6 +1,6 @@
 # Errors — Русский
 
-`118` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
+`121` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
 
 | Код | Статус | Параметры | Действие | Текст |
 |---|---|---|---|---|
@@ -25,6 +25,7 @@
 | `error.400.field.null` | 400 | `field` | `fix_input` | Поле «{field}» не может быть null |
 | `error.400.field.required` | 400 | `field` | `fix_input` | Поле «{field}» обязательно |
 | `error.400.field.unique` | 400 | `field` | `fix_input` | Значение поля «{field}» должно быть уникальным |
+| `error.400.grant_invalid` | 400 | — | `retry` | Грант для входа недействителен, уже использован или его срок действия истёк. |
 | `error.400.invalid_ad_id` | 400 | — | `fix_input` | Недопустимый идентификатор объявления |
 | `error.400.invalid_change_token` | 400 | — | `retry` | Недействительный или просроченный токен изменения. |
 | `error.400.invalid_code` | 400 | — | `fix_input` | Неверный код подтверждения |
@@ -54,7 +55,9 @@
 | `error.400.sso_not_configured` | 400 | — | `contact_support` | SSO не настроен для этой организации. |
 | `error.400.staff_role_target_not_staff` | 400 | — | `fix_input` | Служебные роли можно назначать только служебным учётным записям. Сначала сделайте пользователя сотрудником. |
 | `error.400.token_required` | 400 | — | `fix_input` | Требуется токен |
+| `error.400.totp_not_enabled` | 400 | — | `fix_input` | TOTP не включён для этой учётной записи. |
 | `error.400.totp_not_pending` | 400 | — | `retry` | Нет незавершённой настройки TOTP. Сначала вызовите /totp/setup/. |
+| `error.400.totp_proof_required` | 400 | — | `verify` | На этой учётной записи уже настроен TOTP. Укажите текущий код или резервный код, чтобы заменить его, либо используйте отложенную смену, если аутентификатор утерян. |
 | `error.400.unknown_staff_role` | 400 | — | `fix_input` | Неизвестная служебная роль. Сначала определите её в конфигурации развёртывания STAPEL_ACCESS["ROLES"]. |
 | `error.400.validation_error` | 400 | — | `fix_input` | Ошибка валидации |
 | `error.400.verification_failed` | 400 | — | `verify` | Проверка не пройдена |

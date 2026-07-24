@@ -22,6 +22,9 @@ def main(argv=None):
             exact={
                 "AUTH_ANONYMOUS": "auth.anonymous",
                 "AUTH_TOTP": "auth.mfa",
+                # Login-surface axis without the *_LOGIN suffix to ride:
+                # gates the grant-exchange endpoint (workspaces §B3).
+                "AUTH_LOGIN_GRANT": "auth.login",
                 # Registration-policy axis (no *_REGISTRATION suffix to ride):
                 # governs whether a password-only sign-up deanonymizes.
                 "AUTH_PASSWORD_DEANONYMIZES": "auth.registration",

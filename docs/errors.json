@@ -173,6 +173,13 @@
     "en": "{field} must be unique"
   },
   {
+    "code": "error.400.grant_invalid",
+    "status": 400,
+    "params": [],
+    "remediation": "retry",
+    "en": "Login grant is invalid, already used, or has expired."
+  },
+  {
     "code": "error.400.invalid_ad_id",
     "status": 400,
     "params": [],

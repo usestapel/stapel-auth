@@ -149,6 +149,11 @@ DEFAULTS = {
     'AUTH_QR_LOGIN':         True,
     'AUTH_PASSKEY_LOGIN':    True,
     'AUTH_MAGIC_LINK_LOGIN': True,
+    # Login grant (workspaces-org-program §B3): POST /grant/exchange/ trades a
+    # comm-minted single-use token (auth.issue_login_grant) for a JWT session.
+    # Off by default — only deployments running the workspaces invite flow (or
+    # another trusted grant issuer) should expose the exchange endpoint.
+    'AUTH_LOGIN_GRANT':      False,
 
     # Login method placement (UI composition — capability-config.md §1 sibling
     # axis to the *_LOGIN gates above): where the frontend renders each

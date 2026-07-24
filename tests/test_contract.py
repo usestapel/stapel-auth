@@ -184,7 +184,7 @@ _EXPECTED_AXES = {
     # auth.login
     "AUTH_PHONE_LOGIN", "AUTH_EMAIL_LOGIN", "AUTH_OAUTH_LOGIN", "AUTH_SSO_LOGIN",
     "AUTH_PASSWORD_LOGIN", "AUTH_QR_LOGIN", "AUTH_PASSKEY_LOGIN",
-    "AUTH_MAGIC_LINK_LOGIN",
+    "AUTH_MAGIC_LINK_LOGIN", "AUTH_LOGIN_GRANT",
     # auth.anonymous / auth.mfa / auth.stepup
     "AUTH_ANONYMOUS", "AUTH_TOTP", "OAUTH_STEP_UP", "PASSWORD_LOGIN_STEP_UP",
     # auth.placement (§60-follow-up: per-method UI placement, sibling axis to
@@ -208,7 +208,7 @@ def test_capabilities_axes_inventory():
     password-deanonymizes policy, all grouped."""
     doc = _capabilities()
     assert {a["key"] for a in doc["axes"]} == _EXPECTED_AXES
-    assert len(doc["axes"]) == 26
+    assert len(doc["axes"]) == 27
     for axis in doc["axes"]:
         expected_kind = "enum" if axis["key"] in _ENUM_AXES else "bool"
         assert axis["kind"] == expected_kind, axis["key"]
@@ -297,6 +297,7 @@ def test_capabilities_meta_out_of_sync_fails_loudly():
                     "AUTH_ANONYMOUS": "auth.anonymous",
                     "AUTH_TOTP": "auth.mfa",
                     "AUTH_PASSWORD_DEANONYMIZES": "auth.registration",
+                    "AUTH_LOGIN_GRANT": "auth.login",
                 },
                 suffix={
                     "_REGISTRATION": "auth.registration",

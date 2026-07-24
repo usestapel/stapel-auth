@@ -57,6 +57,9 @@ _FIXTURES = Path(
 #: Machine translations (origin: llm) of the auth-only error keys the builtin
 #: fixtures do not cover. All param-free; edit here + regen when the en changes.
 _MACHINE_RU = {
+    "error.400.grant_invalid":
+        "Грант для входа недействителен, уже использован или его срок "
+        "действия истёк.",
     "error.400.staff_role_target_not_staff":
         "Служебные роли можно назначать только служебным учётным записям. "
         "Сначала сделайте пользователя сотрудником.",

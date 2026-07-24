@@ -29,6 +29,7 @@ from stapel_auth.qr.views import QRAuthViewSet
 from stapel_auth.mfa.views import TOTPViewSet, PasskeyViewSet
 from stapel_auth.security.views import SecurityStatusViewSet, AuditLogViewSet, RevokeSuspiciousView, AdminAuditLogViewSet
 from stapel_auth.magic_link.views import MagicLinkViewSet
+from stapel_auth.login_grant.views import LoginGrantViewSet
 from stapel_auth.verification.views import VerificationPreferenceViewSet, VerificationViewSet
 from stapel_auth.openid.views import JWKSView, OpenIDConfigurationView, TokenIntrospectView
 from stapel_auth.admin.views import ServiceAPIKeyViewSet, AdminUserViewSet, CapabilitiesView, StaffRoleViewSet
@@ -40,8 +41,9 @@ from .sso_views import (
 __all__ = [
     'get_otp_urls', 'get_anonymous_urls', 'get_password_urls', 'get_oauth_urls',
     'get_sso_urls', 'get_mfa_urls', 'get_qr_urls', 'get_magic_link_urls',
-    'get_sessions_urls', 'get_admin_api_urls', 'get_security_urls',
-    'get_openid_urls', 'get_verification_urls', 'urlpatterns',
+    'get_login_grant_urls', 'get_sessions_urls', 'get_admin_api_urls',
+    'get_security_urls', 'get_openid_urls', 'get_verification_urls',
+    'urlpatterns',
 ]
 
 
@@ -242,6 +244,17 @@ def get_magic_link_urls(enabled=None):
     ])
 
 
+def get_login_grant_urls(enabled=None):
+    """Login grant exchange (workspaces-org-program §B3). Gated by AUTH_LOGIN_GRANT.
+
+    The issuing side is the ``auth.issue_login_grant`` comm function (no HTTP
+    surface); only the exchange endpoint is mounted here.
+    """
+    return _gated('login_grant', enabled, ('AUTH_LOGIN_GRANT',), [
+        path('grant/exchange/', LoginGrantViewSet.as_view({'post': 'exchange'}), name='grant_exchange'),
+    ])
+
+
 def get_sso_urls(enabled=None):
     """Enterprise SSO: SAML SP + OIDC RP + org admin CRUD."""
     return _gated('sso', enabled, ('AUTH_SSO_LOGIN', 'AUTH_SSO_REGISTRATION'), [
@@ -316,6 +329,7 @@ urlpatterns = (
     + get_security_urls(enabled=True)
     + get_mfa_urls(enabled=True)
     + get_magic_link_urls(enabled=True)
+    + get_login_grant_urls(enabled=True)
     + get_sso_urls(enabled=True)
     + get_openid_urls(enabled=True)
     + get_verification_urls(enabled=True)

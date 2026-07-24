@@ -28,6 +28,65 @@ VERIFICATION_POLICY_SCHEMA = {
 }
 
 
+ISSUE_LOGIN_GRANT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "email": {
+            "type": "string",
+            "description": "Email address the grant is bound to (case-insensitive).",
+        },
+        "verified_email": {
+            "type": "boolean",
+            "description": "Whether the issuer has proven mailbox ownership "
+            "(e.g. the invite email was delivered there). Sets "
+            "is_email_verified on a created account. Default true.",
+        },
+        "create_if_missing": {
+            "type": "boolean",
+            "description": "Create a user (auth_type=email, unusable password) "
+            "on exchange when no account exists for the email. Default false.",
+        },
+        "language": {
+            "type": ["string", "null"],
+            "description": "Optional UI language hint for a created account, "
+            "forwarded on the user.registered event for downstream consumers "
+            "(e.g. profiles).",
+        },
+    },
+    "required": ["email"],
+    "additionalProperties": False,
+}
+
+
+@function("auth.issue_login_grant", schema=ISSUE_LOGIN_GRANT_SCHEMA)
+def issue_login_grant(payload: dict) -> dict:
+    """Mint a single-use login grant token (workspaces-org-program §B3).
+
+    Payload: ``{"email", "verified_email"?, "create_if_missing"?,
+    "language"?}``. Returns ``{"grant_token": "<token>"}`` — a cache-stored,
+    15-minute, single-use token the holder exchanges for a JWT session at
+    ``POST /grant/exchange/`` (mounted only when ``AUTH_LOGIN_GRANT`` is on).
+
+    The user is resolved/created on EXCHANGE, not here — see
+    ``stapel_auth.login_grant.services.LoginGrantService.exchange``.
+
+    Canonical caller: the workspaces invitation claim endpoint
+    (``POST invitations/<token>/claim``) for not-yet-registered emails.
+
+    Privacy: the returned token is a credential — callers must never log it,
+    and especially never together with the email.
+    """
+    from .login_grant.services import LoginGrantService
+
+    token = LoginGrantService.issue(
+        email=payload["email"],
+        verified_email=payload.get("verified_email", True),
+        create_if_missing=payload.get("create_if_missing", False),
+        language=payload.get("language"),
+    )
+    return {"grant_token": token}
+
+
 @function("auth.verification.policy", schema=VERIFICATION_POLICY_SCHEMA)
 def verification_policy(payload: dict) -> dict:
     """Per-user step-up verification policy.

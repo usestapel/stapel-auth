@@ -84,6 +84,10 @@
       "hash": "bcfc98f9c891efe9",
       "origin": "seed:stapel-builtin"
     },
+    "error.400.grant_invalid": {
+      "hash": "006fa6cd06586563",
+      "origin": "llm"
+    },
     "error.400.invalid_ad_id": {
       "hash": "5e522ee317c6fcbc",
       "origin": "seed:stapel-builtin"

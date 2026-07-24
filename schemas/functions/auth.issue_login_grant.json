@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "auth.issue_login_grant",
+  "description": "Mint a single-use, 15-minute login grant token bound to an email (workspaces-org-program §B3). The holder exchanges it for a JWT session at POST /grant/exchange/ (gated by AUTH_LOGIN_GRANT). With create_if_missing the exchange creates a verified email account (auth_type=email, unusable password) when none exists. Returns {grant_token}.",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "description": "Email address the grant is bound to (case-insensitive)."
+    },
+    "verified_email": {
+      "type": "boolean",
+      "description": "Whether the issuer has proven mailbox ownership (e.g. the invite email was delivered there). Sets is_email_verified on a created account. Default true."
+    },
+    "create_if_missing": {
+      "type": "boolean",
+      "description": "Create a user (auth_type=email, unusable password) on exchange when no account exists for the email. Default false."
+    },
+    "language": {
+      "type": ["string", "null"],
+      "description": "Optional UI language hint for a created account, forwarded on the user.registered event for downstream consumers (e.g. profiles)."
+    }
+  },
+  "required": ["email"],
+  "additionalProperties": false
+}
