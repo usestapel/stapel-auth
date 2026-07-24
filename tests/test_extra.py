@@ -1014,13 +1014,19 @@ class CapabilitiesMethodsAndOtpMetaTests(APITestCase):
         self.assertEqual(otp['resend_cooldown_seconds'], 15)
 
     def test_otp_code_length_matches_db_field_width(self):
-        """Single-source guarantee: the contract value is the same constant
-        that sizes the DB CharField, not an independently hand-copied number."""
+        """Single-source guarantees, post-0.13 split: the DB CharField width IS
+        the storage cap constant, and the contract value is the RUNTIME
+        generated length (STAPEL_AUTH["OTP_LENGTH"]) which must fit the cap
+        (enforced by stapel_auth.E002)."""
+        from stapel_auth.conf import auth_settings
         from stapel_auth.models import EmailVerification, PhoneVerification
         from stapel_auth.otp.constants import OTP_CODE_LENGTH
 
         response = self.client.get(reverse('capabilities'))
-        self.assertEqual(response.data['otp']['email_code_length'], OTP_CODE_LENGTH)
+        self.assertEqual(
+            response.data['otp']['email_code_length'], int(auth_settings.OTP_LENGTH)
+        )
+        self.assertLessEqual(int(auth_settings.OTP_LENGTH), OTP_CODE_LENGTH)
         self.assertEqual(
             PhoneVerification._meta.get_field('code').max_length, OTP_CODE_LENGTH
         )

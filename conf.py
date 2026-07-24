@@ -41,6 +41,8 @@ DEFAULTS = {
     'USE_MOCK_SMS_OTP': False,
     'USE_MOCK_EMAIL_OTP': False,
     'MOCK_OTP_CODE': '0000',
+    # Generated OTP digit count (storage cap is otp.constants.OTP_CODE_LENGTH=8)
+    'OTP_LENGTH': 4,
     'OTP_TTL': 600,                 # seconds — also the single source for the
                                      # AuthCapabilities.otp.ttl_seconds contract
                                      # value (otp/services.py wires this same

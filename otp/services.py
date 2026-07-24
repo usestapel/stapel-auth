@@ -73,7 +73,8 @@ class PhoneVerificationService:
         """
         if self.use_mock_otp and not force_real:
             return self.mock_code
-        return _generate_numeric_code(OTP_CODE_LENGTH)
+        from stapel_auth.conf import auth_settings
+        return _generate_numeric_code(int(auth_settings.OTP_LENGTH))
 
     def send_verification_code(self, phone, device_id=None, force_real_otp=False):
         """Send verification code to phone number"""
@@ -226,7 +227,8 @@ class EmailVerificationService:
         """
         if self.use_mock_otp and not force_real:
             return self.mock_code
-        return _generate_numeric_code(OTP_CODE_LENGTH)
+        from stapel_auth.conf import auth_settings
+        return _generate_numeric_code(int(auth_settings.OTP_LENGTH))
 
     def send_verification_code(self, email, device_id=None, force_real_otp=False):
         """Send verification code to email address"""

@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-07-24
+
+### Changed — OTP length: storage cap 8, generated length configurable
+- `otp.constants.OTP_CODE_LENGTH` is now the STORAGE/WIRE CAP (4 → 8;
+  migration 0018 widens EmailVerification/PhoneVerification.code).
+- Generated code length is the new runtime setting
+  `STAPEL_AUTH["OTP_LENGTH"]` (default 4 — behavior unchanged);
+  `MOCK_OTP_CODE` may now be 4-8 digits (e.g. a 6-digit sandbox pin).
+- `capabilities()` otp meta exposes the GENERATED length, not the cap.
+- New system check `stapel_auth.E002`: OTP_LENGTH/MOCK_OTP_CODE over the
+  cap fail loudly at boot (silent wire truncation is impossible).
+
 ## [0.12.1] — 2026-07-24
 
 ### Fixed

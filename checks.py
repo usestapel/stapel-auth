@@ -59,3 +59,40 @@ def check_mock_otp_disabled_in_production(app_configs=None, **kwargs):
 
 
 __all__ = ["E001_MOCK_OTP_IN_PRODUCTION", "check_mock_otp_disabled_in_production"]
+
+
+E002_OTP_LENGTH_OVER_CAP = "stapel_auth.E002"
+
+
+@checks.register("stapel_auth")
+def check_otp_length_within_cap(app_configs=None, **kwargs):
+    """E002 — STAPEL_AUTH["OTP_LENGTH"] must fit the storage/wire cap.
+
+    The generated code length is a runtime setting, but the DB columns and
+    serializer max_length are pinned to ``otp.constants.OTP_CODE_LENGTH``
+    (8) — a longer setting would mint codes the wire silently truncates.
+    MOCK_OTP_CODE is validated against the same cap.
+    """
+    from .conf import auth_settings
+    from .otp.constants import OTP_CODE_LENGTH
+
+    errors = []
+    length = int(auth_settings.OTP_LENGTH)
+    if not (1 <= length <= OTP_CODE_LENGTH):
+        errors.append(checks.Error(
+            f"STAPEL_AUTH['OTP_LENGTH'] = {length} is outside 1..{OTP_CODE_LENGTH} "
+            f"(the storage/wire cap OTP_CODE_LENGTH).",
+            hint="Pick a length within the cap; widening the cap is a "
+                 "coordinated migration-carrying change in stapel-auth.",
+            id=E002_OTP_LENGTH_OVER_CAP,
+        ))
+    mock = str(auth_settings.MOCK_OTP_CODE or "")
+    if mock and len(mock) > OTP_CODE_LENGTH:
+        errors.append(checks.Error(
+            f"STAPEL_AUTH['MOCK_OTP_CODE'] is {len(mock)} chars — over the "
+            f"{OTP_CODE_LENGTH}-char storage/wire cap; verification would "
+            "always fail.",
+            hint="Use a mock code within the cap (e.g. 4-8 digits).",
+            id=E002_OTP_LENGTH_OVER_CAP,
+        ))
+    return errors
