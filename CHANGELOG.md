@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-07-25
+
+### Added — system check `stapel_auth.E003`: `FRONTEND_URL` unset with `DEBUG=False`
+
+Every redirect this pair issues off session (SSO callback, magic link, QR
+account-conflict, OTP-challenge continuation, security email/phone
+verification links) falls back to `auth_settings.FRONTEND_URL or ""` with no
+further validation. Missing it used to be a plain `warnings.warn` in
+`apps.py` — easy to miss (Python warnings routinely never reach a
+container's visible log stream), and a host's own legacy flat `FRONTEND_URL`
+Django setting carrying a dev-friendly default (e.g. `http://localhost:3000`)
+commonly satisfies `AppSettings`' resolution order anyway, so real users' auth
+redirects silently land on a developer's laptop instead of the deployment's
+real origin. `manage.py check`/`migrate` (which most deploy entrypoints run
+before serving) now fails loudly instead, same treatment as `stapel_auth.E001`
+(mock OTP) and `E002` (OTP length).
+
+### Removed
+- The `warnings.warn` in `AppConfig.ready()` for unset `FRONTEND_URL` — superseded by `E003`.
+
 ## [0.13.0] — 2026-07-24
 
 ### Changed — OTP length: storage cap 8, generated length configurable

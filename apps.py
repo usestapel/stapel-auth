@@ -8,19 +8,10 @@ class StapelAuthConfig(AppConfig):
     verbose_name = 'Stapel Auth'
 
     def ready(self):
-        import warnings
         from django.conf import settings
         from django.utils.module_loading import import_string
         from stapel_core.oauth import register_provider
         from .conf import auth_settings
-
-        if not auth_settings.FRONTEND_URL:
-            warnings.warn(
-                "stapel-auth: FRONTEND_URL is not set. "
-                "Set STAPEL_AUTH = {'FRONTEND_URL': '...'} or FRONTEND_URL env var. "
-                "Redirects after SSO/magic link/QR login will not work correctly.",
-                stacklevel=2,
-            )
 
         classes = list(auth_settings.OAUTH_PROVIDER_CLASSES)
         if getattr(settings, 'DEBUG', False):

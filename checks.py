@@ -96,3 +96,58 @@ def check_otp_length_within_cap(app_configs=None, **kwargs):
             id=E002_OTP_LENGTH_OVER_CAP,
         ))
     return errors
+
+
+E003_FRONTEND_URL_NOT_SET = "stapel_auth.E003"
+
+
+@checks.register("stapel_auth")
+def check_frontend_url_set_in_production(app_configs=None, **kwargs):
+    """E003 — FRONTEND_URL must be set when DEBUG=False.
+
+    Same failure shape as E001, one layer up the stack: this used to be a
+    plain ``warnings.warn`` in ``apps.py`` (easy to miss — Python warnings
+    routinely never reach a container's visible log stream). Every redirect
+    this pair issues off session (SSO callback, magic link, QR
+    account-conflict, OTP-challenge continuation, security email/phone
+    verification links) falls back to ``auth_settings.FRONTEND_URL or ""``
+    with no further validation, so an unset value most often does NOT show
+    up as an empty/broken link — a host settings module with its own
+    legacy flat ``FRONTEND_URL`` Django setting (the resolution order this
+    pair's ``AppSettings`` documents) commonly carries a dev-friendly
+    default of its own (e.g. ``http://localhost:3000``) that then leaks
+    into every environment sharing that base module, silently sending real
+    users' auth redirects to a developer's laptop. A host is expected to
+    keep any such default confined to its OWN dev-only settings layer (see
+    ``stapel_auth``'s own ``USE_MOCK_*_OTP`` split between prod-safe
+    ``base``/dev-friendly ``local`` for the established pattern) so this
+    check can actually catch the unset case in prod/staging.
+    """
+    from django.conf import settings
+
+    if getattr(settings, "DEBUG", False):
+        return []
+
+    from .conf import auth_settings
+
+    if auth_settings.FRONTEND_URL:
+        return []
+    return [checks.Error(
+        "FRONTEND_URL is not set with DEBUG=False. Every redirect this pair "
+        "issues off session (SSO/magic-link/QR/OTP-challenge/security "
+        "verification links) falls back to an empty base and silently "
+        "breaks — or, worse, resolves to a host settings module's own "
+        "leftover dev default (e.g. http://localhost:3000).",
+        hint="Set STAPEL_AUTH['FRONTEND_URL'] (or the FRONTEND_URL env "
+             "var) to the real public origin before deploying with "
+             "DEBUG=False. Keep any dev-only fallback confined to your "
+             "project's own dev settings layer, never the shared base "
+             "module prod/staging inherit from.",
+        id=E003_FRONTEND_URL_NOT_SET,
+    )]
+
+
+__all__ += [
+    "E003_FRONTEND_URL_NOT_SET",
+    "check_frontend_url_set_in_production",
+]

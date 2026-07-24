@@ -11,6 +11,8 @@ from django.test import TestCase, override_settings
 
 from stapel_auth.checks import (
     E001_MOCK_OTP_IN_PRODUCTION,
+    E003_FRONTEND_URL_NOT_SET,
+    check_frontend_url_set_in_production,
     check_mock_otp_disabled_in_production,
 )
 
@@ -49,3 +51,44 @@ class MockOtpProdguardCheckTests(TestCase):
         from django.core.checks.registry import registry
         self.assertIn(check_mock_otp_disabled_in_production, registry.registered_checks)
         self.assertEqual(check_mock_otp_disabled_in_production.tags, ('stapel_auth',))
+
+
+class FrontendUrlProdguardCheckTests(TestCase):
+    """Regression: a plain `warnings.warn` in apps.py used to be the only
+    guard here — easy to miss (Python warnings routinely never reach a
+    container's visible log stream), and a host's own legacy flat
+    `FRONTEND_URL` Django setting carrying a dev-friendly default (e.g.
+    http://localhost:3000) silently satisfied it anyway, so real users' auth
+    redirects (SSO/magic-link/QR/OTP-challenge) landed on a developer's
+    laptop instead of failing loudly."""
+
+    @override_settings(DEBUG=True, STAPEL_AUTH={})
+    def test_debug_true_never_flags_unset(self):
+        self.assertEqual(check_frontend_url_set_in_production(), [])
+
+    @override_settings(DEBUG=False, STAPEL_AUTH={'FRONTEND_URL': 'https://app.example.com'})
+    def test_debug_false_clean_when_set(self):
+        self.assertEqual(check_frontend_url_set_in_production(), [])
+
+    @override_settings(DEBUG=False, FRONTEND_URL=None, STAPEL_AUTH={})
+    def test_debug_false_flags_unset(self):
+        # Both the STAPEL_AUTH dict AND the legacy flat Django setting must
+        # be cleared — AppSettings' resolution order (STAPEL_AUTH dict →
+        # flat setting → env → default) means conftest's own flat
+        # FRONTEND_URL would otherwise silently satisfy the check, exactly
+        # the shadowing failure mode this check exists to catch.
+        errors = check_frontend_url_set_in_production()
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0].id, E003_FRONTEND_URL_NOT_SET)
+        self.assertIn('FRONTEND_URL', errors[0].msg)
+
+    @override_settings(DEBUG=False, FRONTEND_URL=None, STAPEL_AUTH={'FRONTEND_URL': ''})
+    def test_debug_false_flags_blank(self):
+        errors = check_frontend_url_set_in_production()
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0].id, E003_FRONTEND_URL_NOT_SET)
+
+    def test_registered_under_stapel_auth_tag(self):
+        from django.core.checks.registry import registry
+        self.assertIn(check_frontend_url_set_in_production, registry.registered_checks)
+        self.assertEqual(check_frontend_url_set_in_production.tags, ('stapel_auth',))
