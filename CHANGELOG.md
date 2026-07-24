@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.12.1] — 2026-07-24
+
+### Fixed
+- **0.12.0/0.11.0 wheels shipped without `stapel_auth.login_grant`** — the
+  explicit packages list didn't include the new package, so importing
+  `stapel_auth.urls_v1` from the wheel raised ModuleNotFoundError. List
+  extended; wheel contents verified before tagging this time.
+
 ## [0.12.0]
 
 Auth side of the org-program security hardening (workspaces-org-program §C,

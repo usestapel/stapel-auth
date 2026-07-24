@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-auth"
-version = "0.12.0"
+version = "0.12.1"
 description = "Full-featured authentication Django app for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -72,6 +72,7 @@ packages = [
     "stapel_auth.mfa",
     "stapel_auth.security",
     "stapel_auth.magic_link",
+    "stapel_auth.login_grant",
     "stapel_auth.openid",
     "stapel_auth.admin",
     "stapel_auth.verification",
