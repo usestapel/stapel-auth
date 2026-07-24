@@ -119,7 +119,7 @@ def _sanitize_redirect_after(value: str) -> str:
 User = get_user_model()
 
 
-def _notify_user_registered(user, request=None, language=None) -> None:
+def _notify_user_registered(user, request=None, language=None, display_name=None) -> None:
     """Fan out the registration milestone.
 
     1. stapel_core.signals.user_registered — in-process extension point.
@@ -167,6 +167,9 @@ def _notify_user_registered(user, request=None, language=None) -> None:
                     # language field — only login-grant provisioning passes
                     # one today (workspaces-org-program §B3).
                     "language": language or None,
+                    # Dead-reckoning hint like language: only org
+                    # provisioning (auth.provision_user, §C1) passes one.
+                    "display_name": display_name or None,
                 },
                 key=str(user.id),
                 service="auth",
@@ -182,6 +185,7 @@ from stapel_auth.sessions.views import (
     _issue_session_tokens,
 )
 from stapel_auth.utils import SerializerSeamsMixin
+from stapel_auth.permissions import DenyEnrollOnly
 
 
 @extend_schema_view(
@@ -203,7 +207,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     ViewSet for authentication operations
     """
 
-    permission_classes = [permissions.AllowAny]
+    # DenyEnrollOnly alone: the public actions stay public (it passes for
+    # non-enroll requests), while an enroll-only session is cut down to the
+    # logout pair via the central allowlist (permissions.py, org-program C2).
+    permission_classes = [DenyEnrollOnly]
 
     # Overridable serializer seams (see SerializerSeamsMixin).
     email_request_serializer_class = EmailAuthRequestSerializer
@@ -1498,7 +1505,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     """ViewSet for authenticator (phone/email) change flows."""
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly]
 
     # Overridable serializer seams (see SerializerSeamsMixin); the same
     # serializers back both the phone and the email flavours of each flow.

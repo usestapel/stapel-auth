@@ -1,6 +1,6 @@
 # Errors — Русский
 
-`121` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
+`125` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
 
 | Код | Статус | Параметры | Действие | Текст |
 |---|---|---|---|---|
@@ -25,6 +25,7 @@
 | `error.400.field.null` | 400 | `field` | `fix_input` | Поле «{field}» не может быть null |
 | `error.400.field.required` | 400 | `field` | `fix_input` | Поле «{field}» обязательно |
 | `error.400.field.unique` | 400 | `field` | `fix_input` | Значение поля «{field}» должно быть уникальным |
+| `error.400.first_login_challenge_invalid` | 400 | — | `reauthenticate` | Челлендж первого входа недействителен или истёк. Войдите ещё раз, чтобы начать заново. |
 | `error.400.grant_invalid` | 400 | — | `retry` | Грант для входа недействителен, уже использован или его срок действия истёк. |
 | `error.400.invalid_ad_id` | 400 | — | `fix_input` | Недопустимый идентификатор объявления |
 | `error.400.invalid_change_token` | 400 | — | `retry` | Недействительный или просроченный токен изменения. |
@@ -59,6 +60,7 @@
 | `error.400.totp_not_pending` | 400 | — | `retry` | Нет незавершённой настройки TOTP. Сначала вызовите /totp/setup/. |
 | `error.400.totp_proof_required` | 400 | — | `verify` | На этой учётной записи уже настроен TOTP. Укажите текущий код или резервный код, чтобы заменить его, либо используйте отложенную смену, если аутентификатор утерян. |
 | `error.400.unknown_staff_role` | 400 | — | `fix_input` | Неизвестная служебная роль. Сначала определите её в конфигурации развёртывания STAPEL_ACCESS["ROLES"]. |
+| `error.400.username_namespace_invalid` | 400 | — | `fix_input` | Недопустимый логин с пространством имён. Используйте формат 'org_slug/username' ровно с одним символом '/' и допустимыми символами с обеих сторон. |
 | `error.400.validation_error` | 400 | — | `fix_input` | Ошибка валидации |
 | `error.400.verification_failed` | 400 | — | `verify` | Проверка не пройдена |
 | `error.400.verification_invalid_factor` | 400 | — | `verify` | Этот способ подтверждения недоступен |
@@ -75,8 +77,10 @@
 | `error.401.user_not_found` | 401 | — | `reauthenticate` | Пользователь не найден |
 | `error.402.payment_required` | 402 | — | `retry` | Требуется оплата |
 | `error.403.forbidden` | 403 | — | `retry` | У вас нет прав для выполнения этого действия |
+| `error.403.mfa_enrollment_required` | 403 | — | `verify` | Перед использованием этой учётной записи необходимо настроить двухфакторную аутентификацию. Сначала подключите приложение-аутентификатор или ключ доступа. |
 | `error.403.mock_otp_admin` | 403 | — | `contact_support` | Аутентификация по OTP отключена для учётных записей администраторов в mock-режиме. |
 | `error.403.network_blocked` | 403 | — | `contact_support` | Запросы из этой сети не разрешены. |
+| `error.403.password_change_required` | 403 | — | `reauthenticate` | Перед входом необходимо сменить пароль. Сначала завершите обязательную смену пароля. |
 | `error.403.qr_device_mismatch` | 403 | — | `retry` | Этот QR-код принадлежит другому устройству. |
 | `error.403.qr_unauth_scan` | 403 | — | `reauthenticate` | Этот QR-код нельзя отсканировать с неаутентифицированного устройства. |
 | `error.403.sso_required` | 403 | — | `reauthenticate` | Для этой учётной записи вход возможен только через SSO. Используйте SSO-ссылку вашей организации. |

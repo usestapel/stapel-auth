@@ -20,6 +20,7 @@ from stapel_auth.admin.serializers import (
 )
 from stapel_auth.oauth.serializers import AuthCapabilitiesSerializer
 from stapel_auth.models import ServiceAPIKey, StaffRoleAssignment
+from stapel_auth.permissions import DenyEnrollOnly
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class ServiceAPIKeyViewSet(viewsets.ModelViewSet):
 
     queryset = ServiceAPIKey.objects.all()
     serializer_class = ServiceAPIKeySerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAdminUser, DenyEnrollOnly]
 
     def perform_create(self, serializer):
         """Generate API key on creation"""
@@ -147,7 +148,7 @@ class StaffRoleViewSet(viewsets.GenericViewSet):
     event through the outbox.
     """
 
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAdminUser, DenyEnrollOnly]
     queryset = StaffRoleAssignment.objects.all()
     serializer_class = StaffRoleAssignmentSerializer
 

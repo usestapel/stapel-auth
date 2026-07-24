@@ -26,7 +26,7 @@ from stapel_auth.otp.views import AuthViewSet, AuthenticatorChangeViewSet
 from stapel_auth.oauth.views import OAuthLinkViewSet
 from stapel_auth.password.views import PasswordViewSet
 from stapel_auth.qr.views import QRAuthViewSet
-from stapel_auth.mfa.views import TOTPViewSet, PasskeyViewSet
+from stapel_auth.mfa.views import MfaEnrollViewSet, TOTPViewSet, PasskeyViewSet
 from stapel_auth.security.views import SecurityStatusViewSet, AuditLogViewSet, RevokeSuspiciousView, AdminAuditLogViewSet
 from stapel_auth.magic_link.views import MagicLinkViewSet
 from stapel_auth.login_grant.views import LoginGrantViewSet
@@ -188,6 +188,12 @@ def get_password_urls(enabled=None):
         path('password/reset/phone/request/', PasswordViewSet.as_view({'post': 'reset_phone_request'}), name='password_reset_phone_request'),
         path('password/reset/phone/verify/', PasswordViewSet.as_view({'post': 'reset_phone_verify'}), name='password_reset_phone_verify'),
         path('password/register/', PasswordViewSet.as_view({'post': 'register'}), name='password_register'),
+        # Forced first-login password change (org-program §C2). No conf flag
+        # of its own: the intermediate is driven by USER flags
+        # (password_change_required) — without a flagged account the endpoint
+        # is unreachable-in-practice and harmless, and it is only ever
+        # entered from a password login, so it rides this factory's gate.
+        path('password/forced-change/', PasswordViewSet.as_view({'post': 'forced_change'}), name='password_forced_change'),
     ])
 
 
@@ -221,6 +227,13 @@ def get_mfa_urls(enabled=None):
         path('passkey/authenticate/begin/', PasskeyViewSet.as_view({'post': 'auth_begin'}), name='passkey_auth_begin'),
         path('passkey/authenticate/complete/', PasskeyViewSet.as_view({'post': 'auth_complete'}), name='passkey_auth_complete'),
         path('passkey/<str:pk>/', PasskeyViewSet.as_view({'delete': 'destroy'}), name='passkey_destroy'),
+    ]) + _gated('mfa.enroll', enabled, ('AUTH_TOTP', 'AUTH_PASSKEY_LOGIN'), [
+        # First-login mfa_enroll exchange (org-program §C2). No conf flag of
+        # its own — the flow is driven by the USER flag
+        # (mfa_enrollment_required); it needs at least one strong-factor
+        # surface to be useful, so it is mounted while either the TOTP or
+        # the passkey block is on (OR-composition, same as every GateEntry).
+        path('mfa/enroll/exchange/', MfaEnrollViewSet.as_view({'post': 'exchange'}), name='mfa_enroll_exchange'),
     ])
 
 

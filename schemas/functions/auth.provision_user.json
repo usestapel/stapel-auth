@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "auth.provision_user",
+  "description": "Create an org-provisioned login/password user (workspaces-org-program §C1). username is the FULL namespaced login 'org_slug/local'; the account gets auth_type='login', no email anchor by default, and a first-login policy flag. When password is omitted a crypto-strong one is generated and returned ONCE in the result — the caller must never log or store it. Structured failures come back as {\"error\": \"<error key>\"} instead of raising.",
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string",
+      "description": "Full namespaced login 'org_slug/local' — exactly one '/', both sides in the stock username alphabet."
+    },
+    "password": {
+      "type": ["string", "null"],
+      "description": "Initial password chosen by the provisioning admin. Omitted/null: the server generates a crypto-strong password and returns it once as generated_password."
+    },
+    "email": {
+      "type": ["string", "null"],
+      "description": "Normally null — org-provisioned accounts have no email anchor (spec C1). A non-null value is stored UNVERIFIED."
+    },
+    "display_name": {
+      "type": ["string", "null"],
+      "description": "Display-name hint: mirrored into first_name and forwarded on the user.registered event for downstream consumers (e.g. profiles)."
+    },
+    "first_login_policy": {
+      "type": "string",
+      "enum": ["password_change", "mfa_enroll"],
+      "description": "Which first-login flag to raise: password_change_required or mfa_enrollment_required (spec C2)."
+    }
+  },
+  "required": ["username", "first_login_policy"],
+  "additionalProperties": false
+}

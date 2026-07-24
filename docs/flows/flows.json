@@ -1,5 +1,76 @@
 [
   {
+    "id": "auth.first_login",
+    "title": "First login of an org-provisioned account",
+    "title_key": "flow.auth.first_login.title",
+    "description": "An organization admin provisioned the account (auth.provision_user: namespaced username org_slug/local, org-set or server-generated password, a first-login policy flag). The first password login returns FIRST_LOGIN_REQUIRED with a 10-minute challenge_token instead of a session: requires=password_change routes to the forced password change, requires=mfa_enroll to a limited enroll-only session in which only TOTP setup/confirm, passkey registration and logout are allowed. Completing the step clears the flag and yields a full session; when both flags are set, the password change chains straight into the mfa_enroll challenge.",
+    "description_key": "flow.auth.first_login.description",
+    "actors": [
+      "Org-provisioned user"
+    ],
+    "steps": [
+      {
+        "kind": "human",
+        "order": 0,
+        "note": "The org admin hands over the namespaced login (org_slug/username) and the initial password out of band",
+        "note_key": "flow.auth.first_login.step.0.note",
+        "ref": ""
+      },
+      {
+        "kind": "http",
+        "order": 1,
+        "note": "Sign in with the provisioned credentials; while a first-login flag is up the response is FIRST_LOGIN_REQUIRED {requires, challenge_token} instead of tokens",
+        "note_key": "flow.auth.first_login.step.1.note",
+        "ref": "stapel_auth.password.views.PasswordViewSet.login",
+        "endpoints": [
+          {
+            "method": "POST",
+            "path": "/password/login/"
+          }
+        ]
+      },
+      {
+        "kind": "http",
+        "order": 2,
+        "note": "requires=password_change: set an own password (validated by the password canon); returns a full session — or the next FIRST_LOGIN_REQUIRED (requires=mfa_enroll) when both flags are set. A rejected password does not consume the challenge",
+        "note_key": "flow.auth.first_login.step.2.note",
+        "ref": "stapel_auth.password.views.PasswordViewSet.forced_change",
+        "endpoints": [
+          {
+            "method": "POST",
+            "path": "/password/forced-change/"
+          }
+        ]
+      },
+      {
+        "kind": "http",
+        "order": 3,
+        "note": "requires=mfa_enroll: exchange the challenge_token for a limited enroll-only session (JWT claim enroll_only, access token only — no refresh); every endpoint outside the enrollment surface answers 403 mfa_enrollment_required",
+        "note_key": "flow.auth.first_login.step.3.note",
+        "ref": "stapel_auth.mfa.views.MfaEnrollViewSet.exchange",
+        "endpoints": [
+          {
+            "method": "POST",
+            "path": "/mfa/enroll/exchange/"
+          }
+        ]
+      },
+      {
+        "kind": "http",
+        "order": 4,
+        "note": "Enroll the strong factor: confirming TOTP setup (or completing a passkey registration) clears the flag, emits user.mfa_enabled and returns the full-session token pair in the same response",
+        "note_key": "flow.auth.first_login.step.4.note",
+        "ref": "stapel_auth.mfa.views.TOTPViewSet.confirm_setup",
+        "endpoints": [
+          {
+            "method": "POST",
+            "path": "/totp/setup/confirm/"
+          }
+        ]
+      }
+    ]
+  },
+  {
     "id": "auth.password_login",
     "title": "Password login (+ optional TOTP)",
     "title_key": "flow.auth.password_login.title",

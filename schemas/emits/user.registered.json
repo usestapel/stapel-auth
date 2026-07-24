@@ -9,7 +9,8 @@
     "auth_type":  { "type": "string" },
     "email":      { "type": ["string", "null"] },
     "avatar_url": { "type": ["string", "null"] },
-    "language":   { "type": ["string", "null"] }
+    "language":   { "type": ["string", "null"] },
+    "display_name": { "type": ["string", "null"] }
   },
   "additionalProperties": false
 }

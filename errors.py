@@ -90,6 +90,11 @@ ERR_400_CAPTCHA_REQUIRED = 'error.400.captcha_required'
 # Staff roles (admin-suite AS-2)
 ERR_400_UNKNOWN_STAFF_ROLE = 'error.400.unknown_staff_role'
 ERR_400_STAFF_ROLE_TARGET_NOT_STAFF = 'error.400.staff_role_target_not_staff'
+# First-login policy / org provisioning (workspaces-org-program §C1-C2)
+ERR_403_PASSWORD_CHANGE_REQUIRED = 'error.403.password_change_required'
+ERR_403_MFA_ENROLLMENT_REQUIRED = 'error.403.mfa_enrollment_required'
+ERR_400_USERNAME_NAMESPACE_INVALID = 'error.400.username_namespace_invalid'
+ERR_400_FIRST_LOGIN_CHALLENGE_INVALID = 'error.400.first_login_challenge_invalid'
 
 AUTH_ERRORS = {
     ERR_401_INVALID_CREDENTIALS: 'Invalid credentials',
@@ -184,6 +189,11 @@ AUTH_ERRORS = {
     # Staff roles
     ERR_400_UNKNOWN_STAFF_ROLE: 'Unknown staff role. Define it in the STAPEL_ACCESS["ROLES"] deploy config first.',
     ERR_400_STAFF_ROLE_TARGET_NOT_STAFF: 'Staff roles can only be assigned to staff accounts. Make the user staff first.',
+    # First-login policy / org provisioning
+    ERR_403_PASSWORD_CHANGE_REQUIRED: 'A password change is required before this account can sign in. Complete the forced password change first.',
+    ERR_403_MFA_ENROLLMENT_REQUIRED: 'Two-factor enrollment is required before this account can be used. Set up an authenticator app or a passkey first.',
+    ERR_400_USERNAME_NAMESPACE_INVALID: "Invalid namespaced login. Use 'org_slug/username' with exactly one '/' and valid characters on both sides.",
+    ERR_400_FIRST_LOGIN_CHALLENGE_INVALID: 'First-login challenge is invalid or has expired. Sign in again to restart.',
 }
 
 # Machine-readable recovery hints (remediation) — the canonical "what to do"
@@ -290,6 +300,14 @@ AUTH_REMEDIATION = {
     # operator input problem in both cases
     ERR_400_UNKNOWN_STAFF_ROLE: 'fix_input',
     ERR_400_STAFF_ROLE_TARGET_NOT_STAFF: 'fix_input',
+    # First-login policy — the fix is completing the respective first-login
+    # flow: forced change goes through the login intermediate (re-login),
+    # enrollment goes through the verification/enroll surface
+    ERR_403_PASSWORD_CHANGE_REQUIRED: 'reauthenticate',
+    ERR_403_MFA_ENROLLMENT_REQUIRED: 'verify',
+    ERR_400_USERNAME_NAMESPACE_INVALID: 'fix_input',
+    # Challenge tokens are short-TTL/single-use — restart the login
+    ERR_400_FIRST_LOGIN_CHALLENGE_INVALID: 'reauthenticate',
 }
 
 register_service_errors(AUTH_ERRORS, remediation=AUTH_REMEDIATION)

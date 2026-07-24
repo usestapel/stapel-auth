@@ -1,6 +1,6 @@
 {
   "module": "stapel-auth",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "provides": "User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.",
   "axes": [
     {
@@ -26,6 +26,7 @@
       "group": "auth.mfa",
       "gates": {
         "operations": [
+          "auth_api_v1_mfa_enroll_exchange_create",
           "auth_api_v1_totp_challenge_verify_create",
           "auth_api_v1_totp_change_delayed_cancel_create",
           "auth_api_v1_totp_change_delayed_initiate_create",
@@ -35,7 +36,9 @@
           "auth_api_v1_totp_setup_confirm_create",
           "auth_api_v1_totp_setup_create"
         ],
-        "co_gates": []
+        "co_gates": [
+          "AUTH_PASSKEY_LOGIN"
+        ]
       },
       "curated": {
         "summary": "Users can protect their account with time-based one-time codes (Google Authenticator etc.); also the factor behind step-up checks on sensitive actions.",
@@ -187,6 +190,7 @@
           "auth_api_v1_password_change_create",
           "auth_api_v1_password_change_otp_request_create",
           "auth_api_v1_password_change_otp_verify_create",
+          "auth_api_v1_password_forced_change_create",
           "auth_api_v1_password_login_create",
           "auth_api_v1_password_methods_retrieve",
           "auth_api_v1_password_register_create",
@@ -363,6 +367,7 @@
           "auth_api_v1_password_change_create",
           "auth_api_v1_password_change_otp_request_create",
           "auth_api_v1_password_change_otp_verify_create",
+          "auth_api_v1_password_forced_change_create",
           "auth_api_v1_password_login_create",
           "auth_api_v1_password_methods_retrieve",
           "auth_api_v1_password_register_create",
@@ -407,6 +412,7 @@
       "group": "auth.login",
       "gates": {
         "operations": [
+          "auth_api_v1_mfa_enroll_exchange_create",
           "auth_api_v1_passkey_authenticate_begin_create",
           "auth_api_v1_passkey_authenticate_complete_create",
           "auth_api_v1_passkey_destroy",
@@ -414,7 +420,9 @@
           "auth_api_v1_passkey_register_complete_create",
           "auth_api_v1_passkey_retrieve"
         ],
-        "co_gates": []
+        "co_gates": [
+          "AUTH_TOTP"
+        ]
       },
       "curated": {
         "summary": "Users sign in with platform passkeys (Face ID, fingerprint, hardware security keys) via WebAuthn; also usable as a second factor.",
@@ -630,7 +638,7 @@
       "summary": "Compose your own URLconf from the get_*_urls() factories so disabled features 404 (include('stapel_auth.urls') mounts everything with per-request gating)."
     }
   ],
-  "operations_total": 110,
+  "operations_total": 112,
   "requires": [
     {
       "module": "stapel-core",

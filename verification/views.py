@@ -35,6 +35,7 @@ from stapel_core.verification import requires_verification
 from stapel_core.verification.decorators import VERIFICATION_ATTR
 from stapel_core.verification.policy import invalidate_policy_cache
 
+from stapel_auth.permissions import DenyEnrollOnly
 from stapel_auth.utils import SerializerSeamsMixin
 from stapel_auth.verification.serializers import (
     VerificationChallengeInfoResponseSerializer,
@@ -53,7 +54,7 @@ logger = logging.getLogger(__name__)
 class VerificationViewSet(SerializerSeamsMixin, viewsets.ViewSet):
     """Challenge-scoped verification endpoints, owner-bound."""
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly]
 
     # Overridable serializer seams (see SerializerSeamsMixin).
     info_response_serializer_class = VerificationChallengeInfoResponseSerializer
@@ -238,7 +239,7 @@ class VerificationPreferenceViewSet(SerializerSeamsMixin, viewsets.ViewSet):
     silently switch step-up off. Enabling never requires step-up.
     """
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly]
 
     # Overridable serializer seams (see SerializerSeamsMixin).
     preference_request_serializer_class = VerificationPreferenceSerializer

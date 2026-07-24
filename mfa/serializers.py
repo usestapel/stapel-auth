@@ -4,10 +4,12 @@ from drf_spectacular.utils import PolymorphicProxySerializer
 from stapel_core.django.api.serializers import StapelDataclassSerializer
 
 from stapel_auth.mfa.dto import (
+    MfaEnrollSessionResponse,
     TOTPChallengeResponse,
     TOTPSetupResponse,
     TOTPSetupConfirmResponse,
 )
+from stapel_auth.sessions.dto import TokenPairResponse
 from stapel_auth.mfa.services import TOTPService
 from stapel_auth.otp.constants import OTP_CODE_LENGTH
 
@@ -88,6 +90,19 @@ class TOTPSetupConfirmResponseSerializer(StapelDataclassSerializer):
         dataclass = TOTPSetupConfirmResponse
 
 
+# ── First-login MFA enrollment (workspaces-org-program §C2) ──────────────────
+
+class MfaEnrollExchangeSerializer(serializers.Serializer):
+    challenge_token = serializers.CharField(
+        help_text='Opaque token from FirstLoginChallengeResponse (requires=mfa_enroll).'
+    )
+
+
+class MfaEnrollSessionResponseSerializer(StapelDataclassSerializer):
+    class Meta:
+        dataclass = MfaEnrollSessionResponse
+
+
 # ── Passkey serializers ───────────────────────────────────────────────────────
 
 class PasskeyItemSerializer(serializers.Serializer):
@@ -97,3 +112,20 @@ class PasskeyItemSerializer(serializers.Serializer):
     transports   = serializers.ListField(child=serializers.CharField())
     created_at   = serializers.DateTimeField()
     last_used_at = serializers.DateTimeField(allow_null=True)
+
+
+class _TokenPairSerializer(StapelDataclassSerializer):
+    """Local TokenPairResponse serializer (sessions.serializers would be a
+    circular import — it imports this module for the login union)."""
+
+    class Meta:
+        dataclass = TokenPairResponse
+
+
+class PasskeyRegisterCompleteResponseSerializer(PasskeyItemSerializer):
+    """Passkey item, plus a full-session token pair when the registration
+    was made from a limited enroll-only session (first-login mfa_enroll
+    policy) — activating the strong factor upgrades it to a full session."""
+
+    tokens = _TokenPairSerializer(required=False, allow_null=True,
+                                  help_text='Full-session JWT pair; only present after an enroll-only upgrade.')

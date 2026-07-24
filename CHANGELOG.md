@@ -2,6 +2,96 @@
 
 ## [Unreleased]
 
+## [0.12.0]
+
+Auth side of the org-program security hardening (workspaces-org-program §C,
+Wave 3). Requires stapel-core ≥0.14 (factor `strength`, the
+`password_change_required`/`mfa_enrollment_required` user flags, the
+`login` auth_type, the namespace-tolerant username validator).
+
+### Org provisioning (§C1)
+- New comm function `auth.provision_user` `{username, password?, email?,
+  display_name?, first_login_policy}` → `{user_id, generated_password?}`
+  (schema committed in `schemas/functions/auth.provision_user.json`).
+  Creates an org-provisioned `auth_type="login"` account with the FULL
+  namespaced username `org_slug/local` (exactly one `/`; validated by the
+  new `utils.parse_namespaced_login` / `utils.validate_local_username`
+  helpers on top of the core username canon) and no email anchor by
+  default. Caller-provided passwords are validated by the deployment's
+  password canon; an omitted password is generated crypto-strong
+  server-side and returned exactly ONCE — it is never logged and never
+  rides an event payload (tested). Structured failures instead of raises:
+  `{"error": "error.400.username_namespace_invalid" | "error.409.username_taken"
+  | "error.400.bad_request"}`. Emits `user.registered` with an additive
+  nullable `display_name` hint (schema updated) for downstream consumers.
+- New comm function `auth.mfa_status` `{user_id}` → `{has_strong_mfa,
+  factors: [{id, strength}]}` (schema in
+  `schemas/functions/auth.mfa_status.json`) — the factors the user can
+  actually complete, with the strength canon applied; unknown users get
+  `{false, []}`.
+
+### Strength canon (§C2 — «email-код ≠ 2ФА»)
+- The registered verification factors now declare `strength`: `totp`,
+  `passkey` and `otp_phone` are **strong**; `otp_email` stays weak. Strict
+  "has 2FA" checks everywhere go through
+  `stapel_core.verification.strong_factors`.
+
+### First-login intermediates (§C2)
+- While `password_change_required`/`mfa_enrollment_required` is up, a
+  successful password login returns `FIRST_LOGIN_REQUIRED {requires:
+  "password_change"|"mfa_enroll", challenge_token, expires_in}` (cache
+  token, 10-minute TTL — `FirstLoginPolicyService`) instead of a session;
+  the same check runs in the TOTP step-up verify, so a TOTP-enabled flagged
+  account still proves the second factor first. The `LoginResponse` union
+  gains the third member. Flag-less logins are byte-identical to 0.11
+  (release gate, tested).
+- New endpoint `POST /password/forced-change/` `{challenge_token,
+  new_password}`: password canon validation (a rejected password does NOT
+  consume the challenge), clears the flag, mints a full session — or chains
+  into the `mfa_enroll` intermediate when both flags are set.
+- New endpoint `POST /mfa/enroll/exchange/` `{challenge_token}`: trades the
+  challenge for a LIMITED enroll-only session — an access token with the
+  `enroll_only` JWT claim, deliberately **no refresh token** (a refresh
+  would mint a claim-free token and escalate silently) and no UserSession
+  row. New DRF permission `DenyEnrollOnly` rides every authenticated view
+  and cuts the surface down to TOTP setup/confirm, passkey registration and
+  logout (central allowlist in `permissions.py`; structured 403
+  `error.403.mfa_enrollment_required` elsewhere). Activating a strong
+  factor clears the flag and the confirm response additionally carries the
+  full-session `tokens` pair (TOTP confirm + passkey register complete).
+- The legacy `POST /token/` obtain endpoint 403s flagged accounts with
+  `error.403.password_change_required` / `error.403.mfa_enrollment_required`
+  instead of silently bypassing the policy.
+- Gating decision (documented in `urls_v1.py`): NO new conf flags — the
+  intermediates are driven by USER flags and are byte-inert without them.
+  `/password/forced-change/` rides the password factory's gate (it is only
+  ever entered from a password login); `/mfa/enroll/exchange/` is a new
+  `mfa.enroll` gate block mounted while EITHER `AUTH_TOTP` or
+  `AUTH_PASSKEY_LOGIN` is on.
+
+### MFA events (§C3)
+- New outbox events `user.mfa_enabled` / `user.mfa_disabled` `{user_id,
+  factor}` (schemas in `schemas/emits/`). ACCOUNT-LEVEL transitions of the
+  "has a strong second factor" predicate, not per-factor ticks — a second
+  passkey, or a TOTP disable while a verified phone still counts as strong,
+  emits nothing, so the workspaces require_mfa consumer can
+  suspend/unsuspend on the events directly. Emission points (atomic with
+  the factor write): `TOTPService.confirm`, `TOTPService.disable`,
+  `TOTPService.force_disable` (which also covers the delayed-change execute
+  task) and `PasskeyService.registration_complete` / the new
+  `PasskeyService.deactivate` (the passkey delete view now goes through
+  it).
+
+### Errors
+- New keys + ru: `error.403.password_change_required`,
+  `error.403.mfa_enrollment_required`, `error.400.username_namespace_invalid`,
+  `error.400.first_login_challenge_invalid`.
+
+### Docs/contract
+- `docs/{schema,flows,errors,capabilities}.json`, the flow doc trees and
+  the error/flow i18n catalogs regenerated; new `auth.first_login` flow
+  documents the whole first-login machine.
+
 ## [0.11.0]
 
 Login grant primitive (workspaces-org-program §B3, Wave 2) — the magic-link

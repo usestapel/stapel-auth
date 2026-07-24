@@ -26,6 +26,7 @@ from .errors import (
 )
 from .models import Organization, SSOConfig
 from .sso_service import OIDCService, SAMLService, SSOUserService
+from stapel_auth.permissions import DenyEnrollOnly
 
 logger = logging.getLogger(__name__)
 
@@ -339,7 +340,7 @@ class _SSOConfigSerializer(serializers.ModelSerializer):
 
 
 class SSOAdminViewSet(ViewSet):
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAdminUser, DenyEnrollOnly]
 
     @extend_schema(
         summary="List all SSO organizations",

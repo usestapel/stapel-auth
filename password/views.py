@@ -25,8 +25,15 @@ from stapel_auth.errors import (
     ERR_409_PHONE_TAKEN,
     ERR_409_USERNAME_TAKEN,
 )
-from stapel_auth.password.dto import PasswordMethodsResponse
+from stapel_auth.password.dto import (
+    FirstLoginChallengeResponse,
+    FirstLoginChallengeStatus,
+    FirstLoginRequirement,
+    PasswordMethodsResponse,
+)
 from stapel_auth.password.serializers import (
+    FirstLoginChallengeResponseSerializer,
+    ForcedPasswordChangeSerializer,
     PasswordChangeDirectSerializer,
     PasswordLoginSerializer,
     PasswordMethodsResponseSerializer,
@@ -38,7 +45,7 @@ from stapel_auth.password.serializers import (
     PasswordResetPhoneRequestSerializer,
     PasswordResetPhoneVerifySerializer,
 )
-from stapel_auth.password.services import PasswordService
+from stapel_auth.password.services import FirstLoginPolicyService, PasswordService
 from stapel_auth.mfa.serializers import TOTPChallengeResponseSerializer
 from stapel_auth.otp.serializers import OtpSentResponseSerializer
 from stapel_auth.sessions.serializers import (
@@ -49,8 +56,32 @@ from stapel_auth.sessions.serializers import (
 )
 from stapel_auth.sessions.views import _add_login_hints, _issue_session_tokens
 from stapel_auth.utils import SerializerSeamsMixin
+from stapel_auth.permissions import DenyEnrollOnly
 
 logger = logging.getLogger(__name__)
+
+
+def first_login_intermediate_response(user, serializer_class=None):
+    """FirstLoginChallengeResponse for *user*, or None when no flag is up.
+
+    The shared post-credential check of the first-login policy
+    (org-program §C2): password login and the TOTP step-up verify both call
+    it right before minting a session, so a flagged account can complete
+    every OTHER credential requirement and still never receive a session
+    until the first-login step is done. Accounts without flags short-circuit
+    to None — their login path stays byte-identical.
+    """
+    requires = FirstLoginPolicyService.required_intermediate(user)
+    if requires is None:
+        return None
+    token = FirstLoginPolicyService.create_challenge(user, requires)
+    dto = FirstLoginChallengeResponse(
+        status=FirstLoginChallengeStatus.FIRST_LOGIN_REQUIRED,
+        requires=FirstLoginRequirement(requires),
+        challenge_token=token,
+        expires_in=FirstLoginPolicyService.CHALLENGE_TTL,
+    )
+    return StapelResponse((serializer_class or FirstLoginChallengeResponseSerializer)(dto))
 
 
 # ── Password ViewSet ──────────────────────────────────────────────────────────
@@ -66,6 +97,7 @@ logger = logging.getLogger(__name__)
     reset_email_verify=extend_schema(tags=["Password Auth"]),
     reset_phone_request=extend_schema(tags=["Password Auth"]),
     reset_phone_verify=extend_schema(tags=["Password Auth"]),
+    forced_change=extend_schema(tags=["Password Auth"]),
 )
 class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     permission_classes = [permissions.AllowAny]
@@ -80,8 +112,10 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     reset_phone_request_serializer_class = PasswordResetPhoneRequestSerializer
     reset_phone_verify_request_serializer_class = PasswordResetPhoneVerifySerializer
     register_request_serializer_class = PasswordRegisterSerializer
+    forced_change_request_serializer_class = ForcedPasswordChangeSerializer
     auth_response_serializer_class = AuthResponseSerializer
     totp_challenge_response_serializer_class = TOTPChallengeResponseSerializer
+    first_login_challenge_response_serializer_class = FirstLoginChallengeResponseSerializer
     methods_response_serializer_class = PasswordMethodsResponseSerializer
     otp_sent_response_serializer_class = OtpSentResponseSerializer
     status_response_serializer_class = SimpleStatusSerializer
@@ -97,7 +131,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
     def get_permissions(self):
         if self.action in self._authenticated_actions:
-            return [permissions.IsAuthenticated()]
+            return [permissions.IsAuthenticated(), DenyEnrollOnly()]
         return [permissions.AllowAny()]
 
     @extend_schema(
@@ -171,6 +205,18 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             return StapelResponse(
                 self.get_totp_challenge_response_serializer_class()(dto)
             )
+
+        # First-login policy (org-program §C2): a flagged org-provisioned
+        # account gets an intermediate challenge instead of a session. Runs
+        # AFTER the TOTP step-up on purpose — a TOTP-enabled flagged account
+        # must still prove the second factor first (the step-up verify
+        # repeats this check before minting its session). Unflagged
+        # accounts: required_intermediate() is None and nothing changes.
+        intermediate = first_login_intermediate_response(
+            user, self.get_first_login_challenge_response_serializer_class()
+        )
+        if intermediate is not None:
+            return intermediate
 
         access_token, refresh_token = _issue_session_tokens(user, request)
         dto = AuthResponse(
@@ -578,6 +624,72 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         set_jwt_cookies(response, access_token, refresh_token)
         set_auth_hint_cookie(response)
         return response
+
+    @extend_schema(
+        description=(
+            "Complete a forced first-login password change (org-provisioned "
+            "accounts, requires=password_change). Takes the challenge_token "
+            "from the login intermediate plus the new password (validated by "
+            "the deployment's password canon), clears the flag and returns a "
+            "full `AuthResponse` — or, when the account ALSO has the "
+            "mfa_enroll policy, the next `FirstLoginChallengeResponse` "
+            "(requires=mfa_enroll) instead of a session. An invalid/expired "
+            "token yields 400 `first_login_challenge_invalid`; a rejected "
+            "password does NOT consume the challenge."
+        ),
+        request=ForcedPasswordChangeSerializer,
+        responses={200: LoginResponseSerializer, 400: StapelErrorSerializer},
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="forced-change",
+        permission_classes=[permissions.AllowAny],
+    )
+    def forced_change(self, request):  # noqa: R007
+        from stapel_core.django.jwt.utils import set_jwt_cookies
+
+        from stapel_auth.errors import ERR_400_FIRST_LOGIN_CHALLENGE_INVALID
+        from stapel_auth.hint_cookie import set_auth_hint_cookie
+        from stapel_auth.sessions.services import AuditService
+
+        serializer = self.get_forced_change_request_serializer_class()(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+
+        token = serializer.validated_data["challenge_token"]
+        user = FirstLoginPolicyService.resolve_challenge(
+            token, FirstLoginPolicyService.REQUIRES_PASSWORD_CHANGE
+        )
+        if user is None:
+            return StapelErrorResponse(400, ERR_400_FIRST_LOGIN_CHALLENGE_INVALID)
+
+        user.set_password(serializer.validated_data["new_password"])
+        user.password_change_required = False
+        user.save(update_fields=["password", "password_change_required"])
+        FirstLoginPolicyService.burn_challenge(token)
+        AuditService.log("forced_password_change", user=user, request=request)
+
+        # Both flags up: chain straight into the mfa_enroll intermediate —
+        # the password is now the user's own, but a session still waits on
+        # the strong factor (org-program §C2).
+        intermediate = first_login_intermediate_response(
+            user, self.get_first_login_challenge_response_serializer_class()
+        )
+        if intermediate is not None:
+            return intermediate
+
+        access_token, refresh_token = _issue_session_tokens(user, request)
+        dto = AuthResponse(
+            status=AuthStatus.LOGGED_IN,
+            user=user,
+            tokens=TokenPairResponse(refresh=refresh_token, access=access_token),
+        )
+        response = Response(self.get_auth_response_serializer_class()(dto).data)
+        set_jwt_cookies(response, access_token, refresh_token)
+        set_auth_hint_cookie(response)
+        return _add_login_hints(response, critical=True)
 
     def _publish_user_registered(self, user, request=None) -> None:
         from stapel_auth.otp.views import _notify_user_registered

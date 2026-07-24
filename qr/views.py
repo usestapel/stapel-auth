@@ -30,6 +30,7 @@ from stapel_auth.sessions.services import (
 )
 from stapel_auth.sessions.views import _issue_session_tokens
 from stapel_auth.utils import SerializerSeamsMixin
+from stapel_auth.permissions import DenyEnrollOnly
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
     def get_permissions(self):
         if self.action in self._authenticated_actions:
-            return [permissions.IsAuthenticated()]
+            return [permissions.IsAuthenticated(), DenyEnrollOnly()]
         return [permissions.AllowAny()]
 
     QR_TTL = QRAuthService.TTL

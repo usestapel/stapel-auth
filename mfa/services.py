@@ -46,6 +46,63 @@ def notify_totp_change(user, notification_type: str, variables: dict | None = No
         )
 
 
+# ── MFA account-state transitions (workspaces-org-program §C2-C3) ────────────
+#
+# user.mfa_enabled / user.mfa_disabled are ACCOUNT-LEVEL transition events of
+# the "has a strong second factor" predicate (strength canon: totp/passkey/
+# otp_phone strong, otp_email weak — stapel_core.verification.strong_factors),
+# NOT per-factor ticks: adding a second passkey, or disabling TOTP while a
+# verified phone still counts as strong, emits nothing. That lets the
+# workspaces require_mfa consumer suspend/unsuspend on the events directly.
+# Emission goes through the transactional outbox atomically with the factor
+# write — callers below wrap the ORM change and the emit in one atomic block.
+
+
+def _has_strong_mfa(user) -> bool:
+    from stapel_core.verification import strong_factors
+
+    return bool(strong_factors(user))
+
+
+def _emit_mfa_transition(user, event: str, factor: str) -> None:
+    """Outbox-emit a user.mfa_enabled|disabled transition (caller holds the
+    atomic that performs the factor write)."""
+    from stapel_core.comm import emit
+
+    emit(  # emit-check: ok — every caller wraps this in the atomic that performs the factor write
+        event,
+        {"user_id": str(user.pk), "factor": factor},
+        key=str(user.pk),
+        service="auth",
+    )
+
+
+def _after_strong_factor_activation(user, factor: str, had_strong: bool) -> None:
+    """Post-activation bookkeeping, inside the caller's atomic block.
+
+    1. Clears ``mfa_enrollment_required`` (first-login policy C2): the user
+       just activated a strong factor, whatever session they did it from.
+    2. Emits ``user.mfa_enabled`` when this activation is the account-level
+       transition (the user had no strong factor before).
+    """
+    from stapel_auth.events import EVENT_USER_MFA_ENABLED
+
+    if getattr(user, "mfa_enrollment_required", False):
+        user.mfa_enrollment_required = False
+        user.save(update_fields=["mfa_enrollment_required"])
+    if not had_strong and _has_strong_mfa(user):
+        _emit_mfa_transition(user, EVENT_USER_MFA_ENABLED, factor)
+
+
+def _after_strong_factor_removal(user, factor: str, had_strong: bool) -> None:
+    """Emit ``user.mfa_disabled`` when the removal dropped the LAST strong
+    factor (inside the caller's atomic block)."""
+    from stapel_auth.events import EVENT_USER_MFA_DISABLED
+
+    if had_strong and not _has_strong_mfa(user):
+        _emit_mfa_transition(user, EVENT_USER_MFA_DISABLED, factor)
+
+
 class TOTPService:
     BACKUP_CODE_COUNT = 8
     CHALLENGE_TTL = 300      # 5 min
@@ -135,10 +192,17 @@ class TOTPService:
         hashed_codes = [_hashlib.sha256(c.replace('-', '').encode()).hexdigest()
                         for c in plain_codes]
 
-        device.is_active = True
-        device.backup_codes = hashed_codes
-        device.confirmed_at = timezone.now()
-        device.save()
+        from django.db import transaction
+
+        had_strong = _has_strong_mfa(user)
+        with transaction.atomic():
+            device.is_active = True
+            device.backup_codes = hashed_codes
+            device.confirmed_at = timezone.now()
+            device.save()
+            # First-login policy + account-level mfa_enabled transition
+            # (org-program §C2-C3) — atomically with the activation.
+            _after_strong_factor_activation(user, "totp", had_strong)
         return plain_codes
 
     @classmethod
@@ -151,14 +215,32 @@ class TOTPService:
             return False
         if not cls._verify_any(device, code=code, backup_code=backup_code):
             return False
-        device.delete()
+        from django.db import transaction
+
+        had_strong = _has_strong_mfa(user)
+        with transaction.atomic():
+            device.delete()
+            _after_strong_factor_removal(user, "totp", had_strong)
         return True
 
     @classmethod
     def force_disable(cls, user) -> bool:
-        """Disable TOTP without code check. Call only after external OTP verification."""
+        """Disable TOTP without code check. Call only after external OTP verification.
+
+        Also the delayed-change execute path (tasks.execute_pending_changes)
+        — the account-level ``user.mfa_disabled`` transition is emitted here
+        so every disable route reaches the outbox.
+        """
+        from django.db import transaction
+
         from stapel_auth.models import TOTPDevice
-        return TOTPDevice.objects.filter(user=user, is_active=True).delete()[0] > 0
+
+        had_strong = _has_strong_mfa(user)
+        with transaction.atomic():
+            deleted = TOTPDevice.objects.filter(user=user, is_active=True).delete()[0] > 0
+            if deleted:
+                _after_strong_factor_removal(user, "totp", had_strong)
+        return deleted
 
     # ── verification helpers ─────────────────────────────────────────────────
 
@@ -366,19 +448,45 @@ class PasskeyService:
             expected_rp_id=rp_id,
             expected_origin=origin,
         )
+        from django.db import transaction
+
         from stapel_auth.models import PasskeyCredential
-        pc = PasskeyCredential.objects.create(
-            user=user,
-            credential_id=verification.credential_id,
-            public_key=verification.credential_public_key,
-            sign_count=verification.sign_count,
-            aaguid=str(verification.aaguid) if verification.aaguid else '',
-            device_name=device_name or 'Passkey',
-            transports=list(credential.response.transports or []),
-        )
+
+        had_strong = _has_strong_mfa(user)
+        with transaction.atomic():
+            pc = PasskeyCredential.objects.create(
+                user=user,
+                credential_id=verification.credential_id,
+                public_key=verification.credential_public_key,
+                sign_count=verification.sign_count,
+                aaguid=str(verification.aaguid) if verification.aaguid else '',
+                device_name=device_name or 'Passkey',
+                transports=list(credential.response.transports or []),
+            )
+            # First passkey while no other strong factor existed → the
+            # account-level mfa_enabled transition (org-program §C3);
+            # also clears mfa_enrollment_required (first-login policy C2).
+            _after_strong_factor_activation(user, "passkey", had_strong)
         from stapel_auth.sessions.services import AuditService
         AuditService.log('passkey_registered', user=user, device_name=pc.device_name)
         return pc
+
+    @classmethod
+    def deactivate(cls, user, pc) -> None:
+        """Deactivate a passkey credential of *user*.
+
+        The single removal seam (views go through here, not through raw
+        ``is_active`` flips) so the ``user.mfa_disabled`` transition — the
+        LAST strong factor going away (org-program §C3) — commits atomically
+        with the deactivation.
+        """
+        from django.db import transaction
+
+        had_strong = _has_strong_mfa(user)
+        with transaction.atomic():
+            pc.is_active = False
+            pc.save(update_fields=['is_active'])
+            _after_strong_factor_removal(user, "passkey", had_strong)
 
     @classmethod
     def authentication_begin(cls, user=None) -> tuple[str, dict]:

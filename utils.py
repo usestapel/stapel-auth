@@ -1,6 +1,44 @@
 """
 Utility functions for the authentication service.
 """
+import re
+
+
+# ── Namespaced org logins (workspaces-org-program §C1) ───────────────────────
+#
+# Org-provisioned logins are namespaced ``org_slug/local``: the workspace
+# slug, ONE literal ``/`` separator, then a local username. The alphabet
+# canon lives in stapel-core (``StapelUsernameValidator`` on the user model);
+# these helpers are the parsing/validation seam auth-side callers
+# (``auth.provision_user``) build on.
+
+#: Stock Django username alphabet — each side of the namespace separator
+#: must match it on its own (mirrors StapelUsernameValidator's per-part rule).
+_LOCAL_USERNAME_RE = re.compile(r"^[\w.@+-]+\Z")
+
+
+def parse_namespaced_login(username: str) -> tuple:
+    """Split ``org_slug/local`` into ``(org_slug, local)``.
+
+    A bare (slash-free) username parses as ``(None, username)``. More than
+    one slash, or an empty side, raises ``ValueError`` — both sides of the
+    separator must themselves be valid usernames.
+    """
+    if not isinstance(username, str) or not username:
+        raise ValueError("username must be a non-empty string")
+    if "/" not in username:
+        return None, username
+    org_slug, sep, local = username.partition("/")
+    if "/" in local:
+        raise ValueError("username may contain at most one '/' separator")
+    if not org_slug or not local:
+        raise ValueError("both sides of the '/' separator must be non-empty")
+    return org_slug, local
+
+
+def validate_local_username(local: str) -> bool:
+    """Whether *local* is a valid slash-free username part (stock canon)."""
+    return bool(isinstance(local, str) and _LOCAL_USERNAME_RE.match(local))
 
 
 class SerializerSeamsMixin:

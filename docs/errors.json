@@ -173,6 +173,13 @@
     "en": "{field} must be unique"
   },
   {
+    "code": "error.400.first_login_challenge_invalid",
+    "status": 400,
+    "params": [],
+    "remediation": "reauthenticate",
+    "en": "First-login challenge is invalid or has expired. Sign in again to restart."
+  },
+  {
     "code": "error.400.grant_invalid",
     "status": 400,
     "params": [],
@@ -413,6 +420,13 @@
     "en": "Unknown staff role. Define it in the STAPEL_ACCESS[\"ROLES\"] deploy config first."
   },
   {
+    "code": "error.400.username_namespace_invalid",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Invalid namespaced login. Use 'org_slug/username' with exactly one '/' and valid characters on both sides."
+  },
+  {
     "code": "error.400.validation_error",
     "status": 400,
     "params": [],
@@ -525,6 +539,13 @@
     "en": "You do not have permission to perform this action"
   },
   {
+    "code": "error.403.mfa_enrollment_required",
+    "status": 403,
+    "params": [],
+    "remediation": "verify",
+    "en": "Two-factor enrollment is required before this account can be used. Set up an authenticator app or a passkey first."
+  },
+  {
     "code": "error.403.mock_otp_admin",
     "status": 403,
     "params": [],
@@ -537,6 +558,13 @@
     "params": [],
     "remediation": "contact_support",
     "en": "Requests from this network are not allowed"
+  },
+  {
+    "code": "error.403.password_change_required",
+    "status": 403,
+    "params": [],
+    "remediation": "reauthenticate",
+    "en": "A password change is required before this account can sign in. Complete the forced password change first."
   },
   {
     "code": "error.403.qr_device_mismatch",

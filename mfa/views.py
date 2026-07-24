@@ -27,7 +27,9 @@ from stapel_auth.errors import (
     ERR_404_PASSKEY_NOT_FOUND,
 )
 from stapel_auth.mfa.serializers import (
-    PasskeyItemSerializer,
+    MfaEnrollExchangeSerializer,
+    MfaEnrollSessionResponseSerializer,
+    PasskeyRegisterCompleteResponseSerializer,
     TOTPChallengeVerifySerializer,
     TOTPDelayedInitiateSerializer,
     TOTPDisableSerializer,
@@ -49,6 +51,7 @@ from stapel_auth.sessions.serializers import (
     SimpleStatusSerializer,
 )
 from stapel_auth.utils import SerializerSeamsMixin
+from stapel_auth.permissions import DenyEnrollOnly, is_enroll_only_request
 
 logger = logging.getLogger(__name__)
 
@@ -115,10 +118,12 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     delayed_cancel_response_serializer_class = DelayedCancelResponseSerializer
 
     def get_permissions(self):
-        # challenge_verify is unauthenticated (user has no token yet)
+        # challenge_verify is unauthenticated (user has no token yet).
+        # DenyEnrollOnly lets an enroll-only session reach setup/confirm_setup
+        # (central allowlist in permissions.py) and 403s the rest.
         if self.action == "challenge_verify":
             return [permissions.AllowAny()]
-        return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticated(), DenyEnrollOnly()]
 
     @extend_schema(
         description=(
@@ -153,7 +158,14 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         return StapelResponse(self.get_setup_response_serializer_class()(dto))
 
     @extend_schema(
-        description="Confirm TOTP setup with the first code. Activates the device and returns one-time backup codes.",
+        description=(
+            "Confirm TOTP setup with the first code. Activates the device and "
+            "returns one-time backup codes. When called from a limited "
+            "enroll-only session (first-login mfa_enroll policy), activating "
+            "the strong factor clears the enrollment flag and the response "
+            "additionally carries a full-session token pair (`tokens`) — the "
+            "limited session is upgraded on the spot."
+        ),
         request=TOTPSetupConfirmSerializer,
         responses={200: TOTPSetupConfirmResponseSerializer},
     )
@@ -167,6 +179,8 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if not code:
             return StapelErrorResponse(400, ERR_400_CODE_REQUIRED)
         try:
+            # The service clears mfa_enrollment_required and writes the
+            # user.mfa_enabled outbox transition atomically with activation.
             plain_codes = TOTPService.confirm(request.user, str(code))
         except ValueError as e:
             if str(e) == "invalid_code":
@@ -177,6 +191,25 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         notify_totp_change(request.user, "totp_enabled")
 
         dto = TOTPSetupConfirmResponse(backup_codes=plain_codes)
+
+        if is_enroll_only_request(request):
+            # Enroll-only upgrade (org-program §C2): the strong factor is
+            # live — mint the full session the login withheld.
+            from stapel_core.django.jwt.utils import set_jwt_cookies
+
+            from stapel_auth.hint_cookie import set_auth_hint_cookie
+            from stapel_auth.sessions.dto import TokenPairResponse
+            from stapel_auth.sessions.views import _issue_session_tokens
+
+            access_token, refresh_token = _issue_session_tokens(request.user, request)
+            dto.tokens = TokenPairResponse(refresh=refresh_token, access=access_token)
+            response = StapelResponse(
+                self.get_confirm_setup_response_serializer_class()(dto)
+            )
+            set_jwt_cookies(response, access_token, refresh_token)
+            set_auth_hint_cookie(response)
+            return response
+
         return StapelResponse(self.get_confirm_setup_response_serializer_class()(dto))
 
     @extend_schema(
@@ -312,6 +345,15 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
         LockoutService.clear(lock_id)
 
+        # First-login policy (org-program §C2): a flagged account that just
+        # proved its TOTP still gets the first-login intermediate, not a
+        # session — same check password login runs for TOTP-less accounts.
+        from stapel_auth.password.views import first_login_intermediate_response
+
+        intermediate = first_login_intermediate_response(user)
+        if intermediate is not None:
+            return intermediate
+
         access_token, refresh_token = _issue_session_tokens(user, request)
         tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
         auth_dto = AuthResponse(
@@ -441,7 +483,7 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
     list_response_serializer_class = _PasskeyListResponseSerializer
     register_begin_response_serializer_class = _PasskeyRegOptionsSerializer
     register_complete_request_serializer_class = _PasskeyRegisterCompleteBodySerializer
-    register_complete_response_serializer_class = PasskeyItemSerializer
+    register_complete_response_serializer_class = PasskeyRegisterCompleteResponseSerializer
     auth_begin_request_serializer_class = _PasskeyAuthBeginBodySerializer
     auth_begin_response_serializer_class = _PasskeyAuthOptionsSerializer
     auth_complete_request_serializer_class = _PasskeyAuthCompleteBodySerializer
@@ -450,9 +492,11 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
     _anon_actions = frozenset({"auth_begin", "auth_complete"})
 
     def get_permissions(self):
+        # DenyEnrollOnly lets an enroll-only session register a passkey
+        # (central allowlist in permissions.py) and 403s list/destroy.
         if self.action in self._anon_actions:
             return [permissions.AllowAny()]
-        return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticated(), DenyEnrollOnly()]
 
     @extend_schema(
         summary="List registered passkeys",
@@ -492,8 +536,12 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
         if not (has_password or has_totp or other_passkeys):
             return StapelErrorResponse(400, ERR_400_LAST_AUTH_METHOD)
 
-        pc.is_active = False
-        pc.save(update_fields=["is_active"])
+        # Deactivate through the service so the user.mfa_disabled outbox
+        # transition (last strong factor gone, org-program §C3) commits
+        # atomically with the flip.
+        from stapel_auth.mfa.services import PasskeyService
+
+        PasskeyService.deactivate(user, pc)
         from stapel_auth.sessions.services import AuditService
 
         AuditService.log("passkey_removed", user=user, device_name=pc.device_name)
@@ -521,8 +569,15 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
 
     @extend_schema(
         summary="Complete passkey registration",
+        description=(
+            "Verify the WebAuthn attestation and store the credential. When "
+            "called from a limited enroll-only session (first-login "
+            "mfa_enroll policy), activating the strong factor clears the "
+            "enrollment flag and the response additionally carries a "
+            "full-session token pair (`tokens`)."
+        ),
         request=_PasskeyRegisterCompleteBodySerializer,
-        responses={200: PasskeyItemSerializer},
+        responses={200: PasskeyRegisterCompleteResponseSerializer},
     )
     def register_complete(self, request):
         from stapel_auth.mfa.services import PasskeyService
@@ -530,6 +585,8 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
         ser = self.get_register_complete_request_serializer_class()(data=request.data)
         ser.is_valid(raise_exception=True)
         try:
+            # The service clears mfa_enrollment_required and writes the
+            # user.mfa_enabled outbox transition atomically with the create.
             pc = PasskeyService.registration_complete(
                 request.user,
                 ser.validated_data["credential"],
@@ -543,8 +600,28 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
         except Exception:
             logger.exception("passkey register_complete failed")
             return StapelErrorResponse(400, ERR_400_PASSKEY_INVALID)
+
+        data = _pc_to_dict(pc)
+
+        if is_enroll_only_request(request):
+            # Enroll-only upgrade (org-program §C2): mint the full session
+            # the login withheld.
+            from stapel_core.django.jwt.utils import set_jwt_cookies
+
+            from stapel_auth.hint_cookie import set_auth_hint_cookie
+            from stapel_auth.sessions.views import _issue_session_tokens
+
+            access_token, refresh_token = _issue_session_tokens(request.user, request)
+            data["tokens"] = {"access": access_token, "refresh": refresh_token}
+            response = StapelResponse(
+                self.get_register_complete_response_serializer_class()(data)
+            )
+            set_jwt_cookies(response, access_token, refresh_token)
+            set_auth_hint_cookie(response)
+            return response
+
         return StapelResponse(
-            self.get_register_complete_response_serializer_class()(_pc_to_dict(pc))
+            self.get_register_complete_response_serializer_class()(data)
         )
 
     @extend_schema(
@@ -621,3 +698,85 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
         set_jwt_cookies(response, access_token, refresh_token)
         set_auth_hint_cookie(response)
         return _add_login_hints(response)
+
+
+# =============================================================================
+# MfaEnrollViewSet — first-login mfa_enroll exchange (org-program §C2)
+# =============================================================================
+
+
+class MfaEnrollViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
+    """Exchange a first-login mfa_enroll challenge for a LIMITED session.
+
+    The limited session is an access token carrying the ``enroll_only`` JWT
+    claim — deliberately with NO refresh token (a refresh would mint a
+    claim-free access token and silently escalate the session) and no
+    UserSession row (nothing to revoke; it just expires). While it lives,
+    :class:`stapel_auth.permissions.DenyEnrollOnly` cuts the API surface
+    down to TOTP setup/confirm, passkey registration and logout; activating
+    a strong factor upgrades to a full session in the confirm response.
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    # Overridable serializer seams (see SerializerSeamsMixin).
+    exchange_request_serializer_class = MfaEnrollExchangeSerializer
+    enroll_session_response_serializer_class = MfaEnrollSessionResponseSerializer
+
+    @extend_schema(
+        tags=["MFA Enroll"],
+        description=(
+            "Exchange the first-login challenge_token (requires=mfa_enroll) "
+            "for a limited enroll-only session. The returned access token "
+            "carries the `enroll_only` claim and only allows TOTP "
+            "setup/confirm, passkey registration and logout; activating a "
+            "strong factor clears the enrollment flag and returns a full "
+            "session from the confirm endpoint. Single-use; 400 "
+            "`first_login_challenge_invalid` on an unknown/expired token."
+        ),
+        request=MfaEnrollExchangeSerializer,
+        responses={200: MfaEnrollSessionResponseSerializer, 400: StapelErrorSerializer},
+    )
+    @action(detail=False, methods=["post"], url_path="enroll/exchange")
+    def exchange(self, request):  # noqa: R007
+        from stapel_core.django.jwt.provider import jwt_provider
+        from stapel_core.django.jwt.utils import set_jwt_cookies
+
+        from stapel_auth.errors import ERR_400_FIRST_LOGIN_CHALLENGE_INVALID
+        from stapel_auth.mfa.dto import (
+            MfaEnrollSessionResponse,
+            MfaEnrollSessionStatus,
+        )
+        from stapel_auth.password.services import FirstLoginPolicyService
+        from stapel_auth.sessions.services import AuditService
+        from stapel_auth.staff_roles import serialize_user_to_jwt_data
+
+        ser = self.get_exchange_request_serializer_class()(data=request.data)
+        ser.is_valid(raise_exception=True)
+        token = ser.validated_data["challenge_token"]
+
+        user = FirstLoginPolicyService.resolve_challenge(
+            token, FirstLoginPolicyService.REQUIRES_MFA_ENROLL
+        )
+        if user is None:
+            return StapelErrorResponse(400, ERR_400_FIRST_LOGIN_CHALLENGE_INVALID)
+        FirstLoginPolicyService.burn_challenge(token)
+
+        data = serialize_user_to_jwt_data(user)
+        data["enroll_only"] = True
+        access_token = jwt_provider.manager.create_access_token(data)
+        expires_in = int(jwt_provider.config.access_token_lifetime.total_seconds())
+
+        AuditService.log("mfa_enroll_session", user=user, request=request)
+
+        dto = MfaEnrollSessionResponse(
+            status=MfaEnrollSessionStatus.MFA_ENROLL_SESSION,
+            access=access_token,
+            expires_in=expires_in,
+        )
+        response = StapelResponse(
+            self.get_enroll_session_response_serializer_class()(dto)
+        )
+        # Access cookie only — no refresh cookie for a limited session.
+        set_jwt_cookies(response, access_token)
+        return response

@@ -84,6 +84,10 @@
       "hash": "bcfc98f9c891efe9",
       "origin": "seed:stapel-builtin"
     },
+    "error.400.first_login_challenge_invalid": {
+      "hash": "1e2d8325884e805a",
+      "origin": "llm"
+    },
     "error.400.grant_invalid": {
       "hash": "006fa6cd06586563",
       "origin": "llm"
@@ -220,6 +224,10 @@
       "hash": "3389b9cd42708025",
       "origin": "llm"
     },
+    "error.400.username_namespace_invalid": {
+      "hash": "4f17f46f49a99052",
+      "origin": "llm"
+    },
     "error.400.validation_error": {
       "hash": "2aa2d0b411dd04b1",
       "origin": "seed:stapel-builtin"
@@ -284,12 +292,20 @@
       "hash": "f49aebf1b5899f56",
       "origin": "seed:stapel-builtin"
     },
+    "error.403.mfa_enrollment_required": {
+      "hash": "d5b6b7dd53071c1c",
+      "origin": "llm"
+    },
     "error.403.mock_otp_admin": {
       "hash": "157a43a117d4fc35",
       "origin": "seed:stapel-builtin"
     },
     "error.403.network_blocked": {
       "hash": "73418e2ec86c7544",
+      "origin": "llm"
+    },
+    "error.403.password_change_required": {
+      "hash": "b43e4605eedaaaa2",
       "origin": "llm"
     },
     "error.403.qr_device_mismatch": {

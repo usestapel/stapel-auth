@@ -1,6 +1,6 @@
 # Errors — English
 
-`121` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
+`125` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
 
 | Code | Status | Params | Remediation | Text |
 |---|---|---|---|---|
@@ -25,6 +25,7 @@
 | `error.400.field.null` | 400 | `field` | `fix_input` | {field} may not be null |
 | `error.400.field.required` | 400 | `field` | `fix_input` | {field} is required |
 | `error.400.field.unique` | 400 | `field` | `fix_input` | {field} must be unique |
+| `error.400.first_login_challenge_invalid` | 400 | — | `reauthenticate` | First-login challenge is invalid or has expired. Sign in again to restart. |
 | `error.400.grant_invalid` | 400 | — | `retry` | Login grant is invalid, already used, or has expired. |
 | `error.400.invalid_ad_id` | 400 | — | `fix_input` | Invalid advertisement ID |
 | `error.400.invalid_change_token` | 400 | — | `retry` | Invalid or expired change token. |
@@ -59,6 +60,7 @@
 | `error.400.totp_not_pending` | 400 | — | `retry` | No pending TOTP setup. Call /totp/setup/ first. |
 | `error.400.totp_proof_required` | 400 | — | `verify` | A TOTP already exists on this account. Provide the current code or a backup code to replace it, or use the delayed change flow if you lost your authenticator. |
 | `error.400.unknown_staff_role` | 400 | — | `fix_input` | Unknown staff role. Define it in the STAPEL_ACCESS["ROLES"] deploy config first. |
+| `error.400.username_namespace_invalid` | 400 | — | `fix_input` | Invalid namespaced login. Use 'org_slug/username' with exactly one '/' and valid characters on both sides. |
 | `error.400.validation_error` | 400 | — | `fix_input` | Validation error |
 | `error.400.verification_failed` | 400 | — | `verify` | Verification failed |
 | `error.400.verification_invalid_factor` | 400 | — | `verify` | This verification factor is not available |
@@ -75,8 +77,10 @@
 | `error.401.user_not_found` | 401 | — | `reauthenticate` | User not found |
 | `error.402.payment_required` | 402 | — | `retry` | Payment required |
 | `error.403.forbidden` | 403 | — | `retry` | You do not have permission to perform this action |
+| `error.403.mfa_enrollment_required` | 403 | — | `verify` | Two-factor enrollment is required before this account can be used. Set up an authenticator app or a passkey first. |
 | `error.403.mock_otp_admin` | 403 | — | `contact_support` | OTP-based auth is disabled for admin accounts in mock mode. |
 | `error.403.network_blocked` | 403 | — | `contact_support` | Requests from this network are not allowed |
+| `error.403.password_change_required` | 403 | — | `reauthenticate` | A password change is required before this account can sign in. Complete the forced password change first. |
 | `error.403.qr_device_mismatch` | 403 | — | `retry` | This QR code belongs to another device. |
 | `error.403.qr_unauth_scan` | 403 | — | `reauthenticate` | This QR code cannot be scanned by an unauthenticated device. |
 | `error.403.sso_required` | 403 | — | `reauthenticate` | This account must sign in via SSO. Use your organization SSO link. |

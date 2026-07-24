@@ -37,6 +37,7 @@ User = get_user_model()
 
 # ── Sub-package cross-imports ─────────────────────────────────────────────────
 from stapel_auth.models import UserSession
+from stapel_auth.permissions import DenyEnrollOnly
 
 
 @extend_schema(
@@ -92,6 +93,24 @@ class CustomTokenObtainPairView(SerializerSeamsMixin, APIView):
 
         if not user.is_active:
             return StapelErrorResponse(401, ERR_401_ACCOUNT_DISABLED)
+
+        # First-login policy (org-program §C2): this legacy token endpoint
+        # has no room for the intermediate dance /password/login/ performs —
+        # a flagged org-provisioned account gets the structured 403 (and is
+        # pointed at the proper flow by the error key) instead of a session
+        # that would silently bypass the policy. Unflagged accounts are
+        # untouched: required_intermediate() short-circuits to None.
+        from stapel_auth.errors import (
+            ERR_403_MFA_ENROLLMENT_REQUIRED,
+            ERR_403_PASSWORD_CHANGE_REQUIRED,
+        )
+        from stapel_auth.password.services import FirstLoginPolicyService
+
+        requires = FirstLoginPolicyService.required_intermediate(user)
+        if requires == FirstLoginPolicyService.REQUIRES_PASSWORD_CHANGE:
+            return StapelErrorResponse(403, ERR_403_PASSWORD_CHANGE_REQUIRED)
+        if requires == FirstLoginPolicyService.REQUIRES_MFA_ENROLL:
+            return StapelErrorResponse(403, ERR_403_MFA_ENROLLMENT_REQUIRED)
 
         # Create tokens (staff tokens carry the staff_roles claim — AS-2)
         from stapel_auth.staff_roles import create_tokens_for_user
@@ -323,7 +342,7 @@ def _issue_session_tokens(user, request):
     revoke_all=extend_schema(tags=["Session"]),
 )
 class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly]
 
     # Overridable serializer seams (see SerializerSeamsMixin).
     list_response_serializer_class = SessionResponseSerializer

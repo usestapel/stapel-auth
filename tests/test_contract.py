@@ -226,8 +226,9 @@ def test_capabilities_password_axis_gates_password_operations():
     doc = _capabilities()
     axis = next(a for a in doc["axes"] if a["key"] == "AUTH_PASSWORD_LOGIN")
     ops = axis["gates"]["operations"]
-    assert len(ops) == 10
+    assert len(ops) == 11  # 10 legacy + forced-change (org-program §C2)
     assert all(op.startswith("auth_api_v1_password_") for op in ops)
+    assert "auth_api_v1_password_forced_change_create" in ops
     # Co-gated with registration: the factory stays mounted while EITHER is on.
     assert axis["gates"]["co_gates"] == ["AUTH_PASSWORD_REGISTRATION"]
 
@@ -239,8 +240,18 @@ def test_capabilities_anonymous_and_totp_axes():
     assert anon["gates"]["co_gates"] == []  # its own factory — the A1 fix
     totp = next(a for a in doc["axes"] if a["key"] == "AUTH_TOTP")
     assert totp["gates"]["operations"], "AUTH_TOTP gates no operations"
-    assert all(op.startswith("auth_api_v1_totp_") for op in totp["gates"]["operations"])
-    assert totp["gates"]["co_gates"] == []  # own block inside the mfa factory
+    # The totp block itself, plus the shared mfa.enroll block (org-program
+    # §C2): the enroll exchange rides while EITHER strong-factor surface is
+    # on, so it appears on both axes with the sibling as co_gate.
+    non_totp = [
+        op for op in totp["gates"]["operations"]
+        if not op.startswith("auth_api_v1_totp_")
+    ]
+    assert non_totp == ["auth_api_v1_mfa_enroll_exchange_create"]
+    assert totp["gates"]["co_gates"] == ["AUTH_PASSKEY_LOGIN"]
+    passkey = next(a for a in doc["axes"] if a["key"] == "AUTH_PASSKEY_LOGIN")
+    assert "auth_api_v1_mfa_enroll_exchange_create" in passkey["gates"]["operations"]
+    assert passkey["gates"]["co_gates"] == ["AUTH_TOTP"]
 
 
 def test_capabilities_stepup_axes_are_behavioral():

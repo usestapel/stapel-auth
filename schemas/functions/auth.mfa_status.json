@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "auth.mfa_status",
+  "description": "Per-user MFA status (workspaces-org-program §C2/C3). Returns {\"has_strong_mfa\": bool, \"factors\": [{\"id\", \"strength\"}, ...]} — the verification factors the user can actually complete, with the strength canon applied (totp/passkey/otp_phone strong, otp_email weak). Unknown users get {false, []}.",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "Primary key of the user whose MFA status is resolved."
+    }
+  },
+  "required": ["user_id"],
+  "additionalProperties": false
+}

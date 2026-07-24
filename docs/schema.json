@@ -130,13 +130,13 @@
             "description": ""
           }
         },
-        "description": "**Permissions:** `IsAdminUser`"
+        "description": "**Permissions:** `IsAdminUser, DenyEnrollOnly`"
       }
     },
     "/auth/api/v1/anonymous/": {
       "post": {
         "operationId": "auth_api_v1_anonymous_create",
-        "description": "Create anonymous user\n\n**Permissions:** `AllowAny`",
+        "description": "Create anonymous user\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Anonymous Auth"
         ],
@@ -162,8 +162,7 @@
         "security": [
           {
             "JWTCookieAuth": []
-          },
-          {}
+          }
         ],
         "responses": {
           "201": {
@@ -223,7 +222,7 @@
     "/auth/api/v1/email/change/delayed/cancel/": {
       "post": {
         "operationId": "auth_api_v1_email_change_delayed_cancel_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Email Change"
         ],
@@ -287,7 +286,7 @@
     "/auth/api/v1/email/change/delayed/initiate/": {
       "post": {
         "operationId": "auth_api_v1_email_change_delayed_initiate_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Email Change"
         ],
@@ -353,7 +352,7 @@
     "/auth/api/v1/email/change/delayed/status/": {
       "get": {
         "operationId": "auth_api_v1_email_change_delayed_status_retrieve",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Email Change"
         ],
@@ -392,7 +391,7 @@
     "/auth/api/v1/email/change/instant/request-new/": {
       "post": {
         "operationId": "auth_api_v1_email_change_instant_request_new_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Email Change"
         ],
@@ -455,7 +454,7 @@
     "/auth/api/v1/email/change/instant/request-old/": {
       "post": {
         "operationId": "auth_api_v1_email_change_instant_request_old_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Email Change"
         ],
@@ -508,7 +507,7 @@
     "/auth/api/v1/email/change/instant/verify-new/": {
       "post": {
         "operationId": "auth_api_v1_email_change_instant_verify_new_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Email Change"
         ],
@@ -564,7 +563,7 @@
     "/auth/api/v1/email/change/instant/verify-old/": {
       "post": {
         "operationId": "auth_api_v1_email_change_instant_verify_old_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Email Change"
         ],
@@ -619,7 +618,7 @@
     "/auth/api/v1/email/request/": {
       "post": {
         "operationId": "auth_api_v1_email_request_create",
-        "description": "Request email verification code (OTP).\n\n**Notes:**\n- OTP codes expire after 10 minutes\n- Rate limited to 1 request per 30 seconds per email/device\n- If authenticated non-anonymous user requests OTP for an email already registered to another account, returns 409 Conflict\n- Admin accounts (staff/superuser) always receive real OTP even in mock mode for security\n\n\n**Permissions:** `AllowAny`",
+        "description": "Request email verification code (OTP).\n\n**Notes:**\n- OTP codes expire after 10 minutes\n- Rate limited to 1 request per 30 seconds per email/device\n- If authenticated non-anonymous user requests OTP for an email already registered to another account, returns 409 Conflict\n- Admin accounts (staff/superuser) always receive real OTP even in mock mode for security\n\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Email Auth"
         ],
@@ -655,8 +654,7 @@
         "security": [
           {
             "JWTCookieAuth": []
-          },
-          {}
+          }
         ],
         "responses": {
           "200": {
@@ -724,7 +722,7 @@
     "/auth/api/v1/email/verify/": {
       "post": {
         "operationId": "auth_api_v1_email_verify_create",
-        "description": "Verify email and authenticate/register.\n\n**Authentication Flows:**\n- **Unauthenticated user + new email** → REGISTERED (new account created)\n- **Unauthenticated user + existing email** → LOGGED_IN (login to existing account)\n- **Anonymous user + new email** → REGISTERED (anonymous completes registration)\n- **Anonymous user + existing email** → MERGED (anonymous merged into existing account)\n- **Authenticated user + own/new email** → MODIFIED (user adds/changes email)\n- **Invalid/expired code** → REJECTED\n\n**Status values:**\n- `REJECTED` - Invalid code, expired code, or blocked\n- `REGISTERED` - New account created or anonymous completed registration\n- `LOGGED_IN` - Existing user logged in\n- `MERGED` - Anonymous user merged into existing account\n- `MODIFIED` - Authenticated user added/changed email\n\n\n**Permissions:** `AllowAny`",
+        "description": "Verify email and authenticate/register.\n\n**Authentication Flows:**\n- **Unauthenticated user + new email** → REGISTERED (new account created)\n- **Unauthenticated user + existing email** → LOGGED_IN (login to existing account)\n- **Anonymous user + new email** → REGISTERED (anonymous completes registration)\n- **Anonymous user + existing email** → MERGED (anonymous merged into existing account)\n- **Authenticated user + own/new email** → MODIFIED (user adds/changes email)\n- **Invalid/expired code** → REJECTED\n\n**Status values:**\n- `REJECTED` - Invalid code, expired code, or blocked\n- `REGISTERED` - New account created or anonymous completed registration\n- `LOGGED_IN` - Existing user logged in\n- `MERGED` - Anonymous user merged into existing account\n- `MODIFIED` - Authenticated user added/changed email\n\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Email Auth"
         ],
@@ -760,8 +758,7 @@
         "security": [
           {
             "JWTCookieAuth": []
-          },
-          {}
+          }
         ],
         "responses": {
           "200": {
@@ -1095,15 +1092,14 @@
     "/auth/api/v1/logout/": {
       "get": {
         "operationId": "auth_api_v1_logout_retrieve",
-        "description": "Logout user via GET request (for cookie-based authentication). Blacklists both access and refresh tokens.\n\n**Permissions:** `AllowAny`",
+        "description": "Logout user via GET request (for cookie-based authentication). Blacklists both access and refresh tokens.\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Session"
         ],
         "security": [
           {
             "JWTCookieAuth": []
-          },
-          {}
+          }
         ],
         "responses": {
           "200": {
@@ -1137,7 +1133,7 @@
       },
       "post": {
         "operationId": "auth_api_v1_logout_create",
-        "description": "Logout user and blacklist both access and refresh tokens\n\n**Permissions:** `AllowAny`",
+        "description": "Logout user and blacklist both access and refresh tokens\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Session"
         ],
@@ -1163,8 +1159,7 @@
         "security": [
           {
             "JWTCookieAuth": []
-          },
-          {}
+          }
         ],
         "responses": {
           "200": {
@@ -1279,15 +1274,14 @@
     "/auth/api/v1/me/": {
       "get": {
         "operationId": "auth_api_v1_me_retrieve",
-        "description": "Get current authenticated user information\n\n**Permissions:** `AllowAny`",
+        "description": "Get current authenticated user information\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "User"
         ],
         "security": [
           {
             "JWTCookieAuth": []
-          },
-          {}
+          }
         ],
         "responses": {
           "200": {
@@ -1313,10 +1307,76 @@
         }
       }
     },
+    "/auth/api/v1/mfa/enroll/exchange/": {
+      "post": {
+        "operationId": "auth_api_v1_mfa_enroll_exchange_create",
+        "description": "Exchange the first-login challenge_token (requires=mfa_enroll) for a limited enroll-only session. The returned access token carries the `enroll_only` claim and only allows TOTP setup/confirm, passkey registration and logout; activating a strong factor clears the enrollment flag and returns a full session from the confirm endpoint. Single-use; 400 `first_login_challenge_invalid` on an unknown/expired token.\n\n**Permissions:** `AllowAny`",
+        "tags": [
+          "MFA Enroll"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaEnrollExchange"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaEnrollExchange"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaEnrollExchange"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaEnrollSessionResponse"
+                },
+                "examples": {
+                  "MfaEnrollSessionResponse": {
+                    "value": {
+                      "status": "MFA_ENROLL_SESSION",
+                      "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                      "expires_in": 3600
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
     "/auth/api/v1/oauth/{provider}/authorize/": {
       "get": {
         "operationId": "auth_api_v1_oauth_authorize_retrieve",
-        "description": "Redirect browser to OAuth provider authorization page\n\n**Permissions:** `AllowAny`",
+        "description": "Redirect browser to OAuth provider authorization page\n\n**Permissions:** `DenyEnrollOnly`",
         "parameters": [
           {
             "in": "path",
@@ -1333,8 +1393,7 @@
         "security": [
           {
             "JWTCookieAuth": []
-          },
-          {}
+          }
         ],
         "responses": {
           "302": {
@@ -1346,7 +1405,7 @@
     "/auth/api/v1/oauth/{provider}/callback": {
       "get": {
         "operationId": "auth_api_v1_oauth_callback_retrieve",
-        "description": "OAuth provider callback — exchanges code for JWT and redirects to frontend\n\n**Permissions:** `AllowAny`",
+        "description": "OAuth provider callback — exchanges code for JWT and redirects to frontend\n\n**Permissions:** `DenyEnrollOnly`",
         "parameters": [
           {
             "in": "path",
@@ -1363,8 +1422,7 @@
         "security": [
           {
             "JWTCookieAuth": []
-          },
-          {}
+          }
         ],
         "responses": {
           "302": {
@@ -1386,7 +1444,7 @@
     "/auth/api/v1/oauth/{provider}/callback/": {
       "get": {
         "operationId": "auth_api_v1_oauth_callback_retrieve_2",
-        "description": "OAuth provider callback — exchanges code for JWT and redirects to frontend\n\n**Permissions:** `AllowAny`",
+        "description": "OAuth provider callback — exchanges code for JWT and redirects to frontend\n\n**Permissions:** `DenyEnrollOnly`",
         "parameters": [
           {
             "in": "path",
@@ -1403,8 +1461,7 @@
         "security": [
           {
             "JWTCookieAuth": []
-          },
-          {}
+          }
         ],
         "responses": {
           "302": {
@@ -1426,7 +1483,7 @@
     "/auth/api/v1/oauth/links/": {
       "get": {
         "operationId": "auth_api_v1_oauth_links_retrieve",
-        "description": "Manage OAuth accounts connected to the current user.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Manage OAuth accounts connected to the current user.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "summary": "List OAuth accounts connected to the current user",
         "tags": [
           "OAuth"
@@ -1451,7 +1508,7 @@
       },
       "post": {
         "operationId": "auth_api_v1_oauth_links_create",
-        "description": "Manage OAuth accounts connected to the current user.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Manage OAuth accounts connected to the current user.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "summary": "Link an additional OAuth provider account",
         "tags": [
           "OAuth"
@@ -1504,7 +1561,7 @@
     "/auth/api/v1/oauth/links/{provider}/": {
       "delete": {
         "operationId": "auth_api_v1_oauth_links_destroy",
-        "description": "Manage OAuth accounts connected to the current user.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Manage OAuth accounts connected to the current user.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "summary": "Unlink an OAuth provider account",
         "parameters": [
           {
@@ -1540,7 +1597,7 @@
     "/auth/api/v1/oauth/login/": {
       "post": {
         "operationId": "auth_api_v1_oauth_login_create",
-        "description": "OAuth authentication (Google, Facebook, etc.). Returns `LoginResponse` — normally `AuthResponse` (status=LOGGED_IN); with the `OAUTH_STEP_UP` setting enabled and TOTP enrolled, `TOTPChallengeResponse` (status=TOTP_REQUIRED) — pass `challenge_token` to `POST /totp/challenge/verify/`.\n\n**Permissions:** `AllowAny`",
+        "description": "OAuth authentication (Google, Facebook, etc.). Returns `LoginResponse` — normally `AuthResponse` (status=LOGGED_IN); with the `OAUTH_STEP_UP` setting enabled and TOTP enrolled, `TOTPChallengeResponse` (status=TOTP_REQUIRED) — pass `challenge_token` to `POST /totp/challenge/verify/`.\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "OAuth"
         ],
@@ -1576,8 +1633,7 @@
         "security": [
           {
             "JWTCookieAuth": []
-          },
-          {}
+          }
         ],
         "responses": {
           "200": {
@@ -1840,7 +1896,7 @@
     "/auth/api/v1/passkey/register/complete/": {
       "post": {
         "operationId": "auth_api_v1_passkey_register_complete_create",
-        "description": "Overridable serializer seams for stapel-auth API views.\n\nViews declare ``<purpose>_serializer_class`` class attributes following the\n``*_request_serializer_class`` / ``*_response_serializer_class`` naming\nconvention (e.g. ``request_serializer_class`` or, when a view uses several\nserializers, purpose-prefixed names such as ``login_request_serializer_class``\nor ``auth_response_serializer_class``). For every such attribute this mixin\nsupplies the matching ``get_<purpose>_serializer_class()`` getter, so hosts\ncan swap a serializer by subclassing the view and overriding either the\nattribute or the getter::\n\n    class MyMagicLinkViewSet(MagicLinkViewSet):\n        response_serializer_class = MyResponseSerializer\n\nHandler bodies instantiate serializers exclusively through the getters, so\nan override is picked up everywhere the serializer is used.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
+        "description": "Verify the WebAuthn attestation and store the credential. When called from a limited enroll-only session (first-login mfa_enroll policy), activating the strong factor clears the enrollment flag and the response additionally carries a full-session token pair (`tokens`).\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
         "summary": "Complete passkey registration",
         "tags": [
           "Passkeys"
@@ -1875,7 +1931,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PasskeyItem"
+                  "$ref": "#/components/schemas/PasskeyRegisterCompleteResponse"
                 }
               }
             },
@@ -2055,6 +2111,63 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PasswordOtpChangeResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/auth/api/v1/password/forced-change/": {
+      "post": {
+        "operationId": "auth_api_v1_password_forced_change_create",
+        "description": "Complete a forced first-login password change (org-provisioned accounts, requires=password_change). Takes the challenge_token from the login intermediate plus the new password (validated by the deployment's password canon), clears the flag and returns a full `AuthResponse` — or, when the account ALSO has the mfa_enroll policy, the next `FirstLoginChallengeResponse` (requires=mfa_enroll) instead of a session. An invalid/expired token yields 400 `first_login_challenge_invalid`; a rejected password does NOT consume the challenge.\n\n**Permissions:** `AllowAny`",
+        "tags": [
+          "Password Auth"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForcedPasswordChange"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ForcedPasswordChange"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ForcedPasswordChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
                 }
               }
             },
@@ -2558,7 +2671,7 @@
     "/auth/api/v1/phone/change/delayed/cancel/": {
       "post": {
         "operationId": "auth_api_v1_phone_change_delayed_cancel_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Phone Change"
         ],
@@ -2622,7 +2735,7 @@
     "/auth/api/v1/phone/change/delayed/initiate/": {
       "post": {
         "operationId": "auth_api_v1_phone_change_delayed_initiate_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Phone Change"
         ],
@@ -2688,7 +2801,7 @@
     "/auth/api/v1/phone/change/delayed/status/": {
       "get": {
         "operationId": "auth_api_v1_phone_change_delayed_status_retrieve",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Phone Change"
         ],
@@ -2727,7 +2840,7 @@
     "/auth/api/v1/phone/change/instant/request-new/": {
       "post": {
         "operationId": "auth_api_v1_phone_change_instant_request_new_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Phone Change"
         ],
@@ -2790,7 +2903,7 @@
     "/auth/api/v1/phone/change/instant/request-old/": {
       "post": {
         "operationId": "auth_api_v1_phone_change_instant_request_old_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Phone Change"
         ],
@@ -2843,7 +2956,7 @@
     "/auth/api/v1/phone/change/instant/verify-new/": {
       "post": {
         "operationId": "auth_api_v1_phone_change_instant_verify_new_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Phone Change"
         ],
@@ -2899,7 +3012,7 @@
     "/auth/api/v1/phone/change/instant/verify-old/": {
       "post": {
         "operationId": "auth_api_v1_phone_change_instant_verify_old_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Phone Change"
         ],
@@ -2954,7 +3067,7 @@
     "/auth/api/v1/phone/request/": {
       "post": {
         "operationId": "auth_api_v1_phone_request_create",
-        "description": "Request phone verification code (SMS OTP).\n\n**Notes:**\n- OTP codes expire after 10 minutes\n- Rate limited to 1 request per 30 seconds per phone/device\n- If authenticated non-anonymous user requests OTP for a phone already registered to another account, returns 409 Conflict\n- Admin accounts (staff/superuser) always receive real OTP even in mock mode for security\n\n\n**Permissions:** `AllowAny`",
+        "description": "Request phone verification code (SMS OTP).\n\n**Notes:**\n- OTP codes expire after 10 minutes\n- Rate limited to 1 request per 30 seconds per phone/device\n- If authenticated non-anonymous user requests OTP for a phone already registered to another account, returns 409 Conflict\n- Admin accounts (staff/superuser) always receive real OTP even in mock mode for security\n\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Phone Auth"
         ],
@@ -2990,8 +3103,7 @@
         "security": [
           {
             "JWTCookieAuth": []
-          },
-          {}
+          }
         ],
         "responses": {
           "200": {
@@ -3059,7 +3171,7 @@
     "/auth/api/v1/phone/verify/": {
       "post": {
         "operationId": "auth_api_v1_phone_verify_create",
-        "description": "Verify phone number and authenticate/register.\n\n**Authentication Flows:**\n- **Unauthenticated user + new phone** → REGISTERED (new account created)\n- **Unauthenticated user + existing phone** → LOGGED_IN (login to existing account)\n- **Anonymous user + new phone** → REGISTERED (anonymous completes registration)\n- **Anonymous user + existing phone** → MERGED (anonymous merged into existing account)\n- **Authenticated user + own/new phone** → MODIFIED (user adds/changes phone)\n- **Invalid/expired code** → REJECTED\n\n**Status values:**\n- `REJECTED` - Invalid code, expired code, or blocked\n- `REGISTERED` - New account created or anonymous completed registration\n- `LOGGED_IN` - Existing user logged in\n- `MERGED` - Anonymous user merged into existing account\n- `MODIFIED` - Authenticated user added/changed phone\n\n\n**Permissions:** `AllowAny`",
+        "description": "Verify phone number and authenticate/register.\n\n**Authentication Flows:**\n- **Unauthenticated user + new phone** → REGISTERED (new account created)\n- **Unauthenticated user + existing phone** → LOGGED_IN (login to existing account)\n- **Anonymous user + new phone** → REGISTERED (anonymous completes registration)\n- **Anonymous user + existing phone** → MERGED (anonymous merged into existing account)\n- **Authenticated user + own/new phone** → MODIFIED (user adds/changes phone)\n- **Invalid/expired code** → REJECTED\n\n**Status values:**\n- `REJECTED` - Invalid code, expired code, or blocked\n- `REGISTERED` - New account created or anonymous completed registration\n- `LOGGED_IN` - Existing user logged in\n- `MERGED` - Anonymous user merged into existing account\n- `MODIFIED` - Authenticated user added/changed phone\n\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Phone Auth"
         ],
@@ -3095,8 +3207,7 @@
         "security": [
           {
             "JWTCookieAuth": []
-          },
-          {}
+          }
         ],
         "responses": {
           "200": {
@@ -3489,7 +3600,7 @@
             "description": ""
           }
         },
-        "description": "**Permissions:** `IsAuthenticated`"
+        "description": "**Permissions:** `IsAuthenticated, DenyEnrollOnly`"
       }
     },
     "/auth/api/v1/security/revoke-suspicious/": {
@@ -3526,7 +3637,7 @@
     "/auth/api/v1/security/status/": {
       "get": {
         "operationId": "auth_api_v1_security_status_retrieve",
-        "description": "Return the full security posture for the current user. Used by the frontend to render the security settings screen.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Return the full security posture for the current user. Used by the frontend to render the security settings screen.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Security"
         ],
@@ -3552,7 +3663,7 @@
     "/auth/api/v1/service-keys": {
       "get": {
         "operationId": "auth_api_v1_service_keys_list",
-        "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser`",
+        "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser, DenyEnrollOnly`",
         "tags": [
           "API Keys"
         ],
@@ -3579,7 +3690,7 @@
       },
       "post": {
         "operationId": "auth_api_v1_service_keys_create",
-        "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser`",
+        "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser, DenyEnrollOnly`",
         "tags": [
           "API Keys"
         ],
@@ -3625,7 +3736,7 @@
     "/auth/api/v1/service-keys/{id}": {
       "get": {
         "operationId": "auth_api_v1_service_keys_retrieve",
-        "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser`",
+        "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser, DenyEnrollOnly`",
         "parameters": [
           {
             "in": "path",
@@ -3660,7 +3771,7 @@
       },
       "put": {
         "operationId": "auth_api_v1_service_keys_update",
-        "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser`",
+        "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser, DenyEnrollOnly`",
         "parameters": [
           {
             "in": "path",
@@ -3715,7 +3826,7 @@
       },
       "patch": {
         "operationId": "auth_api_v1_service_keys_partial_update",
-        "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser`",
+        "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser, DenyEnrollOnly`",
         "parameters": [
           {
             "in": "path",
@@ -3769,7 +3880,7 @@
       },
       "delete": {
         "operationId": "auth_api_v1_service_keys_destroy",
-        "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser`",
+        "description": "ViewSet for managing service API keys\n\n**Permissions:** `IsAdminUser, DenyEnrollOnly`",
         "parameters": [
           {
             "in": "path",
@@ -3799,7 +3910,7 @@
     "/auth/api/v1/sessions/": {
       "get": {
         "operationId": "auth_api_v1_sessions_list",
-        "description": "List all active sessions for the current user.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "List all active sessions for the current user.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Session"
         ],
@@ -3842,7 +3953,7 @@
       },
       "delete": {
         "operationId": "auth_api_v1_sessions_destroy",
-        "description": "Revoke all sessions except the current one.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Revoke all sessions except the current one.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "Session"
         ],
@@ -3861,7 +3972,7 @@
     "/auth/api/v1/sessions/{session_id}/": {
       "delete": {
         "operationId": "auth_api_v1_sessions_destroy_2",
-        "description": "Revoke a specific session by ID.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Revoke a specific session by ID.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "parameters": [
           {
             "in": "path",
@@ -3900,7 +4011,7 @@
     "/auth/api/v1/sessions/{session_id}/confirm/": {
       "post": {
         "operationId": "auth_api_v1_sessions_confirm_create",
-        "description": "Mark a suspicious session as confirmed (\"this was me\"). Clears the suspicious flag.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Mark a suspicious session as confirmed (\"this was me\"). Clears the suspicious flag.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "parameters": [
           {
             "in": "path",
@@ -4171,7 +4282,7 @@
             "description": ""
           }
         },
-        "description": "**Permissions:** `IsAdminUser`"
+        "description": "**Permissions:** `IsAdminUser, DenyEnrollOnly`"
       },
       "post": {
         "operationId": "auth_api_v1_sso_orgs_create",
@@ -4216,7 +4327,7 @@
             "description": ""
           }
         },
-        "description": "**Permissions:** `IsAdminUser`"
+        "description": "**Permissions:** `IsAdminUser, DenyEnrollOnly`"
       }
     },
     "/auth/api/v1/sso/orgs/{slug}/": {
@@ -4253,7 +4364,7 @@
             "description": ""
           }
         },
-        "description": "**Permissions:** `IsAdminUser`"
+        "description": "**Permissions:** `IsAdminUser, DenyEnrollOnly`"
       },
       "patch": {
         "operationId": "auth_api_v1_sso_orgs_partial_update",
@@ -4307,7 +4418,7 @@
             "description": ""
           }
         },
-        "description": "**Permissions:** `IsAdminUser`"
+        "description": "**Permissions:** `IsAdminUser, DenyEnrollOnly`"
       },
       "delete": {
         "operationId": "auth_api_v1_sso_orgs_destroy",
@@ -4335,7 +4446,7 @@
             "description": "No response body"
           }
         },
-        "description": "**Permissions:** `IsAdminUser`"
+        "description": "**Permissions:** `IsAdminUser, DenyEnrollOnly`"
       }
     },
     "/auth/api/v1/sso/orgs/{slug}/config/": {
@@ -4392,7 +4503,7 @@
             "description": ""
           }
         },
-        "description": "**Permissions:** `IsAdminUser`"
+        "description": "**Permissions:** `IsAdminUser, DenyEnrollOnly`"
       },
       "patch": {
         "operationId": "auth_api_v1_sso_orgs_config_partial_update",
@@ -4446,13 +4557,13 @@
             "description": ""
           }
         },
-        "description": "**Permissions:** `IsAdminUser`"
+        "description": "**Permissions:** `IsAdminUser, DenyEnrollOnly`"
       }
     },
     "/auth/api/v1/staff-roles/": {
       "get": {
         "operationId": "auth_api_v1_staff_roles_list",
-        "description": "List staff role assignments, optionally filtered by ?user_id=. Requires the view permission on StaffRoleAssignment (clearance HIGH under the mandate).\n\n**Permissions:** `IsAdminUser`",
+        "description": "List staff role assignments, optionally filtered by ?user_id=. Requires the view permission on StaffRoleAssignment (clearance HIGH under the mandate).\n\n**Permissions:** `IsAdminUser, DenyEnrollOnly`",
         "tags": [
           "Staff Roles"
         ],
@@ -4482,7 +4593,7 @@
       },
       "post": {
         "operationId": "auth_api_v1_staff_roles_create",
-        "description": "Assign a staff role (a name from the STAPEL_ACCESS['ROLES'] registry) to a staff user. Idempotent: 201 on a new assignment, 200 when it already existed. Emits staff.role.assigned.\n\n**Permissions:** `IsAdminUser`",
+        "description": "Assign a staff role (a name from the STAPEL_ACCESS['ROLES'] registry) to a staff user. Idempotent: 201 on a new assignment, 200 when it already existed. Emits staff.role.assigned.\n\n**Permissions:** `IsAdminUser, DenyEnrollOnly`",
         "tags": [
           "Staff Roles"
         ],
@@ -4537,7 +4648,7 @@
     "/auth/api/v1/staff-roles/{assignment_id}/": {
       "delete": {
         "operationId": "auth_api_v1_staff_roles_destroy",
-        "description": "Revoke a staff role assignment by its id. Emits staff.role.revoked.\n\n**Permissions:** `IsAdminUser`",
+        "description": "Revoke a staff role assignment by its id. Emits staff.role.revoked.\n\n**Permissions:** `IsAdminUser, DenyEnrollOnly`",
         "parameters": [
           {
             "in": "path",
@@ -5105,7 +5216,7 @@
     "/auth/api/v1/totp/setup/confirm/": {
       "post": {
         "operationId": "auth_api_v1_totp_setup_confirm_create",
-        "description": "Confirm TOTP setup with the first code. Activates the device and returns one-time backup codes.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
+        "description": "Confirm TOTP setup with the first code. Activates the device and returns one-time backup codes. When called from a limited enroll-only session (first-login mfa_enroll policy), activating the strong factor clears the enrollment flag and the response additionally carries a full-session token pair (`tokens`) — the limited session is upgraded on the spot.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
         "tags": [
           "auth"
         ],
@@ -5501,7 +5612,7 @@
     "/auth/api/v1/verification/{challenge_id}/": {
       "get": {
         "operationId": "auth_api_v1_verification_retrieve",
-        "description": "Step-up verification challenge info. Returns the challenge's scope and its factor list filtered to the factors this user can actually complete — build the factor picker UI from it. 404 for a missing, expired or another user's challenge.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Step-up verification challenge info. Returns the challenge's scope and its factor list filtered to the factors this user can actually complete — build the factor picker UI from it. 404 for a missing, expired or another user's challenge.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "parameters": [
           {
             "in": "path",
@@ -5560,7 +5671,7 @@
     "/auth/api/v1/verification/{challenge_id}/complete/": {
       "post": {
         "operationId": "auth_api_v1_verification_complete_create",
-        "description": "Complete the challenge with the factor's proof (code / backup_code / passkey assertion). On success the server-side grant for the challenge's scope is written and a stateless verification_token is returned — retry the original request (optionally with the X-Verification-Token header). On failure: 400 while attempts remain, 423 once the challenge is invalidated by too many failures.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Complete the challenge with the factor's proof (code / backup_code / passkey assertion). On success the server-side grant for the challenge's scope is written and a stateless verification_token is returned — retry the original request (optionally with the X-Verification-Token header). On failure: 400 while attempts remain, 423 once the challenge is invalidated by too many failures.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "parameters": [
           {
             "in": "path",
@@ -5654,7 +5765,7 @@
     "/auth/api/v1/verification/{challenge_id}/initiate/": {
       "post": {
         "operationId": "auth_api_v1_verification_initiate_create",
-        "description": "Initiate a verification factor for the challenge: sends the one-time code (otp_email/otp_phone) or produces WebAuthn request options (passkey; totp has nothing to initiate). Returns factor-specific client data — masked destination or the WebAuthn options with the ceremony session_key. The factor must be in the challenge's list and available to the user.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Initiate a verification factor for the challenge: sends the one-time code (otp_email/otp_phone) or produces WebAuthn request options (passkey; totp has nothing to initiate). Returns factor-specific client data — masked destination or the WebAuthn options with the ceremony session_key. The factor must be in the challenge's list and available to the user.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "parameters": [
           {
             "in": "path",
@@ -5740,7 +5851,7 @@
     "/auth/api/v1/verification/preferences/": {
       "get": {
         "operationId": "auth_api_v1_verification_preferences_retrieve",
-        "description": "The current user's step-up verification preferences: one row per scope the user has touched (enabled=False turns a default_on scope off, enabled=True turns an opt_in scope on). Scopes without a row follow the endpoint's level default; strict scopes ignore preferences entirely.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "The current user's step-up verification preferences: one row per scope the user has touched (enabled=False turns a default_on scope off, enabled=True turns an opt_in scope on). Scopes without a row follow the endpoint's level default; strict scopes ignore preferences entirely.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "auth"
         ],
@@ -5776,7 +5887,7 @@
       },
       "put": {
         "operationId": "auth_api_v1_verification_preferences_update",
-        "description": "Upsert a step-up verification preference {scope, enabled}. Enabling (enabled=true) applies immediately. Disabling (enabled=false) is itself step-up protected: without a fresh grant for scope verification.settings the request is rejected with the 403 verification envelope — complete a factor and retry. Both writes invalidate the cached policy, so protected endpoints see the change within one request.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Upsert a step-up verification preference {scope, enabled}. Enabling (enabled=true) applies immediately. Disabling (enabled=false) is itself step-up protected: without a fresh grant for scope verification.settings the request is rejected with the 403 verification envelope — complete a factor and retry. Both writes invalidate the cached policy, so protected endpoints see the change within one request.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
         "tags": [
           "auth"
         ],
@@ -5849,7 +5960,7 @@
     "/auth/api/v1/verify/": {
       "post": {
         "operationId": "auth_api_v1_verify_create",
-        "description": "Verify JWT token\n\n**Permissions:** `AllowAny`",
+        "description": "Verify JWT token\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Token"
         ],
@@ -5876,8 +5987,7 @@
         "security": [
           {
             "JWTCookieAuth": []
-          },
-          {}
+          }
         ],
         "responses": {
           "200": {
@@ -6493,6 +6603,70 @@
           "status"
         ]
       },
+      "FirstLoginChallengeResponse": {
+        "type": "object",
+        "description": "Intermediate login response for org-provisioned accounts with a\nfirst-login policy flag (password_change_required /\nmfa_enrollment_required). Returned instead of a session.",
+        "properties": {
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FirstLoginChallengeResponseStatusEnum"
+              }
+            ],
+            "description": "Always FIRST_LOGIN_REQUIRED\n\n* `FIRST_LOGIN_REQUIRED` - Credentials were correct but a first-login step must be completed before a session is issued",
+            "example": "FIRST_LOGIN_REQUIRED"
+          },
+          "requires": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RequiresEnum"
+              }
+            ],
+            "description": "Which step to complete\n\n* `password_change` - The org-set password must be replaced first — POST /password/forced-change/\n* `mfa_enroll` - A strong second factor must be enrolled first — POST /mfa/enroll/exchange/ for a limited enroll session",
+            "example": "password_change"
+          },
+          "challenge_token": {
+            "type": "string",
+            "description": "Opaque single-flow token. Pass to /password/forced-change/ (password_change) or /mfa/enroll/exchange/ (mfa_enroll)",
+            "example": "abc123xyz"
+          },
+          "expires_in": {
+            "type": "integer",
+            "description": "Seconds until the challenge expires",
+            "example": 600
+          }
+        },
+        "required": [
+          "challenge_token",
+          "expires_in",
+          "requires",
+          "status"
+        ]
+      },
+      "FirstLoginChallengeResponseStatusEnum": {
+        "enum": [
+          "FIRST_LOGIN_REQUIRED"
+        ],
+        "type": "string",
+        "description": "* `FIRST_LOGIN_REQUIRED` - Credentials were correct but a first-login step must be completed before a session is issued"
+      },
+      "ForcedPasswordChange": {
+        "type": "object",
+        "properties": {
+          "challenge_token": {
+            "type": "string",
+            "description": "Opaque token from FirstLoginChallengeResponse (requires=password_change)."
+          },
+          "new_password": {
+            "type": "string",
+            "minLength": 8
+          }
+        },
+        "required": [
+          "challenge_token",
+          "new_password"
+        ]
+      },
       "GDPRDownloadTokenRequest": {
         "type": "object",
         "properties": {
@@ -6756,13 +6930,17 @@
           },
           {
             "$ref": "#/components/schemas/TOTPChallengeResponse"
+          },
+          {
+            "$ref": "#/components/schemas/FirstLoginChallengeResponse"
           }
         ],
         "discriminator": {
           "propertyName": "status",
           "mapping": {
             "AuthResponse": "#/components/schemas/AuthResponse",
-            "TOTPChallengeResponse": "#/components/schemas/TOTPChallengeResponse"
+            "TOTPChallengeResponse": "#/components/schemas/TOTPChallengeResponse",
+            "FirstLoginChallengeResponse": "#/components/schemas/FirstLoginChallengeResponse"
           }
         }
       },
@@ -6849,6 +7027,55 @@
         ],
         "type": "string",
         "description": "* `PasswordMethodType.EMAIL` - PasswordMethodType.EMAIL\n* `PasswordMethodType.PHONE` - PasswordMethodType.PHONE"
+      },
+      "MfaEnrollExchange": {
+        "type": "object",
+        "properties": {
+          "challenge_token": {
+            "type": "string",
+            "description": "Opaque token from FirstLoginChallengeResponse (requires=mfa_enroll)."
+          }
+        },
+        "required": [
+          "challenge_token"
+        ]
+      },
+      "MfaEnrollSessionResponse": {
+        "type": "object",
+        "description": "Limited enroll-only session minted from a first-login mfa_enroll\nchallenge (workspaces-org-program §C2).\n\nAccess-token only — deliberately NO refresh token: a refresh would mint\na claim-free (full) access token, silently escalating the limited\nsession. When the token expires mid-enrollment the user simply logs in\nagain for a fresh challenge.",
+        "properties": {
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MfaEnrollSessionResponseStatusEnum"
+              }
+            ],
+            "description": "Always MFA_ENROLL_SESSION\n\n* `MFA_ENROLL_SESSION` - A limited enroll-only session was issued (JWT claim enroll_only) — only TOTP setup/confirm, passkey registration and logout are allowed until a strong factor is activated",
+            "example": "MFA_ENROLL_SESSION"
+          },
+          "access": {
+            "type": "string",
+            "description": "JWT access token carrying the enroll_only claim",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "expires_in": {
+            "type": "integer",
+            "description": "Seconds until the enroll session expires",
+            "example": 3600
+          }
+        },
+        "required": [
+          "access",
+          "expires_in",
+          "status"
+        ]
+      },
+      "MfaEnrollSessionResponseStatusEnum": {
+        "enum": [
+          "MFA_ENROLL_SESSION"
+        ],
+        "type": "string",
+        "description": "* `MFA_ENROLL_SESSION` - A limited enroll-only session was issued (JWT claim enroll_only) — only TOTP setup/confirm, passkey registration and logout are allowed until a strong factor is activated"
       },
       "OAuth": {
         "type": "object",
@@ -7005,6 +7232,53 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          }
+        },
+        "required": [
+          "aaguid",
+          "created_at",
+          "device_name",
+          "id",
+          "last_used_at",
+          "transports"
+        ]
+      },
+      "PasskeyRegisterCompleteResponse": {
+        "type": "object",
+        "description": "Passkey item, plus a full-session token pair when the registration\nwas made from a limited enroll-only session (first-login mfa_enroll\npolicy) — activating the strong factor upgrades it to a full session.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "device_name": {
+            "type": "string"
+          },
+          "aaguid": {
+            "type": "string"
+          },
+          "transports": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_used_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "tokens": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TokenPairResponse"
+              }
+            ],
+            "nullable": true,
+            "description": "Full-session JWT pair; only present after an enroll-only upgrade."
           }
         },
         "required": [
@@ -7641,6 +7915,14 @@
           "sso"
         ]
       },
+      "RequiresEnum": {
+        "enum": [
+          "password_change",
+          "mfa_enroll"
+        ],
+        "type": "string",
+        "description": "* `password_change` - The org-set password must be replaced first — POST /password/forced-change/\n* `mfa_enroll` - A strong second factor must be enrolled first — POST /mfa/enroll/exchange/ for a limited enroll session"
+      },
       "SSODomainLookupResponse": {
         "type": "object",
         "description": "SSO organization lookup result for a given email domain.",
@@ -8158,6 +8440,15 @@
               "12345678",
               "87654321"
             ]
+          },
+          "tokens": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TokenPairResponse"
+              }
+            ],
+            "nullable": true,
+            "description": "Full-session JWT pair, present ONLY when the confirmation was made from a limited enroll-only session (first-login mfa_enroll policy) — activating the strong factor upgrades it to a full session. Null otherwise"
           }
         },
         "required": [

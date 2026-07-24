@@ -191,7 +191,10 @@ def execute_pending_changes():
                     # No "new value" to apply — TOTP delayed mode is a
                     # scheduled disable (see initiate_delayed_totp); the
                     # user re-enrolls afterward via the normal instant
-                    # setup/confirm_setup pair.
+                    # setup/confirm_setup pair. force_disable also writes
+                    # the user.mfa_disabled outbox transition (org-program
+                    # §C3) inside this same transaction when the account
+                    # loses its last strong factor.
                     from .mfa.services import TOTPService
 
                     TOTPService.force_disable(user)

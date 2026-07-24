@@ -68,16 +68,24 @@ class LogoutResponseSerializer(StapelDataclassSerializer):
 
 
 # Polymorphic union: password login / oauth login return either a full
-# AuthResponse (status=LOGGED_IN/REGISTERED) or a TOTPChallengeResponse
-# (status=TOTP_REQUIRED). The `status` field is the discriminator.
+# AuthResponse (status=LOGGED_IN/REGISTERED), a TOTPChallengeResponse
+# (status=TOTP_REQUIRED), or — org-provisioned accounts with a first-login
+# policy flag (workspaces-org-program §C2) — a FirstLoginChallengeResponse
+# (status=FIRST_LOGIN_REQUIRED). The `status` field is the discriminator.
 # drf-spectacular emits oneOf + discriminator so API generators produce
 # a proper TypeScript union with type narrowing.
 #
 # NOTE: AuthResponseSerializer is also needed by otp/views.py and other
 # sub-packages; keep it importable from both here and the top-level serializers.py.
+from stapel_auth.password.serializers import FirstLoginChallengeResponseSerializer  # noqa: E402
+
 LoginResponseSerializer = PolymorphicProxySerializer(
     component_name='LoginResponse',
-    serializers=[AuthResponseSerializer, TOTPChallengeResponseSerializer],
+    serializers=[
+        AuthResponseSerializer,
+        TOTPChallengeResponseSerializer,
+        FirstLoginChallengeResponseSerializer,
+    ],
     resource_type_field_name='status',
 )
 

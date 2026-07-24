@@ -13,6 +13,7 @@ from stapel_auth.errors import (
 )
 from stapel_auth.otp.constants import OTP_CODE_LENGTH
 from stapel_auth.password.dto import (
+    FirstLoginChallengeResponse,
     PasswordMethod,
     PasswordMethodsResponse,
     PasswordMethodType,
@@ -38,6 +39,24 @@ def normalize_phone(value):
 class PasswordLoginSerializer(serializers.Serializer):
     login = serializers.CharField(help_text="Email or username")
     password = serializers.CharField()
+
+
+class FirstLoginChallengeResponseSerializer(StapelDataclassSerializer):
+    """Intermediate login response while a first-login policy flag is up."""
+
+    class Meta:
+        dataclass = FirstLoginChallengeResponse
+
+
+class ForcedPasswordChangeSerializer(serializers.Serializer):
+    challenge_token = serializers.CharField(
+        help_text="Opaque token from FirstLoginChallengeResponse (requires=password_change)."
+    )
+    new_password = serializers.CharField(min_length=8)
+
+    def validate_new_password(self, value):
+        validate_password(value)
+        return value
 
 
 class PasswordChangeDirectSerializer(serializers.Serializer):

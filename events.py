@@ -14,6 +14,8 @@ EVENT_STAFF_ROLE_ASSIGNED = "staff.role.assigned"
 EVENT_STAFF_ROLE_REVOKED = "staff.role.revoked"
 EVENT_USER_SESSION_CREATED = "user.session_created"
 EVENT_USER_SESSION_REVOKED = "user.session_revoked"
+EVENT_USER_MFA_ENABLED = "user.mfa_enabled"
+EVENT_USER_MFA_DISABLED = "user.mfa_disabled"
 
 
 @dataclass
@@ -22,7 +24,7 @@ class UserRegisteredPayload:
 
     Fields:
         user_id: UUID of the newly created user.
-        auth_type: Registration method (email/phone/oauth/password/anonymous).
+        auth_type: Registration method (email/phone/oauth/password/anonymous/login).
         email: User email if available.
         avatar_url: Avatar URL surfaced by the auth provider (currently only
             populated for OAuth registrations — see ``User.avatar``), None
@@ -33,12 +35,18 @@ class UserRegisteredPayload:
             §B3), None otherwise. Same dead-reckoning contract as avatar_url:
             auth stores no language field; consumers (e.g. profiles
             ``app_language``) decide what to do with it.
+        display_name: Display-name hint captured at registration (currently
+            only populated by ``auth.provision_user`` — workspaces-org-program
+            §C1), None otherwise. Same dead-reckoning contract as language:
+            consumers (profiles) decide what to do with it; auth mirrors it
+            into ``first_name`` and forgets.
     """
     user_id: str
     auth_type: str
     email: str | None = None
     avatar_url: str | None = None
     language: str | None = None
+    display_name: str | None = None
 
 
 @dataclass
@@ -97,6 +105,42 @@ class UserSessionRevokedPayload:
     session_id: str
 
 
+@dataclass
+class UserMfaEnabledPayload:
+    """Payload for the user.mfa_enabled event
+    (schemas/emits/user.mfa_enabled.json — workspaces-org-program §C3).
+
+    ACCOUNT-LEVEL transition, not a per-factor tick: emitted when the user
+    goes from "no strong second factor" to "has one" (strength canon: totp/
+    passkey/otp_phone are strong, a bare email code is not — see
+    ``stapel_core.verification.strong_factors``). Consumers (workspaces
+    require_mfa suspension) may act on it directly without re-querying
+    ``auth.mfa_status``. Activating a SECOND strong factor emits nothing —
+    the account state did not change.
+
+    Fields:
+        user_id: UUID of the user.
+        factor: Registry id of the factor whose activation caused the
+            transition ("totp" | "passkey").
+    """
+    user_id: str
+    factor: str
+
+
+@dataclass
+class UserMfaDisabledPayload:
+    """Payload for the user.mfa_disabled event (mirror of enabled).
+
+    Emitted when the user loses their LAST strong factor (account-level
+    transition — removing one passkey of two, or disabling TOTP while a
+    verified phone still counts as strong, emits nothing). Emission points:
+    TOTP disable/force-disable (incl. the delayed-change execute task) and
+    passkey deactivation.
+    """
+    user_id: str
+    factor: str
+
+
 # Canonical event registry — keyed by the action name actually emitted.
 EVENT_REGISTRY = {
     EVENT_USER_REGISTERED: UserRegisteredPayload,
@@ -104,4 +148,6 @@ EVENT_REGISTRY = {
     EVENT_STAFF_ROLE_REVOKED: StaffRoleRevokedPayload,
     EVENT_USER_SESSION_CREATED: UserSessionCreatedPayload,
     EVENT_USER_SESSION_REVOKED: UserSessionRevokedPayload,
+    EVENT_USER_MFA_ENABLED: UserMfaEnabledPayload,
+    EVENT_USER_MFA_DISABLED: UserMfaDisabledPayload,
 }

@@ -30,10 +30,15 @@ class FlowCatalogTests(TestCase):
         autodiscover_flows()
         cls.flows = [f for f in flow_registry.all() if f.id.startswith("auth.")]
 
-    def test_three_flows_present(self):
+    def test_flows_present(self):
         self.assertEqual(
             [f.id for f in self.flows],
-            ["auth.password_login", "auth.passwordless_login", "auth.step_up_verification"],
+            [
+                "auth.first_login",
+                "auth.password_login",
+                "auth.passwordless_login",
+                "auth.step_up_verification",
+            ],
         )
 
     def test_en_catalog_mirrors_literals(self):

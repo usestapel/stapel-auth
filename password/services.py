@@ -1,6 +1,7 @@
 """Service for password login, set, change, and OTP-based reset."""
 
 import logging
+import secrets
 
 from stapel_core.django.api.errors import ERR_500_INTERNAL, StapelServiceError
 
@@ -13,6 +14,105 @@ from stapel_auth.otp.services import (
 from stapel_auth.password.dto import PasswordMethod, PasswordMethodType
 
 logger = logging.getLogger(__name__)
+
+
+# ── First-login policy (workspaces-org-program §C2) ──────────────────────────
+
+
+class FirstLoginPolicyService:
+    """Forced password change / MFA enroll intermediates on password login.
+
+    Org-provisioned accounts (``auth.provision_user``) carry a first-login
+    flag on the user row (``password_change_required`` /
+    ``mfa_enrollment_required``, stapel-core Wave 0). While a flag is up, a
+    successful password login returns a ``FirstLoginChallengeResponse``
+    instead of a session — the same intermediate pattern as the TOTP
+    step-up challenge (cache-stored opaque token, here with a 10-minute
+    TTL). The challenge is resolved at:
+
+    * ``POST /password/forced-change/`` — sets the new password by the
+      deployment's password canon, clears the flag, mints a full session
+      (or chains into the mfa_enroll intermediate when BOTH flags are up);
+    * ``POST /mfa/enroll/exchange/`` — trades the challenge for a limited
+      enroll-only session (JWT claim ``enroll_only``); activating a strong
+      factor clears the flag and upgrades to a full session.
+
+    Accounts without flags never touch this service — their login path is
+    byte-identical to pre-0.12 behavior (the release gate).
+    """
+
+    CHALLENGE_TTL = 600  # 10 minutes
+
+    REQUIRES_PASSWORD_CHANGE = "password_change"
+    REQUIRES_MFA_ENROLL = "mfa_enroll"
+
+    @staticmethod
+    def _key(token: str) -> str:
+        return f"first_login_challenge:{token}"
+
+    @classmethod
+    def required_intermediate(cls, user) -> str | None:
+        """Which first-login step *user* still owes, or None.
+
+        Order canon: password change first (the org-set password must stop
+        working before anything else), then MFA enrollment. Self-heal: an
+        ``mfa_enrollment_required`` flag on an account that already has a
+        strong factor (e.g. set out-of-band after enrollment) is cleared on
+        the spot instead of dead-ending the login.
+        """
+        if getattr(user, "password_change_required", False):
+            return cls.REQUIRES_PASSWORD_CHANGE
+        if getattr(user, "mfa_enrollment_required", False):
+            from stapel_core.verification import strong_factors
+
+            if strong_factors(user):
+                user.mfa_enrollment_required = False
+                user.save(update_fields=["mfa_enrollment_required"])
+                return None
+            return cls.REQUIRES_MFA_ENROLL
+        return None
+
+    @classmethod
+    def create_challenge(cls, user, requires: str) -> str:
+        """Store a short-lived first-login challenge; return opaque token."""
+        from django.core.cache import cache
+
+        token = secrets.token_urlsafe(32)
+        cache.set(
+            cls._key(token),
+            {"user_id": str(user.pk), "requires": requires},
+            cls.CHALLENGE_TTL,
+        )
+        return token
+
+    @classmethod
+    def resolve_challenge(cls, token: str, requires: str):
+        """Resolve (WITHOUT consuming) a challenge to its active user.
+
+        Returns the user or None (unknown/expired token, requirement
+        mismatch, inactive user). Non-consuming so a recoverable downstream
+        failure — e.g. a too-weak new password on forced change — does not
+        burn the challenge; call :meth:`burn_challenge` once the flow
+        actually succeeds.
+        """
+        from django.contrib.auth import get_user_model
+        from django.core.cache import cache
+
+        data = cache.get(cls._key(token))
+        if not data or data.get("requires") != requires:
+            return None
+        User = get_user_model()
+        user = User.objects.filter(pk=data.get("user_id")).first()
+        if user is None or not user.is_active:
+            return None
+        return user
+
+    @classmethod
+    def burn_challenge(cls, token: str) -> None:
+        """Consume the challenge (single successful use)."""
+        from django.core.cache import cache
+
+        cache.delete(cls._key(token))
 
 
 # ── Password service ─────────────────────────────────────────────────────────

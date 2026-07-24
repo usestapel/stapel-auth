@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
+from stapel_auth.sessions.dto import TokenPairResponse
+
 
 class TOTPChallengeStatus(str, Enum):
     """
@@ -51,8 +53,41 @@ class TOTPSetupConfirmResponse:
 
     Attributes:
         backup_codes: One-time backup codes. Each usable once if authenticator is lost. Example: ["12345678", "87654321"]
+        tokens: Full-session JWT pair, present ONLY when the confirmation was made from a limited enroll-only session (first-login mfa_enroll policy) — activating the strong factor upgrades it to a full session. Null otherwise.
     """
     backup_codes: list
+    tokens: Optional[TokenPairResponse] = None
+
+
+class MfaEnrollSessionStatus(str, Enum):
+    """
+    Status value for the enroll-session exchange response.
+
+    Members:
+        MFA_ENROLL_SESSION: A limited enroll-only session was issued (JWT claim enroll_only) — only TOTP setup/confirm, passkey registration and logout are allowed until a strong factor is activated.
+    """
+    MFA_ENROLL_SESSION = 'MFA_ENROLL_SESSION'
+
+
+@dataclass
+class MfaEnrollSessionResponse:
+    """
+    Limited enroll-only session minted from a first-login mfa_enroll
+    challenge (workspaces-org-program §C2).
+
+    Access-token only — deliberately NO refresh token: a refresh would mint
+    a claim-free (full) access token, silently escalating the limited
+    session. When the token expires mid-enrollment the user simply logs in
+    again for a fresh challenge.
+
+    Attributes:
+        status: Always MFA_ENROLL_SESSION. Example: MFA_ENROLL_SESSION
+        access: JWT access token carrying the enroll_only claim. Example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        expires_in: Seconds until the enroll session expires. Example: 3600
+    """
+    status: MfaEnrollSessionStatus
+    access: str
+    expires_in: int
 
 
 

@@ -19,7 +19,7 @@ language resolves the keys via ``stapel_core.flows.i18n``.
 """
 from stapel_core.flows import Flow, flow_step
 
-from stapel_auth.mfa.views import TOTPViewSet
+from stapel_auth.mfa.views import MfaEnrollViewSet, TOTPViewSet
 from stapel_auth.otp.views import AuthViewSet
 from stapel_auth.password.views import PasswordViewSet
 from stapel_auth.verification.views import VerificationPreferenceViewSet, VerificationViewSet
@@ -91,6 +91,70 @@ flow_step(
         "and the authenticator code for a JWT session"
     ),
 )(TOTPViewSet.challenge_verify)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# auth.first_login — org-provisioned accounts (workspaces-org-program §C1-C2)
+# ─────────────────────────────────────────────────────────────────────────────
+
+FIRST_LOGIN = Flow(
+    "auth.first_login",
+    title="First login of an org-provisioned account",
+    description=(
+        "An organization admin provisioned the account (auth.provision_user: "
+        "namespaced username org_slug/local, org-set or server-generated "
+        "password, a first-login policy flag). The first password login "
+        "returns FIRST_LOGIN_REQUIRED with a 10-minute challenge_token "
+        "instead of a session: requires=password_change routes to the forced "
+        "password change, requires=mfa_enroll to a limited enroll-only "
+        "session in which only TOTP setup/confirm, passkey registration and "
+        "logout are allowed. Completing the step clears the flag and yields "
+        "a full session; when both flags are set, the password change chains "
+        "straight into the mfa_enroll challenge."
+    ),
+    actors=["Org-provisioned user"],
+)
+
+FIRST_LOGIN.human(
+    order=0,
+    note=(
+        "The org admin hands over the namespaced login (org_slug/username) "
+        "and the initial password out of band"
+    ),
+)
+flow_step(
+    FIRST_LOGIN, order=1,
+    note=(
+        "Sign in with the provisioned credentials; while a first-login flag "
+        "is up the response is FIRST_LOGIN_REQUIRED {requires, "
+        "challenge_token} instead of tokens"
+    ),
+)(PasswordViewSet.login)
+flow_step(
+    FIRST_LOGIN, order=2,
+    note=(
+        "requires=password_change: set an own password (validated by the "
+        "password canon); returns a full session — or the next "
+        "FIRST_LOGIN_REQUIRED (requires=mfa_enroll) when both flags are set. "
+        "A rejected password does not consume the challenge"
+    ),
+)(PasswordViewSet.forced_change)
+flow_step(
+    FIRST_LOGIN, order=3,
+    note=(
+        "requires=mfa_enroll: exchange the challenge_token for a limited "
+        "enroll-only session (JWT claim enroll_only, access token only — "
+        "no refresh); every endpoint outside the enrollment surface answers "
+        "403 mfa_enrollment_required"
+    ),
+)(MfaEnrollViewSet.exchange)
+flow_step(
+    FIRST_LOGIN, order=4,
+    note=(
+        "Enroll the strong factor: confirming TOTP setup (or completing a "
+        "passkey registration) clears the flag, emits user.mfa_enabled and "
+        "returns the full-session token pair in the same response"
+    ),
+)(TOTPViewSet.confirm_setup)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # auth.step_up_verification — THE reference flow for the verification contract
@@ -176,4 +240,9 @@ flow_step(
     ),
 )(VerificationPreferenceViewSet.set_preference)
 
-__all__ = ["PASSWORDLESS_LOGIN", "PASSWORD_LOGIN", "STEP_UP_VERIFICATION"]
+__all__ = [
+    "PASSWORDLESS_LOGIN",
+    "PASSWORD_LOGIN",
+    "FIRST_LOGIN",
+    "STEP_UP_VERIFICATION",
+]

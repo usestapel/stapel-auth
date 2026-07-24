@@ -10,6 +10,7 @@ from rest_framework.viewsets import ViewSet
 from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
 
 from stapel_auth.errors import ERR_404_NOT_FOUND
+from stapel_auth.permissions import DenyEnrollOnly
 from stapel_auth.security.serializers import (
     AdminAuditLogFilterSerializer,
     AuditLogFilterSerializer,
@@ -34,7 +35,7 @@ def _get_user_model():
 
 
 class SecurityStatusViewSet(viewsets.GenericViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly]
 
     @extend_schema(
         description="Return the full security posture for the current user. Used by the frontend to render the security settings screen.",
@@ -112,7 +113,7 @@ class SecurityStatusViewSet(viewsets.GenericViewSet):
 
 @extend_schema(tags=["Security"])
 class AuditLogViewSet(ViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly]
 
     @extend_schema(
         summary="List security audit log",
@@ -182,7 +183,7 @@ class AuditLogViewSet(ViewSet):
 
 @extend_schema(tags=["Admin"])
 class AdminAuditLogViewSet(ViewSet):
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAdminUser, DenyEnrollOnly]
 
     @extend_schema(
         summary="List audit log entries for all users (admin only)",

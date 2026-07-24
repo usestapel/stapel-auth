@@ -24,6 +24,7 @@ from stapel_auth.oauth.serializers import (
 )
 from stapel_auth.oauth.services import OAuthLinkService
 from stapel_auth.utils import SerializerSeamsMixin
+from stapel_auth.permissions import DenyEnrollOnly
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ _UNLINK_ERROR_RESPONSES = {
 class OAuthLinkViewSet(SerializerSeamsMixin, ViewSet):
     """Manage OAuth accounts connected to the current user."""
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly]
 
     # Overridable serializer seams (see SerializerSeamsMixin).
     list_response_serializer_class = OAuthLinksResponseSerializer

@@ -15,6 +15,13 @@ the same challenge. Host projects add their own factors via
 ``STAPEL_VERIFICATION['EXTRA_FACTORS']`` — the same escape-hatch pattern
 as payment providers and notification channels.
 
+Strength canon (workspaces-org-program §C2 — «email-код ≠ 2ФА»): totp,
+passkey and otp_phone register as ``strength="strong"``; otp_email keeps
+the core default ``"weak"`` — an email code only proves reach to the same
+channel that resets the password. Strict "user has 2FA" checks
+(``auth.mfa_status``, org require_mfa policies) count strong factors only
+via ``stapel_core.verification.strong_factors``.
+
 See docs: flows-and-verification.md §2 in the stapel workspace.
 """
 from __future__ import annotations
@@ -36,9 +43,14 @@ class FactorInitiationError(ValueError):
 
 
 class EmailOtpFactor(VerificationFactor):
-    """One-time code sent to the user's verified email address."""
+    """One-time code sent to the user's verified email address.
+
+    Explicitly weak (the core default): an email code is NOT a second
+    factor — it proves reach to the password-reset channel, nothing more.
+    """
 
     id = "otp_email"
+    strength = "weak"
 
     def available_for(self, user) -> bool:
         return bool(getattr(user, "email", None)) and bool(
@@ -72,6 +84,7 @@ class PhoneOtpFactor(VerificationFactor):
     """One-time code sent to the user's verified phone number."""
 
     id = "otp_phone"
+    strength = "strong"
 
     def available_for(self, user) -> bool:
         return bool(getattr(user, "phone", None)) and bool(
@@ -108,6 +121,7 @@ class TotpFactor(VerificationFactor):
     """
 
     id = "totp"
+    strength = "strong"
 
     def available_for(self, user) -> bool:
         from stapel_auth.mfa.services import TOTPService
@@ -135,6 +149,7 @@ class PasskeyFactor(VerificationFactor):
     """
 
     id = "passkey"
+    strength = "strong"
 
     def available_for(self, user) -> bool:
         from stapel_auth.models import PasskeyCredential
