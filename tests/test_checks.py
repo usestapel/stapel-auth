@@ -92,3 +92,43 @@ class FrontendUrlProdguardCheckTests(TestCase):
         from django.core.checks.registry import registry
         self.assertIn(check_frontend_url_set_in_production, registry.registered_checks)
         self.assertEqual(check_frontend_url_set_in_production.tags, ('stapel_auth',))
+
+
+class TestMockOtpOnAPublicHost:
+    """E001 keys off DEBUG=False — which a stand on dev settings never
+    trips. The ironmemo stand therefore served a fixed OTP code for ANY
+    address on the public internet, months after real providers were wired.
+    E004 keys off REACHABILITY instead."""
+
+    def _run(self, settings, hosts, **auth):
+        settings.ALLOWED_HOSTS = hosts
+        settings.STAPEL_AUTH = {**getattr(settings, "STAPEL_AUTH", {}), **auth}
+        from stapel_auth.checks import check_mock_otp_not_on_a_public_host
+
+        return check_mock_otp_not_on_a_public_host()
+
+    def test_errors_on_a_public_hostname(self, settings):
+        errors = self._run(settings, ["app.example.com"], USE_MOCK_EMAIL_OTP=True)
+        assert [e.id for e in errors] == ["stapel_auth.E004"]
+        assert "sign in as anyone" in errors[0].msg
+
+    def test_wildcard_allowed_hosts_counts_as_public(self, settings):
+        errors = self._run(settings, ["*"], USE_MOCK_SMS_OTP=True)
+        assert [e.id for e in errors] == ["stapel_auth.E004"]
+
+    def test_quiet_on_a_developer_machine(self, settings):
+        assert self._run(
+            settings, ["localhost", "127.0.0.1", "testserver"],
+            USE_MOCK_EMAIL_OTP=True, USE_MOCK_SMS_OTP=True,
+        ) == []
+
+    def test_quiet_when_mock_otp_is_off(self, settings):
+        assert self._run(
+            settings, ["app.example.com"],
+            USE_MOCK_EMAIL_OTP=False, USE_MOCK_SMS_OTP=False,
+        ) == []
+
+    def test_fires_regardless_of_debug(self, settings):
+        settings.DEBUG = True  # exactly the stand's configuration
+        errors = self._run(settings, ["app.example.com"], USE_MOCK_EMAIL_OTP=True)
+        assert [e.id for e in errors] == ["stapel_auth.E004"]

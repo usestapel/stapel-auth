@@ -151,3 +151,76 @@ __all__ += [
     "E003_FRONTEND_URL_NOT_SET",
     "check_frontend_url_set_in_production",
 ]
+
+
+E004_MOCK_OTP_ON_A_PUBLIC_HOST = "stapel_auth.E004"
+
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "0.0.0.0", "testserver", ""}
+
+
+def _looks_public(host: str) -> bool:
+    host = (host or "").strip().lower().rstrip(".")
+    if host in LOCAL_HOSTS:
+        return False
+    if host.endswith(".local") or host.endswith(".localhost"):
+        return False
+    if host.startswith("192.168.") or host.startswith("10.") or host.startswith("172."):
+        return False
+    return True
+
+
+@checks.register("stapel_auth")
+def check_mock_otp_not_on_a_public_host(app_configs=None, **kwargs):
+    """E004 — mock OTP on a host that is not obviously local.
+
+    E001 ties the same hazard to ``DEBUG=False``, which is exactly the case
+    a real stand escapes: dev settings keep DEBUG on, so a publicly
+    reachable deployment kept accepting a fixed code for ANY address —
+    "sign in as anyone" — for as long as the value stayed in its env
+    template (ironmemo stand, found 2026-07-26, months after real email and
+    SMS providers were wired).
+
+    ``ALLOWED_HOSTS=['*']`` counts as public: a deployment that answers on
+    any Host header is not somebody's laptop.
+
+    A stand that deliberately runs on a pin code (a demo sandbox, say)
+    silences this the standard way — ``SILENCED_SYSTEM_CHECKS =
+    ["stapel_auth.E004"]`` in that settings layer. The point is that the
+    intent has to be written down somewhere, instead of being inherited
+    from whatever DEBUG happens to be.
+    """
+    from django.conf import settings
+
+    from .conf import auth_settings
+
+    if not (auth_settings.USE_MOCK_SMS_OTP or auth_settings.USE_MOCK_EMAIL_OTP):
+        return []
+
+    hosts = list(getattr(settings, "ALLOWED_HOSTS", []) or [])
+    public = [h for h in hosts if h == "*" or _looks_public(h)]
+    if not public:
+        return []
+
+    enabled = [
+        name for name, on in (
+            ("USE_MOCK_SMS_OTP", auth_settings.USE_MOCK_SMS_OTP),
+            ("USE_MOCK_EMAIL_OTP", auth_settings.USE_MOCK_EMAIL_OTP),
+        ) if on
+    ]
+    return [checks.Error(
+        f"{' and '.join(enabled)} enabled while ALLOWED_HOSTS reaches a "
+        f"non-local host ({', '.join(public[:3])}). A fixed OTP code is "
+        "accepted for ANY address, so anyone who can reach this deployment "
+        "can sign in as anyone.",
+        hint="Turn mock OTP off for anything reachable beyond a developer "
+             "machine (unset USE_MOCK_*_OTP / MOCK_OTP_CODE) and use the "
+             "real email/SMS providers. Keep it to settings layers whose "
+             "ALLOWED_HOSTS is local — DEBUG alone does not decide this.",
+        id=E004_MOCK_OTP_ON_A_PUBLIC_HOST,
+    )]
+
+
+__all__ += [
+    "E004_MOCK_OTP_ON_A_PUBLIC_HOST",
+    "check_mock_otp_not_on_a_public_host",
+]

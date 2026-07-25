@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [0.14.2] — 2026-07-26
+
+### Added
+- **`stapel_auth.E004` — mock OTP on a host that is not local.** E001 ties
+  that hazard to `DEBUG=False`, which is exactly what a stand on dev
+  settings never trips: the ironmemo stand served a fixed OTP code for ANY
+  address, on the public internet, months after real email/SMS providers
+  were wired — "sign in as anyone", with nothing in the system objecting
+  (found 2026-07-26). E004 keys off REACHABILITY instead: mock OTP plus an
+  `ALLOWED_HOSTS` entry that is not localhost-ish (`*` counts as public).
+  A deployment that runs on a pin code on purpose silences it explicitly
+  via `SILENCED_SYSTEM_CHECKS` — the intent then lives in that settings
+  layer instead of being inherited from a DEBUG flag.
+
 ## [0.14.1] — 2026-07-26
 
 ### Added
