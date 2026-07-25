@@ -106,6 +106,20 @@ DEFAULTS = {
     # OAuth provider credentials (parsed into dict[str, OAuthProviderConfig])
     'OAUTH_PROVIDERS': {},
 
+    # Path of the OAuth callback this service SENDS as `redirect_uri`,
+    # relative to the host root ('{provider}' is substituted; the default
+    # keeps the module's canonical v1 route).
+    #
+    # This is a contract with a THIRD PARTY: the value must be registered
+    # verbatim in the provider's console, so it cannot be a library
+    # implementation detail. Moving the module's urlconf onto /v1/ silently
+    # re-pointed it and every live deployment started sending a redirect_uri
+    # its Google/GitHub app had never seen — `Error 400:
+    # redirect_uri_mismatch`, login dead, nothing in our logs (ironmemo
+    # stand, 2026-07-25). Hosts that cannot re-register keep the old URI by
+    # pinning it here (and routing that path to the current view).
+    'OAUTH_CALLBACK_PATH': '/{url_prefix}api/v1/oauth/{provider}/callback',
+
     # Dotted-path list of OAuthProvider subclasses to register on startup.
     # Extend in settings to add providers without modifying stapel-auth:
     #   STAPEL_AUTH = {'OAUTH_PROVIDER_CLASSES': [..., 'myapp.providers.YandexProvider']}

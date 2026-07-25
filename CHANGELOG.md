@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [0.14.1] — 2026-07-26
+
+### Added
+- **`OAUTH_CALLBACK_PATH`** — the path this service sends as `redirect_uri`
+  is now a setting (default: the current `/{url_prefix}api/v1/oauth/
+  {provider}/callback`). That value is registered verbatim in Google's /
+  GitHub's / Zoom's console, i.e. it is a contract with a third party that
+  no deployment can update from code — and moving the module's urlconf onto
+  `/v1/` silently re-pointed it, so every live OAuth app started failing
+  with `Error 400: redirect_uri_mismatch` and nothing in our logs (ironmemo
+  stand, 2026-07-25). A deployment that cannot re-register right away pins
+  the old path here; a future canon change cannot invalidate it again.
+
 ## [0.14.0] — 2026-07-25
 
 ### Added — system check `stapel_auth.E003`: `FRONTEND_URL` unset with `DEBUG=False`

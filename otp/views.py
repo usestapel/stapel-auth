@@ -1249,10 +1249,20 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         _notify_user_registered(user, request=request)
 
     def _build_callback_uri(self, request, provider):
-        """Build the OAuth callback URI using configured host or request."""
+        """Build the OAuth callback URI this service sends as redirect_uri.
+
+        The path comes from ``OAUTH_CALLBACK_PATH`` because it is
+        registered verbatim in the provider's console — see the setting's
+        note in conf.py for why a library must not move it on its own.
+        """
+        from stapel_auth.conf import auth_settings
+
         base = getattr(settings, "OAUTH_CALLBACK_BASE_URL", "").rstrip("/")
         url_prefix = getattr(settings, "URL_PREFIX", "")
-        path = f"/{url_prefix}api/v1/oauth/{provider}/callback"
+        template = auth_settings.OAUTH_CALLBACK_PATH
+        path = template.format(url_prefix=url_prefix, provider=provider)
+        if not path.startswith("/"):
+            path = "/" + path
         if base:
             return base + path
         return request.build_absolute_uri(path)
