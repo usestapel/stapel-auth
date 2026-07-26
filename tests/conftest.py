@@ -70,7 +70,10 @@ def pytest_configure(config):
             }
         ],
         AUTH_USER_MODEL="users.User",
-        ROOT_URLCONF="stapel_auth.urls_v1",  # bare v1 set; the v1/ mount itself is covered by test_mounting_urls
+        # The MOUNTED urlconf (auth/api/ + v1/), not the bare inner set — see
+        # tests/conftest_urls.py for the 2026-07 discovery-404 incident that
+        # the old "ROOT_URLCONF=stapel_auth.urls_v1" shortcut hid.
+        ROOT_URLCONF="stapel_auth.tests.conftest_urls",
         DEFAULT_AUTO_FIELD="django.db.models.BigAutoField",
         USE_TZ=True,
         DATABASES={

@@ -11,8 +11,8 @@
 ```mermaid
 flowchart TD
     s1(["1. Действие пользователя"])
-    s2["2. POST /email/request/"]
-    s3["3. POST /email/verify/"]
+    s2["2. POST /auth/api/v1/email/request/"]
+    s3["3. POST /auth/api/v1/email/verify/"]
     s4[["4. Action: user.registered"]]
     s1 --> s2
     s2 --> s3
@@ -22,13 +22,13 @@ flowchart TD
 ## Шаги
 
 1. **Действие пользователя** — Пользователь вводит email на форме входа
-2. **POST `/email/request/`** — Запросить одноразовый код на email; 429 при рейт-лимите, 422 при блокировке
-3. **POST `/email/verify/`** — Обменять код на JWT-сессию; неверный код уменьшает счётчик попыток
+2. **POST `/auth/api/v1/email/request/`** — Запросить одноразовый код на email; 429 при рейт-лимите, 422 при блокировке
+3. **POST `/auth/api/v1/email/verify/`** — Обменять код на JWT-сессию; неверный код уменьшает счётчик попыток
 4. **Action `user.registered`** — Эмитится при первом входе — профиль и воркспейс создаются подписчиками
 
 ## Эндпоинты
 
 | Шаг | Метод | Путь | Запрос | Ответ | Step-up-верификация |
 |---|---|---|---|---|---|
-| 2 | POST | `/email/request/` | — | — | — |
-| 3 | POST | `/email/verify/` | — | — | — |
+| 2 | POST | `/auth/api/v1/email/request/` | — | — | — |
+| 3 | POST | `/auth/api/v1/email/verify/` | — | — | — |

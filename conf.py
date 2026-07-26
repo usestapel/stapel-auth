@@ -120,6 +120,23 @@ DEFAULTS = {
     # pinning it here (and routing that path to the current view).
     'OAUTH_CALLBACK_PATH': '/{url_prefix}api/v1/oauth/{provider}/callback',
 
+    # Where the JWKS document really lives, as advertised by the OIDC
+    # discovery document (`jwks_uri`). None = the module's own DRF route
+    # (openid/views.py derives it with reverse('jwks'), so it follows the
+    # mount). Set it only for the OTHER legitimate deployment: the static
+    # jwks.json that stapel_core.django.openapi.openid.generate_jwks_to_dir()
+    # writes into /var/www/.well-known/ at bootstrap for nginx to serve from
+    # the HOST ROOT — `JWKS_URI = '/.well-known/jwks.json'`. That file is not
+    # a Django route, so it is the deployment's claim to make, not ours.
+    #
+    # Why a knob and not a literal: discovery used to hardcode
+    # `/{URL_PREFIX}.well-known/jwks.json` — the shape the pre-library
+    # monolith mounted the view at (marketplace core/urls.py). In the library
+    # the view sits under the module mount instead, so the advertised URL
+    # matched neither the DRF route nor the nginx file, and every external
+    # OIDC client that read discovery got a 404 (2026-07).
+    'JWKS_URI': None,
+
     # Dotted-path list of OAuthProvider subclasses to register on startup.
     # Extend in settings to add providers without modifying stapel-auth:
     #   STAPEL_AUTH = {'OAUTH_PROVIDER_CLASSES': [..., 'myapp.providers.YandexProvider']}

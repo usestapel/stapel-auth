@@ -658,10 +658,20 @@ class OpenIDConfigurationTests(APITestCase):
         self.assertIn(".well-known/jwks.json", response.data["jwks_uri"])
 
     def test_openid_config_contains_token_endpoint(self):
-        """OpenID configuration should contain token_endpoint"""
+        """OpenID configuration should contain token_endpoint.
+
+        Asserted against reverse(), not a literal: this test used to pin
+        ``api/v1/auth/token/`` — the monolith's shape, with a duplicated
+        ``auth/`` segment — and so certified the 404 that discovery was
+        handing to external clients (2026-07, see
+        tests/test_openid_discovery_contract.py).
+        """
         response = self.client.get(reverse("openid-configuration"))
         self.assertIn("token_endpoint", response.data)
-        self.assertIn("api/v1/auth/token/", response.data["token_endpoint"])
+        self.assertTrue(
+            response.data["token_endpoint"].endswith(reverse("token_obtain_pair")),
+            response.data["token_endpoint"],
+        )
 
     def test_openid_config_contains_claims_supported(self):
         """OpenID configuration should list supported claims"""

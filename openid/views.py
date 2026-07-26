@@ -2,7 +2,7 @@
 
 import logging
 
-from django.conf import settings
+from django.urls import NoReverseMatch, reverse
 from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, serializers, status, viewsets
 from rest_framework.decorators import action
@@ -13,6 +13,33 @@ from stapel_core.django.openapi.schemas import StapelErrorSerializer
 from stapel_auth.errors import ERR_401_TOKEN_INVALID
 
 logger = logging.getLogger(__name__)
+
+
+def _advertise(request, url_name):
+    """Absolute URL of a mounted route — or None when it is not mounted.
+
+    Discovery hands these URLs to EXTERNAL clients, so they have to be derived
+    from the URLconf, never spelled out: ``reverse()`` picks up both the host's
+    ``include()`` prefix and the ``v1/`` segment ``urls.py`` contributes, so
+    the advertised path cannot drift away from the mounted one.
+
+    Incident (2026-07): the literals here were the pre-library monolith's
+    shapes (marketplace ``core/urls.py`` mounted these views directly under
+    ``{URL_PREFIX}``) — ``/{URL_PREFIX}api/v1/auth/token/``,
+    ``.../auth/token/refresh/``, ``.../auth/me/`` and
+    ``/{URL_PREFIX}.well-known/jwks.json``. As a library the module mounts at
+    ``/auth/api/v1/…`` with no second ``auth/`` segment, so every advertised
+    endpoint 404'd for anyone who read the discovery document. The suite could
+    not see it because it ran against the un-mounted inner urlconf
+    (``tests/conftest_urls.py`` now fixes that).
+
+    Returns None for a route the deployment left unmounted — the ``urls_v1``
+    factories are feature-gated, and omitting a key beats advertising a 404.
+    """
+    try:
+        return request.build_absolute_uri(reverse(url_name))
+    except NoReverseMatch:
+        return None
 
 
 class TokenIntrospectRequestSerializer(serializers.Serializer):
@@ -55,7 +82,11 @@ class JWKSView(viewsets.GenericViewSet):
     For RS256 (asymmetric): Returns the public key in JWK format.
 
     Note: This endpoint is excluded from Swagger/OpenAPI documentation as it's
-    a standard discovery endpoint accessed directly via /.well-known/jwks.json
+    a standard discovery endpoint. It is mounted at ``<mount>/.well-known/
+    jwks.json`` (i.e. ``/auth/api/v1/.well-known/jwks.json`` in the canonical
+    deployment) — NOT at the host root; a deployment that also publishes the
+    static nginx copy at ``/.well-known/jwks.json`` points discovery at it via
+    STAPEL_AUTH['JWKS_URI'].
     """
 
     permission_classes = [permissions.AllowAny]
@@ -127,19 +158,33 @@ class OpenIDConfigurationView(viewsets.GenericViewSet):
         algorithm = config.algorithm
         issuer = config.issuer
 
-        # Build base URL from request
-        scheme = request.scheme
-        host = request.get_host()
-        base_url = f"{scheme}://{host}"
+        # Every endpoint below is derived from the URLconf (see _advertise) —
+        # the incident these keys caused is documented there.
+        #
+        # jwks_uri is the one URL that may legitimately live outside Django:
+        # some deployments serve the static jwks.json that
+        # stapel_core.django.openapi.openid.generate_jwks_to_dir() writes for
+        # nginx at the host root. That is the deployment's claim to make
+        # (STAPEL_AUTH['JWKS_URI']), not a silent guess by this view; unset,
+        # we advertise our own mounted route.
+        from stapel_auth.conf import auth_settings
 
-        url_prefix = getattr(settings, "URL_PREFIX", "")
+        jwks_uri = auth_settings.JWKS_URI
+        endpoints = {
+            "jwks_uri": (
+                request.build_absolute_uri(jwks_uri)
+                if jwks_uri
+                else _advertise(request, "jwks")
+            ),
+            "token_endpoint": _advertise(request, "token_obtain_pair"),
+            "token_refresh_endpoint": _advertise(request, "token_refresh"),
+            "userinfo_endpoint": _advertise(request, "me"),
+        }
 
         config = {
             "issuer": issuer,
-            "jwks_uri": f"{base_url}/{url_prefix}.well-known/jwks.json",
-            "token_endpoint": f"{base_url}/{url_prefix}api/v1/auth/token/",
-            "token_refresh_endpoint": f"{base_url}/{url_prefix}api/v1/auth/token/refresh/",
-            "userinfo_endpoint": f"{base_url}/{url_prefix}api/v1/auth/me/",
+            # Unmounted routes drop out rather than being advertised as 404s.
+            **{key: url for key, url in endpoints.items() if url},
             "response_types_supported": ["token"],
             "subject_types_supported": ["public"],
             "id_token_signing_alg_values_supported": [algorithm],

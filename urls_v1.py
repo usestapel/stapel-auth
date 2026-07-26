@@ -304,6 +304,22 @@ def get_openid_urls(enabled=None):
     ])
 
 
+def get_error_keys_urls(enabled=None):
+    """Error-key registry for the stapel-translate collector. Always on.
+
+    ``GET /auth/api/v1/error-keys/`` — service/staff only (see
+    ``stapel_core.django.api.errors.ErrorKeysView``). Deliberately out of the
+    OpenAPI contract (``schema = None``) and out of the flow gate
+    (``/error-keys`` is on the flows allowlist): it is an internal
+    infrastructure endpoint, not part of the product surface.
+    """
+    from stapel_auth.errors import AuthErrorKeysView
+
+    return _gated('error_keys', enabled, (), [
+        path('error-keys/', AuthErrorKeysView.as_view(), name='error-keys'),
+    ])
+
+
 def get_admin_api_urls(enabled=None):
     """Service keys, capabilities, admin user broker, admin audit. Always on."""
     router = DefaultRouter(trailing_slash=False)
@@ -346,4 +362,5 @@ urlpatterns = (
     + get_sso_urls(enabled=True)
     + get_openid_urls(enabled=True)
     + get_verification_urls(enabled=True)
+    + get_error_keys_urls(enabled=True)
 )

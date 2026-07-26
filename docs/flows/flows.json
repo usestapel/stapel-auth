@@ -25,7 +25,7 @@
         "endpoints": [
           {
             "method": "POST",
-            "path": "/password/login/"
+            "path": "/auth/api/v1/password/login/"
           }
         ]
       },
@@ -38,7 +38,7 @@
         "endpoints": [
           {
             "method": "POST",
-            "path": "/password/forced-change/"
+            "path": "/auth/api/v1/password/forced-change/"
           }
         ]
       },
@@ -51,7 +51,7 @@
         "endpoints": [
           {
             "method": "POST",
-            "path": "/mfa/enroll/exchange/"
+            "path": "/auth/api/v1/mfa/enroll/exchange/"
           }
         ]
       },
@@ -64,7 +64,7 @@
         "endpoints": [
           {
             "method": "POST",
-            "path": "/totp/setup/confirm/"
+            "path": "/auth/api/v1/totp/setup/confirm/"
           }
         ]
       }
@@ -96,7 +96,7 @@
         "endpoints": [
           {
             "method": "POST",
-            "path": "/password/login/"
+            "path": "/auth/api/v1/password/login/"
           }
         ]
       },
@@ -109,7 +109,7 @@
         "endpoints": [
           {
             "method": "POST",
-            "path": "/totp/challenge/verify/"
+            "path": "/auth/api/v1/totp/challenge/verify/"
           }
         ]
       }
@@ -141,7 +141,7 @@
         "endpoints": [
           {
             "method": "POST",
-            "path": "/email/request/"
+            "path": "/auth/api/v1/email/request/"
           }
         ]
       },
@@ -154,7 +154,7 @@
         "endpoints": [
           {
             "method": "POST",
-            "path": "/email/verify/"
+            "path": "/auth/api/v1/email/verify/"
           }
         ]
       },
@@ -193,7 +193,7 @@
         "endpoints": [
           {
             "method": "GET",
-            "path": "/verification/<str:challenge_id>/"
+            "path": "/auth/api/v1/verification/<str:challenge_id>/"
           }
         ]
       },
@@ -206,7 +206,7 @@
         "endpoints": [
           {
             "method": "POST",
-            "path": "/verification/<str:challenge_id>/initiate/"
+            "path": "/auth/api/v1/verification/<str:challenge_id>/initiate/"
           }
         ]
       },
@@ -219,7 +219,7 @@
         "endpoints": [
           {
             "method": "POST",
-            "path": "/verification/<str:challenge_id>/complete/"
+            "path": "/auth/api/v1/verification/<str:challenge_id>/complete/"
           }
         ]
       },
@@ -239,7 +239,7 @@
         "endpoints": [
           {
             "method": "GET",
-            "path": "/verification/preferences/"
+            "path": "/auth/api/v1/verification/preferences/"
           }
         ]
       },
@@ -252,7 +252,7 @@
         "endpoints": [
           {
             "method": "PUT",
-            "path": "/verification/preferences/"
+            "path": "/auth/api/v1/verification/preferences/"
           }
         ]
       }

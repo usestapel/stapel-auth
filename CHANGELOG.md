@@ -2,6 +2,48 @@
 
 ## [Unreleased]
 
+## [0.14.3] — 2026-07-26
+
+### Added — `error-keys/` is finally mounted
+
+`AuthErrorKeysView` has existed since the port but no `urls*.py` ever mounted it — in
+*any* stapel library. stapel-translate's `error_collector` polls
+`/{prefix}/api/v1/error-keys/` on every service, so the whole endpoint class
+answered 404 from Django's URL resolver and the collector harvested nothing
+while reporting a plain `HTTP 404`. It is now mounted in `urls_v1.py` at
+`error-keys/` (v1 canon), service/staff-gated as the base view declares.
+
+Deliberately **not** in the contract triad: `ErrorKeysView` sets
+`schema = None` and `/error-keys` is on the flows allowlist, so `make
+contract` is a no-op diff — this is infrastructure, not product surface.
+
+### Fixed — the OIDC discovery document advertised URLs that do not exist
+
+`/.well-known/openid-configuration` handed external clients four literals
+carried over from the pre-library monolith (which mounted these views directly
+under `{URL_PREFIX}`): `…/api/v1/auth/token/`, `…/auth/token/refresh/`,
+`…/auth/me/` — a duplicated `auth/` segment — and `/{URL_PREFIX}.well-known/
+jwks.json`, which matched neither the DRF route nor the nginx static file.
+Every client that read discovery walked into a 404 on the most expensive
+surface there is: a published contract with parties we do not control.
+
+The endpoints are now derived with `reverse()`, so they follow the host mount
+and the `v1/` segment and cannot drift again; a route a deployment left
+unmounted (feature-gated factories) is omitted instead of advertised. New
+`STAPEL_AUTH['JWKS_URI']` makes the second legitimate JWKS home — the static
+`jwks.json` that `generate_jwks_to_dir()` writes for nginx at the host root —
+an explicit deployment claim rather than a silent guess.
+
+Why nothing caught it: `tests/conftest.py` pointed `ROOT_URLCONF` at the inner
+`stapel_auth.urls_v1`, so the suite never crossed the mount (the stapel-
+workspaces pre-v1 incident, one repo over). The suite now runs on
+`tests/conftest_urls.py` (`auth/api/` + `urls.py`), and
+`tests/test_openid_discovery_contract.py` puts every URL discovery emits back
+through `resolve()`. Side effect of the same fix: the committed SA flow docs
+under `docs/flows/` were generated from that bare urlconf and published
+un-mounted paths (`POST /password/login/`) — regenerated, and they now agree
+with the canonical `docs/flows.json` byte for byte.
+
 ## [0.14.2] — 2026-07-26
 
 ### Added

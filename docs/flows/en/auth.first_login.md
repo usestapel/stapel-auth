@@ -11,10 +11,10 @@ An organization admin provisioned the account (auth.provision_user: namespaced u
 ```mermaid
 flowchart TD
     s1(["1. User action"])
-    s2["2. POST /password/login/"]
-    s3["3. POST /password/forced-change/"]
-    s4["4. POST /mfa/enroll/exchange/"]
-    s5["5. POST /totp/setup/confirm/"]
+    s2["2. POST /auth/api/v1/password/login/"]
+    s3["3. POST /auth/api/v1/password/forced-change/"]
+    s4["4. POST /auth/api/v1/mfa/enroll/exchange/"]
+    s5["5. POST /auth/api/v1/totp/setup/confirm/"]
     s1 --> s2
     s2 --> s3
     s3 --> s4
@@ -24,16 +24,16 @@ flowchart TD
 ## Steps
 
 1. **User action** — The org admin hands over the namespaced login (org_slug/username) and the initial password out of band
-2. **POST `/password/login/`** — Sign in with the provisioned credentials; while a first-login flag is up the response is FIRST_LOGIN_REQUIRED {requires, challenge_token} instead of tokens
-3. **POST `/password/forced-change/`** — requires=password_change: set an own password (validated by the password canon); returns a full session — or the next FIRST_LOGIN_REQUIRED (requires=mfa_enroll) when both flags are set. A rejected password does not consume the challenge
-4. **POST `/mfa/enroll/exchange/`** — requires=mfa_enroll: exchange the challenge_token for a limited enroll-only session (JWT claim enroll_only, access token only — no refresh); every endpoint outside the enrollment surface answers 403 mfa_enrollment_required
-5. **POST `/totp/setup/confirm/`** — Enroll the strong factor: confirming TOTP setup (or completing a passkey registration) clears the flag, emits user.mfa_enabled and returns the full-session token pair in the same response
+2. **POST `/auth/api/v1/password/login/`** — Sign in with the provisioned credentials; while a first-login flag is up the response is FIRST_LOGIN_REQUIRED {requires, challenge_token} instead of tokens
+3. **POST `/auth/api/v1/password/forced-change/`** — requires=password_change: set an own password (validated by the password canon); returns a full session — or the next FIRST_LOGIN_REQUIRED (requires=mfa_enroll) when both flags are set. A rejected password does not consume the challenge
+4. **POST `/auth/api/v1/mfa/enroll/exchange/`** — requires=mfa_enroll: exchange the challenge_token for a limited enroll-only session (JWT claim enroll_only, access token only — no refresh); every endpoint outside the enrollment surface answers 403 mfa_enrollment_required
+5. **POST `/auth/api/v1/totp/setup/confirm/`** — Enroll the strong factor: confirming TOTP setup (or completing a passkey registration) clears the flag, emits user.mfa_enabled and returns the full-session token pair in the same response
 
 ## Endpoints
 
 | Step | Method | Path | Request | Response | Step-up verification |
 |---|---|---|---|---|---|
-| 2 | POST | `/password/login/` | — | — | — |
-| 3 | POST | `/password/forced-change/` | — | — | — |
-| 4 | POST | `/mfa/enroll/exchange/` | — | — | — |
-| 5 | POST | `/totp/setup/confirm/` | — | — | — |
+| 2 | POST | `/auth/api/v1/password/login/` | — | — | — |
+| 3 | POST | `/auth/api/v1/password/forced-change/` | — | — | — |
+| 4 | POST | `/auth/api/v1/mfa/enroll/exchange/` | — | — | — |
+| 5 | POST | `/auth/api/v1/totp/setup/confirm/` | — | — | — |

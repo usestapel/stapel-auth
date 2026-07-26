@@ -33,9 +33,12 @@ class QRScanUrlMountTests(TestCase):
         resp = client.post(reverse("qr_generate"), {"type": "login_request"})
         self.assertEqual(resp.status_code, 201, resp.content)
         key = resp.data["key"]
-        # reverse() at root yields /qr/<key>/scan/ — NOT the old /auth/api/ literal.
+        # The suite's own mount (tests/conftest_urls.py — auth/api/ + the v1/
+        # segment urls.py contributes), which is the deployed shape. It used
+        # to be the bare inner urlconf; that shortcut is what let the OIDC
+        # discovery 404s ship (2026-07).
         self.assertEqual(
-            resp.data["scan_url"], f"http://testserver/qr/{key}/scan/"
+            resp.data["scan_url"], f"http://testserver/auth/api/v1/qr/{key}/scan/"
         )
 
     @override_settings(ROOT_URLCONF=_PREFIXED_URLCONF)

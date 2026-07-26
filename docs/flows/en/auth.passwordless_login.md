@@ -11,8 +11,8 @@ An anonymous user receives a one-time code by email and exchanges it for a JWT s
 ```mermaid
 flowchart TD
     s1(["1. User action"])
-    s2["2. POST /email/request/"]
-    s3["3. POST /email/verify/"]
+    s2["2. POST /auth/api/v1/email/request/"]
+    s3["3. POST /auth/api/v1/email/verify/"]
     s4[["4. Action: user.registered"]]
     s1 --> s2
     s2 --> s3
@@ -22,13 +22,13 @@ flowchart TD
 ## Steps
 
 1. **User action** — The user enters their email on the login form
-2. **POST `/email/request/`** — Request a one-time code by email; 429 on rate limit, 422 when the address is locked
-3. **POST `/email/verify/`** — Exchange the code for a JWT session; a wrong code decrements the attempt counter
+2. **POST `/auth/api/v1/email/request/`** — Request a one-time code by email; 429 on rate limit, 422 when the address is locked
+3. **POST `/auth/api/v1/email/verify/`** — Exchange the code for a JWT session; a wrong code decrements the attempt counter
 4. **Action `user.registered`** — Emitted on first login — the profile and workspace are created by subscribers
 
 ## Endpoints
 
 | Step | Method | Path | Request | Response | Step-up verification |
 |---|---|---|---|---|---|
-| 2 | POST | `/email/request/` | — | — | — |
-| 3 | POST | `/email/verify/` | — | — | — |
+| 2 | POST | `/auth/api/v1/email/request/` | — | — | — |
+| 3 | POST | `/auth/api/v1/email/verify/` | — | — | — |

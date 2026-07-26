@@ -489,6 +489,10 @@ _EXPECTED_URLS = {
     'admin-audit': 'admin/audit/',
     'staff-roles': 'staff-roles/',
     'staff-role-detail': 'staff-roles/<uuid:assignment_id>/',
+    # Error-key registry polled by stapel-translate's error_collector. It was
+    # declared (AuthErrorKeysView) but mounted nowhere until 2026-07-26, so the
+    # collector's whole endpoint class did not exist in any service.
+    'error-keys': 'error-keys/',
 }
 
 
@@ -509,8 +513,10 @@ class URLFactoryEquivalenceTests(TestCase):
         self.assertEqual(actual, _EXPECTED_URLS)
 
     def test_router_urls_still_included(self):
-        # DefaultRouter include (service-keys) survives the split.
-        self.assertEqual(reverse('service-keys-list'), '/service-keys')
+        # DefaultRouter include (service-keys) survives the split. Asserted at
+        # the mounted path (tests/conftest_urls.py) — the suite goes through
+        # urls.py now, not the bare inner urlconf.
+        self.assertEqual(reverse('service-keys-list'), '/auth/api/v1/service-keys')
 
     def test_factories_cover_expected_urls_exactly_once(self):
         from stapel_auth import urls_v1 as auth_urls
@@ -531,6 +537,7 @@ class URLFactoryEquivalenceTests(TestCase):
             auth_urls.get_sso_urls,
             auth_urls.get_openid_urls,
             auth_urls.get_verification_urls,
+            auth_urls.get_error_keys_urls,
         ):
             part = self._collect(factory(enabled=True))
             overlap = set(part) & set(combined)
