@@ -3,6 +3,7 @@ Unit tests for service-layer logic: _parse_ua, SecurityService, Phone/Email veri
 error branches. No network calls — uses SQLite in-memory DB from conftest.py.
 """
 
+import pytest
 import uuid
 from datetime import timedelta
 from unittest.mock import patch
@@ -680,3 +681,59 @@ class PasswordServiceResetVerifyUserNotFoundTests(TestCase):
                     new_password="newpass",
                 )
         self.assertEqual(ctx.exception.http_status, 404)
+
+
+# ── OTP notifications must carry the request's language ─────────────
+
+
+class TestOtpNotificationLanguage:
+    """An anonymous OTP request has no user_id and no profile yet, so the
+    resolver in process_notification has nothing to look the language up
+    from and falls back to hardcoded "en". Django already resolved the
+    language for this request (LocaleMiddleware); stapel_auth simply never
+    asked. Result: every OTP email and SMS went out in English regardless
+    of the caller's locale (meettoday, 2026-07-28).
+    """
+
+    def _captured(self, monkeypatch, send):
+        import stapel_core.notifications as core_notifications
+
+        seen = {}
+
+        def spy(**kwargs):
+            seen.update(kwargs)
+            return True
+
+        monkeypatch.setattr(core_notifications, "request_notification", spy)
+        send()
+        return seen
+
+    @pytest.mark.django_db
+    def test_email_otp_passes_the_active_language(self, monkeypatch):
+        from django.utils import translation
+
+        from stapel_auth.otp.services import EmailVerificationService
+
+        with translation.override("ru"):
+            seen = self._captured(
+                monkeypatch,
+                lambda: EmailVerificationService().send_verification_code(
+                    email="dest@example.com", force_real_otp=True
+                ),
+            )
+        assert seen.get("language") == "ru"
+
+    @pytest.mark.django_db
+    def test_phone_otp_passes_the_active_language(self, monkeypatch):
+        from django.utils import translation
+
+        from stapel_auth.otp.services import PhoneVerificationService
+
+        with translation.override("ru"):
+            seen = self._captured(
+                monkeypatch,
+                lambda: PhoneVerificationService().send_verification_code(
+                    phone="+15551234567", force_real_otp=True
+                ),
+            )
+        assert seen.get("language") == "ru"

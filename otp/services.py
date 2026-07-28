@@ -130,12 +130,15 @@ class PhoneVerificationService:
                 return verification
 
             # Send via notification service
+            from django.utils.translation import get_language
+
             from stapel_core.notifications import request_notification
             sent = request_notification(
                 notification_type="otp_code",
                 phone=phone,
                 variables={"code": code, "expiry_minutes": self.otp_ttl // 60},
                 source_service="auth",
+                language=get_language(),
             )
             if not sent:
                 logger.error(f"Failed to queue OTP notification for phone {phone}")
@@ -286,12 +289,15 @@ class EmailVerificationService:
                 return verification
 
             # Send via notification service
+            from django.utils.translation import get_language
+
             from stapel_core.notifications import request_notification
             sent = request_notification(
                 notification_type="otp_code",
                 email=email,
                 variables={"code": code, "expiry_minutes": self.otp_ttl // 60},
                 source_service="auth",
+                language=get_language(),
             )
             if not sent:
                 logger.error(f"Failed to queue OTP notification for email {email}")
