@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [0.14.4] — 2026-07-28
+
+### Fixed
+- **OTP codes always went out in English.** `EmailVerificationService` and
+  `PhoneVerificationService.send_verification_code()` called
+  `request_notification()` without `language`, although the parameter exists in
+  `stapel_core.notifications` for exactly this. An anonymous OTP request has no
+  `user_id` and no profile yet, so the resolver in `process_notification` had
+  nothing to look the language up from and fell back to a hardcoded `"en"` —
+  while Django had already resolved the request's language via
+  `LocaleMiddleware`. Both services now pass `language=get_language()`.
+  Found on a live deployment by meettoday, 2026-07-28.
+
+### Known
+- `tests/test_contract.py::test_matches_monolith_auth_slice` is red and was
+  already red on a clean tree before this change (verified by stashing it) —
+  the contract has drifted from the monolith slice for an unrelated reason.
+  Released anyway by explicit decision; tracked separately.
+
+
 ## [0.14.3] — 2026-07-26
 
 ### Added — `error-keys/` is finally mounted
