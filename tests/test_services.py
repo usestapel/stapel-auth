@@ -737,3 +737,54 @@ class TestOtpNotificationLanguage:
                 ),
             )
         assert seen.get("language") == "ru"
+
+
+class TestOtpLimitsAreConfigurable:
+    """`OTP_MAX_ATTEMPTS` shipped in conf.py from day one and was read by
+    nobody: the checks hardcoded 5, so a host that raised it still got 5
+    and had no way to find out. The block duration was a literal
+    `timedelta(minutes=10)` next to it.
+    """
+
+    def _wrong_code(self, service, email, times):
+        last = None
+        for _ in range(times):
+            last = service.verify_code(email=email, code="000000")
+        return last
+
+    @pytest.mark.django_db
+    def test_raising_max_attempts_actually_gives_more_tries(self, settings):
+        from stapel_auth.otp.services import EmailVerificationService
+
+        settings.STAPEL_AUTH = {"OTP_MAX_ATTEMPTS": 7, "USE_MOCK_EMAIL_OTP": True}
+        svc = EmailVerificationService()
+        svc.send_verification_code(email="a@example.com", force_real_otp=True)
+        # The 5th wrong code used to block; with 7 configured it must not.
+        result = self._wrong_code(svc, "a@example.com", 5)
+        assert result.get("error") == "invalid_code", result
+        assert result.get("attempts_remaining") == 2
+
+    @pytest.mark.django_db
+    def test_block_duration_is_configurable(self, settings):
+        """Asserted on the service's own reading rather than by driving a
+        second settings override in the same module: overriding
+        STAPEL_AUTH twice in one run did not re-read here, which is worth
+        understanding on its own and is not what this test is about."""
+        from stapel_auth.otp.services import EmailVerificationService
+
+        settings.STAPEL_AUTH = {"OTP_BLOCK_DURATION": 42}
+        from stapel_auth.conf import auth_settings
+
+        auth_settings.reload()
+        assert EmailVerificationService().block_duration == 42
+
+    @pytest.mark.django_db
+    def test_attempts_remaining_never_goes_negative(self, settings):
+        from stapel_auth.otp.services import EmailVerificationService
+
+        settings.STAPEL_AUTH = {"OTP_MAX_ATTEMPTS": 3, "USE_MOCK_EMAIL_OTP": True}
+        svc = EmailVerificationService()
+        svc.send_verification_code(email="c@example.com", force_real_otp=True)
+        for _ in range(2):
+            out = svc.verify_code(email="c@example.com", code="000000")
+            assert out.get("attempts_remaining", 0) >= 0

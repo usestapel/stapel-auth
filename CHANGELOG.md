@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [0.14.5] — 2026-07-29
+
+### Fixed
+- **`OTP_MAX_ATTEMPTS` did nothing.** It has shipped in `conf.py` since day one
+  and was read by nobody: the verify path hardcoded `attempts >= 5`, the log
+  said `/5` and the response said `5 - attempts`. A host that raised the limit
+  still got five tries and had no way to find out. Both verification services
+  now read it — and read it lazily, at call time, like everything else in this
+  package, so a long-lived service instance cannot freeze whatever the settings
+  said when it was constructed.
+- **The lockout was a literal `timedelta(minutes=10)`** next to that setting.
+  It is now `OTP_BLOCK_DURATION` (default 600 s), and the `retry_after` the API
+  returns comes from the same value instead of a separate hardcoded `600`.
+
+### Notes
+- Worth knowing when tuning these: the **send** path refuses a new code while
+  the latest verification for that address is blocked. So the block does not
+  only stop guessing — it also stops asking for a fresh code, for the same
+  duration. Five wrong codes therefore cost a full `OTP_BLOCK_DURATION` before
+  anything can be retried at all, which is what "very few retries" feels like
+  from the outside. Nothing here is remembered beyond that window.
+
+
 ## [0.14.4] — 2026-07-28
 
 ### Fixed

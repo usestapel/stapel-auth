@@ -48,7 +48,11 @@ DEFAULTS = {
                                      # value (otp/services.py wires this same
                                      # setting into the actual expiry, so the
                                      # two can't drift apart).
-    'OTP_MAX_ATTEMPTS': 5,
+    'OTP_MAX_ATTEMPTS': 5,          # wrong codes before the block kicks in
+    'OTP_BLOCK_DURATION': 600,      # seconds — how long that block lasts, and
+                                    # therefore how long a NEW code cannot be
+                                    # requested either (the send path refuses
+                                    # while the latest verification is blocked)
     'OTP_RATE_LIMIT_PER_HOUR': 3,
     'OTP_RESEND_COOLDOWN': 30,      # seconds between OTP sends per phone/email
                                      # /device — same single-source relationship

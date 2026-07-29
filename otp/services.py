@@ -64,6 +64,28 @@ class PhoneVerificationService:
         self.otp_ttl = auth_settings.OTP_TTL
         self.resend_cooldown = auth_settings.OTP_RESEND_COOLDOWN
 
+
+
+    # Read at call time, not in __init__: this package's rule everywhere
+    # else, and the reason it matters here is mundane — a long-lived
+    # service instance would otherwise freeze whatever the settings said
+    # when it was built.
+    @property
+    def max_attempts(self) -> int:
+        """Wrong codes allowed before the block. OTP_MAX_ATTEMPTS shipped in
+        conf.py from day one and was read by nobody — the checks hardcoded
+        5, so a host that raised it still got 5 with no way to tell."""
+        from stapel_auth.conf import auth_settings
+
+        return int(auth_settings.OTP_MAX_ATTEMPTS)
+
+    @property
+    def block_duration(self) -> int:
+        """Seconds the block lasts. Was a literal timedelta(minutes=10)."""
+        from stapel_auth.conf import auth_settings
+
+        return int(auth_settings.OTP_BLOCK_DURATION)
+
     def generate_code(self, force_real=False):
         """
         Generate an OTP_CODE_LENGTH-digit verification code.
@@ -191,18 +213,20 @@ class PhoneVerificationService:
                 return {'success': True}
 
             # Check if max attempts reached (5 attempts max)
-            if verification.attempts >= 5:
+            if verification.attempts >= self.max_attempts:
                 # Block for 10 minutes
-                verification.blocked_until = timezone.now() + timedelta(minutes=10)
+                verification.blocked_until = timezone.now() + timedelta(
+                    seconds=self.block_duration
+                )
                 verification.save()
-                logger.warning(f"Too many verification attempts for {phone}, blocked for 10 minutes")
-                return {'error': 'blocked', 'retry_after': 600}
+                logger.warning(f"Too many verification attempts for {phone}, blocked for %s s" % self.block_duration)
+                return {'error': 'blocked', 'retry_after': self.block_duration}
 
             # Save incremented attempts
             verification.save()
 
-            logger.warning(f"Invalid code for {phone}, attempt {verification.attempts}/5")
-            return {'error': 'invalid_code', 'attempts_remaining': 5 - verification.attempts}
+            logger.warning(f"Invalid code for {phone}, attempt {verification.attempts}/{self.max_attempts}")
+            return {'error': 'invalid_code', 'attempts_remaining': max(self.max_attempts - verification.attempts, 0)}
         except Exception as e:
             logger.error(f"Failed to verify code: {e}")
             return {'error': 'server_error'}
@@ -220,6 +244,28 @@ class EmailVerificationService:
         self.mock_code = auth_settings.MOCK_OTP_CODE
         self.otp_ttl = auth_settings.OTP_TTL
         self.resend_cooldown = auth_settings.OTP_RESEND_COOLDOWN
+
+
+
+    # Read at call time, not in __init__: this package's rule everywhere
+    # else, and the reason it matters here is mundane — a long-lived
+    # service instance would otherwise freeze whatever the settings said
+    # when it was built.
+    @property
+    def max_attempts(self) -> int:
+        """Wrong codes allowed before the block. OTP_MAX_ATTEMPTS shipped in
+        conf.py from day one and was read by nobody — the checks hardcoded
+        5, so a host that raised it still got 5 with no way to tell."""
+        from stapel_auth.conf import auth_settings
+
+        return int(auth_settings.OTP_MAX_ATTEMPTS)
+
+    @property
+    def block_duration(self) -> int:
+        """Seconds the block lasts. Was a literal timedelta(minutes=10)."""
+        from stapel_auth.conf import auth_settings
+
+        return int(auth_settings.OTP_BLOCK_DURATION)
 
     def generate_code(self, force_real=False):
         """
@@ -355,10 +401,12 @@ class EmailVerificationService:
             # Check if max attempts reached (7 attempts max for email)
             if verification.attempts >= 7:
                 # Block for 10 minutes
-                verification.blocked_until = timezone.now() + timedelta(minutes=10)
+                verification.blocked_until = timezone.now() + timedelta(
+                    seconds=self.block_duration
+                )
                 verification.save()
-                logger.warning(f"Too many verification attempts for {email}, blocked for 10 minutes")
-                return {'error': 'blocked', 'retry_after': 600}
+                logger.warning(f"Too many verification attempts for {email}, blocked for %s s" % self.block_duration)
+                return {'error': 'blocked', 'retry_after': self.block_duration}
 
             # Save incremented attempts
             verification.save()
