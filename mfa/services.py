@@ -353,9 +353,24 @@ class TOTPService:
 class PasskeyService:
     @staticmethod
     def _rp_config():
+        """(rp_id, rp_name, origin) for the WebAuthn ceremony.
+
+        ``WEBAUTHN_RP_ID`` is documented in conf.py as falling back to the
+        deployment's host, but the literal ``'localhost'`` used to be that
+        fallback — so any deployment that set only ``FRONTEND_URL`` (the
+        common case: ``WEBAUTHN_ORIGIN`` already derives from it) advertised
+        ``rpId='localhost'`` next to an ``origin`` of its real host. The
+        browser rejects that pairing with a ``SecurityError`` — the rpId must
+        be the origin's host or a registrable suffix of it. So derive the
+        default rpId from the same source the origin comes from, and keep the
+        ``'localhost'`` literal only as the no-FRONTEND_URL last resort.
+        """
+        from urllib.parse import urlparse
+
         from stapel_auth.conf import auth_settings
+        frontend_url = auth_settings.FRONTEND_URL or ''
         return (
-            auth_settings.WEBAUTHN_RP_ID or 'localhost',
+            auth_settings.WEBAUTHN_RP_ID or urlparse(frontend_url).hostname or 'localhost',
             auth_settings.WEBAUTHN_RP_NAME,
             auth_settings.WEBAUTHN_ORIGIN or auth_settings.FRONTEND_URL or 'http://localhost',
         )

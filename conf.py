@@ -88,7 +88,11 @@ DEFAULTS = {
     'AUTH_TOTP': True,
 
     # Passkeys (WebAuthn)
-    'WEBAUTHN_RP_ID': None,         # Falls back to request host
+    # Falls back to the FRONTEND_URL host — the rpId must be the origin's host
+    # or a registrable suffix of it, and the origin below is FRONTEND_URL. Set
+    # this explicitly only to share one credential across subdomains
+    # (rp_id='example.com' for an origin of 'https://app.example.com').
+    'WEBAUTHN_RP_ID': None,
     'WEBAUTHN_RP_NAME': 'Stapel',
     'WEBAUTHN_ORIGIN': None,        # Falls back to FRONTEND_URL
 
