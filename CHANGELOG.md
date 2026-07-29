@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+## [0.14.6] — 2026-07-30
+
+### Fixed
+- **Passkeys were unusable on any deployment that only set `FRONTEND_URL`.**
+  `conf.py` has documented `WEBAUTHN_RP_ID: None  # Falls back to request host`
+  since the port, but `PasskeyService._rp_config()` fell back to the literal
+  string `'localhost'`. The `origin` in the very same tuple already derived
+  from `FRONTEND_URL`, so the ceremony went out with `rpId='localhost'` next to
+  `origin='https://<the real host>'`. WebAuthn requires the rpId to be the
+  origin's host or a registrable suffix of it, so browsers abort with a
+  `SecurityError` and no passkey can be registered or used at all. The rpId now
+  falls back to the `FRONTEND_URL` host, from the same source as the origin;
+  `'localhost'` survives only for the case where `FRONTEND_URL` is unset
+  itself, and an explicit `WEBAUTHN_RP_ID` still wins (that is how you share
+  one credential across subdomains: `rp_id='example.com'` for an origin of
+  `https://app.example.com`). Found on a live deployment by meettoday.
+
+  Compatible: where `FRONTEND_URL` is unset or is itself a localhost URL, the
+  resolved rpId does not change.
+
+### Notes
+- `tests/test_contract.py::test_matches_monolith_auth_slice`, red since 0.14.3
+  and released around twice, is **green again** — and it was never this
+  library's fault. The library's own emission was correct; the sibling monolith
+  aggregate it is compared against had simply not been regenerated since
+  2026-07-17, so it was missing the six endpoints added by 0.9.0 / 0.11.0 /
+  0.12.0. Regenerating that aggregate closes the gap with a zero diff against
+  the committed `docs/schema.json` — no contract change was needed here.
+
 ## [0.14.5] — 2026-07-29
 
 ### Fixed
