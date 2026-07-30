@@ -46,6 +46,91 @@ class FirstLoginPolicyService:
     REQUIRES_PASSWORD_CHANGE = "password_change"
     REQUIRES_MFA_ENROLL = "mfa_enroll"
 
+    #: Every first-login policy an org may demand, in the order the login
+    #: flow resolves them. INDEPENDENT, not alternatives (#90): "rotate the
+    #: password we set for you" and "enrol a second factor" are two
+    #: different demands, and an org that wants both used to be unable to
+    #: say so — ``auth.provision_user`` took one ``first_login_policy``
+    #: string, so raising either flag lowered the other by construction.
+    #: The user row always had two independent booleans and the login flow
+    #: always chained them (forced change → mfa enroll); only the
+    #: provisioning API forced the choice.
+    POLICIES = (REQUIRES_PASSWORD_CHANGE, REQUIRES_MFA_ENROLL)
+
+    #: policy → the user-row boolean it raises. The one place the mapping
+    #: is written; provisioning, the admin reset and the invite-accept
+    #: seam all go through :meth:`flag_kwargs` / :meth:`apply` rather than
+    #: naming the columns again.
+    POLICY_FLAGS = {
+        REQUIRES_PASSWORD_CHANGE: "password_change_required",
+        REQUIRES_MFA_ENROLL: "mfa_enrollment_required",
+    }
+
+    @classmethod
+    def normalize_policies(cls, policies) -> list[str] | None:
+        """Validate a caller-supplied policy set; ``None`` if it is malformed.
+
+        Accepts any iterable of policy names, returns them de-duplicated in
+        :attr:`POLICIES` order so two callers asking for the same thing in
+        a different order produce the same result. An empty set is
+        legitimate and means "no first-login step" — the caller who wants
+        nothing enforced says so explicitly rather than by omission.
+        """
+        if isinstance(policies, str) or not isinstance(policies, (list, tuple, set)):
+            return None
+        wanted = set(policies)
+        if not wanted.issubset(set(cls.POLICIES)):
+            return None
+        return [p for p in cls.POLICIES if p in wanted]
+
+    @classmethod
+    def flag_kwargs(cls, policies) -> dict:
+        """``{flag_name: bool}`` for every policy — for ``User(**kwargs)``.
+
+        Every flag is named, not only the raised ones: a create call that
+        listed just the True ones would inherit whatever the model default
+        happens to be for the rest, which is exactly how "set one, clear
+        the other" behaviour survives a refactor unnoticed.
+        """
+        wanted = set(policies or ())
+        return {flag: policy in wanted for policy, flag in cls.POLICY_FLAGS.items()}
+
+    @classmethod
+    def apply(cls, user, policies) -> list[str]:
+        """Raise the named policies on an EXISTING account; never lower any.
+
+        Additive on purpose. The flags are per-account and this method is
+        called by org-scoped surfaces (invite acceptance, an admin password
+        reset); clearing a flag that another org — or the user's own
+        security settings — put up would let one tenant lower another
+        tenant's bar. Only the user completing the step clears it.
+
+        A policy already satisfied is not raised: an ``mfa_enroll`` demand
+        against an account that already carries a strong factor is a step
+        with nothing to do, and raising it would bounce the user into an
+        enrolment screen they have no enrolment left to make.
+
+        Returns the policies actually raised by this call.
+        """
+        from stapel_core.verification import strong_factors
+
+        raised: list[str] = []
+        for policy in cls.POLICIES:
+            if policy not in (policies or ()):
+                continue
+            if policy == cls.REQUIRES_MFA_ENROLL and strong_factors(user):
+                continue
+            flag = cls.POLICY_FLAGS[policy]
+            if getattr(user, flag, False):
+                continue  # already outstanding — nothing to raise
+            setattr(user, flag, True)
+            raised.append(policy)
+        if raised:
+            user.save(
+                update_fields=[cls.POLICY_FLAGS[policy] for policy in raised]
+            )
+        return raised
+
     @staticmethod
     def _key(token: str) -> str:
         return f"first_login_challenge:{token}"

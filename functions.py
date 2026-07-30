@@ -83,14 +83,47 @@ PROVISION_USER_SCHEMA = {
             "forwarded on the user.registered event for downstream consumers "
             "(e.g. profiles).",
         },
+        "first_login_policies": {
+            "type": "array",
+            "items": {"type": "string", "enum": ["password_change", "mfa_enroll"]},
+            "uniqueItems": True,
+            "description": "Which first-login steps the org demands before "
+            "this account gets a session. INDEPENDENT, not alternatives "
+            "(#90): password_change raises password_change_required, "
+            "mfa_enroll raises mfa_enrollment_required, and both together "
+            "are a legal and common ask. [] means no first-login step.",
+        },
         "first_login_policy": {
             "type": "string",
             "enum": ["password_change", "mfa_enroll"],
-            "description": "Which first-login flag to raise: "
-            "password_change_required or mfa_enrollment_required (spec C2).",
+            "description": "DEPRECATED (#90) — the single-policy spelling, "
+            "kept so callers pinned to stapel-workspaces < 0.13 keep "
+            "working. Read only when first_login_policies is absent, and "
+            "then as a one-element set. Use first_login_policies.",
         },
     },
-    "required": ["username", "first_login_policy"],
+    "required": ["username"],
+    "additionalProperties": False,
+}
+
+
+APPLY_FIRST_LOGIN_POLICIES_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "user_id": {
+            "type": "string",
+            "description": "Primary key of the account to raise the policies on.",
+        },
+        "policies": {
+            "type": "array",
+            "items": {"type": "string", "enum": ["password_change", "mfa_enroll"]},
+            "uniqueItems": True,
+            "description": "First-login steps to demand. ADDITIVE — a "
+            "policy already outstanding stays outstanding, and a policy "
+            "NOT listed is never lowered.",
+        },
+    },
+    "required": ["user_id", "policies"],
     "additionalProperties": False,
 }
 
@@ -108,16 +141,56 @@ MFA_STATUS_SCHEMA = {
 }
 
 
+def _resolve_first_login_policies(payload: dict) -> list[str] | None:
+    """The policy set a provisioning payload asks for, or ``None`` if invalid.
+
+    Reads the plural key; falls back to the deprecated singular one as a
+    one-element set. Neither key present is invalid rather than empty —
+    "no first-login step" is a decision an org makes by sending
+    ``"first_login_policies": []``, not something a mistyped key should
+    arrive at by accident.
+    """
+    from stapel_auth.password.services import FirstLoginPolicyService
+
+    if "first_login_policies" in payload:
+        return FirstLoginPolicyService.normalize_policies(
+            payload["first_login_policies"]
+        )
+    legacy = payload.get("first_login_policy")
+    if legacy is None:
+        return None
+    return FirstLoginPolicyService.normalize_policies([legacy])
+
+
 @function("auth.provision_user", schema=PROVISION_USER_SCHEMA)
 def provision_user(payload: dict) -> dict:
     """Create an org-provisioned login/password user (org-program §C1).
 
     Payload: ``{"username", "password"?, "email"?, "display_name"?,
-    "first_login_policy"}``. Success: ``{"user_id", "generated_password"?}``
-    — ``generated_password`` is present only when the caller omitted
-    ``password`` and is returned exactly ONCE; it is never logged and never
-    rides any event/outbox payload (privacy canon of login grants applies:
-    credential material never reaches log lines).
+    "first_login_policies"}``. Success: ``{"user_id",
+    "generated_password"?}`` — ``generated_password`` is present only when
+    the caller omitted ``password`` and is returned exactly ONCE; it is
+    never logged and never rides any event/outbox payload (privacy canon of
+    login grants applies: credential material never reaches log lines).
+
+    **The policies are a SET, and the members are independent (#90).** This
+    function used to take one ``first_login_policy`` string, and the
+    creation spelled it ``password_change_required=(policy ==
+    "password_change"), mfa_enrollment_required=(policy == "mfa_enroll")``
+    — so asking for either demand actively cleared the other. An org could
+    not require a password rotation AND a second factor, although the user
+    row has carried two independent booleans since Wave 0 and the login
+    flow has always chained them (forced change → mfa enrol). The
+    limitation lived entirely in this payload; the checkboxes in the invite
+    modal were inert because of this line.
+
+    ``first_login_policy`` (singular) is still read when
+    ``first_login_policies`` is absent, as a one-element set, so a caller
+    pinned to stapel-workspaces < 0.13 keeps working. Neither key present
+    is a **failure**, not a silently empty set: omitting the policies by
+    typo must not quietly provision an account with no first-login step at
+    all. ``"first_login_policies": []`` is how a caller says "none" on
+    purpose.
 
     Structured failures (canonical error keys, so the HTTP caller can pass
     them straight to a StapelErrorResponse) instead of raising:
@@ -126,14 +199,16 @@ def provision_user(payload: dict) -> dict:
       not a valid ``org_slug/local`` namespaced login;
     * ``{"error": "error.409.username_taken"}`` — the full username exists;
     * ``{"error": "error.400.bad_request"}`` — a caller-provided password
-      fails the deployment's password canon (Django validators). The
-      server-generated password path cannot fail this way.
+      fails the deployment's password canon (Django validators), or the
+      policy set is missing/malformed. The server-generated password path
+      cannot fail this way.
 
     The created account: ``auth_type="login"``, no email anchor by default,
-    the ``first_login_policy`` flag raised (password login then returns the
-    forced-change / mfa-enroll intermediate instead of a session — spec C2),
-    and a ``user.registered`` emit for downstream consumers (profiles et
-    al.) carrying the ``display_name`` hint.
+    every demanded first-login flag raised (a session on ANY of the 19
+    issuance paths then returns the forced-change / mfa-enrol intermediate
+    instead — ``sessions/guard.py``, 0.15.0), and a ``user.registered``
+    emit for downstream consumers (profiles et al.) carrying the
+    ``display_name`` hint.
     """
     import secrets
 
@@ -146,7 +221,14 @@ def provision_user(payload: dict) -> dict:
         ERR_400_USERNAME_NAMESPACE_INVALID,
         ERR_409_USERNAME_TAKEN,
     )
+    from stapel_auth.password.services import FirstLoginPolicyService
     from stapel_auth.utils import parse_namespaced_login, validate_local_username
+
+    policies = _resolve_first_login_policies(payload)
+    if policies is None:
+        from stapel_core.django.api.errors import ERR_400_BAD_REQUEST
+
+        return {"error": ERR_400_BAD_REQUEST}
 
     username = payload["username"]
     try:
@@ -179,7 +261,6 @@ def provision_user(payload: dict) -> dict:
             return {"error": ERR_400_BAD_REQUEST}
 
     display_name = payload.get("display_name") or None
-    policy = payload["first_login_policy"]
     try:
         with transaction.atomic():
             user = User.objects.create(
@@ -187,8 +268,11 @@ def provision_user(payload: dict) -> dict:
                 email=payload.get("email") or None,
                 auth_type="login",
                 first_name=(display_name or "")[:150],
-                password_change_required=(policy == "password_change"),
-                mfa_enrollment_required=(policy == "mfa_enroll"),
+                # Every flag named, raised or not: listing only the True
+                # ones would leave the rest at whatever the model default
+                # happens to be, which is how "setting one clears the
+                # other" survives a refactor unnoticed.
+                **FirstLoginPolicyService.flag_kwargs(policies),
             )
             user.set_password(password)
             user.save(update_fields=["password"])
@@ -204,6 +288,63 @@ def provision_user(payload: dict) -> dict:
     if generated is not None:
         result["generated_password"] = generated
     return result
+
+
+@function(
+    "auth.apply_first_login_policies", schema=APPLY_FIRST_LOGIN_POLICIES_SCHEMA
+)
+def apply_first_login_policies(payload: dict) -> dict:
+    """Raise first-login policies on an existing account (#90).
+
+    Payload: ``{"user_id", "policies": [...]}``. Returns
+    ``{"applied": [...]}`` — the policies this call actually raised, which
+    is a subset of what was asked: one already outstanding is not raised
+    twice, and ``mfa_enroll`` against an account that already carries a
+    strong factor is a demand with nothing left to do.
+
+    **Additive, never subtractive.** A policy not in the list is left
+    exactly as it was. The flags are per-ACCOUNT while the callers are
+    per-ORG (workspaces applies its ``provisioned_user_policies`` when an
+    invitation is accepted), so a subtractive contract would let one tenant
+    lower another tenant's bar — or lower a bar the user's own security
+    settings put up. Only completing the step clears a flag.
+
+    The other side of that coin is a real, deliberate limitation worth
+    naming: the flags live on the user, not on the membership. An account
+    that joins org A with ``mfa_enroll`` is blocked from EVERY login,
+    including into org B, until it enrols. That is the honest reading of a
+    per-account credential precondition, and it is why this seam is called
+    only when an org has actually configured a policy.
+
+    Unknown user → ``{"error": "error.404.not_found"}`` (the core generic
+    key): this function is only ever called by a service that already
+    resolved the account, so an unknown id is a wiring bug and must be
+    loud, not a silent no-op that leaves the caller believing the policy
+    landed. Deliberately NOT the "absence means defaults" contract of
+    ``auth.verification.policy`` / ``auth.mfa_status``, which answer
+    questions; this one makes a change and must say whether it happened.
+    """
+    from django.contrib.auth import get_user_model
+    from django.core.exceptions import ValidationError
+    from stapel_core.django.api.errors import ERR_404_NOT_FOUND
+
+    from stapel_auth.password.services import FirstLoginPolicyService
+
+    policies = FirstLoginPolicyService.normalize_policies(payload["policies"])
+    if policies is None:
+        from stapel_core.django.api.errors import ERR_400_BAD_REQUEST
+
+        return {"error": ERR_400_BAD_REQUEST}
+
+    User = get_user_model()
+    try:
+        user = User.objects.filter(pk=payload["user_id"]).first()
+    except (ValidationError, ValueError):
+        user = None
+    if user is None:
+        return {"error": ERR_404_NOT_FOUND}
+
+    return {"applied": FirstLoginPolicyService.apply(user, policies)}
 
 
 @function("auth.mfa_status", schema=MFA_STATUS_SCHEMA)

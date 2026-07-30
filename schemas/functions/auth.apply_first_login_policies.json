@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "auth.apply_first_login_policies",
+  "description": "Raise first-login policies on an EXISTING account (#90). Returns {\"applied\": [...]} — the policies this call actually raised, a subset of what was asked (one already outstanding is not raised twice; mfa_enroll against an account that already carries a strong factor has nothing left to demand). ADDITIVE, never subtractive: a policy not listed is left exactly as it was, because the callers are per-ORG while the flags are per-ACCOUNT, and a subtractive contract would let one tenant lower another tenant's bar. Canonical caller: the workspaces invitation-accept path applying the org's provisioned_user_policies. Unknown user id is a structured {\"error\": \"error.404.not_found\"} rather than a silent no-op — this function makes a change and must say whether it happened.",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "Primary key of the account to raise the policies on."
+    },
+    "policies": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["password_change", "mfa_enroll"]
+      },
+      "uniqueItems": true,
+      "description": "First-login steps to demand. ADDITIVE — a policy already outstanding stays outstanding, and a policy NOT listed is never lowered."
+    }
+  },
+  "required": ["user_id", "policies"],
+  "additionalProperties": false
+}

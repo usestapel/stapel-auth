@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "auth.provision_user",
-  "description": "Create an org-provisioned login/password user (workspaces-org-program §C1). username is the FULL namespaced login 'org_slug/local'; the account gets auth_type='login', no email anchor by default, and a first-login policy flag. When password is omitted a crypto-strong one is generated and returned ONCE in the result — the caller must never log or store it. Structured failures come back as {\"error\": \"<error key>\"} instead of raising.",
+  "description": "Create an org-provisioned login/password user (workspaces-org-program §C1). username is the FULL namespaced login 'org_slug/local'; the account gets auth_type='login', no email anchor by default, and every demanded first-login flag. When password is omitted a crypto-strong one is generated and returned ONCE in the result — the caller must never log or store it. Structured failures come back as {\"error\": \"<error key>\"} instead of raising.",
   "type": "object",
   "properties": {
     "username": {
@@ -20,12 +20,21 @@
       "type": ["string", "null"],
       "description": "Display-name hint: mirrored into first_name and forwarded on the user.registered event for downstream consumers (e.g. profiles)."
     },
+    "first_login_policies": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["password_change", "mfa_enroll"]
+      },
+      "uniqueItems": true,
+      "description": "Which first-login steps the org demands before this account gets a session. INDEPENDENT, not alternatives (#90): password_change raises password_change_required, mfa_enroll raises mfa_enrollment_required, and both together are a legal and common ask. [] means no first-login step."
+    },
     "first_login_policy": {
       "type": "string",
       "enum": ["password_change", "mfa_enroll"],
-      "description": "Which first-login flag to raise: password_change_required or mfa_enrollment_required (spec C2)."
+      "description": "DEPRECATED (#90) — the single-policy spelling, kept so callers pinned to stapel-workspaces < 0.13 keep working. Read only when first_login_policies is absent, and then as a one-element set. Use first_login_policies."
     }
   },
-  "required": ["username", "first_login_policy"],
+  "required": ["username"],
   "additionalProperties": false
 }
