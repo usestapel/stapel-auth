@@ -2,6 +2,93 @@
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-07-30
+
+### Security
+- **One place decides whether an account may be handed a session.** The
+  library could mark a user `is_active=False` and could hang first-login
+  policies on them (`password_change_required` / `mfa_enrollment_required`),
+  but only the password login path ever looked. Every other path that mints a
+  session — email/phone OTP, OAuth (both the token exchange and the browser
+  callback), magic link, QR session-share, passkey sign-in, login-grant, SSO,
+  the instant authenticator-change paths — minted one without a glance. So a
+  **deactivated account signed in through OTP**, and a **forced password
+  change or 2FA enrollment was walked around with a magic link**. Not two
+  bugs: one invariant that was held by the politeness of its callers.
+
+  The invariant now lives in `sessions/guard.py` and is enforced inside
+  `sessions.views._issue_session_tokens`, the final minter every full-session
+  path funnels through. Deliberately **not** inside `create_tokens_for_user`:
+  that primitive is shared with the *intermediate* paths (forced change, the
+  enroll-only exchange, password reset), which must stay outside the
+  invariant — gating them would lock a user out of the very step they are
+  being held on.
+
+  - `is_active=False` → refused on every path, unconditionally, with no
+    configuration knob. The refusal carries no account detail, so it cannot be
+    used to probe which accounts exist.
+  - a first-login flag → refused **with a next step**: the denial carries a
+    freshly minted `challenge_token` and a `requires` label, so a flagged user
+    who arrived by magic link is pointed at `POST /password/forced-change/`
+    (which never asks for the password they do not know) instead of hitting a
+    dead 403.
+
+- **SSO was minting sessions around the gate.** `SsoService.
+  issue_session_and_redirect` carried a verbatim copy of the minter's body —
+  token pair, `UserSession` row, audit event, login notification — and so
+  reproduced both holes word for word. It also never checked `is_active` for
+  an *existing* user: `get_or_create(email=..., defaults={'is_active': True})`
+  applies the default only on create, so a deactivated account came back
+  through the ACS and got a live session. The duplicate is gone — SSO calls
+  the shared minter (one session row, still the `sso_login` audit verb via the
+  new `audit_event` argument) and inherits the gate.
+
+### Added
+- `STAPEL_AUTH['FIRST_LOGIN_GATE_PATHS']` (default `'*'`) — which issuance
+  paths the first-login **flags** block. `'*'` reads a flag as "a mandatory
+  step before ANY admission"; a list of `sessions.guard.SessionPath` labels
+  narrows it (`['password', 'legacy_token']` is the "password admission only"
+  reading, which deliberately leaves OTP/magic-link/OAuth open to a flagged
+  account). `no_env`. Does **not** cover `is_active`, which is never
+  negotiable.
+- `sessions/guard.py`: `session_precondition_error(user, *, path)` and its two
+  halves `account_disabled_error` / `first_login_error`; the typed
+  `SessionIssuanceDenied` (a `StapelServiceError`, so the stapel-core DRF
+  handler renders it identically on every JSON path with no per-caller
+  `try/except`); `SessionPath` labels for all 19 issuance paths;
+  `denial_redirect_url` for the browser-redirect paths.
+- Browser-redirect paths (magic link, OAuth callback, QR session-share, SSO
+  ACS) map a denial to `{FRONTEND_URL}/login?first_login=<requires>&
+  challenge_token=<tok>&next=<n>` — the shape the TOTP-challenge redirect
+  already used, plus a discriminator — rather than to a JSON body the user
+  would stare at in the address bar.
+- `tests/test_session_issuance_gate.py`: the table walks `SessionPath.ALL`
+  rather than a hand-kept list, and two AST tests enumerate *callers* — every
+  `_issue_session_tokens` call must declare a path label, and every
+  `create_tokens_for_user` caller must be inside the minter or on an explicit
+  reason-annotated bypass roster. A hand-maintained list of "which paths are
+  final" is precisely what went stale and let SSO through; the build fails now
+  instead of a comment going out of date.
+
+### Changed
+- The duplicated checks are gone: the legacy `/token/` endpoint
+  (`sessions/views.py`) and `password/login` (`password/views.py`) read the
+  same predicate the minter uses instead of re-implementing it.
+  `first_login_intermediate_response` is now the *interactive rendering* of
+  that one rule (a 200 challenge DTO where the minter raises), not a second
+  copy of it. Password-login response shapes are unchanged.
+- The legacy `/token/` first-login 403 now carries `requires` /
+  `challenge_token` / `expires_in` in `params`, so that endpoint stops being a
+  dead end too. Error keys and status codes are unchanged.
+
+### Compatibility
+- Active accounts with no first-login flags — that is, everyone outside org
+  provisioning — are unaffected on every path.
+- Minor, not patch: a deployment that had been relying (knowingly or not) on a
+  deactivated or flagged account still being able to sign in via OTP, magic
+  link, OAuth, QR, passkey, login-grant or SSO will see those paths start
+  refusing. That is the fix.
+
 ## [0.14.6] — 2026-07-30
 
 ### Fixed
