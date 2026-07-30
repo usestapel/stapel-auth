@@ -19,7 +19,6 @@ from stapel_auth.sessions.dto import AuthResponse, AuthStatus, TokenPairResponse
 from stapel_auth.errors import (
     ERR_400_NO_PASSWORD,
     ERR_400_WRONG_PASSWORD,
-    ERR_401_ACCOUNT_DISABLED,
     ERR_401_INVALID_CREDENTIALS,
     ERR_409_EMAIL_TAKEN,
     ERR_409_PHONE_TAKEN,
@@ -54,6 +53,11 @@ from stapel_auth.sessions.serializers import (
     PasswordOtpChangeResponseSerializer,
     SimpleStatusSerializer,
 )
+from stapel_auth.sessions.guard import (
+    SessionPath,
+    account_disabled_error,
+    first_login_error,
+)
 from stapel_auth.sessions.views import _add_login_hints, _issue_session_tokens
 from stapel_auth.utils import SerializerSeamsMixin
 from stapel_auth.permissions import DenyEnrollOnly
@@ -61,25 +65,31 @@ from stapel_auth.permissions import DenyEnrollOnly
 logger = logging.getLogger(__name__)
 
 
-def first_login_intermediate_response(user, serializer_class=None):
-    """FirstLoginChallengeResponse for *user*, or None when no flag is up.
+def first_login_intermediate_response(
+    user, serializer_class=None, *, path=SessionPath.PASSWORD
+):
+    """Interactive form of the first-login denial, or None when clear.
 
-    The shared post-credential check of the first-login policy
-    (org-program §C2): password login and the TOTP step-up verify both call
-    it right before minting a session, so a flagged account can complete
-    every OTHER credential requirement and still never receive a session
-    until the first-login step is done. Accounts without flags short-circuit
-    to None — their login path stays byte-identical.
+    The *interactive* rendering of the same rule the session gate enforces
+    (see :mod:`stapel_auth.sessions.guard`): where the minter raises
+    ``SessionIssuanceDenied``, an already-interactive credential path
+    returns the challenge as a 200 DTO instead, so the client's login state
+    machine stays on the happy path. The rule itself is NOT re-implemented
+    here — it is read off :func:`~stapel_auth.sessions.guard.first_login_error`,
+    so there is exactly one definition of "which flag owes which step" and
+    one place that mints the challenge.
+
+    Returns ``None`` when no step is owed; accounts without flags keep a
+    byte-identical login path.
     """
-    requires = FirstLoginPolicyService.required_intermediate(user)
-    if requires is None:
+    denial = first_login_error(user, path=path)
+    if denial is None:
         return None
-    token = FirstLoginPolicyService.create_challenge(user, requires)
     dto = FirstLoginChallengeResponse(
         status=FirstLoginChallengeStatus.FIRST_LOGIN_REQUIRED,
-        requires=FirstLoginRequirement(requires),
-        challenge_token=token,
-        expires_in=FirstLoginPolicyService.CHALLENGE_TTL,
+        requires=FirstLoginRequirement(denial.requires),
+        challenge_token=denial.challenge_token,
+        expires_in=denial.expires_in,
     )
     return StapelResponse((serializer_class or FirstLoginChallengeResponseSerializer)(dto))
 
@@ -182,11 +192,16 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 )
             AuditService.log("login_failed", request=request, identifier=identifier)
             return StapelErrorResponse(401, ERR_401_INVALID_CREDENTIALS)
-        if not user.is_active:
+        # Same rule the session gate enforces (sessions/guard.py), read off
+        # the one predicate rather than re-checked here. Refused before the
+        # step-up/first-login branches: a disabled account gets no challenge
+        # of any kind, and the body carries no account detail.
+        disabled = account_disabled_error(user)
+        if disabled is not None:
             AuditService.log(
                 "login_failed", user=user, request=request, reason="account_disabled"
             )
-            return StapelErrorResponse(401, ERR_401_ACCOUNT_DISABLED)
+            return StapelErrorResponse(disabled.http_status, disabled.error_key)
 
         LockoutService.clear(identifier)
 
@@ -218,7 +233,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if intermediate is not None:
             return intermediate
 
-        access_token, refresh_token = _issue_session_tokens(user, request)
+        access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.PASSWORD)
         dto = AuthResponse(
             status=AuthStatus.LOGGED_IN,
             user=user,
@@ -610,7 +625,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
             self._publish_user_registered(user, request=request)
 
-        access_token, refresh_token = _issue_session_tokens(user, request)
+        access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.PASSWORD_REGISTER)
         dto = AuthResponse(
             status=auth_status,
             user=user,
@@ -680,7 +695,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if intermediate is not None:
             return intermediate
 
-        access_token, refresh_token = _issue_session_tokens(user, request)
+        access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.FORCED_PASSWORD_CHANGE)
         dto = AuthResponse(
             status=AuthStatus.LOGGED_IN,
             user=user,

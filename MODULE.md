@@ -56,6 +56,7 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 | `AUTH_PASSWORD_LOGIN` | `False` | Password login gate |
 | `OAUTH_STEP_UP` | `False` | TOTP challenge after OAuth login |
 | `PASSWORD_LOGIN_STEP_UP` | `True` | TOTP challenge after password login |
+| `FIRST_LOGIN_GATE_PATHS` | `'*'` | Which session-issuance paths the **first-login policy flags** (`password_change_required` / `mfa_enrollment_required`) block — see "The session-issuance gate" below. `'*'` = every path; or a list of `sessions.guard.SessionPath` labels (`['password', 'legacy_token']` is the narrow "password admission only" reading). `no_env` — a stray env var must not be able to narrow a security scope, and a list cannot survive the string round-trip. **`is_active=False` is refused on every path unconditionally and is not covered by this key.** |
 | `AUTH_EMAIL_PLACEMENT` / `AUTH_PHONE_PLACEMENT` | `'main'` | Where the sign-in panel renders this method: `main` (inline tab) / `overflow` (behind "more") / `bottom` (bottom button row). Presentational only — never gates availability |
 | `AUTH_PASSWORD_PLACEMENT` / `AUTH_MAGIC_LINK_PLACEMENT` | `'overflow'` | Same axis as above |
 | `AUTH_SSO_PLACEMENT` / `AUTH_OAUTH_PLACEMENT` / `AUTH_QR_PLACEMENT` / `AUTH_PASSKEY_PLACEMENT` | `'bottom'` | Same axis as above |
@@ -254,6 +255,26 @@ had `key`), that entry was removed — the mixin's masked placeholder and the
 class's raw readonly field would otherwise both render, and the raw one
 leaks the real value.
 
+### The session-issuance gate (`sessions/guard.py`)
+
+Not an extension point so much as an **invariant with one place that holds it** — read this before adding any code path that hands out a session.
+
+Every path that mints a *full* session funnels through `sessions.views._issue_session_tokens(user, request, *, path, audit_event)`. That function is the choke-point, and it is where admission is decided:
+
+- **`is_active=False` → refused everywhere, unconditionally.** No next step exists, the refusal is final (`401 error.401.account_disabled`), and the body deliberately carries no account detail — it must not become an account-enumeration oracle.
+- **First-login policy flags** (`password_change_required` / `mfa_enrollment_required`, set by `auth.provision_user`) → refused **with a next step**: the denial carries a freshly minted `challenge_token` plus a `requires` label, so the client can send the user to `POST /password/forced-change/` or `POST /mfa/enroll/exchange/`. A flag must never produce a dead 403 — otherwise a flagged user who arrived by magic link is locked out permanently (`/password/forced-change/` never asks for the old password, which is what makes the wide default humane). Scope is configurable via `FIRST_LOGIN_GATE_PATHS`; the default `'*'` treats a flag as "a mandatory step before ANY admission".
+
+The gate is deliberately **not** inside `create_tokens_for_user`: that primitive is shared with the *intermediate* paths (forced change, the enroll-only exchange, password reset), which must stay outside the invariant or the user can never complete the very step they are held on.
+
+Mechanics you have to respect when adding a path:
+
+| Concern | Rule |
+|---|---|
+| Labels | Add a `SessionPath` constant and pass `path=SessionPath.X`. An undeclared caller **fails closed** (always gated). |
+| JSON paths | Nothing to do. `SessionIssuanceDenied` subclasses `StapelServiceError`, so the stapel-core DRF handler renders it identically everywhere — no per-caller `try/except`. The next step arrives in `params` (`requires`, `challenge_token`, `expires_in`). |
+| Browser-redirect paths | Magic link, the OAuth callback, QR session-share and the SSO ACS answer a *navigation*: they catch `SessionIssuanceDenied` and redirect to `denial_redirect_url(...)` → `{FRONTEND_URL}/login?first_login=<requires>&challenge_token=<tok>&next=<n>` (or `?error=account_disabled` when there is no next step). A raw JSON error body in the address bar is not a recoverable flow. |
+| Minting around the gate | Don't. `tests/test_session_issuance_gate.py` walks the AST and fails on any `create_tokens_for_user` caller that is neither inside the minter nor on an explicit, reason-annotated bypass roster. The roster records a *declared* intention, not a verified one — it protects against an unnoticed bypass, not a wrong one. |
+
 ### Signals
 
 | Signal | Sender/args | When |
@@ -438,6 +459,7 @@ billing / workspaces — copy this module, 4 steps):
 - **Don't add fields by editing models here.** Extra user fields go on your `AUTH_USER_MODEL` subclass of `AbstractStapelUser`. Auth-owned tables (sessions, audit log, ...) are upstream property — if they genuinely need a column, that is a contribution.
 - **Don't hardcode a new OAuth provider or verification factor into this repo's registries.** Register from your app via `OAUTH_PROVIDER_CLASSES` / `register_provider()` and `STAPEL_VERIFICATION['EXTRA_FACTORS']` / `register_factor()`.
 - **Don't bypass the feature gates.** To disable a method, flip its `AUTH_*` flag (and/or omit its URL factory); don't strip URLs from a vendored copy.
+- **Don't mint a session outside `_issue_session_tokens`.** Calling `create_tokens_for_user` (or `TokenService`) directly in a new login path re-opens the exact hole `sessions/guard.py` closes — an account that is deactivated or owes a first-login step walks straight in. Route it through the minter with a `SessionPath` label. If it genuinely resolves an intermediate, say so on the bypass roster in `tests/test_session_issuance_gate.py`; the roster is what turns "we remember which bypasses are legitimate" into a failing build.
 - **Don't consume `PROVIDER_REGISTRY` mutation as an API.** It is exposed for tests; the supported mutation path is `register_provider` / settings.
 - **Don't reference the concrete user class.** Always `get_user_model()` / `settings.AUTH_USER_MODEL` (the module itself follows this rule everywhere).
 

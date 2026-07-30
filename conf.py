@@ -221,6 +221,20 @@ DEFAULTS = {
     # Password login: on by default (a password alone is phishable) —
     # preserves the pre-0.3 behavior; opt out with PASSWORD_LOGIN_STEP_UP=False.
     'PASSWORD_LOGIN_STEP_UP': True,
+
+    # Which session-issuance paths the first-login policy flags
+    # (password_change_required / mfa_enrollment_required) block. See
+    # sessions/guard.py — the single gate inside the final session minter.
+    #   '*'                      — every path (default): the flag is read as
+    #                              "a mandatory step before ANY admission".
+    #   ['password', ...]        — only the listed sessions.guard.SessionPath
+    #                              labels; ['password', 'legacy_token'] is the
+    #                              narrow "password admission only" reading,
+    #                              which leaves OTP/magic-link/OAuth open to a
+    #                              flagged account on purpose.
+    # NB: this knob covers the FLAGS only. `is_active=False` is refused on
+    # every path unconditionally and is not configurable.
+    'FIRST_LOGIN_GATE_PATHS': '*',
 }
 
 # Keys that must never fall back to an environment variable (AppSettings
@@ -243,6 +257,10 @@ _NO_ENV = tuple(
     'OAUTH_PROVIDER_CLASSES',
     'REREGISTRATION_MODEL',
     'MOCK_OTP_CODE',
+    # Scope list, and a security one: a stray env var must not be able to
+    # narrow which paths the first-login policy gate covers (and a list value
+    # cannot survive the string round-trip anyway).
+    'FIRST_LOGIN_GATE_PATHS',
 )
 
 # NB: OAUTH_PROVIDER_CLASSES / REREGISTRATION_MODEL are intentionally NOT in

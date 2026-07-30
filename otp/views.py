@@ -179,6 +179,11 @@ def _notify_user_registered(user, request=None, language=None, display_name=None
 
 
 # ── Sub-package cross-imports ─────────────────────────────────────────────────
+from stapel_auth.sessions.guard import (
+    SessionIssuanceDenied,
+    SessionPath,
+    denial_redirect_url,
+)
 from stapel_auth.sessions.views import (
     _CH_HINTS,
     _add_login_hints,
@@ -569,7 +574,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     auth_status = AuthStatus.REGISTERED
 
             self.log_login_attempt(email, "success", request)
-            access_token, refresh_token = _issue_session_tokens(user, request)
+            access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.OTP_EMAIL)
             tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
             auth_dto = AuthResponse(status=auth_status, user=user, tokens=tokens_dto)
             response = Response(
@@ -856,7 +861,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     auth_status = AuthStatus.REGISTERED
 
             self.log_login_attempt(phone, "success", request)
-            access_token, refresh_token = _issue_session_tokens(user, request)
+            access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.OTP_PHONE)
             tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
             auth_dto = AuthResponse(status=auth_status, user=user, tokens=tokens_dto)
             response = Response(
@@ -919,7 +924,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     cache.set(f"anon_device:{device_id}", str(user.id), timeout=60)
 
             self.log_login_attempt(str(user.id), "success", request)
-            access_token, refresh_token = _issue_session_tokens(user, request)
+            access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.ANONYMOUS)
             tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
             auth_dto = AuthResponse(
                 status=AuthStatus.REGISTERED, user=user, tokens=tokens_dto
@@ -995,7 +1000,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     self.get_totp_challenge_response_serializer_class()(dto)
                 )
 
-        access_token, refresh_token = _issue_session_tokens(user, request)
+        access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.OAUTH_LOGIN)
         tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
         auth_dto = AuthResponse(
             status=AuthStatus.LOGGED_IN, user=user, tokens=tokens_dto
@@ -1137,7 +1142,24 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 frontend = auth_settings.FRONTEND_URL or ""
                 return redirect(f"{frontend}/totp-challenge?" + urlencode(params))
 
-        access_token, refresh_token = _issue_session_tokens(user, request)
+        # Browser navigation (the provider redirected here), so a denial goes
+        # to the front-end challenge screen, not to a JSON body the user
+        # would stare at in the address bar — same rule as the TOTP step-up
+        # redirect directly above (sessions/guard.py).
+        try:
+            access_token, refresh_token = _issue_session_tokens(
+                user, request, path=SessionPath.OAUTH_CALLBACK
+            )
+        except SessionIssuanceDenied as denied:
+            return redirect(
+                denial_redirect_url(
+                    denied,
+                    frontend_url=auth_settings.FRONTEND_URL or "",
+                    next_url=_sanitize_redirect_after(
+                        state_data.get("redirect_after", "")
+                    ),
+                )
+            )
 
         redirect_after = _sanitize_redirect_after(state_data.get("redirect_after", ""))
         if redirect_after:
@@ -1669,7 +1691,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         )
         if result.get("success"):
             request.user.refresh_from_db()
-            access_token, refresh_token = _issue_session_tokens(request.user, request)
+            access_token, refresh_token = _issue_session_tokens(request.user, request, path=SessionPath.PHONE_INSTANT)
             tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
             auth_dto = AuthResponse(
                 status=AuthStatus.MODIFIED, user=request.user, tokens=tokens_dto
@@ -1789,7 +1811,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         )
         if result.get("success"):
             request.user.refresh_from_db()
-            access_token, refresh_token = _issue_session_tokens(request.user, request)
+            access_token, refresh_token = _issue_session_tokens(request.user, request, path=SessionPath.EMAIL_INSTANT)
             tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
             auth_dto = AuthResponse(
                 status=AuthStatus.MODIFIED, user=request.user, tokens=tokens_dto

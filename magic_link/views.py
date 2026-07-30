@@ -15,6 +15,11 @@ from stapel_auth.magic_link.serializers import (
 )
 from stapel_auth.magic_link.services import MagicLinkService
 from stapel_auth.mfa.services import TOTPService
+from stapel_auth.sessions.guard import (
+    SessionIssuanceDenied,
+    SessionPath,
+    denial_redirect_url,
+)
 from stapel_auth.sessions.services import AuditService
 from stapel_auth.sessions.views import _add_login_hints, _issue_session_tokens
 from stapel_auth.utils import SerializerSeamsMixin
@@ -121,7 +126,22 @@ class MagicLinkViewSet(SerializerSeamsMixin, ViewSet):
             )
             return redirect(f"{frontend_url}/login?{params}")
 
-        access_token, refresh_token = _issue_session_tokens(user, request)
+        # Browser navigation, not XHR: a session denial must land the user on
+        # the front-end challenge screen carrying the next step, never on a
+        # raw JSON error body (sessions/guard.py). A magic link is exactly the
+        # case that makes the first-login gate safe to apply everywhere — the
+        # recipient may have no idea what their org-set password is, and
+        # /password/forced-change/ does not ask for it.
+        try:
+            access_token, refresh_token = _issue_session_tokens(
+                user, request, path=SessionPath.MAGIC_LINK
+            )
+        except SessionIssuanceDenied as denied:
+            return redirect(
+                denial_redirect_url(
+                    denied, frontend_url=frontend_url, next_url=redirect_url
+                )
+            )
         response = redirect(redirect_url)
         set_jwt_cookies(response, access_token, refresh_token)
         set_auth_hint_cookie(response)

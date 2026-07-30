@@ -24,6 +24,11 @@ from stapel_auth.errors import *
 from stapel_auth.sessions.dto import (
     TokenPairResponse,
 )
+from stapel_auth.sessions.guard import (
+    SessionIssuanceDenied,  # noqa: F401  (re-exported for call sites)
+    SessionPath,
+    session_precondition_error,
+)
 from stapel_auth.sessions.serializers import (
     SessionResponseSerializer,
     SimpleStatusSerializer,
@@ -91,26 +96,19 @@ class CustomTokenObtainPairView(SerializerSeamsMixin, APIView):
         if user is None:
             return StapelErrorResponse(401, ERR_401_INVALID_CREDENTIALS)
 
-        if not user.is_active:
-            return StapelErrorResponse(401, ERR_401_ACCOUNT_DISABLED)
-
-        # First-login policy (org-program §C2): this legacy token endpoint
-        # has no room for the intermediate dance /password/login/ performs —
-        # a flagged org-provisioned account gets the structured 403 (and is
-        # pointed at the proper flow by the error key) instead of a session
-        # that would silently bypass the policy. Unflagged accounts are
-        # untouched: required_intermediate() short-circuits to None.
-        from stapel_auth.errors import (
-            ERR_403_MFA_ENROLLMENT_REQUIRED,
-            ERR_403_PASSWORD_CHANGE_REQUIRED,
-        )
-        from stapel_auth.password.services import FirstLoginPolicyService
-
-        requires = FirstLoginPolicyService.required_intermediate(user)
-        if requires == FirstLoginPolicyService.REQUIRES_PASSWORD_CHANGE:
-            return StapelErrorResponse(403, ERR_403_PASSWORD_CHANGE_REQUIRED)
-        if requires == FirstLoginPolicyService.REQUIRES_MFA_ENROLL:
-            return StapelErrorResponse(403, ERR_403_MFA_ENROLLMENT_REQUIRED)
+        # Admission preconditions — the shared gate (sessions/guard.py), not
+        # a hand-rolled copy: is_active plus the first-login policy. This
+        # legacy token endpoint has no room for the interactive intermediate
+        # /password/login/ performs, so a flagged account gets the structured
+        # 403 — but the denial now carries the challenge_token in `params`,
+        # so the caller can still finish the forced step instead of being
+        # dead-ended. Unflagged, active accounts: the predicate is None and
+        # nothing changes.
+        denied = session_precondition_error(user, path=SessionPath.LEGACY_TOKEN)
+        if denied is not None:
+            return StapelErrorResponse(
+                denied.http_status, denied.error_key, denied.error_params
+            )
 
         # Create tokens (staff tokens carry the staff_roles claim — AS-2)
         from stapel_auth.staff_roles import create_tokens_for_user
@@ -304,8 +302,31 @@ def _add_login_hints(response, *, critical: bool = False):
     return response
 
 
-def _issue_session_tokens(user, request):
-    """Create a token pair, register a UserSession, return (access_str, refresh_str)."""
+def _issue_session_tokens(
+    user, request, *, path=SessionPath.UNSPECIFIED, audit_event="login_success"
+):
+    """Create a token pair, register a UserSession, return (access_str, refresh_str).
+
+    THE session choke-point (org-program §Р13): every path that hands out a
+    *full* session goes through here, so this is where the "may this account
+    be admitted at all" invariant is enforced — see
+    :mod:`stapel_auth.sessions.guard`. Deliberately not in
+    ``create_tokens_for_user``: that one is shared with the intermediate
+    paths (forced change, MFA enroll exchange, SSO), which must stay outside
+    the invariant or the user can never complete the very step they are held
+    on.
+
+    *path* is the :class:`~stapel_auth.sessions.guard.SessionPath` label of
+    the caller; it selects the first-login gate scope and is the enumeration
+    the gate's test suite walks. An undeclared caller fails closed.
+    *audit_event* lets a path keep its own audit verb (SSO logs
+    ``sso_login``) while still sharing this one body.
+
+    Raises :class:`~stapel_auth.sessions.guard.SessionIssuanceDenied` — the
+    stapel-core DRF handler renders it identically on every JSON path; the
+    three browser-redirect paths catch it and build a front-end URL from
+    ``requires``/``challenge_token`` instead.
+    """
     import datetime
 
     from stapel_core.django.jwt.provider import jwt_provider
@@ -313,6 +334,17 @@ def _issue_session_tokens(user, request):
     from stapel_auth.staff_roles import create_tokens_for_user
 
     from .services import AuditService, LoginNotificationService, SessionService
+
+    denied = session_precondition_error(user, path=path)
+    if denied is not None:
+        AuditService.log(
+            "login_denied",
+            user=user,
+            request=request,
+            reason=denied.error_key,
+            path=path,
+        )
+        raise denied
 
     access_token, refresh_token = create_tokens_for_user(user)
     rt_payload = jwt_provider.handler.decode_token(refresh_token, verify=False) or {}
@@ -329,7 +361,7 @@ def _issue_session_tokens(user, request):
         session = SessionService.create(
             user, jti, expires_at, request=request, access_jti=at_payload.get("jti", "")
         )
-    AuditService.log("login_success", user=user, request=request, session=session)
+    AuditService.log(audit_event, user=user, request=request, session=session)
     if session:
         LoginNotificationService.check_and_notify(user, session)
     return access_token, refresh_token

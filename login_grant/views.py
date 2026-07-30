@@ -14,6 +14,7 @@ from stapel_auth.login_grant.services import LoginGrantService
 from stapel_auth.sessions.dto import AuthResponse, AuthStatus, TokenPairResponse
 from stapel_auth.sessions.serializers import AuthResponseSerializer
 from stapel_auth.sessions.services import AuditService
+from stapel_auth.sessions.guard import SessionPath
 from stapel_auth.sessions.views import _add_login_hints, _issue_session_tokens
 from stapel_auth.utils import SerializerSeamsMixin
 
@@ -65,7 +66,7 @@ class LoginGrantViewSet(SerializerSeamsMixin, ViewSet):
         user, created = result
 
         AuditService.log("login_grant_used", user=user, request=request)
-        access_token, refresh_token = _issue_session_tokens(user, request)
+        access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.LOGIN_GRANT)
         tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
         auth_dto = AuthResponse(
             status=AuthStatus.REGISTERED if created else AuthStatus.LOGGED_IN,

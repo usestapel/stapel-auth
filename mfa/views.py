@@ -46,6 +46,7 @@ from stapel_auth.otp.serializers import (
     DelayedStatusResponseSerializer,
     OtpSentResponseSerializer,
 )
+from stapel_auth.sessions.guard import SessionPath
 from stapel_auth.sessions.serializers import (
     AuthResponseSerializer,
     SimpleStatusSerializer,
@@ -201,7 +202,7 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             from stapel_auth.sessions.dto import TokenPairResponse
             from stapel_auth.sessions.views import _issue_session_tokens
 
-            access_token, refresh_token = _issue_session_tokens(request.user, request)
+            access_token, refresh_token = _issue_session_tokens(request.user, request, path=SessionPath.TOTP_ENROLL_UPGRADE)
             dto.tokens = TokenPairResponse(refresh=refresh_token, access=access_token)
             response = StapelResponse(
                 self.get_confirm_setup_response_serializer_class()(dto)
@@ -350,11 +351,13 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         # session — same check password login runs for TOTP-less accounts.
         from stapel_auth.password.views import first_login_intermediate_response
 
-        intermediate = first_login_intermediate_response(user)
+        intermediate = first_login_intermediate_response(
+            user, path=SessionPath.TOTP_CHALLENGE
+        )
         if intermediate is not None:
             return intermediate
 
-        access_token, refresh_token = _issue_session_tokens(user, request)
+        access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.TOTP_CHALLENGE)
         tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
         auth_dto = AuthResponse(
             status=AuthStatus.LOGGED_IN, user=user, tokens=tokens_dto
@@ -611,7 +614,7 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
             from stapel_auth.hint_cookie import set_auth_hint_cookie
             from stapel_auth.sessions.views import _issue_session_tokens
 
-            access_token, refresh_token = _issue_session_tokens(request.user, request)
+            access_token, refresh_token = _issue_session_tokens(request.user, request, path=SessionPath.PASSKEY_ENROLL_UPGRADE)
             data["tokens"] = {"access": access_token, "refresh": refresh_token}
             response = StapelResponse(
                 self.get_register_complete_response_serializer_class()(data)
@@ -683,7 +686,7 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
             logger.exception("passkey auth_complete failed")
             return StapelErrorResponse(400, ERR_400_PASSKEY_INVALID)
 
-        access_token, refresh_token = _issue_session_tokens(user, request)
+        access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.PASSKEY_LOGIN)
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
         from stapel_auth.hint_cookie import set_auth_hint_cookie

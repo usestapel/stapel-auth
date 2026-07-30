@@ -431,35 +431,49 @@ class SSOUserService:
 
     @staticmethod
     def issue_session_and_redirect(user, org, request):
-        """Issue JWT session, set cookies, redirect to frontend."""
+        """Issue JWT session, set cookies, redirect to frontend.
+
+        This is a FINAL session minter — token pair, ``UserSession`` row,
+        audit event, login notification — not an intermediate step, and it
+        used to carry a verbatim copy of ``_issue_session_tokens``' body. The
+        copy is why the §Р13 gate did not reach SSO: both #90 (a first-login
+        policy walked around) and #92 (a deactivated account admitted) were
+        reproduced here word for word, including the case
+        ``_resolve_sso_user``'s ``get_or_create`` hands back — an EXISTING
+        deactivated user, since ``defaults={'is_active': True}`` only applies
+        on create.
+
+        The duplicate is gone: the shared minter mints exactly one session
+        row (the old ``UNIQUE(user_sessions.jti)`` note argued against calling
+        it *in addition to* the local mint, not against replacing the local
+        mint with it), keeps SSO's own audit verb through ``audit_event``,
+        and carries the admission gate for free.
+        """
         from django.http import HttpResponseRedirect
         from stapel_core.django.jwt.utils import set_jwt_cookies
         from .hint_cookie import set_auth_hint_cookie
-        from .sessions.views import _add_login_hints
-        from .sessions.services import LoginNotificationService
-
-        from stapel_core.django.jwt.provider import jwt_provider as _jwt
-        from stapel_auth.staff_roles import create_tokens_for_user
-        from datetime import datetime, timezone as _tz
-        from .sessions.services import SessionService, AuditService as _AS
-
-        # Mint the token pair directly: the session row, audit event and login
-        # notification are all handled below with SSO-specific semantics.
-        # (Calling sessions.views._issue_session_tokens here would register the
-        # same refresh jti a second time and hit the UNIQUE(user_sessions.jti)
-        # constraint.)
-        access_token, refresh_token = create_tokens_for_user(user)
-        _rt_pl = _jwt.handler.decode_token(refresh_token, verify=False) or {}
-        _at_pl = _jwt.handler.decode_token(access_token, verify=False) or {}
-        _jti   = _rt_pl.get('jti', '')
-        _exp   = datetime.fromtimestamp(_rt_pl.get('exp', 0), tz=_tz.utc)
-        session = SessionService.create(user, _jti, _exp, request=request, access_jti=_at_pl.get('jti', ''))
-        _AS.log('sso_login', user=user, request=request, session=session)
-        if session:
-            LoginNotificationService.check_and_notify(user, session)
+        from .sessions.guard import (
+            SessionIssuanceDenied,
+            SessionPath,
+            denial_redirect_url,
+        )
+        from .sessions.views import _add_login_hints, _issue_session_tokens
 
         from .conf import auth_settings
         frontend_url = auth_settings.FRONTEND_URL or ''
+
+        try:
+            access_token, refresh_token = _issue_session_tokens(
+                user, request, path=SessionPath.SSO, audit_event='sso_login'
+            )
+        except SessionIssuanceDenied as denied:
+            # The ACS is a browser navigation from the IdP — a denial must
+            # land on the front-end challenge screen with its next step, not
+            # on a JSON error body.
+            return HttpResponseRedirect(
+                denial_redirect_url(denied, frontend_url=frontend_url)
+            )
+
         redirect_url = f'{frontend_url}/'
         response = HttpResponseRedirect(redirect_url)
         set_jwt_cookies(response, access_token, refresh_token)

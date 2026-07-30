@@ -28,6 +28,11 @@ from stapel_auth.sessions.services import (
     LoginNotificationService,
     SessionService,
 )
+from stapel_auth.sessions.guard import (
+    SessionIssuanceDenied,
+    SessionPath,
+    denial_redirect_url,
+)
 from stapel_auth.sessions.views import _issue_session_tokens
 from stapel_auth.utils import SerializerSeamsMixin
 from stapel_auth.permissions import DenyEnrollOnly
@@ -285,7 +290,23 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     return StapelErrorResponse(403, ERR_403_QR_UNAUTH_SCAN)
                 # Issue tokens for the owner and log in the scanner
                 QRAuthService.fulfill_session_share(key, scanner_user_id=owner.id)
-                access_token, refresh_token = _issue_session_tokens(owner, request)
+                # Browser navigation (a phone camera followed this URL): a
+                # denial lands on the front-end challenge screen carrying the
+                # next step, not on a JSON body (sessions/guard.py).
+                try:
+                    access_token, refresh_token = _issue_session_tokens(
+                        owner, request, path=SessionPath.QR_SESSION_SHARE
+                    )
+                except SessionIssuanceDenied as denied:
+                    from stapel_auth.conf import auth_settings as _as
+
+                    return HttpResponseRedirect(
+                        denial_redirect_url(
+                            denied,
+                            frontend_url=_as.FRONTEND_URL or "",
+                            next_url=redirect_url,
+                        )
+                    )
                 response = HttpResponseRedirect(redirect_url)
                 set_jwt_cookies(response, access_token, refresh_token)
                 set_auth_hint_cookie(response)
