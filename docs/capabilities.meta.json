@@ -162,5 +162,91 @@
       "business_label": "Where passkey sign-in appears",
       "summary": "Controls whether passkey sign-in renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational."
     }
+  },
+  "surface_roots": [
+    {
+      "select": "capability_fields",
+      "path": "oauth/dto.py",
+      "class": "RegistrationCapabilities"
+    },
+    {
+      "select": "capability_fields",
+      "path": "oauth/dto.py",
+      "class": "LoginCapabilities"
+    }
+  ],
+  "surface": {
+    "RegistrationCapabilities.phone": {
+      "intent": "Phone OTP sign-up is enabled in this deployment — render (or hide) the phone tab of the sign-up form from this, never from a build-time flag: the same frontend bundle serves deployments that differ on it.",
+      "consumer": "frontend"
+    },
+    "RegistrationCapabilities.email": {
+      "intent": "Email OTP sign-up is enabled — same rule as `phone`: the sign-up form's method tabs are deployment state, not build state.",
+      "consumer": "frontend"
+    },
+    "RegistrationCapabilities.password": {
+      "intent": "Password sign-up is enabled. A deployment can be passwordless; a form that always shows a password field on sign-up is showing a field the backend will reject.",
+      "consumer": "frontend"
+    },
+    "RegistrationCapabilities.oauth": {
+      "intent": "The OAuth providers actually configured here, id + display name. Render the social buttons from this list — a hardcoded Google button in a deployment without Google credentials is a button that always errors.",
+      "consumer": "frontend"
+    },
+    "RegistrationCapabilities.sso": {
+      "intent": "Corporate SSO/SAML just-in-time provisioning is enabled — show the 'sign in with your company account' entry point only when this is true.",
+      "consumer": "frontend"
+    },
+    "RegistrationCapabilities.anonymous": {
+      "intent": "Guest (anonymous) sign-up is enabled, i.e. the product may let a visitor act before registering. Note the pairing with stapel-core's IsNotAnonymousUser: when this is on, the backend's write endpoints need that permission class rather than a bare IsAuthenticated.",
+      "consumer": "frontend"
+    },
+    "RegistrationCapabilities.email_mock": {
+      "intent": "Published SO THAT a host frontend can render a dev-mode badge: email OTP delivery is mocked here and the code goes to the logs instead of an inbox. It does not disable `email` — the channel is on, it just does not deliver. A frontend that ignores this field tells the user 'code sent' when nothing was sent, which is the exact failure this field was published to prevent; it is currently ignored by @stapel/auth-react (#141).",
+      "consumer": "frontend"
+    },
+    "RegistrationCapabilities.phone_mock": {
+      "intent": "Same promise as `email_mock` for phone/SMS OTP delivery, and the same obligation on the consumer.",
+      "consumer": "frontend"
+    },
+    "LoginCapabilities.phone": {
+      "intent": "Phone OTP sign-in is enabled — drive the sign-in form's method tabs from this, not from a build-time flag.",
+      "consumer": "frontend"
+    },
+    "LoginCapabilities.email": {
+      "intent": "Email OTP sign-in is enabled.",
+      "consumer": "frontend"
+    },
+    "LoginCapabilities.password": {
+      "intent": "Password sign-in is enabled. A passwordless deployment must not render a password field.",
+      "consumer": "frontend"
+    },
+    "LoginCapabilities.oauth": {
+      "intent": "The OAuth providers configured for sign-in, id + display name — render the social buttons from this list.",
+      "consumer": "frontend"
+    },
+    "LoginCapabilities.sso": {
+      "intent": "Corporate SSO sign-in is enabled.",
+      "consumer": "frontend"
+    },
+    "LoginCapabilities.qr": {
+      "intent": "QR hand-off sign-in (scan on a signed-in device to sign in here) is enabled — show the QR affordance only when true.",
+      "consumer": "frontend"
+    },
+    "LoginCapabilities.passkey": {
+      "intent": "Passkey/WebAuthn sign-in is enabled; gate the platform-authenticator prompt on this in addition to the browser's own capability check.",
+      "consumer": "frontend"
+    },
+    "LoginCapabilities.magic_link": {
+      "intent": "Magic-link sign-in is enabled.",
+      "consumer": "frontend"
+    },
+    "LoginCapabilities.email_mock": {
+      "intent": "Published SO THAT a host frontend can render a dev-mode badge: email OTP delivery is mocked here, the code lands in the logs. Same obligation as on the registration DTO — ignoring it turns a dev deployment into a silent dead end for the user.",
+      "consumer": "frontend"
+    },
+    "LoginCapabilities.phone_mock": {
+      "intent": "Same promise as `email_mock` for phone/SMS OTP delivery, and the same obligation on the consumer.",
+      "consumer": "frontend"
+    }
   }
 }
