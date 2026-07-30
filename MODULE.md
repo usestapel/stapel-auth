@@ -134,6 +134,8 @@ Emitted events (`stapel_core.comm.emit`, transactional outbox; schemas in `schem
 | `user.session_revoked` | schema in `schemas/emits/` | Schema declared; **no `emit()` call in code yet** (see gaps) |
 | `staff.role.assigned` | `{user_id, role, staff_roles, actor_id}` (`events.py: StaffRoleAssignedPayload`; `staff_roles` = full list **after** the change) | A staff role was assigned (`staff_roles.py: assign_staff_role` — admin, API, or direct service call). Audit stream for eventstore/notifications (admin-suite §3.8) |
 | `staff.role.revoked` | `{user_id, role, staff_roles, actor_id}` (`events.py: StaffRoleRevokedPayload`) | A staff role was revoked (`staff_roles.py: revoke_staff_role`) |
+| `user.deactivated` | `{user_id, reason?, actor_id?}` (`events.py: UserDeactivatedPayload`) | The account's `is_active` really went `True → False` — administrative, **reversible**, **not** a GDPR erasure. Emitted by the observer in `activation.py`, so the admin checkbox and a management shell announce it too; re-saving an already-deactivated user emits nothing |
+| `user.reactivated` | `{user_id, actor_id?}` (`events.py: UserReactivatedPayload`) | `is_active` went `False → True`. Mandatory mirror: a consumer that suspended state on `user.deactivated` lifts it here |
 | `notification.requested` | via `stapel_core.notifications.request_notification` | All outbound mail/SMS: types `otp_code`, `magic_link_login`, `new_device_login`, `suspicious_login`, `all_sessions_revoked`, `welcome`, `auth_change_requested` / `_reminder` / `_urgent` / `_completed`. Templates live in the notifications service — copy changes are **not** an auth fork |
 
 Provided functions (`functions.py`, registered in `ready()`; schema in `schemas/functions/`):
@@ -143,6 +145,37 @@ Provided functions (`functions.py`, registered in `ready()`; schema in `schemas/
 | `auth.verification.policy` | `{user_id}` → `{disabled_scopes, enabled_scopes}` | `stapel_core.verification.policy.get_user_policy` (cached core-side) |
 
 Consumed events: `gdpr.export.requested`, `gdpr.delete.requested` — only in microservices mode, via `manage.py consume_gdpr` (`management/commands/consume_gdpr.py`, service name `auth`). stapel-auth calls no other module's functions.
+
+### Account activation — `active` / `suspended` / `deleted` (#92)
+
+`activation.py` owns the administrative deactivate/reactivate seam and keeps
+three states that must never be spelled the same way apart:
+
+| State | Mechanism | Reversible | Announced by |
+|---|---|---|---|
+| `active` | `is_active=True` | — | — |
+| `suspended` | `is_active=False` — the session guard refuses admission on all 19 issuance paths (0.15.0) | **yes**, nothing is destroyed | `user.deactivated` |
+| `deleted` | GDPR erasure (`gdpr.py: AuthGDPRProvider.delete`) — rows removed | no | `user.deleted` (gdpr module) |
+
+`user.deactivated` is **not** a rename of `user.deleted`: consumers must
+*suspend*, never delete, and must undo on `user.reactivated`.
+
+**Services** (exported lazily from the package root):
+`deactivate_user(user, reason=None, actor=None)` /
+`reactivate_user(user, actor=None)` — both return `True` only on a real
+transition, both open the transaction that makes the emit atomic with the
+write. `is_deactivated(user)` delegates to
+`sessions.guard.account_disabled_error`, the same predicate the issuance
+paths gate on, so this module and the guard cannot drift.
+
+**Emission is by observer, not by call site.** `is_active` is a plain field
+with a checkbox in every admin, so the `pre_save`/`post_save` pair in
+`activation.py` (wired in `AppConfig.ready`) watches the real transition —
+the service functions, the admin, and a management shell all announce
+exactly once, and a no-op re-save announces nothing. Two documented blind
+spots: `QuerySet.update()`/`bulk_update` bypass model signals (use
+`deactivate_user`), and a bare field flip carries no `reason`/`actor` (both
+payload fields are optional for exactly that reason).
 
 ### Staff roles — assignments + JWT transport (admin-suite AS-2)
 

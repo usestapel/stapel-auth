@@ -16,6 +16,12 @@ _LAZY_EXPORTS = {
     # merges this into its own `CELERY_BEAT_SCHEDULE` (see MODULE.md "Celery
     # beat schedule" + `tasks.py`'s module doc for why it's required).
     "BEAT_SCHEDULE": (".tasks", "BEAT_SCHEDULE"),
+    # Account activation (#92) — administrative deactivate/reactivate, the
+    # single seam that announces user.deactivated / user.reactivated.
+    "deactivate_user": (".activation", "deactivate_user"),
+    "reactivate_user": (".activation", "reactivate_user"),
+    "is_deactivated": (".activation", "is_deactivated"),
+    "account_state": (".activation", "account_state"),
     # Staff roles (admin-suite AS-2) — single-writer assignment services.
     "assign_staff_role": (".staff_roles", "assign_staff_role"),
     "revoke_staff_role": (".staff_roles", "revoke_staff_role"),

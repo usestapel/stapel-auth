@@ -16,6 +16,8 @@ EVENT_USER_SESSION_CREATED = "user.session_created"
 EVENT_USER_SESSION_REVOKED = "user.session_revoked"
 EVENT_USER_MFA_ENABLED = "user.mfa_enabled"
 EVENT_USER_MFA_DISABLED = "user.mfa_disabled"
+EVENT_USER_DEACTIVATED = "user.deactivated"
+EVENT_USER_REACTIVATED = "user.reactivated"
 
 
 @dataclass
@@ -141,6 +143,52 @@ class UserMfaDisabledPayload:
     factor: str
 
 
+@dataclass
+class UserDeactivatedPayload:
+    """Payload for the user.deactivated event
+    (schemas/emits/user.deactivated.json — #92).
+
+    ADMINISTRATIVE access removal, emphatically **not** a GDPR erasure. The
+    account row, its factors and its history all stay; ``is_active`` flips
+    to False and the account stops being admitted anywhere. Consumers must
+    treat it as *reversible* and keep the user's records: the mirror event
+    ``user.reactivated`` puts everything back. The irreversible signal is
+    ``user.deleted`` (gdpr), which is a different event with a different
+    consumer and must never be conflated with this one.
+
+    Emitted once per real ``True -> False`` transition of ``is_active``, from
+    the single observer in :mod:`stapel_auth.activation` — so an admin
+    checkbox, a management shell, and ``deactivate_user()`` all produce
+    exactly one event, and re-saving an already-deactivated user produces
+    none.
+
+    Fields:
+        user_id: UUID of the deactivated user.
+        reason: Free-text/enum reason recorded by the caller of
+            ``deactivate_user`` (open vocabulary), omitted when unknown —
+            an admin checkbox carries no reason.
+        actor_id: UUID of the staff user who performed it, omitted for
+            programmatic/unknown actors.
+    """
+    user_id: str
+    reason: str | None = None
+    actor_id: str | None = None
+
+
+@dataclass
+class UserReactivatedPayload:
+    """Payload for the user.reactivated event — mirror of deactivated.
+
+    Emitted on the ``False -> True`` transition. Its existence is what makes
+    deactivation safe to act on destructively-looking ways downstream: a
+    consumer that suspends memberships on ``user.deactivated`` MUST lift
+    them here, or a restored account logs in to an empty product ("вошёл, но
+    ничего не видит").
+    """
+    user_id: str
+    actor_id: str | None = None
+
+
 # Canonical event registry — keyed by the action name actually emitted.
 EVENT_REGISTRY = {
     EVENT_USER_REGISTERED: UserRegisteredPayload,
@@ -150,4 +198,6 @@ EVENT_REGISTRY = {
     EVENT_USER_SESSION_REVOKED: UserSessionRevokedPayload,
     EVENT_USER_MFA_ENABLED: UserMfaEnabledPayload,
     EVENT_USER_MFA_DISABLED: UserMfaDisabledPayload,
+    EVENT_USER_DEACTIVATED: UserDeactivatedPayload,
+    EVENT_USER_REACTIVATED: UserReactivatedPayload,
 }

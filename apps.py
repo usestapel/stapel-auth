@@ -42,5 +42,11 @@ class StapelAuthConfig(AppConfig):
             from .gdpr import AuthGDPRProvider
             gdpr_registry.register(AuthGDPRProvider())
 
+        # Account activation observer (#92): announces the real is_active
+        # True<->False transition as user.deactivated / user.reactivated,
+        # whoever flipped the flag (service call, admin checkbox, shell).
+        from .activation import register_activation_observer
+        register_activation_observer()
+
         # System check: USE_MOCK_*_OTP left on with DEBUG=False (checks.py).
         from . import checks as _checks  # noqa: F401

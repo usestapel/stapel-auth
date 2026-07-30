@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "user.reactivated",
+  "description": "Mirror of user.deactivated: is_active flipped False -> True. Consumers that suspended state on deactivation MUST lift it here — a restored account that logs in to an empty product is the same outage with a nicer error page.",
+  "type": "object",
+  "required": ["user_id"],
+  "properties": {
+    "user_id":  { "type": "string", "format": "uuid" },
+    "actor_id": { "type": "string", "format": "uuid", "description": "Staff user who performed it; absent for programmatic/unknown actors." }
+  },
+  "additionalProperties": false
+}
