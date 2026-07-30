@@ -1,6 +1,6 @@
 # Errors — Русский
 
-`125` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
+`126` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
 
 | Код | Статус | Параметры | Действие | Текст |
 |---|---|---|---|---|
@@ -81,6 +81,7 @@
 | `error.403.mock_otp_admin` | 403 | — | `contact_support` | Аутентификация по OTP отключена для учётных записей администраторов в mock-режиме. |
 | `error.403.network_blocked` | 403 | — | `contact_support` | Запросы из этой сети не разрешены. |
 | `error.403.password_change_required` | 403 | — | `reauthenticate` | Перед входом необходимо сменить пароль. Сначала завершите обязательную смену пароля. |
+| `error.403.privileged_account` | 403 | — | `contact_support` | Эта учётная запись обладает правами уровня всего развёртывания. Её пароль нельзя сбросить из интерфейса организации. |
 | `error.403.qr_device_mismatch` | 403 | — | `retry` | Этот QR-код принадлежит другому устройству. |
 | `error.403.qr_unauth_scan` | 403 | — | `reauthenticate` | Этот QR-код нельзя отсканировать с неаутентифицированного устройства. |
 | `error.403.sso_required` | 403 | — | `reauthenticate` | Для этой учётной записи вход возможен только через SSO. Используйте SSO-ссылку вашей организации. |

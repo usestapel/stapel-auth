@@ -308,6 +308,10 @@
       "hash": "b43e4605eedaaaa2",
       "origin": "llm"
     },
+    "error.403.privileged_account": {
+      "hash": "3e0e49f617610164",
+      "origin": "llm"
+    },
     "error.403.qr_device_mismatch": {
       "hash": "192e14e63031c954",
       "origin": "seed:stapel-builtin"

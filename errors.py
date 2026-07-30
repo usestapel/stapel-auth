@@ -95,6 +95,8 @@ ERR_403_PASSWORD_CHANGE_REQUIRED = 'error.403.password_change_required'
 ERR_403_MFA_ENROLLMENT_REQUIRED = 'error.403.mfa_enrollment_required'
 ERR_400_USERNAME_NAMESPACE_INVALID = 'error.400.username_namespace_invalid'
 ERR_400_FIRST_LOGIN_CHALLENGE_INVALID = 'error.400.first_login_challenge_invalid'
+# Administrative password reset (#110)
+ERR_403_PRIVILEGED_ACCOUNT = 'error.403.privileged_account'
 
 AUTH_ERRORS = {
     ERR_401_INVALID_CREDENTIALS: 'Invalid credentials',
@@ -194,6 +196,8 @@ AUTH_ERRORS = {
     ERR_403_MFA_ENROLLMENT_REQUIRED: 'Two-factor enrollment is required before this account can be used. Set up an authenticator app or a passkey first.',
     ERR_400_USERNAME_NAMESPACE_INVALID: "Invalid namespaced login. Use 'org_slug/username' with exactly one '/' and valid characters on both sides.",
     ERR_400_FIRST_LOGIN_CHALLENGE_INVALID: 'First-login challenge is invalid or has expired. Sign in again to restart.',
+    # Administrative password reset
+    ERR_403_PRIVILEGED_ACCOUNT: 'This account holds deployment-wide privileges. Its password cannot be reset from an organization surface.',
 }
 
 # Machine-readable recovery hints (remediation) — the canonical "what to do"
@@ -308,6 +312,11 @@ AUTH_REMEDIATION = {
     ERR_400_USERNAME_NAMESPACE_INVALID: 'fix_input',
     # Challenge tokens are short-TTL/single-use — restart the login
     ERR_400_FIRST_LOGIN_CHALLENGE_INVALID: 'reauthenticate',
+    # A staff/superuser account is refused on purpose: an organization
+    # administrator resetting a deployment-wide account would cross the
+    # tenancy boundary upward. No request field changes that and no retry
+    # helps — the deployment operator does it through the admin suite.
+    ERR_403_PRIVILEGED_ACCOUNT: 'contact_support',
 }
 
 register_service_errors(AUTH_ERRORS, remediation=AUTH_REMEDIATION)

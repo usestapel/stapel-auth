@@ -128,6 +128,45 @@ APPLY_FIRST_LOGIN_POLICIES_SCHEMA = {
 }
 
 
+ADMIN_RESET_PASSWORD_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "user_id": {
+            "type": "string",
+            "description": "Primary key of the account whose password is reset.",
+        },
+        "password": {
+            "type": ["string", "null"],
+            "description": "New password chosen by the administrator. "
+            "Omitted/null: the server generates a crypto-strong one and "
+            "returns it ONCE as generated_password.",
+        },
+        "first_login_policies": {
+            "type": "array",
+            "items": {"type": "string", "enum": ["password_change", "mfa_enroll"]},
+            "uniqueItems": True,
+            "description": "First-login steps to raise after the reset. "
+            "Defaults to ['password_change'] when omitted — a password "
+            "somebody else chose must stop working at the first use. Pass "
+            "[] to suppress that, deliberately.",
+        },
+        "actor_id": {
+            "type": ["string", "null"],
+            "description": "Who ordered the reset. Recorded on the audit row; "
+            "the point of the whole call being here rather than a bare "
+            "set_password by the caller.",
+        },
+        "reason": {
+            "type": ["string", "null"],
+            "description": "Free-text note for the audit row (e.g. the ticket "
+            "the request came in on).",
+        },
+    },
+    "required": ["user_id"],
+    "additionalProperties": False,
+}
+
+
 MFA_STATUS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -345,6 +384,119 @@ def apply_first_login_policies(payload: dict) -> dict:
         return {"error": ERR_404_NOT_FOUND}
 
     return {"applied": FirstLoginPolicyService.apply(user, policies)}
+
+
+@function("auth.admin_reset_password", schema=ADMIN_RESET_PASSWORD_SCHEMA)
+def admin_reset_password(payload: dict) -> dict:
+    """Reset an account's password on an administrator's order (#110).
+
+    Payload: ``{"user_id", "password"?, "first_login_policies"?,
+    "actor_id"?, "reason"?}``. Success:
+    ``{"generated_password"?, "sessions_revoked": int,
+    "first_login_policies_applied": [...]}``.
+
+    This is a *credential* operation, and everything that makes it safe
+    lives here rather than in the caller, because a caller that merely
+    called ``user.set_password()`` would get none of it:
+
+    * **the old sessions die.** A password reset that leaves live sessions
+      standing does not recover an account — the attacker's session
+      outlives the recovery. ``SessionService.revoke_all`` blacklists the
+      JTIs and emits ``user.session_revoked`` per session.
+    * **the new password is temporary by construction.** The default
+      ``first_login_policies`` is ``["password_change"]``: a password
+      somebody other than the account owner chose must stop working at its
+      first use. An org may add ``mfa_enroll`` (independent since #90); an
+      org may pass ``[]`` to suppress it, and that is then a decision on
+      the record rather than an omission.
+    * **the actor is on the audit row.** ``AuthAuditLog`` gets a
+      ``password_reset`` entry carrying ``actor_id`` and ``via:
+      admin_reset``. "Who reset this password" must be answerable from
+      auth's own journal, not only from the calling service's events.
+
+    Refusals (structured, never raised):
+
+    * ``{"error": "error.404.not_found"}`` — no such account. The CALLER
+      is responsible for not turning that into an existence oracle; the
+      workspaces endpoint answers an identical 404 for every target it
+      will not act on.
+    * ``{"error": "error.403.privileged_account"}`` — the target is staff
+      or a superuser. An organization administrator resetting a
+      deployment-wide account would cross the tenancy boundary upward: org
+      admin is a role inside one workspace, staff is a role over the whole
+      deployment, and the first must never be a route to the second. The
+      deployment operator does this through the admin suite.
+    * ``{"error": "error.400.bad_request"}`` — an administrator-chosen
+      password fails the deployment's password canon, or the policy set is
+      malformed. The generated-password path cannot fail this way.
+
+    The generated password is returned exactly ONCE, is never logged, and
+    never rides an event payload — the login-grant privacy canon.
+    """
+    import secrets
+
+    from django.contrib.auth import get_user_model
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+    from stapel_core.django.api.errors import ERR_400_BAD_REQUEST, ERR_404_NOT_FOUND
+
+    from stapel_auth.errors import ERR_403_PRIVILEGED_ACCOUNT
+    from stapel_auth.models import AuthEventType
+    from stapel_auth.password.services import FirstLoginPolicyService, PasswordService
+    from stapel_auth.sessions.services import AuditService, SessionService
+
+    policies = FirstLoginPolicyService.normalize_policies(
+        payload.get(
+            "first_login_policies",
+            [FirstLoginPolicyService.REQUIRES_PASSWORD_CHANGE],
+        )
+    )
+    if policies is None:
+        return {"error": ERR_400_BAD_REQUEST}
+
+    User = get_user_model()
+    try:
+        user = User.objects.filter(pk=payload["user_id"]).first()
+    except (ValidationError, ValueError):
+        user = None
+    if user is None:
+        return {"error": ERR_404_NOT_FOUND}
+    if getattr(user, "is_staff", False) or getattr(user, "is_superuser", False):
+        return {"error": ERR_403_PRIVILEGED_ACCOUNT}
+
+    password = payload.get("password") or None
+    generated = None
+    if password is None:
+        # Crypto-strong server-side password (~128 bits), returned once.
+        generated = secrets.token_urlsafe(16)
+        password = generated
+    else:
+        try:
+            validate_password(password, user=user)
+        except ValidationError:
+            return {"error": ERR_400_BAD_REQUEST}
+
+    revoked = SessionService.get_active(user).count()
+    user.set_password(password)
+    user.save(update_fields=["password"])
+    applied = FirstLoginPolicyService.apply(user, policies)
+    PasswordService._revoke_all_sessions(user)
+    AuditService.log(
+        AuthEventType.PASSWORD_RESET,
+        user=user,
+        via="admin_reset",
+        actor_id=str(payload.get("actor_id") or "") or None,
+        reason=payload.get("reason") or None,
+        first_login_policies=applied,
+        sessions_revoked=revoked,
+    )
+    result = {
+        "sessions_revoked": revoked,
+        "first_login_policies_applied": applied,
+    }
+    if generated is not None:
+        result["generated_password"] = generated
+    return result
 
 
 @function("auth.mfa_status", schema=MFA_STATUS_SCHEMA)

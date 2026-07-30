@@ -1,6 +1,6 @@
 # Errors — English
 
-`125` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
+`126` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
 
 | Code | Status | Params | Remediation | Text |
 |---|---|---|---|---|
@@ -81,6 +81,7 @@
 | `error.403.mock_otp_admin` | 403 | — | `contact_support` | OTP-based auth is disabled for admin accounts in mock mode. |
 | `error.403.network_blocked` | 403 | — | `contact_support` | Requests from this network are not allowed |
 | `error.403.password_change_required` | 403 | — | `reauthenticate` | A password change is required before this account can sign in. Complete the forced password change first. |
+| `error.403.privileged_account` | 403 | — | `contact_support` | This account holds deployment-wide privileges. Its password cannot be reset from an organization surface. |
 | `error.403.qr_device_mismatch` | 403 | — | `retry` | This QR code belongs to another device. |
 | `error.403.qr_unauth_scan` | 403 | — | `reauthenticate` | This QR code cannot be scanned by an unauthenticated device. |
 | `error.403.sso_required` | 403 | — | `reauthenticate` | This account must sign in via SSO. Use your organization SSO link. |
