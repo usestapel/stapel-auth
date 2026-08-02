@@ -50,8 +50,9 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 | `INTERNAL_SERVICE_KEY` | `None` | Service-to-service auth key (`no_env` — set via `STAPEL_AUTH` or a flat setting, never picked up from the environment) |
 | `OAUTH_PROVIDERS` | `{}` | Per-provider credentials: `{'google': {'client_id': ..., 'client_secret': ...}}` (parsed into `OAuthProviderConfig`) |
 | `OAUTH_PROVIDER_CLASSES` | 9 built-ins (see below) | **Dotted-path list** of `OAuthProvider` subclasses registered at startup — append your own class to add a provider without touching this repo |
-| `AUTH_PHONE_REGISTRATION` / `AUTH_EMAIL_REGISTRATION` / `AUTH_OAUTH_REGISTRATION` / `AUTH_SSO_REGISTRATION` | `True` | Registration method gates |
+| `AUTH_PHONE_REGISTRATION` / `AUTH_EMAIL_REGISTRATION` / `AUTH_OAUTH_REGISTRATION` / `AUTH_SSO_REGISTRATION` | `True` | Registration method gates — enforced at the **account-creation site**, not at the request-a-code step, so login keeps working with registration off (see "Closing registration" below) |
 | `AUTH_PASSWORD_REGISTRATION` | `False` | Password registration gate |
+| `AUTH_REGISTRATION_CLOSED_BEHAVIOR` | `'silent'` | What a stranger sees on the OTP surfaces when their method's registration axis is off: `silent` (identical answer for everyone, the stranger's code is simply never delivered — no existence oracle), `request` (403 `error.403.registration_closed` at `*/request/`), `verify` (code sent, 403 at `*/verify/`). Unknown values degrade to `silent`. `no_env` |
 | `AUTH_PHONE_LOGIN` / `AUTH_EMAIL_LOGIN` / `AUTH_OAUTH_LOGIN` / `AUTH_SSO_LOGIN` / `AUTH_QR_LOGIN` / `AUTH_PASSKEY_LOGIN` / `AUTH_MAGIC_LINK_LOGIN` | `True` | Login method gates |
 | `AUTH_PASSWORD_LOGIN` | `False` | Password login gate |
 | `OAUTH_STEP_UP` | `False` | TOTP challenge after OAuth login |
@@ -312,6 +313,25 @@ Mechanics you have to respect when adding a path:
 | JSON paths | Nothing to do. `SessionIssuanceDenied` subclasses `StapelServiceError`, so the stapel-core DRF handler renders it identically everywhere — no per-caller `try/except`. The next step arrives in `params` (`requires`, `challenge_token`, `expires_in`). |
 | Browser-redirect paths | Magic link, the OAuth callback, QR session-share and the SSO ACS answer a *navigation*: they catch `SessionIssuanceDenied` and redirect to `denial_redirect_url(...)` → `{FRONTEND_URL}/login?first_login=<requires>&challenge_token=<tok>&next=<n>` (or `?error=account_disabled` when there is no next step). A raw JSON error body in the address bar is not a recoverable flow. |
 | Minting around the gate | Don't. `tests/test_session_issuance_gate.py` walks the AST and fails on any `create_tokens_for_user` caller that is neither inside the minter nor on an explicit, reason-annotated bypass roster. The roster records a *declared* intention, not a verified one — it protects against an unnoticed bypass, not a wrong one. |
+
+### Closing registration (`registration.py`)
+
+The sibling invariant of the session gate above, and the same shape: **one place decides whether a NEW account may be born.**
+
+`AUTH_<METHOD>_REGISTRATION` is enforced at the creation site — not at the request-a-code step, where it used to sit reading `not LOGIN and not REGISTRATION` (an `and`, so it fired only when the whole channel was off; with login on and registration off the endpoint accepted any address and `email_verify` created the user unconditionally). Every creation site now goes through `registration.require_registration_open(method)` / `registration_open(method)`: OTP email/phone (fresh account **and** guest promotion), `_resolve_oauth_user` (both the promote and the create branch), and SSO JIT provisioning.
+
+**Not gated, on purpose** — these are the owner's doors, and a deployment with all axes off and no owner path would have no way to create accounts at all:
+
+| Path | Why it stays open |
+|---|---|
+| `auth.provision_user` (comm) | The canonical "only the owner makes accounts" surface — namespaced logins handed out by an org |
+| `POST /admin-users/` | Service API key or staff only |
+| `LoginGrantService.exchange(create_if_missing=True)` | The grant is minted server-side by a trusted issuer (workspaces invites), never by the person signing in; `AUTH_LOGIN_GRANT` is off by default |
+| `POST /anonymous/` | A guest session is not an account — its own `AUTH_ANONYMOUS` axis. *Promoting* a guest into a real account IS registration and IS gated |
+
+**The oracle.** Refusing only *unknown* addresses turns the OTP endpoints into an account-existence oracle, so the tradeoff is a setting (`AUTH_REGISTRATION_CLOSED_BEHAVIOR`), not a rewrite: `silent` (default) answers everyone identically and never delivers the stranger's code — the record, the cooldown and the block state are all created exactly as for a member, so even the 429 is not a side channel; `request` refuses at `*/request/` (usable, fully enumerable); `verify` sends the code and refuses at `*/verify/` (enumerable *and* mails strangers). OAuth and SSO refuse a fresh identity outright — there is nothing to enumerate when the caller must already control the provider account.
+
+To close sign-up on a deployment: set the four/five `AUTH_*_REGISTRATION` axes to `False` and create accounts through `auth.provision_user` (or `/admin-users/`). `GET /capabilities/` already reports each method's `can_register`, so the frontend hides the sign-up surface without further work.
 
 ### Signals
 
