@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [0.19.1] — 2026-08-02
+
+### Packaging / contract
+
+- `docs/llms.txt` — the fifth contract artifact — is now emitted, drift-gated
+  by `make contract`/`contract-check`, and badged in the README. stapel-auth's
+  render (~7261 tokens) exceeds the generator's default 4000-token budget; the
+  ceiling is deliberately raised to 8000 for this module rather than trimming
+  intent/summary lines to fit.
+- `docs/llms.txt` is now listed in `package-data` so it actually ships in the
+  wheel (it was being emitted and gated but not packaged).
+- Badge canon + Python 3.14 classifier added to `pyproject.toml`/README.
+
 ## [0.19.0] — 2026-08-02
 
 ### Регистрацию наконец можно закрыть, оставив вход (#86)
