@@ -1,8 +1,11 @@
 # stapel-auth
 
-[![CI](https://github.com/usestapel/stapel-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/usestapel/stapel-auth/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/usestapel/stapel-auth/graph/badge.svg)](https://codecov.io/gh/usestapel/stapel-auth)
-[![PyPI](https://img.shields.io/pypi/v/stapel-auth.svg)](https://pypi.org/project/stapel-auth/)
+[![CI](https://img.shields.io/github/actions/workflow/status/usestapel/stapel-auth/ci.yml?branch=main&logo=github&label=CI)](https://github.com/usestapel/stapel-auth/actions/workflows/ci.yml?query=branch%3Amain)
+[![coverage](https://img.shields.io/codecov/c/github/usestapel/stapel-auth?branch=main&logo=codecov&label=coverage)](https://app.codecov.io/gh/usestapel/stapel-auth)
+[![pypi](https://img.shields.io/pypi/v/stapel-auth?logo=pypi&logoColor=white&label=pypi)](https://pypi.org/project/stapel-auth/)
+[![downloads](https://static.pepy.tech/badge/stapel-auth/month)](https://pepy.tech/project/stapel-auth)
+[![python](https://img.shields.io/pypi/pyversions/stapel-auth?logo=python&logoColor=white)](https://pypi.org/project/stapel-auth/)
+[![license](https://img.shields.io/github/license/usestapel/stapel-auth)](https://github.com/usestapel/stapel-auth/blob/main/LICENSE)
 
 > Full-featured authentication — JWT, passkeys (WebAuthn), TOTP, QR login, OAuth2, SSO (SAML/OIDC), email link, phone OTP
 
