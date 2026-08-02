@@ -382,12 +382,21 @@ class SSOUserService:
         from django.contrib.auth import get_user_model
         from .models import OrgMembership
         from .otp.services import promote_anonymous_session
+        from .registration import require_registration_open
         U = get_user_model()
         email = attrs['email']
         if not email:
             raise ValueError('SSO assertion missing email')
 
         existing = U.objects.filter(email=email).first()
+        if existing is None:
+            # JIT provisioning IS registration (#86) — an employee the IdP
+            # vouches for but who has no account here gets one created. Both
+            # branches below that produce a new account (promote a guest row,
+            # or get_or_create's create half) sit behind this one check;
+            # ``existing is not None`` falls straight through to the login
+            # path untouched.
+            require_registration_open('sso')
         if existing is None and request_user is not None and getattr(
             request_user, 'is_authenticated', False
         ) and request_user.is_anonymous:

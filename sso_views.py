@@ -25,6 +25,7 @@ from .errors import (
     ERR_409_SSO_ORG_SLUG_TAKEN,
 )
 from .models import Organization, SSOConfig
+from .registration import RegistrationClosed
 from .sso_service import OIDCService, SAMLService, SSOUserService
 from stapel_auth.permissions import DenyEnrollOnly
 
@@ -240,6 +241,15 @@ class SAMLACSView(APIView):
             return HttpResponseRedirect(
                 f"{_frontend_url()}/login?error=sso_invalid_response"
             )
+        except RegistrationClosed:
+            # The IdP vouches for an employee who has no account here and
+            # AUTH_SSO_REGISTRATION is off (#86). This is a browser
+            # navigation from the IdP, so the refusal lands on the login
+            # screen with a reason, not on a JSON body in the address bar.
+            logger.warning(f"SAML JIT provisioning refused (registration closed) [{slug}]")
+            return HttpResponseRedirect(
+                f"{_frontend_url()}/login?error=registration_closed"
+            )
 
         if not user.is_active:
             return HttpResponseRedirect(
@@ -311,6 +321,15 @@ class OIDCCallbackView(APIView):
             logger.warning(f"OIDC JIT provisioning failed [{slug}]: {e}")
             return HttpResponseRedirect(
                 f"{_frontend_url()}/login?error=sso_invalid_response"
+            )
+        except RegistrationClosed:
+            # The IdP vouches for an employee who has no account here and
+            # AUTH_SSO_REGISTRATION is off (#86). This is a browser
+            # navigation from the IdP, so the refusal lands on the login
+            # screen with a reason, not on a JSON body in the address bar.
+            logger.warning(f"OIDC JIT provisioning refused (registration closed) [{slug}]")
+            return HttpResponseRedirect(
+                f"{_frontend_url()}/login?error=registration_closed"
             )
 
         if not user.is_active:

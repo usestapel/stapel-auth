@@ -588,6 +588,13 @@
     "en": "This QR code cannot be scanned by an unauthenticated device."
   },
   {
+    "code": "error.403.registration_closed",
+    "status": 403,
+    "params": [],
+    "remediation": "contact_support",
+    "en": "New accounts are not open for sign-up here. Ask an administrator to create one for you."
+  },
+  {
     "code": "error.403.sso_required",
     "status": 403,
     "params": [],

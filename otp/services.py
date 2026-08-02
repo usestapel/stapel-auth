@@ -98,8 +98,19 @@ class PhoneVerificationService:
         from stapel_auth.conf import auth_settings
         return _generate_numeric_code(int(auth_settings.OTP_LENGTH))
 
-    def send_verification_code(self, phone, device_id=None, force_real_otp=False):
-        """Send verification code to phone number"""
+    def send_verification_code(self, phone, device_id=None, force_real_otp=False,
+                               deliver=True):
+        """Send verification code to phone number.
+
+        *deliver* ``False`` runs the whole flow — the same rate-limit and
+        block bookkeeping, the same ``PhoneVerification`` row, the same
+        return value — but sends nothing, and the stored code is always a
+        real random one (never the mock code). That is the 'silent' arm of
+        ``AUTH_REGISTRATION_CLOSED_BEHAVIOR`` (registration.py): a stranger
+        must be indistinguishable from a member on this endpoint, which they
+        would not be if the record, the cooldown or the block state were
+        skipped for them.
+        """
         try:
             # Check for rate limiting - AUTH_OTP_RESEND_COOLDOWN window
             cutoff_time = timezone.now() - timedelta(seconds=self.resend_cooldown)
@@ -135,8 +146,9 @@ class PhoneVerificationService:
                 logger.warning(f"Phone {phone} is blocked until {latest_verification.blocked_until}")
                 return {'error': 'blocked', 'retry_after': max(time_remaining, 0)}
 
-            # Generate code (force real OTP for admin accounts)
-            code = self.generate_code(force_real=force_real_otp)
+            # Generate code (force real OTP for admin accounts; an
+            # undelivered code is ALWAYS real — the mock code is public)
+            code = self.generate_code(force_real=force_real_otp or not deliver)
 
             # Create verification record
             verification = PhoneVerification.objects.create(
@@ -145,6 +157,11 @@ class PhoneVerificationService:
                 device_id=device_id,
                 expires_at=timezone.now() + timedelta(seconds=self.otp_ttl)
             )
+
+            if not deliver:
+                # Nothing is sent and nothing is logged about the code — the
+                # caller's answer is the ordinary success envelope.
+                return verification
 
             # Use mock OTP in development/testing (unless forced real)
             if self.use_mock_otp and not force_real_otp:
@@ -279,8 +296,15 @@ class EmailVerificationService:
         from stapel_auth.conf import auth_settings
         return _generate_numeric_code(int(auth_settings.OTP_LENGTH))
 
-    def send_verification_code(self, email, device_id=None, force_real_otp=False):
-        """Send verification code to email address"""
+    def send_verification_code(self, email, device_id=None, force_real_otp=False,
+                               deliver=True):
+        """Send verification code to email address.
+
+        *deliver* ``False``: see
+        :meth:`PhoneVerificationService.send_verification_code` — the record
+        and every rate-limit side effect happen exactly as usual, only the
+        notification is not queued and the code is never the mock one.
+        """
         try:
             from stapel_auth.models import EmailVerification
 
@@ -318,8 +342,9 @@ class EmailVerificationService:
                 logger.warning(f"Email {email} is blocked until {latest_verification.blocked_until}")
                 return {'error': 'blocked', 'retry_after': max(time_remaining, 0)}
 
-            # Generate code (force real OTP for admin accounts)
-            code = self.generate_code(force_real=force_real_otp)
+            # Generate code (force real OTP for admin accounts; an
+            # undelivered code is ALWAYS real — the mock code is public)
+            code = self.generate_code(force_real=force_real_otp or not deliver)
 
             # Create verification record
             verification = EmailVerification.objects.create(
@@ -328,6 +353,11 @@ class EmailVerificationService:
                 device_id=device_id,
                 expires_at=timezone.now() + timedelta(seconds=self.otp_ttl)
             )
+
+            if not deliver:
+                # Nothing is sent and nothing is logged about the code — the
+                # caller's answer is the ordinary success envelope.
+                return verification
 
             # Use mock OTP in development/testing (unless forced real)
             if self.use_mock_otp and not force_real_otp:

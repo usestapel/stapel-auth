@@ -1,6 +1,6 @@
 # Errors — Русский
 
-`126` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
+`127` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
 
 | Код | Статус | Параметры | Действие | Текст |
 |---|---|---|---|---|
@@ -84,6 +84,7 @@
 | `error.403.privileged_account` | 403 | — | `contact_support` | Эта учётная запись обладает правами уровня всего развёртывания. Её пароль нельзя сбросить из интерфейса организации. |
 | `error.403.qr_device_mismatch` | 403 | — | `retry` | Этот QR-код принадлежит другому устройству. |
 | `error.403.qr_unauth_scan` | 403 | — | `reauthenticate` | Этот QR-код нельзя отсканировать с неаутентифицированного устройства. |
+| `error.403.registration_closed` | 403 | — | `contact_support` | Здесь нельзя зарегистрироваться самостоятельно. Попросите администратора создать вам учётную запись. |
 | `error.403.sso_required` | 403 | — | `reauthenticate` | Для этой учётной записи вход возможен только через SSO. Используйте SSO-ссылку вашей организации. |
 | `error.403.verification_enrollment_required` | 403 | — | `verify` | Требуется регистрация фактора подтверждения. |
 | `error.403.verification_required` | 403 | — | `verify` | Требуется дополнительная проверка |

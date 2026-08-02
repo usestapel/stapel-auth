@@ -209,6 +209,20 @@
       }
     },
     {
+      "key": "AUTH_REGISTRATION_CLOSED_BEHAVIOR",
+      "kind": "enum",
+      "default": "silent",
+      "group": "auth.registration",
+      "gates": {
+        "operations": [],
+        "co_gates": []
+      },
+      "curated": {
+        "summary": "How the sign-in-by-code screens answer somebody whose address has no account while sign-up is off. 'silent' (default) answers everyone identically and simply never sends the stranger a code — nobody can probe the endpoint to learn who works here, at the price that a mistyped address waits for a letter that will not come. 'request' says 'sign-up is closed' immediately, which is the friendliest message and also lets anyone enumerate your member list. 'verify' still sends the code and refuses at the last step — enumerable AND it mails strangers.",
+        "business_label": "What a stranger sees when sign-up is closed"
+      }
+    },
+    {
       "key": "AUTH_PASSWORD_DEANONYMIZES",
       "kind": "bool",
       "default": false,

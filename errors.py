@@ -97,6 +97,8 @@ ERR_400_USERNAME_NAMESPACE_INVALID = 'error.400.username_namespace_invalid'
 ERR_400_FIRST_LOGIN_CHALLENGE_INVALID = 'error.400.first_login_challenge_invalid'
 # Administrative password reset (#110)
 ERR_403_PRIVILEGED_ACCOUNT = 'error.403.privileged_account'
+# Closed registration (#86)
+ERR_403_REGISTRATION_CLOSED = 'error.403.registration_closed'
 
 AUTH_ERRORS = {
     ERR_401_INVALID_CREDENTIALS: 'Invalid credentials',
@@ -198,6 +200,8 @@ AUTH_ERRORS = {
     ERR_400_FIRST_LOGIN_CHALLENGE_INVALID: 'First-login challenge is invalid or has expired. Sign in again to restart.',
     # Administrative password reset
     ERR_403_PRIVILEGED_ACCOUNT: 'This account holds deployment-wide privileges. Its password cannot be reset from an organization surface.',
+    # Closed registration
+    ERR_403_REGISTRATION_CLOSED: 'New accounts are not open for sign-up here. Ask an administrator to create one for you.',
 }
 
 # Machine-readable recovery hints (remediation) — the canonical "what to do"
@@ -317,6 +321,9 @@ AUTH_REMEDIATION = {
     # tenancy boundary upward. No request field changes that and no retry
     # helps — the deployment operator does it through the admin suite.
     ERR_403_PRIVILEGED_ACCOUNT: 'contact_support',
+    # Registration is closed by deployment policy: no input fix and no retry
+    # opens it — an administrator has to create the account.
+    ERR_403_REGISTRATION_CLOSED: 'contact_support',
 }
 
 register_service_errors(AUTH_ERRORS, remediation=AUTH_REMEDIATION)

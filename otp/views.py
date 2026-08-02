@@ -68,6 +68,14 @@ from stapel_auth.otp.services import (
     PhoneVerificationService,
     promote_anonymous_session,
 )
+from stapel_auth.registration import (
+    BEHAVIOR_REQUEST,
+    BEHAVIOR_SILENT,
+    RegistrationClosed,
+    closed_behavior,
+    registration_open,
+    require_registration_open,
+)
 from stapel_auth.sessions.dto import (
     AuthResponse,
     AuthStatus,
@@ -90,6 +98,36 @@ logger = logging.getLogger(__name__)
 class OAuthEmailNotVerified(Exception):
     """OAuth email matches an existing account but the provider did not
     verify it — auto-merge would be an account-takeover vector."""
+
+
+def _would_register(existing_user, request_user) -> bool:
+    """Would this OTP target end in a NEW account (#86)?
+
+    Two callers are NOT registering and must never be gated: an address that
+    already belongs to somebody (that is a login, or a merge for a guest),
+    and an authenticated non-anonymous caller (that is an email/phone change
+    on their own account). Everything else — no account yet, caller is
+    unauthenticated or on a guest session — creates one, either fresh or by
+    promoting the guest row.
+    """
+    if existing_user is not None:
+        return False
+    return not (request_user is not None and not request_user.is_anonymous)
+
+
+def _registration_closed_verify_response():
+    """The refusal a */verify handler returns when registration is closed.
+
+    Under ``'silent'`` this must be indistinguishable from a wrong code —
+    the whole point of that mode is that the endpoint answers strangers and
+    members alike (registration.py). Reaching it at all means the stranger
+    presented the right code for a message that was never delivered, so the
+    coarse ``invalid_code`` (no attempts counter) is what is left; the other
+    two modes name the real reason.
+    """
+    if closed_behavior() == BEHAVIOR_SILENT:
+        return StapelErrorResponse(400, ERR_400_INVALID_CODE)
+    return StapelErrorResponse(403, ERR_403_REGISTRATION_CLOSED)
 
 
 def _sanitize_redirect_after(value: str) -> str:
@@ -347,6 +385,19 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 force_real_otp = True
                 logger.info(f"Admin account detected for {email}, forcing real OTP")
 
+            # Registration gate (#86). Only the branch that would END in a new
+            # account is affected: an existing address is a login, and an
+            # authenticated non-anonymous caller is changing their own email.
+            # Everything else about this handler stays identical, on purpose —
+            # see registration.py on the oracle.
+            deliver = True
+            if _would_register(target_user, request_user) and not registration_open("email"):
+                behavior = closed_behavior()
+                if behavior == BEHAVIOR_REQUEST:
+                    return StapelErrorResponse(403, ERR_403_REGISTRATION_CLOSED)
+                if behavior == BEHAVIOR_SILENT:
+                    deliver = False
+
             # Store device_id in session if provided
             if device_id:
                 request.session["device_id"] = device_id
@@ -354,7 +405,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             # Send verification code
             verification_service = EmailVerificationService()
             verification = verification_service.send_verification_code(
-                email, device_id, force_real_otp=force_real_otp
+                email, device_id, force_real_otp=force_real_otp, deliver=deliver
             )
 
             # Handle different response types
@@ -549,7 +600,11 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     User.objects.filter(id=old_anonymous_id).delete()
                     auth_status = AuthStatus.MERGED
                 else:
-                    # REGISTERED: Convert anonymous to registered user
+                    # REGISTERED: Convert anonymous to registered user.
+                    # Promotion IS registration — the guest row becomes a real
+                    # account — so it answers to the same gate (#86).
+                    if not registration_open("email"):
+                        return _registration_closed_verify_response()
                     request_user.email = email
                     request_user.is_email_verified = True
                     promote_anonymous_session(request_user, auth_type="email")
@@ -566,7 +621,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     user.save()
                     auth_status = AuthStatus.LOGGED_IN
                 else:
-                    # REGISTERED: New account
+                    # REGISTERED: New account — the creation site, and
+                    # therefore where the registration gate lives (#86).
+                    if not registration_open("email"):
+                        return _registration_closed_verify_response()
                     user = User.objects.create(
                         email=email, auth_type="email", is_email_verified=True
                     )
@@ -671,6 +729,15 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 force_real_otp = True
                 logger.info(f"Admin account detected for {phone}, forcing real OTP")
 
+            # Registration gate (#86) — same shape as email/request above.
+            deliver = True
+            if _would_register(target_user, request_user) and not registration_open("phone"):
+                behavior = closed_behavior()
+                if behavior == BEHAVIOR_REQUEST:
+                    return StapelErrorResponse(403, ERR_403_REGISTRATION_CLOSED)
+                if behavior == BEHAVIOR_SILENT:
+                    deliver = False
+
             # Store device_id in session if provided
             if device_id:
                 request.session["device_id"] = device_id
@@ -678,7 +745,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             # Send verification code
             verification_service = PhoneVerificationService()
             verification = verification_service.send_verification_code(
-                phone, device_id, force_real_otp=force_real_otp
+                phone, device_id, force_real_otp=force_real_otp, deliver=deliver
             )
 
             # Handle different response types
@@ -837,7 +904,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     User.objects.filter(id=old_anonymous_id).delete()
                     auth_status = AuthStatus.MERGED
                 else:
-                    # REGISTERED: Convert anonymous to registered user
+                    # REGISTERED: Convert anonymous to registered user —
+                    # promotion is registration, so it takes the gate (#86).
+                    if not registration_open("phone"):
+                        return _registration_closed_verify_response()
                     request_user.phone = phone
                     request_user.is_phone_verified = True
                     promote_anonymous_session(request_user, auth_type="phone")
@@ -854,7 +924,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     user.save()
                     auth_status = AuthStatus.LOGGED_IN
                 else:
-                    # REGISTERED: New account
+                    # REGISTERED: New account — the creation site, and
+                    # therefore where the registration gate lives (#86).
+                    if not registration_open("phone"):
+                        return _registration_closed_verify_response()
                     user = User.objects.create(
                         phone=phone, auth_type="phone", is_phone_verified=True
                     )
@@ -982,6 +1055,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             user = self._resolve_oauth_user(provider, user_data, request_user=request_user)
         except OAuthEmailNotVerified:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
+        except RegistrationClosed:
+            return StapelErrorResponse(403, ERR_403_REGISTRATION_CLOSED)
         self.log_login_attempt(str(user.id), "success", request)
 
         # No forced TOTP: the OAuth provider already authenticated the user.
@@ -1120,6 +1195,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             user = self._resolve_oauth_user(provider, user_data, request_user=request_user)
         except OAuthEmailNotVerified:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
+        except RegistrationClosed:
+            return StapelErrorResponse(403, ERR_403_REGISTRATION_CLOSED)
         self.log_login_attempt(str(user.id), "success", request)
 
         # No forced TOTP: the OAuth provider already authenticated the user.
@@ -1246,6 +1323,9 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         # attach to that row instead of creating (and thereby orphaning) a
         # second one.
         if request_user is not None and request_user.is_authenticated and request_user.is_anonymous:
+            # Promoting the guest row creates a real account just as surely
+            # as case 4 does — same gate (#86).
+            require_registration_open("oauth")
             request_user.email = email
             request_user.oauth_provider = provider
             request_user.oauth_id = oauth_id
@@ -1255,7 +1335,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             request_user.save()
             return request_user
 
-        # 4. Brand-new user
+        # 4. Brand-new user — the OAuth creation site (#86). No oracle to
+        # protect here: the caller had to hold a valid provider token for
+        # this identity to get this far, so the refusal is named.
+        require_registration_open("oauth")
         user = User.objects.create(
             email=email,
             oauth_provider=provider,

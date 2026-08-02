@@ -181,6 +181,7 @@ _EXPECTED_AXES = {
     # auth.registration
     "AUTH_PHONE_REGISTRATION", "AUTH_EMAIL_REGISTRATION", "AUTH_OAUTH_REGISTRATION",
     "AUTH_SSO_REGISTRATION", "AUTH_PASSWORD_REGISTRATION", "AUTH_PASSWORD_DEANONYMIZES",
+    "AUTH_REGISTRATION_CLOSED_BEHAVIOR",
     # auth.login
     "AUTH_PHONE_LOGIN", "AUTH_EMAIL_LOGIN", "AUTH_OAUTH_LOGIN", "AUTH_SSO_LOGIN",
     "AUTH_PASSWORD_LOGIN", "AUTH_QR_LOGIN", "AUTH_PASSKEY_LOGIN",
@@ -195,8 +196,11 @@ _EXPECTED_AXES = {
 }
 
 #: Placement axes are enum-kind (string default) and gate no operations —
-#: everything else in _EXPECTED_AXES is a bool gate.
-_ENUM_AXES = {k for k in _EXPECTED_AXES if k.endswith("_PLACEMENT")}
+#: so is the closed-registration behavior knob (#86). Everything else in
+#: _EXPECTED_AXES is a bool gate.
+_ENUM_AXES = {k for k in _EXPECTED_AXES if k.endswith("_PLACEMENT")} | {
+    "AUTH_REGISTRATION_CLOSED_BEHAVIOR",
+}
 
 
 def _capabilities() -> dict:
@@ -205,10 +209,10 @@ def _capabilities() -> dict:
 
 def test_capabilities_axes_inventory():
     """13 method gates + anonymous + totp + 2 step-up + 8 placement +
-    password-deanonymizes policy, all grouped."""
+    password-deanonymizes and closed-registration-behavior policy, all grouped."""
     doc = _capabilities()
     assert {a["key"] for a in doc["axes"]} == _EXPECTED_AXES
-    assert len(doc["axes"]) == 27
+    assert len(doc["axes"]) == 28
     for axis in doc["axes"]:
         expected_kind = "enum" if axis["key"] in _ENUM_AXES else "bool"
         assert axis["kind"] == expected_kind, axis["key"]
@@ -308,6 +312,7 @@ def test_capabilities_meta_out_of_sync_fails_loudly():
                     "AUTH_ANONYMOUS": "auth.anonymous",
                     "AUTH_TOTP": "auth.mfa",
                     "AUTH_PASSWORD_DEANONYMIZES": "auth.registration",
+                    "AUTH_REGISTRATION_CLOSED_BEHAVIOR": "auth.registration",
                     "AUTH_LOGIN_GRANT": "auth.login",
                 },
                 suffix={

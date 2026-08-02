@@ -75,6 +75,10 @@
       "business_label": "A password counts as signing up (90s-style accounts)",
       "summary": "When on, setting a password on a guest session turns it into a full registered account (login/password IS the identity). Off by default — a password is normally just a credential that makes a guest account portable, and only a verified anchor (email/phone/social) registers."
     },
+    "AUTH_REGISTRATION_CLOSED_BEHAVIOR": {
+      "business_label": "What a stranger sees when sign-up is closed",
+      "summary": "How the sign-in-by-code screens answer somebody whose address has no account while sign-up is off. 'silent' (default) answers everyone identically and simply never sends the stranger a code — nobody can probe the endpoint to learn who works here, at the price that a mistyped address waits for a letter that will not come. 'request' says 'sign-up is closed' immediately, which is the friendliest message and also lets anyone enumerate your member list. 'verify' still sends the code and refuses at the last step — enumerable AND it mails strangers."
+    },
     "AUTH_PHONE_LOGIN": {
       "business_label": "Sign-in with a phone number",
       "summary": "Existing users sign in by receiving a one-time SMS code."

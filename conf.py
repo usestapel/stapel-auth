@@ -167,6 +167,20 @@ DEFAULTS = {
     'AUTH_SSO_REGISTRATION':      True,
     'AUTH_PASSWORD_REGISTRATION': False,
 
+    # What a CLOSED registration axis looks like from outside, on the two
+    # enumerable surfaces (email/phone OTP request+verify). See
+    # registration.py for the full argument; short version:
+    #   'silent'  (default) — identical answer for known and unknown targets;
+    #                         strangers simply never receive the code. No
+    #                         existence oracle; a typo waits for nothing.
+    #   'request' — 403 error.403.registration_closed at */request for an
+    #               unknown target. Usable and honest, fully enumerable.
+    #   'verify'  — code still sent, 403 at */verify. Enumerable AND mails
+    #               strangers; smallest diff from the pre-#86 behavior.
+    # Unknown values degrade to 'silent' (the closed end), and the knob is
+    # no_env for the same reason the boolean gates are.
+    'AUTH_REGISTRATION_CLOSED_BEHAVIOR': 'silent',
+
     # THE IDENTITY MODEL knob (owner directive 2026-07-20). By default a
     # password is a CREDENTIAL, not an identity: setting one on an anonymous
     # guest session only makes that SAME account portable (loginable from
@@ -261,6 +275,9 @@ _NO_ENV = tuple(
     # narrow which paths the first-login policy gate covers (and a list value
     # cannot survive the string round-trip anyway).
     'FIRST_LOGIN_GATE_PATHS',
+    # Same class: a stray env var must not be able to turn a closed
+    # registration into an account-existence oracle.
+    'AUTH_REGISTRATION_CLOSED_BEHAVIOR',
 )
 
 # NB: OAUTH_PROVIDER_CLASSES / REREGISTRATION_MODEL are intentionally NOT in

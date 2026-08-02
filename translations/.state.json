@@ -320,6 +320,10 @@
       "hash": "85badafb8f587a90",
       "origin": "seed:stapel-builtin"
     },
+    "error.403.registration_closed": {
+      "hash": "09a331eac1ebb0b6",
+      "origin": "llm"
+    },
     "error.403.sso_required": {
       "hash": "41d0d06d818b46fc",
       "origin": "seed:stapel-builtin"

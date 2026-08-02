@@ -28,6 +28,9 @@ def main(argv=None):
                 # Registration-policy axis (no *_REGISTRATION suffix to ride):
                 # governs whether a password-only sign-up deanonymizes.
                 "AUTH_PASSWORD_DEANONYMIZES": "auth.registration",
+                # Same group, also without the suffix to ride: how a CLOSED
+                # registration answers a stranger (#86, registration.py).
+                "AUTH_REGISTRATION_CLOSED_BEHAVIOR": "auth.registration",
             },
             suffix={
                 "_REGISTRATION": "auth.registration",
