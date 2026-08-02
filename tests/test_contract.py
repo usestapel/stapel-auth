@@ -54,7 +54,14 @@ TRIAD = ("schema.json", "flows.json", "errors.json")
 # The fourth artifact (capability-config.md §2): config axes over STAPEL_AUTH,
 # emitted from conf.py DEFAULTS + the urls.py gate registry + schema.json +
 # the curated docs/capabilities.meta.json. Same emit/drift discipline.
-ARTIFACTS = TRIAD + ("capabilities.json",)
+#
+# The fifth artifact (stapel_tools.llms_txt): stapel-auth is the one module in
+# the fleet whose llms.txt does not fit the generator's default 4000-token
+# budget (~7261 tokens, all real surface — 28 axes, 53 error codes). The
+# owner's call: raise the ceiling to 8000 for this module, do not shorten
+# intent/summary lines to fit. The budget stays enforced, just at 8000.
+ARTIFACTS = TRIAD + ("capabilities.json", "llms.txt")
+LLMS_TXT_BUDGET = "8000"
 
 
 def _emit(out_dir: Path) -> None:
@@ -65,6 +72,15 @@ def _emit(out_dir: Path) -> None:
             check=True,
             capture_output=True,
         )
+    subprocess.run(
+        [
+            sys.executable, "-m", "stapel_tools.llms_txt", ".",
+            "--out", str(out_dir), "--budget", LLMS_TXT_BUDGET,
+        ],
+        cwd=str(REPO),
+        check=True,
+        capture_output=True,
+    )
 
 
 def test_contract_artifacts_committed():

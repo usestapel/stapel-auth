@@ -1,0 +1,432 @@
+# stapel-auth 0.19.0
+
+User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.
+
+Contract: axes 28 · surface 18 · extension points 6 · operations 112 · error codes 127 · flows 4.
+Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
+
+## Configuration axes — what a product switches on
+Settings keys; `default` is what you get by saying nothing. Turning an axis off unmounts the operations it gates.
+- AUTH_ANONYMOUS [bool, default true] — Guest access without an account
+  Visitors get a temporary anonymous account (e.g. to browse or fill a cart) that can later be upgraded to a full account; guest data merges on upgrade.
+  gates 1 operation(s)
+- AUTH_EMAIL_LOGIN [bool, default true] — Sign-in with an email code
+  Existing users sign in by receiving a one-time code by email.
+  gates 22 operation(s); kept mounted by AUTH_EMAIL_REGISTRATION, AUTH_PHONE_LOGIN, AUTH_PHONE_REGISTRATION
+- AUTH_EMAIL_PLACEMENT [enum, default "main"] — Where the email sign-in method appears
+  Controls whether the email one-time-code method renders inline in the primary sign-in tabs, behind the "more" menu, or in the bottom button row. Purely presentational.
+- AUTH_EMAIL_REGISTRATION [bool, default true] — Sign-up with an email address
+  New users can create an account by confirming their email with a one-time code.
+  gates 22 operation(s); kept mounted by AUTH_EMAIL_LOGIN, AUTH_PHONE_LOGIN, AUTH_PHONE_REGISTRATION
+- AUTH_LOGIN_GRANT [bool, default false] — Sign-in via a service-issued login grant
+  Trusted modules (e.g. the workspaces invite flow) mint a short-lived single-use grant token through an internal call; exchanging it signs the user in and can auto-create a verified account. Off by default.
+  gates 1 operation(s)
+- AUTH_MAGIC_LINK_LOGIN [bool, default true] — Sign-in via a one-time email link
+  Users sign in by clicking a short-lived link sent to their email — no code entry.
+  gates 2 operation(s)
+- AUTH_MAGIC_LINK_PLACEMENT [enum, default "overflow"] — Where the email-link sign-in method appears
+  Controls whether the one-time email-link method renders inline in the primary sign-in tabs, behind the "more" menu, or in the bottom button row. Purely presentational.
+- AUTH_OAUTH_LOGIN [bool, default true] — Sign-in with a social account
+  Existing users sign in through the configured OAuth providers.
+  gates 7 operation(s); kept mounted by AUTH_OAUTH_REGISTRATION
+- AUTH_OAUTH_PLACEMENT [enum, default "bottom"] — Where social sign-in appears
+  Controls whether social (OAuth) sign-in renders inline in the primary sign-in tabs, behind the "more" menu, or in the bottom button row. Purely presentational.
+- AUTH_OAUTH_REGISTRATION [bool, default true] — Sign-up with a social account
+  New users can create an account through Google, GitHub, Apple and other configured OAuth providers.
+  gates 7 operation(s); kept mounted by AUTH_OAUTH_LOGIN
+- AUTH_PASSKEY_LOGIN [bool, default true] — Sign-in with passkeys
+  Users sign in with platform passkeys (Face ID, fingerprint, hardware security keys) via WebAuthn; also usable as a second factor.
+  gates 7 operation(s); kept mounted by AUTH_TOTP
+- AUTH_PASSKEY_PLACEMENT [enum, default "bottom"] — Where passkey sign-in appears
+  Controls whether passkey sign-in renders inline in the primary sign-in tabs, behind the "more" menu, or in the bottom button row. Purely presentational.
+- AUTH_PASSWORD_DEANONYMIZES [bool, default false] — A password counts as signing up (90s-style accounts)
+  When on, setting a password on a guest session turns it into a full registered account (login/password IS the identity). Off by default — a password is normally just a credential that makes a guest account portable, and only a verified anchor (email/phone/social) registers.
+- AUTH_PASSWORD_LOGIN [bool, default false] — Sign-in with a password
+  Existing users sign in with login and password (plus change/reset flows). Off by default.
+  gates 11 operation(s); kept mounted by AUTH_PASSWORD_REGISTRATION
+- AUTH_PASSWORD_PLACEMENT [enum, default "overflow"] — Where the password sign-in method appears
+  Controls whether password sign-in renders inline in the primary sign-in tabs, behind the "more" menu, or in the bottom button row. Purely presentational.
+- AUTH_PASSWORD_REGISTRATION [bool, default false] — Classic sign-up with a password
+  New users can register with a login and password. Off by default — passwordless methods are the house default.
+  gates 11 operation(s); kept mounted by AUTH_PASSWORD_LOGIN
+- AUTH_PHONE_LOGIN [bool, default true] — Sign-in with a phone number
+  Existing users sign in by receiving a one-time SMS code.
+  gates 22 operation(s); kept mounted by AUTH_EMAIL_LOGIN, AUTH_EMAIL_REGISTRATION, AUTH_PHONE_REGISTRATION
+- AUTH_PHONE_PLACEMENT [enum, default "main"] — Where the phone sign-in method appears
+  Controls whether the phone one-time-code method renders inline in the primary sign-in tabs, behind the "more" menu, or in the bottom button row. Purely presentational.
+- AUTH_PHONE_REGISTRATION [bool, default true] — Sign-up with a phone number
+  New users can create an account by confirming their phone number with a one-time SMS code.
+  gates 22 operation(s); kept mounted by AUTH_EMAIL_LOGIN, AUTH_EMAIL_REGISTRATION, AUTH_PHONE_LOGIN
+- AUTH_QR_LOGIN [bool, default true] — Sign-in by QR code from another device
+  A signed-in device shows a QR code; scanning it signs the user in on the new device.
+  gates 5 operation(s)
+- AUTH_QR_PLACEMENT [enum, default "bottom"] — Where QR sign-in appears
+  Controls whether QR hand-off sign-in renders inline in the primary sign-in tabs, behind the "more" menu, or in the bottom button row. Purely presentational.
+- AUTH_REGISTRATION_CLOSED_BEHAVIOR [enum, default "silent"] — What a stranger sees when sign-up is closed
+  How the sign-in-by-code screens answer somebody whose address has no account while sign-up is off. 'silent' (default) answers everyone identically and simply never sends the stranger a code — nobody can probe the endpoint to learn who works here, at the price that a mistyped address waits for a letter that will not come. 'request' says 'sign-up is closed' immediately, which is the friendliest message and also lets anyone enumerate your member list. 'verify' still sends the code and refuses at the last step — enumerable AND it mails strangers.
+- AUTH_SSO_LOGIN [bool, default true] — Corporate single sign-on
+  Users of onboarded organizations sign in through their company identity provider (SAML/OIDC), configured per organization in the database.
+  gates 12 operation(s); kept mounted by AUTH_SSO_REGISTRATION
+- AUTH_SSO_PLACEMENT [enum, default "bottom"] — Where corporate SSO sign-in appears
+  Controls whether corporate SSO renders inline in the primary sign-in tabs, behind the "more" menu, or in the bottom button row. Purely presentational.
+- AUTH_SSO_REGISTRATION [bool, default true] — Automatic accounts for corporate SSO users
+  Employees signing in through their company identity provider (SAML/OIDC) get an account provisioned on first login.
+  gates 12 operation(s); kept mounted by AUTH_SSO_LOGIN
+- AUTH_TOTP [bool, default true] — Two-factor authentication with an authenticator app
+  Users can protect their account with time-based one-time codes (Google Authenticator etc.); also the factor behind step-up checks on sensitive actions.
+  gates 9 operation(s); kept mounted by AUTH_PASSKEY_LOGIN
+- OAUTH_STEP_UP [bool, default false] — Extra verification after social sign-in
+  Require a two-factor code even after a social (OAuth) login. Off by default — the provider already authenticated the user.
+- PASSWORD_LOGIN_STEP_UP [bool, default true] — Extra verification after password sign-in
+  Require a two-factor code after password login for TOTP-enrolled accounts. On by default — a password alone is phishable.
+
+## Usage surface — call these before writing your own
+This is the answer to "does Stapel already have something for X?". `instead of` names the outside symbol this one displaces.
+### capability_field
+- LoginCapabilities.email — stapel_auth.oauth.dto.LoginCapabilities.email
+  consumer: frontend
+  Email OTP sign-in is enabled.
+- LoginCapabilities.email_mock — stapel_auth.oauth.dto.LoginCapabilities.email_mock
+  consumer: frontend
+  Published SO THAT a host frontend can render a dev-mode badge: email OTP delivery is mocked here, the code lands in the logs. Same obligation as on the registration DTO — ignoring it turns a dev deployment into a silent dead end for the user.
+- LoginCapabilities.magic_link — stapel_auth.oauth.dto.LoginCapabilities.magic_link
+  consumer: frontend
+  Magic-link sign-in is enabled.
+- LoginCapabilities.oauth — stapel_auth.oauth.dto.LoginCapabilities.oauth
+  consumer: frontend
+  The OAuth providers configured for sign-in, id + display name — render the social buttons from this list.
+- LoginCapabilities.passkey — stapel_auth.oauth.dto.LoginCapabilities.passkey
+  consumer: frontend
+  Passkey/WebAuthn sign-in is enabled; gate the platform-authenticator prompt on this in addition to the browser's own capability check.
+- LoginCapabilities.password — stapel_auth.oauth.dto.LoginCapabilities.password
+  consumer: frontend
+  Password sign-in is enabled. A passwordless deployment must not render a password field.
+- LoginCapabilities.phone — stapel_auth.oauth.dto.LoginCapabilities.phone
+  consumer: frontend
+  Phone OTP sign-in is enabled — drive the sign-in form's method tabs from this, not from a build-time flag.
+- LoginCapabilities.phone_mock — stapel_auth.oauth.dto.LoginCapabilities.phone_mock
+  consumer: frontend
+  Same promise as `email_mock` for phone/SMS OTP delivery, and the same obligation on the consumer.
+- LoginCapabilities.qr — stapel_auth.oauth.dto.LoginCapabilities.qr
+  consumer: frontend
+  QR hand-off sign-in (scan on a signed-in device to sign in here) is enabled — show the QR affordance only when true.
+- LoginCapabilities.sso — stapel_auth.oauth.dto.LoginCapabilities.sso
+  consumer: frontend
+  Corporate SSO sign-in is enabled.
+- RegistrationCapabilities.anonymous — stapel_auth.oauth.dto.RegistrationCapabilities.anonymous
+  consumer: frontend
+  Guest (anonymous) sign-up is enabled, i.e. the product may let a visitor act before registering. Note the pairing with stapel-core's IsNotAnonymousUser: when this is on, the backend's write endpoints need that permission class rather than a bare IsAuthenticated.
+- RegistrationCapabilities.email — stapel_auth.oauth.dto.RegistrationCapabilities.email
+  consumer: frontend
+  Email OTP sign-up is enabled — same rule as `phone`: the sign-up form's method tabs are deployment state, not build state.
+- RegistrationCapabilities.email_mock — stapel_auth.oauth.dto.RegistrationCapabilities.email_mock
+  consumer: frontend
+  Published SO THAT a host frontend can render a dev-mode badge: email OTP delivery is mocked here and the code goes to the logs instead of an inbox. It does not disable `email` — the channel is on, it just does not deliver. A frontend that ignores this field tells the user 'code sent' when nothing was sent, which is the exact failure this field was published to prevent; it is currently ignored by @stapel/auth-react (#141).
+- RegistrationCapabilities.oauth — stapel_auth.oauth.dto.RegistrationCapabilities.oauth
+  consumer: frontend
+  The OAuth providers actually configured here, id + display name. Render the social buttons from this list — a hardcoded Google button in a deployment without Google credentials is a button that always errors.
+- RegistrationCapabilities.password — stapel_auth.oauth.dto.RegistrationCapabilities.password
+  consumer: frontend
+  Password sign-up is enabled. A deployment can be passwordless; a form that always shows a password field on sign-up is showing a field the backend will reject.
+- RegistrationCapabilities.phone — stapel_auth.oauth.dto.RegistrationCapabilities.phone
+  consumer: frontend
+  Phone OTP sign-up is enabled in this deployment — render (or hide) the phone tab of the sign-up form from this, never from a build-time flag: the same frontend bundle serves deployments that differ on it.
+- RegistrationCapabilities.phone_mock — stapel_auth.oauth.dto.RegistrationCapabilities.phone_mock
+  consumer: frontend
+  Same promise as `email_mock` for phone/SMS OTP delivery, and the same obligation on the consumer.
+- RegistrationCapabilities.sso — stapel_auth.oauth.dto.RegistrationCapabilities.sso
+  consumer: frontend
+  Corporate SSO/SAML just-in-time provisioning is enabled — show the 'sign in with your company account' entry point only when this is true.
+
+## Extension points — what a product replaces, fork-free
+- AUTH_USER_MODEL [swappable_model]
+  Standard Django user swap — subclass stapel-core's AbstractStapelUser; this module only ever uses get_user_model().
+- OAUTH_PROVIDER_CLASSES [dotted_path_list]
+  Register additional OAuth providers (subclass stapel_core.oauth.OAuthProvider in the host app, append the dotted path) — no fork.
+- REREGISTRATION_MODEL [dotted_path]
+  Swap the model that stores re-registration hashes; resolved lazily, stapel-gdpr is not a hard dependency.
+- STAPEL_VERIFICATION.EXTRA_FACTORS [dotted_path_list]
+  Add step-up verification factors to the stapel-core registry alongside the built-ins this module registers (otp_email, otp_phone, totp, passkey).
+- serializer_seams [class_override]
+  Every user-facing view declares *_request/_response_serializer_class seams (SerializerSeamsMixin) — subclass the view, override the attribute, mount via the URL factories.
+- url_factories [urlconf_composition]
+  Compose your own URLconf from the get_*_urls() factories so disabled features 404 (include('stapel_auth.urls') mounts everything with per-request gating).
+
+## Fits with — fleet dependencies
+- stapel-core (required) — comm bus (events/functions), JWT provider, verification mechanism, OAuth provider registry
+- stapel-gdpr (optional) — default REREGISTRATION_MODEL target (lazy dotted path); co-mounted under /auth/api/ in the contract harness
+- stapel-notifications (optional) — delivers the OTP / magic-link / security emails and SMS this module requests via notification.requested
+
+## HTTP operations (112) — call by operationId, never by a typed path
+Paths are relative to `/auth/api/v1/`.
+### API Keys
+- POST /service-keys — auth_api_v1_service_keys_create
+- DELETE /service-keys/{id} — auth_api_v1_service_keys_destroy
+- GET /service-keys — auth_api_v1_service_keys_list
+- PATCH /service-keys/{id} — auth_api_v1_service_keys_partial_update
+- GET /service-keys/{id} — auth_api_v1_service_keys_retrieve
+- PUT /service-keys/{id} — auth_api_v1_service_keys_update
+### Admin
+- GET /admin/audit/ — auth_api_v1_admin_audit_retrieve
+- POST /admin-users/ — auth_api_v1_admin_users_create
+### Anonymous Auth
+- POST /anonymous/ — auth_api_v1_anonymous_create
+### Auth
+- GET /capabilities/ — auth_api_v1_capabilities_retrieve
+- POST /grant/exchange/ — auth_api_v1_grant_exchange_create
+- POST /magic/request/ — auth_api_v1_magic_request_create
+- GET /magic/verify/ — auth_api_v1_magic_verify_retrieve
+### Email Auth
+- POST /email/request/ — auth_api_v1_email_request_create
+- POST /email/verify/ — auth_api_v1_email_verify_create
+### Email Change
+- POST /email/change/delayed/cancel/ — auth_api_v1_email_change_delayed_cancel_create
+- POST /email/change/delayed/initiate/ — auth_api_v1_email_change_delayed_initiate_create
+- GET /email/change/delayed/status/ — auth_api_v1_email_change_delayed_status_retrieve
+- POST /email/change/instant/request-new/ — auth_api_v1_email_change_instant_request_new_create
+- POST /email/change/instant/request-old/ — auth_api_v1_email_change_instant_request_old_create
+- POST /email/change/instant/verify-new/ — auth_api_v1_email_change_instant_verify_new_create
+- POST /email/change/instant/verify-old/ — auth_api_v1_email_change_instant_verify_old_create
+### GDPR
+- POST /user/account/cancel-close — auth_api_v1_user_account_cancel_close_create
+- POST /user/account/close — auth_api_v1_user_account_close_create
+- GET /user/account/close/status — auth_api_v1_user_account_close_status_retrieve
+- POST /user/data-export/download — auth_api_v1_user_data_export_download_create
+- GET /user/data-export/download — auth_api_v1_user_data_export_download_retrieve
+- POST /user/data-export/request — auth_api_v1_user_data_export_request_create
+- GET /user/data-export/status — auth_api_v1_user_data_export_status_retrieve
+### MFA Enroll
+- POST /mfa/enroll/exchange/ — auth_api_v1_mfa_enroll_exchange_create
+### OAuth
+- GET /oauth/{provider}/authorize/ — auth_api_v1_oauth_authorize_retrieve
+- GET /oauth/{provider}/callback — auth_api_v1_oauth_callback_retrieve
+- GET /oauth/{provider}/callback/ — auth_api_v1_oauth_callback_retrieve_2
+- POST /oauth/links/ — auth_api_v1_oauth_links_create
+- DELETE /oauth/links/{provider}/ — auth_api_v1_oauth_links_destroy
+- GET /oauth/links/ — auth_api_v1_oauth_links_retrieve
+- POST /oauth/login/ — auth_api_v1_oauth_login_create
+### OpenID
+- POST /oauth2/introspect/ — auth_api_v1_oauth2_introspect_create
+### Passkeys
+- POST /passkey/authenticate/begin/ — auth_api_v1_passkey_authenticate_begin_create
+- POST /passkey/authenticate/complete/ — auth_api_v1_passkey_authenticate_complete_create
+- DELETE /passkey/{id}/ — auth_api_v1_passkey_destroy
+- POST /passkey/register/begin/ — auth_api_v1_passkey_register_begin_create
+- POST /passkey/register/complete/ — auth_api_v1_passkey_register_complete_create
+- GET /passkey/ — auth_api_v1_passkey_retrieve
+### Password Auth
+- POST /password/change/ — auth_api_v1_password_change_create
+- POST /password/change/otp/request/ — auth_api_v1_password_change_otp_request_create
+- POST /password/change/otp/verify/ — auth_api_v1_password_change_otp_verify_create
+- POST /password/forced-change/ — auth_api_v1_password_forced_change_create
+- POST /password/login/ — auth_api_v1_password_login_create
+- GET /password/methods/ — auth_api_v1_password_methods_retrieve
+- POST /password/reset/email/request/ — auth_api_v1_password_reset_email_request_create
+- POST /password/reset/email/verify/ — auth_api_v1_password_reset_email_verify_create
+- POST /password/reset/phone/request/ — auth_api_v1_password_reset_phone_request_create
+- POST /password/reset/phone/verify/ — auth_api_v1_password_reset_phone_verify_create
+### Phone Auth
+- POST /phone/request/ — auth_api_v1_phone_request_create
+- POST /phone/verify/ — auth_api_v1_phone_verify_create
+### Phone Change
+- POST /phone/change/delayed/cancel/ — auth_api_v1_phone_change_delayed_cancel_create
+- POST /phone/change/delayed/initiate/ — auth_api_v1_phone_change_delayed_initiate_create
+- GET /phone/change/delayed/status/ — auth_api_v1_phone_change_delayed_status_retrieve
+- POST /phone/change/instant/request-new/ — auth_api_v1_phone_change_instant_request_new_create
+- POST /phone/change/instant/request-old/ — auth_api_v1_phone_change_instant_request_old_create
+- POST /phone/change/instant/verify-new/ — auth_api_v1_phone_change_instant_verify_new_create
+- POST /phone/change/instant/verify-old/ — auth_api_v1_phone_change_instant_verify_old_create
+### QR Auth
+- POST /qr/{key}/confirm/ — auth_api_v1_qr_confirm_create
+- POST /qr/generate/ — auth_api_v1_qr_generate_create
+- GET /qr/{key}/scan/ — auth_api_v1_qr_scan_retrieve
+- GET /qr/{key}/status/ — auth_api_v1_qr_status_retrieve
+### SSO
+- GET /sso/{slug}/login/ — auth_api_v1_sso_login_retrieve
+- GET /sso/lookup/ — auth_api_v1_sso_lookup_retrieve
+- GET /sso/{slug}/oidc/callback/ — auth_api_v1_sso_oidc_callback_retrieve
+- POST /sso/{slug}/saml/acs/ — auth_api_v1_sso_saml_acs_create
+- GET /sso/{slug}/saml/metadata/ — auth_api_v1_sso_saml_metadata_retrieve
+### SSO Admin
+- PATCH /sso/orgs/{slug}/config/ — auth_api_v1_sso_orgs_config_partial_update
+- PUT /sso/orgs/{slug}/config/ — auth_api_v1_sso_orgs_config_update
+- POST /sso/orgs/ — auth_api_v1_sso_orgs_create
+- DELETE /sso/orgs/{slug}/ — auth_api_v1_sso_orgs_destroy
+- GET /sso/orgs/ — auth_api_v1_sso_orgs_list
+- PATCH /sso/orgs/{slug}/ — auth_api_v1_sso_orgs_partial_update
+- GET /sso/orgs/{slug}/ — auth_api_v1_sso_orgs_retrieve
+### Security
+- GET /security/audit/ — auth_api_v1_security_audit_retrieve
+- GET /security/revoke-suspicious/ — auth_api_v1_security_revoke_suspicious_retrieve
+- GET /security/status/ — auth_api_v1_security_status_retrieve
+### Session
+- POST /logout/ — auth_api_v1_logout_create
+- GET /logout/ — auth_api_v1_logout_retrieve
+- POST /sessions/{session_id}/confirm/ — auth_api_v1_sessions_confirm_create
+- DELETE /sessions/ — auth_api_v1_sessions_destroy
+- DELETE /sessions/{session_id}/ — auth_api_v1_sessions_destroy_2
+- GET /sessions/ — auth_api_v1_sessions_list
+### Staff Roles
+- POST /staff-roles/ — auth_api_v1_staff_roles_create
+- DELETE /staff-roles/{assignment_id}/ — auth_api_v1_staff_roles_destroy
+- GET /staff-roles/ — auth_api_v1_staff_roles_list
+### Token
+- POST /token/ — auth_api_v1_token_create
+- POST /token/refresh/ — auth_api_v1_token_refresh_create
+- GET /token/refresh/ — auth_api_v1_token_refresh_retrieve
+- POST /verify/ — auth_api_v1_verify_create
+### User
+- GET /me/ — auth_api_v1_me_retrieve
+### auth
+- GET /gdpr/schema/ — auth_api_v1_gdpr_schema_retrieve
+- POST /password/register/ — auth_api_v1_password_register_create
+- POST /qr/{key}/reject/ — auth_api_v1_qr_reject_create
+- POST /totp/challenge/verify/ — auth_api_v1_totp_challenge_verify_create
+- POST /totp/change/delayed/cancel/ — auth_api_v1_totp_change_delayed_cancel_create
+- POST /totp/change/delayed/initiate/ — auth_api_v1_totp_change_delayed_initiate_create
+- GET /totp/change/delayed/status/ — auth_api_v1_totp_change_delayed_status_retrieve
+- POST /totp/disable/ — auth_api_v1_totp_disable_create
+- POST /totp/disable-otp/request/ — auth_api_v1_totp_disable_otp_request_create
+- POST /totp/setup/confirm/ — auth_api_v1_totp_setup_confirm_create
+- POST /totp/setup/ — auth_api_v1_totp_setup_create
+- POST /verification/{challenge_id}/complete/ — auth_api_v1_verification_complete_create
+- POST /verification/{challenge_id}/initiate/ — auth_api_v1_verification_initiate_create
+- GET /verification/preferences/ — auth_api_v1_verification_preferences_retrieve
+- PUT /verification/preferences/ — auth_api_v1_verification_preferences_update
+- GET /verification/{challenge_id}/ — auth_api_v1_verification_retrieve
+
+## Error codes (127) — the StapelError envelope
+Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
+- error.400.bad_request [400] fix_input
+- error.400.captcha_invalid [400] retry
+- error.400.captcha_required [400] retry
+- error.400.code_expired [400] retry
+- error.400.code_required [400] fix_input
+- error.400.credentials_required [400] fix_input
+- error.400.email_or_phone_not_both [400] fix_input
+- error.400.email_or_phone_required [400] fix_input
+- error.400.email_required [400] fix_input
+- error.400.expected_list [400] fix_input
+- error.400.field.blank [400] fix_input {field}
+- error.400.field.does_not_exist [400] fix_input {field}
+- error.400.field.invalid [400] fix_input {field}
+- error.400.field.invalid_choice [400] fix_input {field}
+- error.400.field.max_length [400] fix_input {field,max_length}
+- error.400.field.max_value [400] fix_input {field,max_value}
+- error.400.field.min_length [400] fix_input {field,min_length}
+- error.400.field.min_value [400] fix_input {field,min_value}
+- error.400.field.null [400] fix_input {field}
+- error.400.field.required [400] fix_input {field}
+- error.400.field.unique [400] fix_input {field}
+- error.400.first_login_challenge_invalid [400] reauthenticate
+- error.400.grant_invalid [400] retry
+- error.400.invalid_ad_id [400] fix_input
+- error.400.invalid_change_token [400] retry
+- error.400.invalid_code [400] fix_input
+- error.400.invalid_code_attempts [400] fix_input {attempts_remaining}
+- error.400.invalid_method [400] fix_input
+- error.400.invalid_phone [400] fix_input
+- error.400.invalid_phone_format [400] fix_input
+- error.400.invalid_redirect_url [400] fix_input
+- error.400.last_auth_method [400] fix_input
+- error.400.magic_link_invalid [400] retry
+- error.400.no_current_value [400] fix_input
+- error.400.no_password [400] fix_input
+- error.400.no_verified_contact [400] verify
+- error.400.not_available [400] fix_input
+- error.400.oauth_failed [400] retry
+- error.400.oauth_fields_required [400] fix_input
+- error.400.passkey_challenge_expired [400] retry
+- error.400.passkey_invalid [400] retry
+- error.400.password_already_set [400] fix_input
+- error.400.passwords_dont_match [400] fix_input
+- error.400.phone_required [400] fix_input
+- error.400.phone_too_long [400] fix_input
+- error.400.qr_expired [400] retry
+- error.400.qr_fulfilled [400] retry
+- error.400.qr_type_required [400] fix_input
+- error.400.sso_invalid_response [400] retry
+- error.400.sso_not_configured [400] contact_support
+- error.400.staff_role_target_not_staff [400] fix_input
+- error.400.token_required [400] fix_input
+- error.400.totp_not_enabled [400] fix_input
+- error.400.totp_not_pending [400] retry
+- error.400.totp_proof_required [400] verify
+- error.400.unknown_staff_role [400] fix_input
+- error.400.username_namespace_invalid [400] fix_input
+- error.400.validation_error [400] fix_input
+- error.400.verification_failed [400] verify
+- error.400.verification_invalid_factor [400] verify
+- error.400.wrong_password [400] fix_input
+- error.401.account_disabled [401] contact_support
+- error.401.invalid_credentials [401] reauthenticate
+- error.401.qr_auth_required [401] reauthenticate
+- error.401.refresh_invalid [401] reauthenticate
+- error.401.refresh_not_provided [401] reauthenticate
+- error.401.refresh_revoked [401] reauthenticate
+- error.401.token_invalid [401] reauthenticate
+- error.401.token_revoked [401] reauthenticate
+- error.401.unauthorized [401] reauthenticate
+- error.401.user_not_found [401] reauthenticate
+- error.402.payment_required [402] retry
+- error.403.forbidden [403] retry
+- error.403.mfa_enrollment_required [403] verify
+- error.403.mock_otp_admin [403] contact_support
+- error.403.network_blocked [403] contact_support
+- error.403.password_change_required [403] reauthenticate
+- error.403.privileged_account [403] contact_support
+- error.403.qr_device_mismatch [403] retry
+- error.403.qr_unauth_scan [403] reauthenticate
+- error.403.registration_closed [403] contact_support
+- error.403.sso_required [403] reauthenticate
+- error.403.verification_enrollment_required [403] verify
+- error.403.verification_required [403] verify
+- error.404.ad_not_found [404] retry
+- error.404.change_not_found [404] retry
+- error.404.gdpr.export_not_found [404] retry
+- error.404.gdpr.no_active_closure [404] fix_input
+- error.404.not_found [404] retry
+- error.404.oauth_link_not_found [404] retry
+- error.404.passkey_not_found [404] retry
+- error.404.qr_not_found [404] retry
+- error.404.sso_org_not_found [404] fix_input
+- error.404.user_for_reset [404] fix_input
+- error.404.verification_challenge_not_found [404] verify
+- error.405.method_not_allowed [405] retry
+- error.406.not_acceptable [406] retry
+- error.408.request_timeout [408] retry
+- error.409.conflict [409] fix_input
+- error.409.email_reserved [409] fix_input
+- error.409.email_taken [409] fix_input
+- error.409.gdpr.closure_already_pending [409] fix_input
+- error.409.gdpr.export_cooldown [409] fix_input
+- error.409.gdpr.legal_hold [409] fix_input
+- error.409.oauth_account_linked_elsewhere [409] fix_input
+- error.409.oauth_already_linked [409] fix_input
+- error.409.passkey_already_registered [409] fix_input
+- error.409.phone_reserved [409] fix_input
+- error.409.phone_taken [409] fix_input
+- error.409.qr_account_conflict [409] reauthenticate
+- error.409.sso_org_slug_taken [409] fix_input
+- error.409.username_taken [409] fix_input
+- error.410.gdpr.download_expired [410] retry
+- error.410.gone [410] retry
+- error.413.payload_too_large [413] retry
+- error.415.unsupported_media_type [415] retry
+- error.422.blocked [422] wait_and_retry {retry_after_minutes}
+- error.422.unprocessable_entity [422] wait_and_retry
+- error.423.account_locked [423] wait_and_retry {retry_after_minutes}
+- error.423.locked [423] wait_and_retry
+- error.423.verification_locked [423] wait_and_retry
+- error.425.gdpr.export_not_ready [425] retry
+- error.429.magic_link_rate [429] wait_and_retry
+- error.429.rate_limit [429] wait_and_retry {retry_after_minutes}
+- error.429.too_many_requests [429] wait_and_retry
+- error.500.internal [500] contact_support
+- error.500.send_failed [500] retry
+
+## Documented flows (4) — full steps in docs/flows.json
+- auth.first_login — First login of an org-provisioned account
+- auth.password_login — Password login (+ optional TOTP)
+- auth.passwordless_login — Passwordless login (email OTP)
+- auth.step_up_verification — Step-up verification on a protected endpoint (reference flow)

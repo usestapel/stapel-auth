@@ -6,6 +6,7 @@
 [![downloads](https://static.pepy.tech/badge/stapel-auth/month)](https://pepy.tech/project/stapel-auth)
 [![python](https://img.shields.io/pypi/pyversions/stapel-auth?logo=python&logoColor=white)](https://pypi.org/project/stapel-auth/)
 [![license](https://img.shields.io/github/license/usestapel/stapel-auth)](https://github.com/usestapel/stapel-auth/blob/main/LICENSE)
+[![llms.txt](https://img.shields.io/badge/llms.txt-blue)](https://github.com/usestapel/stapel-auth/blob/main/docs/llms.txt)
 
 > Full-featured authentication — JWT, passkeys (WebAuthn), TOTP, QR login, OAuth2, SSO (SAML/OIDC), email link, phone OTP
 
