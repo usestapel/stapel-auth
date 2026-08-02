@@ -83,7 +83,7 @@ packages = [
 
 # Migrations are part of the package
 [tool.setuptools.package-data]
-stapel_auth = ["migrations/*.py", "schemas/**/*.json", "translations/*.json", "migrations/**/*.py", "py.typed"]
+stapel_auth = ["migrations/*.py", "schemas/**/*.json", "translations/*.json", "migrations/**/*.py", "py.typed", "docs/capabilities.json", "docs/llms.txt", "docs/flows.json", "docs/errors.json"]
 
 [tool.ruff]
 target-version = "py311"
