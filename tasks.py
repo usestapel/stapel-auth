@@ -296,6 +296,24 @@ def _send_login_alert_email(user, session, is_suspicious: bool):
     from django.core.signing import TimestampSigner
 
     from .conf import auth_settings
+
+    # Выключатель СУЩЕСТВОВАЛ (`LOGIN_NOTIFICATION_ENABLED`, дефолт False) — в
+    # DEFAULTS, в MODULE.md, в чужих settings.py. Его не читал никто, и письма
+    # уходили безусловно: развёртывание не могло их погасить штатно вообще
+    # никак. Задокументированный дефолт при этом обещал ровно обратное —
+    # «выключено».
+    #
+    # Гасим ТОЛЬКО письмо. Оценка выше (флаг `session.is_suspicious` и запись
+    # SUSPICIOUS_LOGIN в аудит) остаётся при любом положении переключателя:
+    # он про рассылку, а не про то, вести ли журнал безопасности. Человек,
+    # открывший «Мои сессии», увидит пометку и с выключенными письмами.
+    if not auth_settings.LOGIN_NOTIFICATION_ENABLED:
+        logger.debug(
+            'login alert suppressed for user %s: LOGIN_NOTIFICATION_ENABLED is off',
+            user.id,
+        )
+        return
+
     frontend_url = auth_settings.FRONTEND_URL or ''
     secure_url = f'{frontend_url}/security/sessions'
 

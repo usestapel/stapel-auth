@@ -562,6 +562,9 @@ class LoginNotificationServiceTests(TestCase):
         delay.assert_called_once_with(str(self.user.id), str(session.id))
 
     def test_is_new_device_true_when_unique(self):
+        # Прежний вход обязателен: без него это ПЕРВЫЙ вход в жизни, а он не
+        # «новое устройство», а единственное — см. test_login_alert_cold_start.
+        _make_session(self.user, device_name="Old Laptop")
         session = _make_session(self.user, device_name="Brand New Phone")
         self.assertTrue(svc.LoginNotificationService.is_new_device(self.user, session))
 
@@ -577,6 +580,9 @@ class LoginNotificationServiceTests(TestCase):
         )
 
     def test_is_suspicious_ip_true_for_new_prefix(self):
+        # Та же поправка: сравнивать «незнакомую сеть» не с чем, пока у
+        # человека нет ни одного прежнего входа.
+        _make_session(self.user, ip_address="198.51.100.7")
         session = _make_session(self.user, ip_address="203.0.113.20")
         self.assertTrue(
             svc.LoginNotificationService.is_suspicious_ip(self.user, session)

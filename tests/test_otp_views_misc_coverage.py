@@ -960,6 +960,10 @@ class QRViewBranchTests(APITestCase):
 # =============================================================================
 
 
+# Рассылка алертов входа теперь ЧИТАЕТ свой выключатель, а его
+# задокументированный дефолт — выключено (см. test_login_alert_cold_start).
+# Ветки самой отправки поэтому проверяются при включённом.
+@override_settings(STAPEL_AUTH={"LOGIN_NOTIFICATION_ENABLED": True})
 class TasksBranchTests(TestCase):
     def setUp(self):
         self.user = _make_user()

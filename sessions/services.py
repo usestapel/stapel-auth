@@ -425,6 +425,26 @@ class AuditService:
 
 
 class LoginNotificationService:
+    """Сторож входов: незнакомое устройство / незнакомая сеть → письмо.
+
+    ХОЛОДНЫЙ СТАРТ. Оба предиката ниже отвечают на вопрос «отличается ли этот
+    вход от прежних». У человека, который входит ВПЕРВЫЕ, прежних нет, и
+    отрицание пустого множества истинно всегда — то есть первый в жизни вход
+    гарантированно объявлялся и новым устройством, и подозрительной сетью.
+    Каждый новый пользователь получал письмо «обнаружен подозрительный вход»
+    через минуту после регистрации.
+
+    Инцидент 08.08.2026, миттудей: человека позвали по ссылке на встречу в
+    приватном спейсе, он вошёл первый раз в жизни — и первым, что он увидел
+    от продукта, была тревога о взломе. Разбор Олега: «первое знакомство с
+    брендом — тревога на пустом месте».
+
+    Поэтому обе проверки требуют, чтобы история ВООБЩЕ существовала. Нет
+    истории — сравнивать не с чем, и «отличается» не истинно, а неопределимо;
+    единственный честный ответ здесь — молчание. Человек, который только что
+    сам нажал «войти», не нуждается в извещении, что он вошёл.
+    """
+
     @staticmethod
     def check_and_notify(user, session):
         """Fire async task to evaluate and optionally send notification."""
@@ -432,8 +452,25 @@ class LoginNotificationService:
         evaluate_login_notification.delay(str(user.id), str(session.id))
 
     @staticmethod
+    def _has_login_history(user, session) -> bool:
+        """Есть ли у человека хоть один вход, КРОМЕ текущего.
+
+        Намеренно шире обоих предикатов: без окна в 90 дней, без фильтра по
+        отозванности и без привязки к устройству. Вопрос здесь не «похож ли
+        этот вход на прежний», а «есть ли вообще прежние» — и любая сессия,
+        даже отозванная и годовалая, на него отвечает «да».
+        """
+        from stapel_auth.models import UserSession
+        return UserSession.objects.filter(user=user).exclude(id=session.id).exists()
+
+    @staticmethod
     def is_new_device(user, session) -> bool:
-        """True if no prior session with same device_name exists (last 90 days)."""
+        """True if no prior session with same device_name exists (last 90 days).
+
+        Первый в жизни вход — не «новое устройство», а единственное.
+        """
+        if not LoginNotificationService._has_login_history(user, session):
+            return False
         from stapel_auth.models import UserSession
         cutoff = timezone.now() - timedelta(days=90)
         return not UserSession.objects.filter(
@@ -445,8 +482,13 @@ class LoginNotificationService:
 
     @staticmethod
     def is_suspicious_ip(user, session) -> bool:
-        """True if this /24 IP prefix has never been seen for this user."""
+        """True if this /24 IP prefix has never been seen for this user.
+
+        Первый в жизни вход — не «незнакомая сеть», а первая известная.
+        """
         if not session.ip_address:
+            return False
+        if not LoginNotificationService._has_login_history(user, session):
             return False
         from stapel_auth.models import UserSession
         prefix = '.'.join(session.ip_address.split('.')[:3])
