@@ -1,0 +1,66 @@
+{
+  "error.400.first_login_challenge_invalid": {
+    "hash": "1e2d8325884e805a",
+    "text": "El desafío de primer inicio de sesión no es válido o ha caducado. Vuelve a iniciar sesión para empezar de nuevo."
+  },
+  "error.400.grant_invalid": {
+    "hash": "006fa6cd06586563",
+    "text": "La concesión de inicio de sesión no es válida, ya se ha utilizado o ha caducado."
+  },
+  "error.400.staff_role_target_not_staff": {
+    "hash": "3a93727b6e7d8f44",
+    "text": "Los roles de personal solo pueden asignarse a cuentas de personal. Concede primero al usuario la condición de personal."
+  },
+  "error.400.totp_not_enabled": {
+    "hash": "4d979883a61a067f",
+    "text": "TOTP no está activado en esta cuenta."
+  },
+  "error.400.totp_proof_required": {
+    "hash": "ab64ffb3cf345d6b",
+    "text": "Ya existe un TOTP en esta cuenta. Introduce el código actual o un código de respaldo para sustituirlo, o utiliza el flujo de cambio diferido si has perdido tu autenticador."
+  },
+  "error.400.unknown_staff_role": {
+    "hash": "3389b9cd42708025",
+    "text": "Rol de personal desconocido. Defínelo primero en la configuración de despliegue STAPEL_ACCESS[\"ROLES\"]."
+  },
+  "error.400.username_namespace_invalid": {
+    "hash": "4f17f46f49a99052",
+    "text": "Inicio de sesión con espacio de nombres no válido. Usa 'org_slug/username' con exactamente una '/' y caracteres válidos a ambos lados."
+  },
+  "error.403.mfa_enrollment_required": {
+    "hash": "d5b6b7dd53071c1c",
+    "text": "Es necesario registrar la autenticación de dos factores antes de poder usar esta cuenta. Configura primero una aplicación de autenticación o una llave de acceso."
+  },
+  "error.403.network_blocked": {
+    "hash": "73418e2ec86c7544",
+    "text": "No se permiten solicitudes desde esta red."
+  },
+  "error.403.password_change_required": {
+    "hash": "b43e4605eedaaaa2",
+    "text": "Es necesario cambiar la contraseña antes de que esta cuenta pueda iniciar sesión. Completa primero el cambio de contraseña obligatorio."
+  },
+  "error.403.privileged_account": {
+    "hash": "3e0e49f617610164",
+    "text": "Esta cuenta posee privilegios en todo el despliegue. Su contraseña no puede restablecerse desde una interfaz de organización."
+  },
+  "error.403.registration_closed": {
+    "hash": "09a331eac1ebb0b6",
+    "text": "Aquí no está abierto el registro de cuentas nuevas. Pide a un administrador que te cree una."
+  },
+  "error.403.verification_enrollment_required": {
+    "hash": "726adb4e63e9ae80",
+    "text": "Es necesario registrar un factor de verificación."
+  },
+  "error.404.oauth_link_not_found": {
+    "hash": "38d7b0c793e27d49",
+    "text": "No se ha encontrado ninguna cuenta vinculada para este proveedor."
+  },
+  "error.409.oauth_account_linked_elsewhere": {
+    "hash": "4bb3d181c36468e4",
+    "text": "Esta cuenta de proveedor ya está vinculada a otro usuario."
+  },
+  "error.409.oauth_already_linked": {
+    "hash": "67a730fa6039a26c",
+    "text": "Este proveedor ya está vinculado a tu cuenta."
+  }
+}
