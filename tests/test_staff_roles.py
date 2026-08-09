@@ -297,7 +297,7 @@ class StaffRolesClaimTests(TestCase):
 
     def test_staff_without_roles_gets_empty_claim(self):
         # Authoritative-empty: the empty list must ride the token so that
-        # consumer REPLACE sync-down can land a revocation (в.3).
+        # consumer REPLACE sync-down can land a revocation (Wave 3).
         data = serialize_user_to_jwt_data(_make_user(is_staff=True))
         self.assertEqual(data["staff_roles"], [])
 

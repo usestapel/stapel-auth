@@ -15,7 +15,7 @@ the same challenge. Host projects add their own factors via
 ``STAPEL_VERIFICATION['EXTRA_FACTORS']`` — the same escape-hatch pattern
 as payment providers and notification channels.
 
-Strength canon (workspaces-org-program §C2 — «email-код ≠ 2ФА»): totp,
+Strength canon (workspaces-org-program §C2 — "email code ≠ 2FA"): totp,
 passkey and otp_phone register as ``strength="strong"``; otp_email keeps
 the core default ``"weak"`` — an email code only proves reach to the same
 channel that resets the password. Strict "user has 2FA" checks

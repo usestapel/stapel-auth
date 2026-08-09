@@ -297,16 +297,14 @@ def _send_login_alert_email(user, session, is_suspicious: bool):
 
     from .conf import auth_settings
 
-    # Выключатель СУЩЕСТВОВАЛ (`LOGIN_NOTIFICATION_ENABLED`, дефолт False) — в
-    # DEFAULTS, в MODULE.md, в чужих settings.py. Его не читал никто, и письма
-    # уходили безусловно: развёртывание не могло их погасить штатно вообще
-    # никак. Задокументированный дефолт при этом обещал ровно обратное —
-    # «выключено».
+    # LOGIN_NOTIFICATION_ENABLED existed (default False) in DEFAULTS, in
+    # MODULE.md, in downstream settings.py -- but nothing read it, so emails
+    # went out unconditionally, contradicting the documented "off" default.
     #
-    # Гасим ТОЛЬКО письмо. Оценка выше (флаг `session.is_suspicious` и запись
-    # SUSPICIOUS_LOGIN в аудит) остаётся при любом положении переключателя:
-    # он про рассылку, а не про то, вести ли журнал безопасности. Человек,
-    # открывший «Мои сессии», увидит пометку и с выключенными письмами.
+    # This suppresses ONLY the email. The evaluation above (the
+    # `session.is_suspicious` flag + the SUSPICIOUS_LOGIN audit entry) stays
+    # unconditional: it's a security log, not a mailing preference. "My
+    # sessions" still shows the flag with emails switched off.
     if not auth_settings.LOGIN_NOTIFICATION_ENABLED:
         logger.debug(
             'login alert suppressed for user %s: LOGIN_NOTIFICATION_ENABLED is off',

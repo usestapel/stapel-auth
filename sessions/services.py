@@ -425,24 +425,22 @@ class AuditService:
 
 
 class LoginNotificationService:
-    """Сторож входов: незнакомое устройство / незнакомая сеть → письмо.
+    """Login watchdog: unfamiliar device / unfamiliar network -> alert email.
 
-    ХОЛОДНЫЙ СТАРТ. Оба предиката ниже отвечают на вопрос «отличается ли этот
-    вход от прежних». У человека, который входит ВПЕРВЫЕ, прежних нет, и
-    отрицание пустого множества истинно всегда — то есть первый в жизни вход
-    гарантированно объявлялся и новым устройством, и подозрительной сетью.
-    Каждый новый пользователь получал письмо «обнаружен подозрительный вход»
-    через минуту после регистрации.
+    COLD START. Both predicates below ask "does this login differ from
+    prior ones". A brand-new user has no prior logins, and negating an
+    empty set is vacuously true — so every first-ever login was guaranteed
+    to read as both a new device and a suspicious network. Every new user
+    got a "suspicious login detected" email a minute after signing up.
 
-    Инцидент 08.08.2026, миттудей: человека позвали по ссылке на встречу в
-    приватном спейсе, он вошёл первый раз в жизни — и первым, что он увидел
-    от продукта, была тревога о взломе. Разбор Олега: «первое знакомство с
-    брендом — тревога на пустом месте».
+    Incident 2026-08-08 (meettoday): someone followed a meeting invite link
+    into a private space and logged in for the first time in their life —
+    and the first thing the product showed them was a break-in alert.
 
-    Поэтому обе проверки требуют, чтобы история ВООБЩЕ существовала. Нет
-    истории — сравнивать не с чем, и «отличается» не истинно, а неопределимо;
-    единственный честный ответ здесь — молчание. Человек, который только что
-    сам нажал «войти», не нуждается в извещении, что он вошёл.
+    Both checks therefore require login history to exist at all. With no
+    history there is nothing to compare against, so "differs" is undefined,
+    not true — silence is the only honest answer. Someone who just clicked
+    "log in" doesn't need to be told they logged in.
     """
 
     @staticmethod
@@ -453,12 +451,12 @@ class LoginNotificationService:
 
     @staticmethod
     def _has_login_history(user, session) -> bool:
-        """Есть ли у человека хоть один вход, КРОМЕ текущего.
+        """True if the user has any login besides the current one.
 
-        Намеренно шире обоих предикатов: без окна в 90 дней, без фильтра по
-        отозванности и без привязки к устройству. Вопрос здесь не «похож ли
-        этот вход на прежний», а «есть ли вообще прежние» — и любая сессия,
-        даже отозванная и годовалая, на него отвечает «да».
+        Deliberately broader than either predicate below: no 90-day window,
+        no revoked filter, no device match. Not "does this login resemble a
+        prior one" but "does a prior one exist at all" — any session, even
+        revoked and a year old, answers yes.
         """
         from stapel_auth.models import UserSession
         return UserSession.objects.filter(user=user).exclude(id=session.id).exists()
@@ -467,7 +465,7 @@ class LoginNotificationService:
     def is_new_device(user, session) -> bool:
         """True if no prior session with same device_name exists (last 90 days).
 
-        Первый в жизни вход — не «новое устройство», а единственное.
+        A first-ever login isn't a "new device" — it's the only one.
         """
         if not LoginNotificationService._has_login_history(user, session):
             return False
@@ -484,7 +482,8 @@ class LoginNotificationService:
     def is_suspicious_ip(user, session) -> bool:
         """True if this /24 IP prefix has never been seen for this user.
 
-        Первый в жизни вход — не «незнакомая сеть», а первая известная.
+        A first-ever login isn't an "unfamiliar network" — it's the first
+        known one.
         """
         if not session.ip_address:
             return False

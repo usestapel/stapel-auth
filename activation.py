@@ -5,8 +5,8 @@ Why this module exists. ``is_active=False`` used to be a *local* fact: since
 account on all 19 issuance paths, and that was the end of it. Nothing
 downstream ever learned about the flip, so a deactivated user kept every
 workspace membership, kept counting against the owner's seat bill, and kept
-appearing in every member list — "деактивация никуда не распространяется,
-кроме входа". This module is the missing announcement.
+appearing in every member list — "deactivation propagates nowhere but
+login". This module is the missing announcement.
 
 **Three states, kept apart on purpose** (the distinction is the whole point
 of #92):

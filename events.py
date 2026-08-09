@@ -182,8 +182,8 @@ class UserReactivatedPayload:
     Emitted on the ``False -> True`` transition. Its existence is what makes
     deactivation safe to act on destructively-looking ways downstream: a
     consumer that suspends memberships on ``user.deactivated`` MUST lift
-    them here, or a restored account logs in to an empty product ("вошёл, но
-    ничего не видит").
+    them here, or a restored account logs in to an empty product ("logged
+    in, sees nothing").
     """
     user_id: str
     actor_id: str | None = None

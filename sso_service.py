@@ -445,7 +445,7 @@ class SSOUserService:
         This is a FINAL session minter — token pair, ``UserSession`` row,
         audit event, login notification — not an intermediate step, and it
         used to carry a verbatim copy of ``_issue_session_tokens``' body. The
-        copy is why the §Р13 gate did not reach SSO: both #90 (a first-login
+        copy is why the §P13 gate did not reach SSO: both #90 (a first-login
         policy walked around) and #92 (a deactivated account admitted) were
         reproduced here word for word, including the case
         ``_resolve_sso_user``'s ``get_or_create`` hands back — an EXISTING

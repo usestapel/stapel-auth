@@ -1,4 +1,4 @@
-"""The single session-issuance gate (org-program §Р13) — sessions/guard.py.
+"""The single session-issuance gate (org-program §P13) — sessions/guard.py.
 
 The defect this suite pins: ``stapel-auth`` could mark an account
 ``is_active=False`` and hang first-login policies on it, but only the

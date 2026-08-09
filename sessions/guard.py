@@ -1,6 +1,6 @@
 """Session-issuance guard — the single precondition gate for a full session.
 
-Why this module exists (org-program §Р13). ``stapel-auth`` can mark an
+Why this module exists (org-program §P13). ``stapel-auth`` can mark an
 account ``is_active=False`` and can hang first-login policies on it
 (``password_change_required`` / ``mfa_enrollment_required``). Before this
 module both were enforced *by the politeness of the caller*: the password

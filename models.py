@@ -549,7 +549,7 @@ class StaffRoleAssignment(models.Model):
     Rows are immutable: changing a user's roles is revoke + assign, each step
     audited by its own outbox event (``staff.role.assigned`` / ``.revoked``).
     Access declaration: managing assignments is itself a HIGH-clearance
-    operation (admin-suite §3.3 — "доступна допуску HIGH").
+    operation (admin-suite §3.3 — "gated behind HIGH clearance").
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

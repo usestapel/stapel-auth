@@ -13,7 +13,7 @@ This module owns role *assignments* (user → role names) and their transport:
   ``staff_roles`` claim. The claim is present for every staff/superuser
   token, **even when the list is empty**: an empty list is authoritative
   ("this user holds zero roles") and is what lets a revocation propagate to
-  consumer services under the sync-down REPLACE semantics (в.3). Absence of
+  consumer services under the sync-down REPLACE semantics (Wave 3). Absence of
   the claim (tokens minted before AS-2) means "no information" — consumers
   must not touch their local copy for such tokens.
 - :func:`assignment_roles` — a ``STAPEL_ACCESS["ROLE_SOURCES"]`` source for
@@ -195,10 +195,10 @@ def serialize_user_to_jwt_data(user) -> dict:
     """Core JWT payload + the ``staff_roles`` claim (staff tokens only).
 
     Non-staff tokens carry no claim at all (admin-suite §4: the claim is
-    deliberately staff-narrow; client/workspace roles are другой домен).
+    deliberately staff-narrow; client/workspace roles are a different domain).
     Staff tokens always carry the claim — an empty list included — because
     the empty list is the authoritative "zero roles" that consumer sync-down
-    (REPLACE, в.3) needs to make revocation land.
+    (REPLACE, Wave 3) needs to make revocation land.
     """
     from stapel_core.django.jwt.utils import serialize_user_to_jwt_data as core_serialize
 

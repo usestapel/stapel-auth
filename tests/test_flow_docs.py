@@ -1,4 +1,4 @@
-"""Flow SA-document release gate (flow-system.md §4, drift-ворота).
+"""Flow SA-document release gate (flow-system.md §4, drift gate).
 
 stapel-auth is the reference module for the bilingual flow doc trees. The
 committed ``docs/flows/{en,ru}/`` trees + ``flows.json`` must be exactly what

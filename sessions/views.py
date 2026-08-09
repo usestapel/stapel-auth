@@ -307,7 +307,7 @@ def _issue_session_tokens(
 ):
     """Create a token pair, register a UserSession, return (access_str, refresh_str).
 
-    THE session choke-point (org-program §Р13): every path that hands out a
+    THE session choke-point (org-program §P13): every path that hands out a
     *full* session goes through here, so this is where the "may this account
     be admitted at all" invariant is enforced — see
     :mod:`stapel_auth.sessions.guard`. Deliberately not in

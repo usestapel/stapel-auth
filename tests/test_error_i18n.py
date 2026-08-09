@@ -1,6 +1,6 @@
 """Localized error catalog (``translations/errors.ru.json``) + provenance gate.
 
-i18n-shipping.md §5 / волна 1. stapel-auth is the *reference* application of the
+i18n-shipping.md §5 / wave 1. stapel-auth is the *reference* application of the
 ``stapel_core.i18n`` catalog contour to the ``errors`` domain: the en canon lives
 in ``errors.py`` (``register_service_errors``), ru ships as a flat
 ``translations/errors.ru.json`` catalog with a ``translations/.state.json``
