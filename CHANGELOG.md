@@ -2,6 +2,36 @@
 
 ## [Unreleased]
 
+## [0.20.2] — 2026-08-10
+
+### Fixed — this module translates only the keys it owns
+
+`translations/errors.{ru,es}.json` each carried 41 verbatim copies of the
+cross-cutting keys stapel-core owns (`error.404.not_found`,
+`error.400.field.*`, the verification and captcha keys, …). Not one was an
+intentional reword — the coverage gate demanded them, because before
+stapel-core 0.22.0 the canon it checked was the whole in-process registry.
+Core ships those catalogs itself now and the loader merges them, so the copies
+were a second, drifting shadow of a text this module does not answer for, and
+the gate (`test_catalog_gate_green`) correctly went red on them. That red is
+what blocked every tag in this repository.
+
+ru 128 → 87 keys, es 127 → 86. What this module still answers for — every key
+it owns, in every target language — is what
+`test_every_language_covers_every_key_this_module_owns` now checks, scoped
+through `owned_keys` / `owner_of_dir`.
+
+The reference does not move: `docs/errors.{en,ru,es}.md` regenerated after the
+deletion are **byte-identical** to the ones regenerated before it, because
+stapel-core 0.23.1 resolves a key this module does not own from its owner's
+catalog (`module_catalog`). Verified as bytes, not asserted as intent — and
+`test_error_reference_matches_a_fresh_regeneration` now keeps it that way, so a
+committed reference can never again be green while being unreproducible.
+
+The `stapel-core` pin moves to `>=0.23.1` accordingly: with an older core these
+pruned catalogs would resolve to English at runtime.
+
+
 ## [0.20.1] — 2026-08-09
 
 ### Added — Spanish ships as a language of the library, not as a host override
