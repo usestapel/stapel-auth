@@ -4,6 +4,27 @@
 
 ## [0.21.0] — 2026-08-14
 
+### Changed — the gdpr error rows come from their owner now
+
+`stapel-gdpr` 0.4.0 ships `translations/errors.{ru,es}.json` for the ten
+`error.*.gdpr.*` keys it owns, so this module stops carrying a copy of seven of
+them and reads all ten from the owner instead:
+
+* `translations/errors.{ru,es}.json` lose the seven pre-ownership-scoping gdpr
+  entries (byte-identical to what the owner now publishes — the `foreign`
+  finding `check_translation_catalogs` raises the day the owner ships the
+  language), and `translations/.state.json` loses their provenance rows.
+* `docs/errors.{en,ru,es}.md` grow from 127 to 130 rows: the co-mounted
+  registry gained `error.403.gdpr.account_closed`,
+  `error.410.gdpr.download_consumed` and `error.503.gdpr.closure_unavailable`
+  in the 2026-08-11 GDPR wave. They render in Russian and Spanish rather than
+  as `_(en)_` fallbacks because stapel-translate 0.6.1 added those three
+  strings to the curated builtin corpus and the owner seeded its catalog from
+  it.
+
+No behavior change here: the runtime already merged every installed app's
+catalog, so only the reference doc and the write-side duplication move.
+
 ### Changed — requires stapel-core >= 0.24.0
 
 The floor moved from `0.23.1` to `0.24.0`. It is a hard floor, not a courtesy

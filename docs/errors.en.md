@@ -1,6 +1,6 @@
 # Errors — English
 
-`127` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
+`130` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
 
 | Code | Status | Params | Remediation | Text |
 |---|---|---|---|---|
@@ -77,6 +77,7 @@
 | `error.401.user_not_found` | 401 | — | `reauthenticate` | User not found |
 | `error.402.payment_required` | 402 | — | `retry` | Payment required |
 | `error.403.forbidden` | 403 | — | `retry` | You do not have permission to perform this action |
+| `error.403.gdpr.account_closed` | 403 | — | `retry` | This account is being erased and can no longer be used. |
 | `error.403.mfa_enrollment_required` | 403 | — | `verify` | Two-factor enrollment is required before this account can be used. Set up an authenticator app or a passkey first. |
 | `error.403.mock_otp_admin` | 403 | — | `contact_support` | OTP-based auth is disabled for admin accounts in mock mode. |
 | `error.403.network_blocked` | 403 | — | `contact_support` | Requests from this network are not allowed |
@@ -116,6 +117,7 @@
 | `error.409.qr_account_conflict` | 409 | — | `reauthenticate` | A different account is already signed in on this device. |
 | `error.409.sso_org_slug_taken` | 409 | — | `fix_input` | An organization with this slug already exists. |
 | `error.409.username_taken` | 409 | — | `fix_input` | This username is already taken. |
+| `error.410.gdpr.download_consumed` | 410 | — | `retry` | Download link was already used. Request a new export. |
 | `error.410.gdpr.download_expired` | 410 | — | `retry` | Download link has expired. |
 | `error.410.gone` | 410 | — | `retry` | Resource has been permanently removed |
 | `error.413.payload_too_large` | 413 | — | `retry` | Request body is too large |
@@ -131,3 +133,4 @@
 | `error.429.too_many_requests` | 429 | — | `wait_and_retry` | Too many requests. Please try again later. |
 | `error.500.internal` | 500 | — | `contact_support` | Something went wrong |
 | `error.500.send_failed` | 500 | — | `retry` | Failed to send verification code |
+| `error.503.gdpr.closure_unavailable` | 503 | — | `retry` | Account closure is temporarily unavailable. Please retry later. |

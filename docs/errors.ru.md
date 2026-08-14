@@ -1,6 +1,6 @@
 # Errors — Русский
 
-`127` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
+`130` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
 
 | Код | Статус | Параметры | Действие | Текст |
 |---|---|---|---|---|
@@ -77,6 +77,7 @@
 | `error.401.user_not_found` | 401 | — | `reauthenticate` | Пользователь не найден |
 | `error.402.payment_required` | 402 | — | `retry` | Требуется оплата |
 | `error.403.forbidden` | 403 | — | `retry` | У вас нет прав для выполнения этого действия |
+| `error.403.gdpr.account_closed` | 403 | — | `retry` | Эта учётная запись удаляется и больше не может использоваться. |
 | `error.403.mfa_enrollment_required` | 403 | — | `verify` | Перед использованием этой учётной записи необходимо настроить двухфакторную аутентификацию. Сначала подключите приложение-аутентификатор или ключ доступа. |
 | `error.403.mock_otp_admin` | 403 | — | `contact_support` | Аутентификация по OTP отключена для учётных записей администраторов в mock-режиме. |
 | `error.403.network_blocked` | 403 | — | `contact_support` | Запросы из этой сети не разрешены. |
@@ -116,6 +117,7 @@
 | `error.409.qr_account_conflict` | 409 | — | `reauthenticate` | На этом устройстве уже выполнен вход в другую учётную запись. |
 | `error.409.sso_org_slug_taken` | 409 | — | `fix_input` | Организация с таким slug уже существует. |
 | `error.409.username_taken` | 409 | — | `fix_input` | Это имя пользователя уже занято. |
+| `error.410.gdpr.download_consumed` | 410 | — | `retry` | Ссылка для скачивания уже была использована. Запросите новый экспорт. |
 | `error.410.gdpr.download_expired` | 410 | — | `retry` | Срок действия ссылки для скачивания истёк. |
 | `error.410.gone` | 410 | — | `retry` | Ресурс был безвозвратно удалён |
 | `error.413.payload_too_large` | 413 | — | `retry` | Тело запроса слишком большое |
@@ -131,3 +133,4 @@
 | `error.429.too_many_requests` | 429 | — | `wait_and_retry` | Слишком много запросов. Пожалуйста, повторите попытку позже. |
 | `error.500.internal` | 500 | — | `contact_support` | Что-то пошло не так |
 | `error.500.send_failed` | 500 | — | `retry` | Не удалось отправить код подтверждения |
+| `error.503.gdpr.closure_unavailable` | 503 | — | `retry` | Закрытие учётной записи временно недоступно. Повторите попытку позже. |

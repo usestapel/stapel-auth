@@ -240,14 +240,6 @@
       "hash": "e12d6c0f20d4c62d",
       "origin": "seed:stapel-builtin"
     },
-    "error.404.gdpr.export_not_found": {
-      "hash": "f60f58f55e531c95",
-      "origin": "seed:stapel-builtin"
-    },
-    "error.404.gdpr.no_active_closure": {
-      "hash": "91466a2a28cbf59b",
-      "origin": "seed:stapel-builtin"
-    },
     "error.404.oauth_link_not_found": {
       "hash": "38d7b0c793e27d49",
       "origin": "llm"
@@ -274,18 +266,6 @@
     },
     "error.409.email_taken": {
       "hash": "b53a3f928e5eaed4",
-      "origin": "seed:stapel-builtin"
-    },
-    "error.409.gdpr.closure_already_pending": {
-      "hash": "e46a702d06a5d5ba",
-      "origin": "seed:stapel-builtin"
-    },
-    "error.409.gdpr.export_cooldown": {
-      "hash": "102d355c2bd18408",
-      "origin": "seed:stapel-builtin"
-    },
-    "error.409.gdpr.legal_hold": {
-      "hash": "d5f80bdbab3ec545",
       "origin": "seed:stapel-builtin"
     },
     "error.409.oauth_account_linked_elsewhere": {
@@ -320,20 +300,12 @@
       "hash": "da2c9d394ae37aee",
       "origin": "seed:stapel-builtin"
     },
-    "error.410.gdpr.download_expired": {
-      "hash": "e5b2bc20db9aac51",
-      "origin": "seed:stapel-builtin"
-    },
     "error.422.blocked": {
       "hash": "e8bd6a6ca58df85b",
       "origin": "seed:stapel-builtin"
     },
     "error.423.account_locked": {
       "hash": "342b24cd81976499",
-      "origin": "seed:stapel-builtin"
-    },
-    "error.425.gdpr.export_not_ready": {
-      "hash": "949122b2fffb6f0c",
       "origin": "seed:stapel-builtin"
     },
     "error.429.magic_link_rate": {
@@ -590,14 +562,6 @@
       "hash": "e12d6c0f20d4c62d",
       "origin": "seed:stapel-builtin"
     },
-    "error.404.gdpr.export_not_found": {
-      "hash": "f60f58f55e531c95",
-      "origin": "seed:stapel-builtin"
-    },
-    "error.404.gdpr.no_active_closure": {
-      "hash": "91466a2a28cbf59b",
-      "origin": "seed:stapel-builtin"
-    },
     "error.404.oauth_link_not_found": {
       "hash": "38d7b0c793e27d49",
       "origin": "llm"
@@ -624,18 +588,6 @@
     },
     "error.409.email_taken": {
       "hash": "b53a3f928e5eaed4",
-      "origin": "seed:stapel-builtin"
-    },
-    "error.409.gdpr.closure_already_pending": {
-      "hash": "e46a702d06a5d5ba",
-      "origin": "seed:stapel-builtin"
-    },
-    "error.409.gdpr.export_cooldown": {
-      "hash": "102d355c2bd18408",
-      "origin": "seed:stapel-builtin"
-    },
-    "error.409.gdpr.legal_hold": {
-      "hash": "d5f80bdbab3ec545",
       "origin": "seed:stapel-builtin"
     },
     "error.409.oauth_account_linked_elsewhere": {
@@ -670,20 +622,12 @@
       "hash": "da2c9d394ae37aee",
       "origin": "seed:stapel-builtin"
     },
-    "error.410.gdpr.download_expired": {
-      "hash": "e5b2bc20db9aac51",
-      "origin": "seed:stapel-builtin"
-    },
     "error.422.blocked": {
       "hash": "e8bd6a6ca58df85b",
       "origin": "seed:stapel-builtin"
     },
     "error.423.account_locked": {
       "hash": "342b24cd81976499",
-      "origin": "seed:stapel-builtin"
-    },
-    "error.425.gdpr.export_not_ready": {
-      "hash": "949122b2fffb6f0c",
       "origin": "seed:stapel-builtin"
     },
     "error.429.magic_link_rate": {

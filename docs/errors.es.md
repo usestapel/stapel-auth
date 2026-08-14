@@ -1,6 +1,6 @@
 # Errors — Español
 
-`127` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
+`130` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
 
 | Código | Estado | Parámetros | Acción | Texto |
 |---|---|---|---|---|
@@ -77,6 +77,7 @@
 | `error.401.user_not_found` | 401 | — | `reauthenticate` | Usuario no encontrado |
 | `error.402.payment_required` | 402 | — | `retry` | Se requiere pago |
 | `error.403.forbidden` | 403 | — | `retry` | No tienes permiso para realizar esta acción |
+| `error.403.gdpr.account_closed` | 403 | — | `retry` | Esta cuenta se está eliminando y ya no se puede utilizar. |
 | `error.403.mfa_enrollment_required` | 403 | — | `verify` | Es necesario registrar la autenticación de dos factores antes de poder usar esta cuenta. Configura primero una aplicación de autenticación o una llave de acceso. |
 | `error.403.mock_otp_admin` | 403 | — | `contact_support` | La autenticación por OTP está deshabilitada para cuentas de administrador en modo mock. |
 | `error.403.network_blocked` | 403 | — | `contact_support` | No se permiten solicitudes desde esta red. |
@@ -116,6 +117,7 @@
 | `error.409.qr_account_conflict` | 409 | — | `reauthenticate` | Ya hay otra cuenta con la sesión iniciada en este dispositivo. |
 | `error.409.sso_org_slug_taken` | 409 | — | `fix_input` | Ya existe una organización con este slug. |
 | `error.409.username_taken` | 409 | — | `fix_input` | Este nombre de usuario ya está en uso. |
+| `error.410.gdpr.download_consumed` | 410 | — | `retry` | El enlace de descarga ya se ha utilizado. Solicita una nueva exportación. |
 | `error.410.gdpr.download_expired` | 410 | — | `retry` | El enlace de descarga ha caducado. |
 | `error.410.gone` | 410 | — | `retry` | El recurso se ha eliminado permanentemente |
 | `error.413.payload_too_large` | 413 | — | `retry` | El cuerpo de la solicitud es demasiado grande |
@@ -131,3 +133,4 @@
 | `error.429.too_many_requests` | 429 | — | `wait_and_retry` | Demasiadas solicitudes. Inténtalo de nuevo más tarde. |
 | `error.500.internal` | 500 | — | `contact_support` | Algo salió mal |
 | `error.500.send_failed` | 500 | — | `retry` | No se pudo enviar el código de verificación |
+| `error.503.gdpr.closure_unavailable` | 503 | — | `retry` | El cierre de la cuenta no está disponible temporalmente. Inténtalo de nuevo más tarde. |
