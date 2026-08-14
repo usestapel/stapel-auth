@@ -41,8 +41,11 @@ DEFAULTS = {
     'USE_MOCK_SMS_OTP': False,
     'USE_MOCK_EMAIL_OTP': False,
     'MOCK_OTP_CODE': '0000',
-    # Generated OTP digit count (storage cap is otp.constants.OTP_CODE_LENGTH=8)
-    'OTP_LENGTH': 4,
+    # Generated OTP digit count (storage cap is otp.constants.OTP_CODE_LENGTH=8).
+    # 6 is the industry default and what this ships with; 4 leaves a 10^4
+    # space, which OTP_MAX_ATTEMPTS + OTP_RATE_LIMIT_PER_HOUR only narrow —
+    # they do not make it big.
+    'OTP_LENGTH': 6,
     'OTP_TTL': 600,                 # seconds — also the single source for the
                                      # AuthCapabilities.otp.ttl_seconds contract
                                      # value (otp/services.py wires this same
@@ -79,6 +82,14 @@ DEFAULTS = {
 
     # Anonymous users
     'ANONYMOUS_USER_LIFETIME_DAYS': 30,
+    # How many NEW guest accounts one client may mint per hour. POST
+    # /anonymous/ is unauthenticated and every call used to create a real
+    # User row plus a JWT, with a caller-supplied device_id as the only
+    # dedup — i.e. a table-growth faucet anyone could hold open. Reusing an
+    # existing guest session (same device_id, or an anonymous JWT already in
+    # hand) does not count against the budget; only creating a row does.
+    # 0 disables the limit and restores the pre-0.21 behavior.
+    'ANONYMOUS_RATE_LIMIT_PER_HOUR': 20,
     # Anonymous auth axis: gates POST /anonymous/ (own URL factory) and the
     # `anonymous` capability. Independent of the email/phone method gates.
     'AUTH_ANONYMOUS': True,

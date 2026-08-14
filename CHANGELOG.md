@@ -83,6 +83,34 @@ there is no deployment for which "an action nobody classified is public" is
 the right answer. The refusal body and status for `POST /admin-users/` are
 unchanged (structured 403, not DRF's 401).
 
+**Guest minting is capped.** `POST /anonymous/` is unauthenticated by design
+(`AUTH_ANONYMOUS`, still on by default — a guest session carries no
+privileges, and turning it off would silently break every guest flow in the
+fleet) and every call created a real `User` row plus a JWT, with a
+caller-supplied `device_id` as the only dedup: no captcha, no throttle, no
+counter. **New setting `STAPEL_AUTH['ANONYMOUS_RATE_LIMIT_PER_HOUR']`,
+default `20`** — new guests per client per hour, `429` beyond it, `0`
+disables the cap. Reusing an existing guest session (same `device_id`, or
+presenting the anonymous JWT) costs nothing, so the legitimate flow is
+untouched; raise the number if your deployment fronts many guests behind one
+NAT.
+
+**`OTP_LENGTH` now defaults to `6`** (was `4` — a 10⁴ space that
+`OTP_MAX_ATTEMPTS` and `OTP_RATE_LIMIT_PER_HOUR` narrow but do not enlarge).
+Set `STAPEL_AUTH['OTP_LENGTH'] = 4` to keep short codes. `MOCK_OTP_CODE`
+still defaults to `'0000'`; mock mode is a development affordance and its
+length has never had to match.
+
+**The hourly limits in `conf.py` are consumed rather than decorative.**
+`OTP_RATE_LIMIT_PER_HOUR` (default `3`) and `MAGIC_LINK_RATE_LIMIT_PER_HOUR`
+(default `3`) shipped as documented caps that no code read: OTP sends were
+throttled only by `OTP_RESEND_COOLDOWN` (a gap between sends — 120 codes an
+hour to one address at the default 30s), and `MagicLinkService` used a
+hardcoded `RATE_LIMIT = 3` that ignored the setting. Both are wired now, per
+identifier, `0` disables. **Upgrade note:** if you were relying on more than
+three OTP sends per hour to one address, raise
+`OTP_RATE_LIMIT_PER_HOUR` — the shipped value is now enforced.
+
 ### Security — the 2026-08-11 audit's authentication findings
 
 **AUTH-01 — a wrong password was a password.** The legacy `POST /token/`

@@ -216,6 +216,38 @@ def _notify_user_registered(user, request=None, language=None, display_name=None
         logger.exception("Failed to emit user.registered for user %s", user.id)
 
 
+def _anonymous_mint_budget_spent(client_ip: str) -> int:
+    """Spend one guest-minting slot for *client_ip*; retry-after when empty.
+
+    ``POST /anonymous/`` is unauthenticated by design and hands out a real
+    User row plus a JWT on every call, with a caller-supplied ``device_id``
+    as the only dedup — a faucet anyone could hold open, growing the user
+    table and the session table at request speed. A rolling hourly budget per
+    client caps that without touching the legitimate flow: a guest mints once
+    and then carries the session.
+
+    Returns ``0`` while budget remains (and consumes a slot), otherwise the
+    number of seconds until the window rolls over. ``0`` for the setting
+    disables the limit entirely.
+    """
+    from django.core.cache import cache
+
+    from stapel_auth.conf import auth_settings
+
+    limit = auth_settings.ANONYMOUS_RATE_LIMIT_PER_HOUR or 0
+    if limit <= 0:
+        return 0
+    window = 60 * 60
+    key = f'anon_mint_rate:{client_ip or "unknown"}'
+    count = cache.get(key) or 0
+    if count >= limit:
+        # cache.ttl is a django-redis extension; locmem has no ttl to read.
+        ttl = cache.ttl(key) if hasattr(cache, 'ttl') else 0
+        return max(int(ttl or 0), 1)
+    cache.set(key, count + 1, window)
+    return 0
+
+
 # ── Sub-package cross-imports ─────────────────────────────────────────────────
 from stapel_auth.sessions.guard import (
     SessionIssuanceDenied,
@@ -950,9 +982,18 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             return _add_login_hints(response)
 
     @extend_schema(
-        description="Create anonymous user",
+        description=(
+            "Create anonymous user. Minting a NEW guest is capped per client "
+            "per hour (`ANONYMOUS_RATE_LIMIT_PER_HOUR`) — reusing an existing "
+            "guest session, by `device_id` or by presenting the anonymous "
+            "session itself, is free."
+        ),
         request=AnonymousAuthSerializer,
-        responses={201: AuthResponseSerializer, 400: StapelErrorSerializer},
+        responses={
+            201: AuthResponseSerializer,
+            400: StapelErrorSerializer,
+            429: StapelErrorSerializer,
+        },
     )
     @action(detail=False, methods=["post"])
     def anonymous(self, request):  # noqa: R007
@@ -990,6 +1031,13 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                         except User.DoesNotExist:
                             pass
                 if user is None:
+                    # Minting a NEW guest is the only branch that costs a
+                    # User row, so it is the only branch that spends budget.
+                    retry_after = _anonymous_mint_budget_spent(
+                        self.get_client_ip(request)
+                    )
+                    if retry_after:
+                        return error_429_rate_limit(retry_after)
                     user = User.create_anonymous_user()
                 if device_id:
                     from django.core.cache import cache
