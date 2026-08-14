@@ -41,10 +41,12 @@ import json
 import uuid
 from pathlib import Path
 
+import pytest
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from stapel_core.comm import call
+from stapel_core.comm.exceptions import SchemaValidationError
 from stapel_core.django.api.errors import ERR_400_BAD_REQUEST, ERR_404_NOT_FOUND
 
 from stapel_auth.password.services import FirstLoginPolicyService
@@ -52,6 +54,15 @@ from stapel_auth.password.services import FirstLoginPolicyService
 User = get_user_model()
 
 BOTH = ["password_change", "mfa_enroll"]
+
+#: Two layers refuse a malformed policy set, and the tests below pin both.
+#: Since stapel-core 0.24.0 ``STAPEL_COMM["VALIDATE_SCHEMAS"]`` is on by
+#: default (it used to follow ``settings.DEBUG``), so the registered schema —
+#: ``first_login_policies`` is an array of the two known members — refuses the
+#: payload at the comm boundary and the handler never runs. The handler's own
+#: guard is not thereby decorative: it is what holds for a deployment that
+#: opts out, so it is exercised under this override rather than deleted.
+unvalidated = override_settings(STAPEL_COMM={"VALIDATE_SCHEMAS": False})
 
 
 def _slug() -> str:
@@ -138,19 +149,37 @@ class ProvisionUserPolicySetTests(TestCase):
         self.assertEqual(result, {"error": ERR_400_BAD_REQUEST})
         self.assertFalse(User.objects.filter(username__endswith="/bob").exists())
 
+    def test_unknown_policy_is_refused_by_the_schema(self):
+        with pytest.raises(SchemaValidationError):
+            _provision(first_login_policies=["password_change", "sudo"])
+
+    @unvalidated
     def test_unknown_policy_is_a_structured_failure(self):
+        """The handler's own guard, with schema validation opted out of."""
         result = _provision(first_login_policies=["password_change", "sudo"])
         self.assertEqual(result, {"error": ERR_400_BAD_REQUEST})
 
+    def test_a_bare_string_is_refused_by_the_schema(self):
+        with pytest.raises(SchemaValidationError):
+            _provision(first_login_policies="password_change")
+
+    @unvalidated
     def test_a_bare_string_is_not_a_policy_set(self):
         """``"password_change"`` iterates into characters; refuse it."""
         result = _provision(first_login_policies="password_change")
         self.assertEqual(result, {"error": ERR_400_BAD_REQUEST})
 
     def test_policy_failure_creates_no_account(self):
-        username = f"{_slug()}/carol"
-        _provision(username=username, first_login_policies=["nope"])
-        self.assertFalse(User.objects.filter(username=username).exists())
+        """No account, whichever layer does the refusing."""
+        schema_refused = f"{_slug()}/carol"
+        with pytest.raises(SchemaValidationError):
+            _provision(username=schema_refused, first_login_policies=["nope"])
+        self.assertFalse(User.objects.filter(username=schema_refused).exists())
+
+        handler_refused = f"{_slug()}/carol"
+        with unvalidated:
+            _provision(username=handler_refused, first_login_policies=["nope"])
+        self.assertFalse(User.objects.filter(username=handler_refused).exists())
 
 
 class ApplyFirstLoginPoliciesTests(TestCase):
@@ -236,7 +265,17 @@ class ApplyFirstLoginPoliciesTests(TestCase):
         )
         self.assertEqual(result, {"error": ERR_404_NOT_FOUND})
 
+    def test_unknown_policy_is_refused_by_the_schema(self):
+        user = self._user()
+        with pytest.raises(SchemaValidationError):
+            self._apply(user, ["sudo"])
+        user.refresh_from_db()
+        self.assertFalse(user.password_change_required)
+        self.assertFalse(user.mfa_enrollment_required)
+
+    @unvalidated
     def test_unknown_policy_is_a_structured_failure(self):
+        """The handler's own guard, with schema validation opted out of."""
         user = self._user()
         self.assertEqual(self._apply(user, ["sudo"]), {"error": ERR_400_BAD_REQUEST})
         user.refresh_from_db()

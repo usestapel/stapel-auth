@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+## [0.21.0] — 2026-08-14
+
+### Changed — requires stapel-core >= 0.24.0
+
+The floor moved from `0.23.1` to `0.24.0`. It is a hard floor, not a courtesy
+bump: the AUTH-01 fix lives in core (`EmailAuthBackend` compares the secret
+instead of resolving a user by email), and the regression gate shipped here
+imports `stapel_core.django.auth_backend_checks`, a module that does not exist
+before 0.24.0. Installing this release against an older core fails at import,
+which is the honest outcome — an older core is the vulnerable one.
+
+Two of core's moved defaults reached into this module, and both are fixed here
+rather than pinned around:
+
+* **The `stapel_auth_hint` cookie was left non-Secure next to a Secure refresh
+  cookie.** `hint_cookie.py` kept its own copy of core's cookie defaults
+  (`JWT_COOKIE_SECURE`, fallback `False`); core 0.24.0 turned that setting on
+  by default, so a deployment that never declared it started sending a
+  TLS-only session cookie accompanied by a hint cookie readable over plain
+  HTTP — precisely what the module promises cannot happen. The attributes are
+  now read off the refresh cookie already on the response instead of being
+  re-derived, so the promise is structural and no future default can split the
+  pair again. `httponly=False` stays the one deliberate difference.
+* **Comm payload schemas are enforced by default** (`STAPEL_COMM`
+  `VALIDATE_SCHEMAS` used to follow `settings.DEBUG`). A malformed
+  `first_login_policies` — a bare string, an unknown member — is therefore
+  refused at the comm boundary and never reaches `auth.provision_user`,
+  `auth.apply_first_login_policies` or `auth.admin_reset_password`. The
+  handlers' own guards still hold for a deployment that opts out, so the
+  suite now pins both layers: the schema refusal, and the structured
+  `{"error": error.400.bad_request}` with validation off.
+
 ### Security — permissive defaults closed (upgrade notes)
 
 Every item below changes a DEFAULT. The safe value is now what you get without
@@ -175,6 +207,24 @@ attacker logged in — while sparing the session the request is made from.
   skipped when the monolith sibling is absent, which is every CI run — so this
   is a workspace-only gap, recorded here rather than left for someone to
   rediscover.
+
+- `tests/test_error_i18n.py::test_error_reference_matches_a_fresh_regeneration`
+  is red for a cross-repo reason worth stating exactly, because the shape
+  invites misattribution. `docs/errors.{en,ru,es}.md` render every key in the
+  registry of the harness instance, and that instance co-mounts stapel-gdpr;
+  the gdpr security wave adds three keys (`error.403.gdpr.account_closed`,
+  `error.410.gdpr.download_consumed`, `error.503.gdpr.closure_unavailable`),
+  which is the 127 → 130 difference the byte comparison reports. Regenerating
+  the reference here does not close it: the other seven `gdpr.*` strings are
+  translated in the shared `stapel-translate` builtin corpus, these three are
+  in no corpus at all, so a regeneration writes `_(en)_` fallback rows into the
+  ru/es references and turns `test_error_docs_exist_for_every_language` red
+  instead. The fix belongs where the strings do — the three texts join the
+  builtin corpus (or stapel-gdpr starts shipping its own catalogs, as the
+  ownership rule in stapel-core 0.22.0 would prefer) — after which
+  regenerating here closes both. Neither `docs/errors.json` nor the contract
+  triad is affected; those carry all 130 keys and `make contract-check` is
+  clean.
 
 ## [0.20.2] — 2026-08-10
 

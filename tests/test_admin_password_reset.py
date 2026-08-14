@@ -25,11 +25,13 @@ import json
 import uuid
 from pathlib import Path
 
+import pytest
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from stapel_core.comm import call
+from stapel_core.comm.exceptions import SchemaValidationError
 from stapel_core.django.api.errors import ERR_400_BAD_REQUEST, ERR_404_NOT_FOUND
 
 from stapel_auth.errors import ERR_403_PRIVILEGED_ACCOUNT
@@ -38,6 +40,12 @@ from stapel_auth.models import AuthAuditLog, AuthEventType, UserSession
 User = get_user_model()
 
 OLD_PW = "correct-horse-battery-staple-9"
+
+#: Since stapel-core 0.24.0 comm schema validation is on by default, so a
+#: malformed policy set is refused before the handler runs. The handler's own
+#: refusal is what a deployment that opts out still gets, and it is pinned
+#: under this override rather than dropped.
+unvalidated = override_settings(STAPEL_COMM={"VALIDATE_SCHEMAS": False})
 
 
 def _user(**kwargs):
@@ -156,7 +164,16 @@ class ResetPasswordIsTemporaryTests(TestCase):
         user.refresh_from_db()
         self.assertFalse(user.password_change_required)
 
+    def test_malformed_policy_set_is_refused_by_the_schema(self):
+        user = _user()
+        with pytest.raises(SchemaValidationError):
+            _reset(user, first_login_policies=["sudo"])
+        user.refresh_from_db()
+        self.assertTrue(user.check_password(OLD_PW))
+
+    @unvalidated
     def test_malformed_policy_set_refuses_the_whole_reset(self):
+        """The handler's own guard: no partial reset, the old password stands."""
         user = _user()
         self.assertEqual(
             _reset(user, first_login_policies=["sudo"]), {"error": ERR_400_BAD_REQUEST}
