@@ -161,6 +161,21 @@ another's session. Changing a password with the current one revokes every
 *other* session — the reaction to a suspected compromise no longer leaves the
 attacker logged in — while sparing the session the request is made from.
 
+### Notes
+
+- `tests/test_contract.py::test_matches_monolith_auth_slice` is red again, and
+  as in 0.14.6 it is not this library's emission that is wrong. Declaring the
+  real permission on `AdminUserViewSet` changed what `PermissionAwareAutoSchema`
+  renders into the description of `/auth/api/v1/admin-users/`: it no longer
+  claims `**Permissions:** AllowAny` for an endpoint that was never actually
+  open. `docs/schema.json` here was regenerated to match; the sibling
+  `stapel-example-monolith` aggregate it is byte-compared against was not, so
+  the stale half is the one still advertising the old string. Regenerating that
+  aggregate closes it with a zero diff. Module CI is unaffected — the test is
+  skipped when the monolith sibling is absent, which is every CI run — so this
+  is a workspace-only gap, recorded here rather than left for someone to
+  rediscover.
+
 ## [0.20.2] — 2026-08-10
 
 ### Fixed — this module translates only the keys it owns
