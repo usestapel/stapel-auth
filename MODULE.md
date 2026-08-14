@@ -30,14 +30,16 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 | `MOCK_OTP_CODE` | `'0000'` | The accepted code in mock mode |
 | `OTP_TTL` | `600` | OTP code lifetime, seconds — the single source for both the actual expiry (`otp/services.py`) and the `capabilities.otp.ttl_seconds` contract value |
 | `OTP_MAX_ATTEMPTS` | `5` | Wrong-code attempts before block |
-| `OTP_RATE_LIMIT_PER_HOUR` | `3` | OTP send rate limit |
+| `OTP_LENGTH` | `6` | Digits in a generated code (storage cap 8). Was `4` before 0.21 — a 10⁴ space that the attempt/rate caps narrow but do not enlarge |
+| `OTP_RATE_LIMIT_PER_HOUR` | `3` | OTP sends per hour per phone/email, on top of the per-send cooldown. `0` disables. Enforced since 0.21 — before that it was configured and read by nobody |
 | `OTP_RESEND_COOLDOWN` | `30` | Seconds between OTP sends per phone/email/device — single source for both the rate-limit window and `capabilities.otp.resend_cooldown_seconds` |
 | `MAGIC_LINK_TTL` | `900` | Magic link lifetime, seconds |
-| `MAGIC_LINK_RATE_LIMIT_PER_HOUR` | `3` | Magic link send rate limit |
+| `MAGIC_LINK_RATE_LIMIT_PER_HOUR` | `3` | Magic link sends per hour per email. `0` disables. Enforced since 0.21 — `MagicLinkService` used to carry a hardcoded 3 and ignore this key |
 | `QR_TOKEN_TTL` | `300` | QR login token lifetime, seconds |
 | `SESSION_TTL_DAYS` | `30` | `UserSession` expiry |
 | `ALLOW_UNTRACKED_REFRESH` | `False` | Whether `POST /token/refresh/` accepts a validly signed refresh token that no `UserSession` row tracks. Off: such a token is refused, so a refresh can only ever rotate a session the server knows about. On, it is a **migration aid only** — a deployment holding tokens minted before session tracking existed keeps them working until they expire, at the price of accepting any token whose jti the session table has never seen. |
 | `ANONYMOUS_USER_LIFETIME_DAYS` | `30` | Anonymous account lifetime |
+| `ANONYMOUS_RATE_LIMIT_PER_HOUR` | `20` | New guests one client may mint per hour at `POST /anonymous/` (`429` beyond it, `0` disables). Reusing a guest session — same `device_id`, or the anonymous JWT already held — costs nothing |
 | `AUTH_ANONYMOUS` | `True` | Anonymous (guest) auth axis: gates `POST /anonymous/` (own URL factory `get_anonymous_urls`, independent of the email/phone gates) and the `anonymous` capability |
 | `AUTH_TOTP` | `True` | TOTP axis: gates the `/totp/*` endpoints in `get_mfa_urls` (passkey-style) and the `mfa.totp` capability. Step-up rides `/totp/challenge/verify/` — keep it on where step-up is on |
 | `JWT_COOKIE_DOMAIN` | `None` (env) | JWT cookie domain override |
@@ -46,6 +48,10 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 | `WEBAUTHN_RP_NAME` | `'Stapel'` | Passkey relying-party display name |
 | `WEBAUTHN_ORIGIN` | `None` (env; falls back to `FRONTEND_URL`) | Expected WebAuthn origin |
 | `SSO_ENFORCED_REDIRECT_PATH` | `'/login'` | Redirect path when SSO is enforced for a domain |
+| `SAML_REQUIRE_CONDITIONS` | `True` | Refuse a SAML assertion with no `Conditions`/`NotOnOrAfter` — i.e. no validity window, so it never expires |
+| `SAML_REQUIRE_AUDIENCE` | `True` | Refuse a SAML assertion with no `AudienceRestriction` — one addressed to nobody in particular is one the IdP may have minted for a different SP |
+| `SAML_ALLOW_IDP_INITIATED` | `False` | Accept a SAML response with no `InResponseTo`. Off: unsolicited responses correlate to no request of ours, so the single-use request-id check has nothing to bite on. Turn on only if you really run IdP-initiated SSO |
+| `SSO_LINK_EXISTING_BY_EMAIL` | `False` | Let an SSO assertion claim an account that already exists here purely because the email string matches. Off: the account is claimed only through an existing `OrgMembership` or the org's configured `domain` |
 | `LOGIN_NOTIFICATION_ENABLED` | `False` | New-device / suspicious-IP login alert emails |
 | `REREGISTRATION_MODEL` | `'stapel_gdpr.models.ReRegistrationHash'` | **Dotted path**, resolved lazily in `gdpr.py` — stapel-gdpr is not a hard dependency; point at your own model |
 | `INTERNAL_SERVICE_KEY` | `None` | Service-to-service auth key (`no_env` — set via `STAPEL_AUTH` or a flat setting, never picked up from the environment) |
@@ -56,6 +62,7 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 | `AUTH_REGISTRATION_CLOSED_BEHAVIOR` | `'silent'` | What a stranger sees on the OTP surfaces when their method's registration axis is off: `silent` (identical answer for everyone, the stranger's code is simply never delivered — no existence oracle), `request` (403 `error.403.registration_closed` at `*/request/`), `verify` (code sent, 403 at `*/verify/`). Unknown values degrade to `silent`. `no_env` |
 | `AUTH_PHONE_LOGIN` / `AUTH_EMAIL_LOGIN` / `AUTH_OAUTH_LOGIN` / `AUTH_SSO_LOGIN` / `AUTH_QR_LOGIN` / `AUTH_PASSKEY_LOGIN` / `AUTH_MAGIC_LINK_LOGIN` | `True` | Login method gates |
 | `AUTH_PASSWORD_LOGIN` | `False` | Password login gate |
+| `AUTH_LEGACY_TOKEN_LOGIN` | `False` | The deprecated `POST /token/` alias of `/password/login/`. Off: the route answers 403 (and is not mounted at all by `get_sessions_urls()`). When on it also requires `AUTH_PASSWORD_LOGIN`, and applies the same lockout and the same `PASSWORD_LOGIN_STEP_UP` challenge as the dedicated path |
 | `OAUTH_STEP_UP` | `False` | TOTP challenge after OAuth login |
 | `PASSWORD_LOGIN_STEP_UP` | `True` | TOTP challenge after password login |
 | `FIRST_LOGIN_GATE_PATHS` | `'*'` | Which session-issuance paths the **first-login policy flags** (`password_change_required` / `mfa_enrollment_required`) block — see "The session-issuance gate" below. `'*'` = every path; or a list of `sessions.guard.SessionPath` labels (`['password', 'legacy_token']` is the narrow "password admission only" reading). `no_env` — a stray env var must not be able to narrow a security scope, and a list cannot survive the string round-trip. **`is_active=False` is refused on every path unconditionally and is not covered by this key.** |
