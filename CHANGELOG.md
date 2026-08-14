@@ -40,6 +40,35 @@ password-guessing oracle).
   clients pinned to the token-pair response shape. New deployments should use
   the dedicated path and leave this setting alone.
 
+**SSO: what the assertion does not say is no longer read as consent.** Four
+`absent ⇒ accept` branches in `sso_service.py` now refuse, each with its own
+named opt-out so a deployment flips only the one its IdP forces:
+
+* an assertion with no `Conditions` (or a `Conditions` with no `NotOnOrAfter`)
+  has no validity window and never expires — refused.
+  **`STAPEL_AUTH['SAML_REQUIRE_CONDITIONS']`, default `True`.**
+* an assertion with no `AudienceRestriction` is addressed to nobody in
+  particular, so an assertion the IdP minted for a DIFFERENT service provider
+  was accepted here — refused.
+  **`STAPEL_AUTH['SAML_REQUIRE_AUDIENCE']`, default `True`.**
+* a response with no `InResponseTo` answers no request of ours, so the
+  single-use request-id correlation has nothing to bite on (IdP-initiated
+  login CSRF) — refused. Deployments that really run IdP-initiated SSO (a tile
+  in the IdP's app dashboard) must now say so:
+  **`STAPEL_AUTH['SAML_ALLOW_IDP_INITIATED']`, default `False`.**
+* an SSO login could take over an EXISTING local account purely because the
+  email string matched — no `email_verified` is checked anywhere on the OIDC
+  path, and an IdP is free to assert any address, including the deployment's
+  own admin@. An existing account is now claimed only when the user already
+  holds a membership in that org, or the address is inside the org's
+  configured `domain` (a staff-only, org-unique field). Otherwise the login is
+  refused (`?error=sso_invalid_response`) and the account is left alone.
+  **`STAPEL_AUTH['SSO_LINK_EXISTING_BY_EMAIL']`, default `False`,** restores
+  the old wholesale behavior. Just-in-time provisioning of a NEW account is
+  unchanged. **Upgrade note:** set `Organization.domain` for every org whose
+  members already have accounts here — the field used to be decorative for
+  login and is now load-bearing.
+
 ### Security — the 2026-08-11 audit's authentication findings
 
 **AUTH-01 — a wrong password was a password.** The legacy `POST /token/`

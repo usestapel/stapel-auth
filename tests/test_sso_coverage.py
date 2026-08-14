@@ -137,11 +137,29 @@ class SAMLServiceParseGuardTests(TestCase):
 
 
 class ValidateConditionsTests(TestCase):
-    def test_no_conditions_returns(self):
+    """Since 0.21 a missing validity window is a refusal, not a skip
+    (tests/test_sso_fail_closed.py owns the rationale); the branch that used
+    to return silently is kept here behind its opt-out."""
+
+    def test_no_conditions_raises(self):
+        assertion = _el(f"<saml:Assertion {_SAML_NS}/>")
+        with self.assertRaises(ValueError):
+            SAMLService._validate_conditions(assertion)
+
+    @override_settings(STAPEL_AUTH={"SAML_REQUIRE_CONDITIONS": False})
+    def test_no_conditions_returns_when_the_requirement_is_off(self):
         assertion = _el(f"<saml:Assertion {_SAML_NS}/>")
         self.assertIsNone(SAMLService._validate_conditions(assertion))
 
-    def test_empty_conditions_no_bounds(self):
+    def test_empty_conditions_no_bounds_raises(self):
+        assertion = _el(
+            f"<saml:Assertion {_SAML_NS}><saml:Conditions/></saml:Assertion>"
+        )
+        with self.assertRaises(ValueError):
+            SAMLService._validate_conditions(assertion)
+
+    @override_settings(STAPEL_AUTH={"SAML_REQUIRE_CONDITIONS": False})
+    def test_empty_conditions_no_bounds_when_the_requirement_is_off(self):
         assertion = _el(
             f"<saml:Assertion {_SAML_NS}><saml:Conditions/></saml:Assertion>"
         )
@@ -200,7 +218,15 @@ class InResponseToTests(TestCase):
         # consumed exactly once
         self.assertIsNone(cache.get("saml_req:acmecorp:_abc"))
 
-    def test_no_in_response_to_is_allowed(self):
+    def test_no_in_response_to_is_refused(self):
+        """Unsolicited responses correlate to nothing — refused since 0.21."""
+        assertion = _el(f"<saml:Assertion {_SAML_NS}/>")
+        response_root = _el(f"<samlp:Response {_SAMLP_NS}/>")
+        with self.assertRaises(ValueError):
+            SAMLService._validate_in_response_to(assertion, response_root, "acmecorp")
+
+    @override_settings(STAPEL_AUTH={"SAML_ALLOW_IDP_INITIATED": True})
+    def test_no_in_response_to_is_allowed_for_an_idp_initiated_deployment(self):
         assertion = _el(f"<saml:Assertion {_SAML_NS}/>")
         response_root = _el(f"<samlp:Response {_SAMLP_NS}/>")
         self.assertIsNone(
@@ -228,7 +254,16 @@ class AssertionReplayTests(TestCase):
 
 @override_settings(**_OVERRIDE)
 class ValidateAudienceTests(TestCase):
-    def test_no_audience_restriction_returns(self):
+    def test_no_audience_restriction_raises(self):
+        """An assertion addressed to nobody is not addressed to us."""
+        assertion = _el(
+            f"<saml:Assertion {_SAML_NS}><saml:Conditions/></saml:Assertion>"
+        )
+        with self.assertRaises(ValueError):
+            SAMLService._validate_audience(assertion, "acmecorp")
+
+    @override_settings(**{**_OVERRIDE, "STAPEL_AUTH": {"SAML_REQUIRE_AUDIENCE": False}})
+    def test_no_audience_restriction_returns_when_the_requirement_is_off(self):
         assertion = _el(
             f"<saml:Assertion {_SAML_NS}><saml:Conditions/></saml:Assertion>"
         )

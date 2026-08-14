@@ -139,12 +139,32 @@ class SAMLService:
 
     @classmethod
     def _validate_conditions(cls, assertion):
+        """The assertion must carry a validity window, and be inside it.
+
+        ``absent ⇒ accept`` here meant an assertion with no ``Conditions`` (or
+        with a ``Conditions`` carrying no ``NotOnOrAfter``) was valid forever:
+        one captured assertion stays a working credential past every rotation
+        of the account behind it. Every IdP in practice stamps the window, so
+        the missing one is the anomaly, not the norm — a deployment whose IdP
+        genuinely omits it opts back in with
+        ``STAPEL_AUTH['SAML_REQUIRE_CONDITIONS'] = False``.
+        """
+        from .conf import auth_settings
+
         conditions = assertion.find('saml:Conditions', _SAML_NS)
         if conditions is None:
+            if auth_settings.SAML_REQUIRE_CONDITIONS:
+                raise ValueError(
+                    'SAML assertion carries no Conditions — no validity window'
+                )
             return
         now = datetime.now(timezone.utc)
         not_before_str = conditions.get('NotBefore')
         not_after_str = conditions.get('NotOnOrAfter')
+        if not not_after_str and auth_settings.SAML_REQUIRE_CONDITIONS:
+            raise ValueError(
+                'SAML assertion Conditions carry no NotOnOrAfter — it never expires'
+            )
         if not_before_str:
             nb = cls._parse_saml_instant(not_before_str)
             if now < nb:
@@ -166,17 +186,29 @@ class SAMLService:
 
     @classmethod
     def _validate_audience(cls, assertion, org_slug: str) -> None:
-        """AudienceRestriction, when present, must name our SP entityID.
+        """The assertion must name our SP entityID as its audience.
 
-        An assertion issued for a different SP (a different audience) must
-        never be accepted here — otherwise any SP the IdP serves could replay
-        its assertions against us.
+        An assertion issued for a different SP must never be accepted here —
+        otherwise any SP the IdP serves could replay its assertions against
+        us. ``AudienceRestriction`` is optional per SAML core, but "optional
+        in the spec" was read here as "accept an assertion addressed to
+        nobody in particular", which is the same hole with extra steps: the
+        IdP's answer to a *different* relying party walks straight in.
+        Absent now means refuse; ``STAPEL_AUTH['SAML_REQUIRE_AUDIENCE'] =
+        False`` re-opens it for an IdP that cannot be made to send one.
         """
+        from .conf import auth_settings
+
         audiences = assertion.findall(
             'saml:Conditions/saml:AudienceRestriction/saml:Audience', _SAML_NS,
         )
         if not audiences:
-            return  # AudienceRestriction is optional per SAML core spec
+            if auth_settings.SAML_REQUIRE_AUDIENCE:
+                raise ValueError(
+                    'SAML assertion carries no AudienceRestriction — it is not '
+                    'addressed to this SP'
+                )
+            return
         expected = cls.sp_entity_id(org_slug)
         values = [(a.text or '').strip() for a in audiences]
         if expected not in values:
@@ -190,10 +222,22 @@ class SAMLService:
 
         The id is stored in cache by the login view (saml_req:{slug}:{id})
         and consumed here — a response can only answer one outstanding
-        AuthnRequest, and only once. Responses without InResponseTo are
-        treated as IdP-initiated and allowed (nothing to correlate).
+        AuthnRequest, and only once.
+
+        A response WITHOUT InResponseTo is unsolicited: it correlates to no
+        request of ours, so the single-use check has nothing to bite on and
+        the assertion may be one the IdP minted at an attacker's prompting
+        (the classic IdP-initiated login-CSRF). Treating it as "IdP-initiated
+        and therefore fine" was an accept-by-default; it is refused now.
+        A deployment that really runs IdP-initiated SSO (a tile in the IdP's
+        app dashboard) turns it back on with
+        ``STAPEL_AUTH['SAML_ALLOW_IDP_INITIATED'] = True`` — an informed
+        choice, with replay capping (``_check_assertion_replay``) as the
+        remaining protection.
         """
         from django.core.cache import cache
+
+        from .conf import auth_settings
 
         in_response_to = None
         # Prefer the signed SubjectConfirmationData inside the assertion.
@@ -206,6 +250,11 @@ class SAMLService:
             in_response_to = response_root.get('InResponseTo')
 
         if not in_response_to:
+            if not auth_settings.SAML_ALLOW_IDP_INITIATED:
+                raise ValueError(
+                    'SAML response carries no InResponseTo — unsolicited '
+                    'IdP-initiated responses are refused'
+                )
             logger.info('SAML response without InResponseTo (IdP-initiated) for %s', org_slug)
             return
 
@@ -365,6 +414,40 @@ class OIDCService:
 # Shared: JIT provisioning + session issue
 # =============================================================================
 
+def _may_claim_existing_account(org, user, email: str) -> bool:
+    """May this org's IdP take over an account that already exists here?
+
+    A matching email STRING is not proof that the IdP owns that mailbox. The
+    OIDC path never checks ``email_verified``, and an IdP is free to assert
+    whatever address it likes — including the deployment's own admin@ — so
+    "same email ⇒ same person" handed an account over on the IdP's word
+    alone. The answer is yes only when something OUTSIDE the assertion says
+    so:
+
+    * the account is already a member of this org — the link exists and this
+      is simply a repeat login;
+    * the address lives in the org's configured ``domain`` — a staff-only
+      field (``SSOAdminViewSet`` is ``IsAdminUser``) and unique across orgs,
+      so the org is authoritative for that namespace.
+
+    Otherwise the login is refused and the account is left alone; an
+    administrator can create the membership (or set the org domain)
+    deliberately. ``STAPEL_AUTH['SSO_LINK_EXISTING_BY_EMAIL'] = True``
+    restores the old "any matching email links" behavior wholesale.
+    """
+    from .conf import auth_settings
+    from .models import OrgMembership
+
+    if auth_settings.SSO_LINK_EXISTING_BY_EMAIL:
+        return True
+    if OrgMembership.objects.filter(user=user, org=org).exists():
+        return True
+    domain = (org.domain or '').strip().lower()
+    # Exact match only: a sibling domain is a different namespace, and
+    # suffix matching would let "evil-acme.com" pass for "acme.com".
+    return bool(domain) and email.rsplit('@', 1)[-1] == domain
+
+
 class SSOUserService:
     @staticmethod
     def get_or_create_user(org, attrs: dict, request_user=None):
@@ -389,6 +472,12 @@ class SSOUserService:
             raise ValueError('SSO assertion missing email')
 
         existing = U.objects.filter(email=email).first()
+        if existing is not None and not _may_claim_existing_account(org, existing, email):
+            raise ValueError(
+                f'SSO org {org.slug!r} may not claim the existing account for '
+                f'this address: it holds no membership and the address is '
+                f'outside the org domain'
+            )
         if existing is None:
             # JIT provisioning IS registration (#86) — an employee the IdP
             # vouches for but who has no account here gets one created. Both

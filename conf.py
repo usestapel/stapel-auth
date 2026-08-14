@@ -106,6 +106,20 @@ DEFAULTS = {
 
     # SSO
     'SSO_ENFORCED_REDIRECT_PATH': '/login',
+    # SAML assertion validation (sso_service.SAMLService). Each of these was
+    # an "absent ⇒ accept" branch until 0.21: an assertion with no validity
+    # window, an assertion addressed to a different SP, and an unsolicited
+    # IdP-initiated response that correlates to no request of ours. Absent
+    # now means refuse; a deployment whose IdP cannot be made to comply flips
+    # the one branch it needs, and only that one.
+    'SAML_REQUIRE_CONDITIONS': True,   # Conditions + NotOnOrAfter must be present
+    'SAML_REQUIRE_AUDIENCE': True,     # AudienceRestriction must name our SP
+    'SAML_ALLOW_IDP_INITIATED': False,  # accept responses without InResponseTo
+    # May an SSO assertion take over an account that already exists here,
+    # purely because the email string matches? Off: an existing account is
+    # claimed only through an existing org membership or the org's own
+    # configured domain (see sso_service._may_claim_existing_account).
+    'SSO_LINK_EXISTING_BY_EMAIL': False,
 
     # Notifications (optional integration)
     'LOGIN_NOTIFICATION_ENABLED': False,
