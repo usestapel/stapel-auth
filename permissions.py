@@ -102,6 +102,31 @@ class IsServiceAPIKey(permissions.BasePermission):
             return False
 
 
+class IsStaffOrServiceAPIKey(permissions.BasePermission):
+    """A staff session or a valid service API key — the admin-broker surface.
+
+    Written as a permission class, not as an ``if`` inside one handler, so
+    that the class-level answer to "who may call this?" is the real one.
+    ``AdminUserViewSet`` used to declare ``AllowAny`` and keep the staff /
+    service-key check in the body of ``create_user``: correct for that one
+    action, and open for every action added next to it.
+    """
+
+    def has_permission(self, request, view):
+        if IsServiceAPIKey().has_permission(request, view):
+            return True
+        user = getattr(request, 'user', None)
+        if user is not None and user.is_authenticated and user.is_staff:
+            return True
+        # Structured 403, exactly what the in-handler check returned. Letting
+        # DRF answer would turn an anonymous call into a 401 ("authenticate
+        # and retry"), which is wrong advice for a surface no ordinary
+        # session can reach, and a change of contract for existing clients.
+        from stapel_core.django.api.errors import ERR_403_FORBIDDEN, StapelServiceError
+
+        raise StapelServiceError(403, ERR_403_FORBIDDEN)
+
+
 class IsInternalService(permissions.BasePermission):
     """
     Permission class for internal service-to-service communication

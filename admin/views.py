@@ -20,7 +20,7 @@ from stapel_auth.admin.serializers import (
 )
 from stapel_auth.oauth.serializers import AuthCapabilitiesSerializer
 from stapel_auth.models import ServiceAPIKey, StaffRoleAssignment
-from stapel_auth.permissions import DenyEnrollOnly
+from stapel_auth.permissions import DenyEnrollOnly, IsStaffOrServiceAPIKey
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,12 @@ class CapabilitiesView(APIView):
 class AdminUserViewSet(viewsets.GenericViewSet):
     """Admin broker for creating users without OTP verification."""
 
-    permission_classes = [permissions.AllowAny]
+    # Staff or service key, declared where the surface is declared. The class
+    # used to say AllowAny and hide the real rule inside create_user's body,
+    # which made "add an action here" mean "publish an unauthenticated
+    # user-creation endpoint". DenyEnrollOnly joins it for the same reason it
+    # rides every other authenticated viewset.
+    permission_classes = [IsStaffOrServiceAPIKey, DenyEnrollOnly]
 
     @extend_schema(
         tags=["Admin"],

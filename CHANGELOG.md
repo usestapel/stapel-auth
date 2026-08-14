@@ -69,6 +69,20 @@ named opt-out so a deployment flips only the one its IdP forces:
   members already have accounts here — the field used to be decorative for
   login and is now load-bearing.
 
+**Permission allowlists are deny-by-default.** `PasswordViewSet` and
+`QRAuthViewSet` resolved permissions from a list of AUTHENTICATED actions and
+answered `AllowAny` for everything else, and `AdminUserViewSet` declared
+`AllowAny` at class level with the staff/service-key check written inside
+`create_user`'s body. No endpoint was actually open — every action that
+existed was classified — but the cost of adding one was "public". The lists
+are inverted now (they name the PUBLIC actions; anything unlisted needs a
+session, plus `DenyEnrollOnly`), matching the shape `TOTPViewSet` and
+`PasskeyViewSet` already had, and the admin broker carries the new
+`stapel_auth.permissions.IsStaffOrServiceAPIKey` at class level. No setting:
+there is no deployment for which "an action nobody classified is public" is
+the right answer. The refusal body and status for `POST /admin-users/` are
+unchanged (structured 403, not DRF's 401).
+
 ### Security — the 2026-08-11 audit's authentication findings
 
 **AUTH-01 — a wrong password was a password.** The legacy `POST /token/`

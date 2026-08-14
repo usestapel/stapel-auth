@@ -131,19 +131,34 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     otp_sent_response_serializer_class = OtpSentResponseSerializer
     status_response_serializer_class = SimpleStatusSerializer
 
-    _authenticated_actions = frozenset(
+    #: The actions a caller with no session may reach. Everything else — an
+    #: action added tomorrow included — needs one.
+    #:
+    #: This list used to run the other way round: it named the AUTHENTICATED
+    #: actions and answered AllowAny for the rest, so the cost of forgetting
+    #: to update it was a public endpoint. Deny-by-default makes the same
+    #: forgetting cost a 401 instead, which is the failure a test catches on
+    #: the first run (see tests/test_permission_default_deny.py).
+    _public_actions = frozenset(
         {
-            "methods",
-            "change_direct",
-            "change_otp_request",
-            "change_otp_verify",
+            "login",
+            "register",
+            # Password reset: the caller has lost the credential by
+            # definition, so the flow authenticates by OTP, not by session.
+            "reset_email_request",
+            "reset_email_verify",
+            "reset_phone_request",
+            "reset_phone_verify",
+            # Forced first-login change: authenticated by the challenge_token
+            # the intermediate response handed out, not by a session.
+            "forced_change",
         }
     )
 
     def get_permissions(self):
-        if self.action in self._authenticated_actions:
-            return [permissions.IsAuthenticated(), DenyEnrollOnly()]
-        return [permissions.AllowAny()]
+        if self.action in self._public_actions:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated(), DenyEnrollOnly()]
 
     @extend_schema(
         description="Login with email/username and password. Returns `LoginResponse` — either `AuthResponse` (status=LOGGED_IN) or `TOTPChallengeResponse` (status=TOTP_REQUIRED). When TOTP is required, pass `challenge_token` to `POST /totp/challenge/verify/`.",
