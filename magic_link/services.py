@@ -14,8 +14,18 @@ logger = logging.getLogger(__name__)
 
 class MagicLinkService:
     TTL = 15 * 60          # 15 minutes
+    #: Fallback when the setting is absent. The live value is
+    #: STAPEL_AUTH['MAGIC_LINK_RATE_LIMIT_PER_HOUR'] — which shipped in
+    #: conf.py and was read by nobody, so raising it changed nothing.
     RATE_LIMIT = 3         # max sends per hour per email
     RATE_WINDOW = 60 * 60
+
+    @classmethod
+    def rate_limit(cls) -> int:
+        """Sends per hour per email; ``<= 0`` disables the cap."""
+        from stapel_auth.conf import auth_settings
+
+        return int(auth_settings.MAGIC_LINK_RATE_LIMIT_PER_HOUR)
 
     @classmethod
     def _token_key(cls, token: str) -> str:
@@ -31,7 +41,8 @@ class MagicLinkService:
         from django.core.cache import cache
         rate_key = cls._rate_key(user.email)
         count = cache.get(rate_key) or 0
-        if count >= cls.RATE_LIMIT:
+        limit = cls.rate_limit()
+        if limit > 0 and count >= limit:
             return None
         cache.set(rate_key, count + 1, cls.RATE_WINDOW)
         token = secrets.token_urlsafe(32)

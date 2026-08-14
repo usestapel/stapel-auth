@@ -48,6 +48,34 @@ def _generate_numeric_code(length: int) -> str:
     return str(secrets.randbelow(span) + lo)
 
 
+_HOUR = 3600
+
+
+def _hourly_send_budget_spent(model, field: str, identifier: str, limit: int) -> int:
+    """Seconds to wait when *identifier* has spent its hourly send budget.
+
+    ``OTP_RATE_LIMIT_PER_HOUR`` shipped in conf.py from day one and was read
+    by nobody: the only send-side throttle was ``OTP_RESEND_COOLDOWN``, a
+    gap between consecutive sends, which at the default 30s still allows 120
+    codes an hour to one address. A knob that changes nothing is worse than
+    a missing one — the deployment believed it had a cap.
+
+    Returns ``0`` while budget remains, otherwise the seconds until the
+    oldest send in the window ages out. ``limit <= 0`` disables the cap.
+    """
+    if limit <= 0:
+        return 0
+    window_start = timezone.now() - timedelta(seconds=_HOUR)
+    recent = model.objects.filter(
+        **{field: identifier}, created_at__gte=window_start
+    ).order_by('created_at')
+    if recent.count() < limit:
+        return 0
+    oldest = recent.first()
+    wait = (oldest.created_at + timedelta(seconds=_HOUR)) - timezone.now()
+    return max(int(wait.total_seconds()), 1)
+
+
 class PhoneVerificationService:
     """
     Service for phone verification using Twilio
@@ -85,6 +113,15 @@ class PhoneVerificationService:
         from stapel_auth.conf import auth_settings
 
         return int(auth_settings.OTP_BLOCK_DURATION)
+
+    @property
+    def hourly_limit(self) -> int:
+        """Sends per hour per identifier. OTP_RATE_LIMIT_PER_HOUR was the
+        sibling of OTP_MAX_ATTEMPTS: shipped, documented, and read by
+        nobody — the resend cooldown was the only send-side throttle."""
+        from stapel_auth.conf import auth_settings
+
+        return int(auth_settings.OTP_RATE_LIMIT_PER_HOUR)
 
     def generate_code(self, force_real=False):
         """
@@ -135,6 +172,14 @@ class PhoneVerificationService:
                 if recent_by_device:
                     logger.warning(f"Rate limit exceeded for device {device_id}")
                     return {'error': 'rate_limit', 'retry_after': self.resend_cooldown}
+
+            # Hourly cap on top of the per-send cooldown (OTP_RATE_LIMIT_PER_HOUR)
+            hourly_wait = _hourly_send_budget_spent(
+                PhoneVerification, 'phone', phone, self.hourly_limit
+            )
+            if hourly_wait:
+                logger.warning(f"Hourly OTP limit reached for phone {phone}")
+                return {'error': 'rate_limit', 'retry_after': hourly_wait}
 
             # Check if there's a blocked verification for this phone/device
             latest_verification = PhoneVerification.objects.filter(
@@ -284,6 +329,15 @@ class EmailVerificationService:
 
         return int(auth_settings.OTP_BLOCK_DURATION)
 
+    @property
+    def hourly_limit(self) -> int:
+        """Sends per hour per identifier. OTP_RATE_LIMIT_PER_HOUR was the
+        sibling of OTP_MAX_ATTEMPTS: shipped, documented, and read by
+        nobody — the resend cooldown was the only send-side throttle."""
+        from stapel_auth.conf import auth_settings
+
+        return int(auth_settings.OTP_RATE_LIMIT_PER_HOUR)
+
     def generate_code(self, force_real=False):
         """
         Generate an OTP_CODE_LENGTH-digit verification code.
@@ -331,6 +385,14 @@ class EmailVerificationService:
                 if recent_by_device:
                     logger.warning(f"Rate limit exceeded for device {device_id}")
                     return {'error': 'rate_limit', 'retry_after': self.resend_cooldown}
+
+            # Hourly cap on top of the per-send cooldown (OTP_RATE_LIMIT_PER_HOUR)
+            hourly_wait = _hourly_send_budget_spent(
+                EmailVerification, 'email', email, self.hourly_limit
+            )
+            if hourly_wait:
+                logger.warning(f"Hourly OTP limit reached for email {email}")
+                return {'error': 'rate_limit', 'retry_after': hourly_wait}
 
             # Check if there's a blocked verification for this email/device
             latest_verification = EmailVerification.objects.filter(

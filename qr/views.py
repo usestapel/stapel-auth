@@ -58,12 +58,19 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     status_response_serializer_class = QRStatusResponseSerializer
     simple_status_response_serializer_class = SimpleStatusSerializer
 
-    _authenticated_actions = frozenset({"confirm"})
+    #: The actions a caller with no session may reach — the halves of the QR
+    #: dance that a not-yet-signed-in device performs. Everything else needs
+    #: a session, including any action added later: the list used to name the
+    #: AUTHENTICATED actions and answer AllowAny for the rest, so forgetting
+    #: to update it published an endpoint. `scan` stays public on purpose —
+    #: it decides per QR type whether an anonymous scanner is acceptable
+    #: (ERR_403_QR_UNAUTH_SCAN) and redirects to sign-in when it is not.
+    _public_actions = frozenset({"generate", "qr_status", "scan", "reject"})
 
     def get_permissions(self):
-        if self.action in self._authenticated_actions:
-            return [permissions.IsAuthenticated(), DenyEnrollOnly()]
-        return [permissions.AllowAny()]
+        if self.action in self._public_actions:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated(), DenyEnrollOnly()]
 
     QR_TTL = QRAuthService.TTL
 

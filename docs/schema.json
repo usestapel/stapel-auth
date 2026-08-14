@@ -8,7 +8,7 @@
     "/auth/api/v1/admin-users/": {
       "post": {
         "operationId": "auth_api_v1_admin_users_create",
-        "description": "Create a user account without OTP, bypassing normal registration flow. Requires service API key or admin (staff) credentials.\n\n**Permissions:** `AllowAny`",
+        "description": "Create a user account without OTP, bypassing normal registration flow. Requires service API key or admin (staff) credentials.\n\n**Permissions:** `IsStaffOrServiceAPIKey, DenyEnrollOnly`",
         "tags": [
           "Admin"
         ],
@@ -34,8 +34,7 @@
         "security": [
           {
             "JWTCookieAuth": []
-          },
-          {}
+          }
         ],
         "responses": {
           "201": {
@@ -136,7 +135,7 @@
     "/auth/api/v1/anonymous/": {
       "post": {
         "operationId": "auth_api_v1_anonymous_create",
-        "description": "Create anonymous user\n\n**Permissions:** `DenyEnrollOnly`",
+        "description": "Create anonymous user. Minting a NEW guest is capped per client per hour (`ANONYMOUS_RATE_LIMIT_PER_HOUR`) — reusing an existing guest session, by `device_id` or by presenting the anonymous session itself, is free.\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Anonymous Auth"
         ],
@@ -183,6 +182,16 @@
             "description": ""
           },
           "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "429": {
             "content": {
               "application/json": {
                 "schema": {
@@ -4684,7 +4693,7 @@
     "/auth/api/v1/token/": {
       "post": {
         "operationId": "auth_api_v1_token_create",
-        "description": "JWT token obtain view using unified jwt_provider.\n\nAccepts username/email and password, returns access and refresh tokens.\n\n**Permissions:** `AllowAny`",
+        "description": "Deprecated alias of `POST /password/login/`. Mounted only while both `AUTH_LEGACY_TOKEN_LOGIN` and `AUTH_PASSWORD_LOGIN` are on; otherwise 403. Subject to the same lockout and the same TOTP step-up (`PASSWORD_LOGIN_STEP_UP`), so the answer is either a `TokenPair` or a `TOTPChallengeResponse` — pass its `challenge_token` to `POST /totp/challenge/verify/`.\n\n**Permissions:** `AllowAny`",
         "tags": [
           "Token"
         ],
@@ -4719,21 +4728,33 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TokenPairResponse"
-                },
-                "examples": {
-                  "TokenPairResponse": {
-                    "value": {
-                      "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                      "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                    }
-                  }
+                  "$ref": "#/components/schemas/LegacyTokenResponse"
                 }
               }
             },
             "description": ""
           },
           "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "423": {
             "content": {
               "application/json": {
                 "schema": {
@@ -5272,7 +5293,7 @@
     "/auth/api/v1/user/account/cancel-close": {
       "post": {
         "operationId": "auth_api_v1_user_account_cancel_close_create",
-        "description": "Base view exposing serializer seams.\n\nEvery concrete view declares ``request_serializer_class`` /\n``response_serializer_class`` (``None`` when that direction carries no\nserialized payload). Subclasses may swap either class attribute — or\noverride the getters — to customize the request/response envelopes\nwithout rewriting the method bodies.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Base view exposing serializer seams.\n\nEvery concrete view declares ``request_serializer_class`` /\n``response_serializer_class`` (``None`` when that direction carries no\nserialized payload). Subclasses may swap either class attribute — or\noverride the getters — to customize the request/response envelopes\nwithout rewriting the method bodies.\n\n**Permissions:** `IsAuthenticated, AccountNotClosed`",
         "summary": "Cancel account closure during grace period",
         "tags": [
           "GDPR"
@@ -5318,7 +5339,7 @@
     "/auth/api/v1/user/account/close": {
       "post": {
         "operationId": "auth_api_v1_user_account_close_create",
-        "description": "Starts a 30-day grace period. Account is deactivated immediately. Can be cancelled by logging in.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Starts a 30-day grace period. The account is deactivated and all of its sessions are revoked immediately. Can be cancelled by logging in during the grace period.\n\n**Permissions:** `IsAuthenticated, AccountNotClosed`",
         "summary": "Initiate account closure",
         "tags": [
           "GDPR"
@@ -5348,6 +5369,16 @@
               }
             },
             "description": ""
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
           }
         }
       }
@@ -5355,7 +5386,7 @@
     "/auth/api/v1/user/account/close/status": {
       "get": {
         "operationId": "auth_api_v1_user_account_close_status_retrieve",
-        "description": "Base view exposing serializer seams.\n\nEvery concrete view declares ``request_serializer_class`` /\n``response_serializer_class`` (``None`` when that direction carries no\nserialized payload). Subclasses may swap either class attribute — or\noverride the getters — to customize the request/response envelopes\nwithout rewriting the method bodies.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Base view exposing serializer seams.\n\nEvery concrete view declares ``request_serializer_class`` /\n``response_serializer_class`` (``None`` when that direction carries no\nserialized payload). Subclasses may swap either class attribute — or\noverride the getters — to customize the request/response envelopes\nwithout rewriting the method bodies.\n\n**Permissions:** `IsAuthenticated, AccountNotClosed`",
         "summary": "Get account closure status",
         "tags": [
           "GDPR"
@@ -5389,77 +5420,10 @@
       }
     },
     "/auth/api/v1/user/data-export/download": {
-      "get": {
-        "operationId": "auth_api_v1_user_data_export_download_retrieve",
-        "description": "Returns the ZIP archive. Link is valid for 7 days after export is ready.\n\n**Permissions:** `IsAuthenticated`",
-        "summary": "Download data export archive",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Single-use download token bound to the authenticated user.",
-            "required": true
-          }
-        ],
-        "tags": [
-          "GDPR"
-        ],
-        "security": [
-          {
-            "JWTCookieAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/zip": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            },
-            "description": ""
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StapelError"
-                }
-              }
-            },
-            "description": ""
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StapelError"
-                }
-              }
-            },
-            "description": ""
-          },
-          "425": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StapelError"
-                }
-              }
-            },
-            "description": ""
-          }
-        }
-      },
       "post": {
         "operationId": "auth_api_v1_user_data_export_download_create",
-        "description": "Same as GET but the single-use token travels in the request body instead of the URL, so it never lands in access logs or referrers. Bound to the authenticated user.\n\n**Permissions:** `IsAuthenticated`",
-        "summary": "Download data export archive (token in body)",
+        "description": "Spends the single-use token and streams the ZIP archive. The token travels in the request body — never in the URL — and is consumed on the first successful download; the archive is deleted at the same moment. Bound to the authenticated user.\n\n**Permissions:** `IsAuthenticated, AccountNotClosed`",
+        "summary": "Download data export archive",
         "tags": [
           "GDPR"
         ],
@@ -5536,7 +5500,7 @@
     "/auth/api/v1/user/data-export/request": {
       "post": {
         "operationId": "auth_api_v1_user_data_export_request_create",
-        "description": "Initiates an async export job. Archive ready within 48 h. Max once per 30 days.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Initiates an async export job. Archive ready within 48 h. Max once per 30 days.\n\n**Permissions:** `IsAuthenticated, AccountNotClosed`",
         "summary": "Request personal data export",
         "tags": [
           "GDPR"
@@ -5573,7 +5537,7 @@
     "/auth/api/v1/user/data-export/status": {
       "get": {
         "operationId": "auth_api_v1_user_data_export_status_retrieve",
-        "description": "Base view exposing serializer seams.\n\nEvery concrete view declares ``request_serializer_class`` /\n``response_serializer_class`` (``None`` when that direction carries no\nserialized payload). Subclasses may swap either class attribute — or\noverride the getters — to customize the request/response envelopes\nwithout rewriting the method bodies.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Base view exposing serializer seams.\n\nEvery concrete view declares ``request_serializer_class`` /\n``response_serializer_class`` (``None`` when that direction carries no\nserialized payload). Subclasses may swap either class attribute — or\noverride the getters — to customize the request/response envelopes\nwithout rewriting the method bodies.\n\n**Permissions:** `IsAuthenticated, AccountNotClosed`",
         "summary": "Get data export status",
         "tags": [
           "GDPR"
@@ -5598,7 +5562,10 @@
                       "parts_done": 4,
                       "parts_total": 5,
                       "download_available": true,
-                      "expires_at": "2026-07-01T12:00:00Z"
+                      "expires_at": "2026-07-01T12:00:00Z",
+                      "missing_services": [
+                        "recordings"
+                      ]
                     }
                   }
                 }
@@ -6584,7 +6551,7 @@
           },
           "download_available": {
             "type": "boolean",
-            "description": "Whether archive is ready to download",
+            "description": "Whether archive is ready to download (single-use token unspent)",
             "example": true
           },
           "expires_at": {
@@ -6592,6 +6559,20 @@
             "nullable": true,
             "description": "ISO datetime when download link expires, null if not ready",
             "example": "2026-07-01T12:00:00Z"
+          },
+          "is_partial": {
+            "type": "boolean",
+            "description": "Whether sections are missing from the archive"
+          },
+          "missing_services": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Sections that could not be included",
+            "example": [
+              "recordings"
+            ]
           }
         },
         "required": [
@@ -6805,6 +6786,16 @@
           "change_token",
           "expires_at",
           "status"
+        ]
+      },
+      "LegacyTokenResponse": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TokenPairResponse"
+          },
+          {
+            "$ref": "#/components/schemas/TOTPChallengeResponse"
+          }
         ]
       },
       "LinkedOAuthAccountDTO": {

@@ -173,13 +173,33 @@ class SAMLSecurityValidationTests(TestCase):
         with self.assertRaisesRegex(ValueError, 'replay'):
             SAMLService.parse_response(self.cfg, b64, org_slug='acmecorp')
 
-    def test_unsolicited_response_without_in_response_to_allowed(self):
+    # Both branches below used to accept: "the field is absent, so the check
+    # that would have used it does not apply". Since 0.21 absent means refuse,
+    # each behind its own named opt-out (tests/test_sso_fail_closed.py).
+
+    def test_unsolicited_response_without_in_response_to_refused(self):
+        b64 = _build_saml_response(audience=self.entity_id)
+        with self.assertRaisesRegex(ValueError, 'InResponseTo'):
+            SAMLService.parse_response(self.cfg, b64, org_slug='acmecorp')
+
+    @override_settings(STAPEL_AUTH={'SAML_ALLOW_IDP_INITIATED': True})
+    def test_unsolicited_response_allowed_for_an_idp_initiated_deployment(self):
         b64 = _build_saml_response(audience=self.entity_id)
         attrs = SAMLService.parse_response(self.cfg, b64, org_slug='acmecorp')
         self.assertEqual(attrs['email'], 'alice@acmecorp.com')
 
-    def test_missing_audience_restriction_allowed(self):
-        b64 = _build_saml_response()
+    def test_missing_audience_restriction_refused(self):
+        req_id = f'_{uuid.uuid4().hex}'
+        self._store_request_id(req_id)
+        b64 = _build_saml_response(in_response_to=req_id)
+        with self.assertRaisesRegex(ValueError, 'AudienceRestriction'):
+            SAMLService.parse_response(self.cfg, b64, org_slug='acmecorp')
+
+    @override_settings(STAPEL_AUTH={'SAML_REQUIRE_AUDIENCE': False})
+    def test_missing_audience_restriction_allowed_when_the_requirement_is_off(self):
+        req_id = f'_{uuid.uuid4().hex}'
+        self._store_request_id(req_id)
+        b64 = _build_saml_response(in_response_to=req_id)
         attrs = SAMLService.parse_response(self.cfg, b64, org_slug='acmecorp')
         self.assertEqual(attrs['email'], 'alice@acmecorp.com')
 

@@ -478,6 +478,23 @@
       }
     },
     {
+      "key": "AUTH_LEGACY_TOKEN_LOGIN",
+      "kind": "bool",
+      "default": false,
+      "group": "auth.login",
+      "gates": {
+        "operations": [
+          "auth_api_v1_token_create"
+        ],
+        "co_gates": [],
+        "behavior": "When on (and AUTH_PASSWORD_LOGIN is on too), POST /token/ trades username-or-email plus password for a JWT pair, under the same lockout and the same TOTP step-up as POST /password/login/. When off it answers 403."
+      },
+      "curated": {
+        "summary": "Deprecated alias of password sign-in for clients pinned to the old token-pair response. Off by default; needs password sign-in on as well.",
+        "business_label": "Sign-in through the legacy token endpoint"
+      }
+    },
+    {
       "key": "AUTH_EMAIL_PLACEMENT",
       "kind": "enum",
       "default": "main",
@@ -780,7 +797,7 @@
       "consumer": "frontend"
     }
   ],
-  "operations_total": 112,
+  "operations_total": 111,
   "requires": [
     {
       "module": "stapel-core",

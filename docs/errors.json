@@ -539,6 +539,13 @@
     "en": "You do not have permission to perform this action"
   },
   {
+    "code": "error.403.gdpr.account_closed",
+    "status": 403,
+    "params": [],
+    "remediation": "retry",
+    "en": "This account is being erased and can no longer be used."
+  },
+  {
     "code": "error.403.mfa_enrollment_required",
     "status": 403,
     "params": [],
@@ -812,6 +819,13 @@
     "en": "This username is already taken."
   },
   {
+    "code": "error.410.gdpr.download_consumed",
+    "status": 410,
+    "params": [],
+    "remediation": "retry",
+    "en": "Download link was already used. Request a new export."
+  },
+  {
     "code": "error.410.gdpr.download_expired",
     "status": 410,
     "params": [],
@@ -921,5 +935,12 @@
     "params": [],
     "remediation": "retry",
     "en": "Failed to send verification code"
+  },
+  {
+    "code": "error.503.gdpr.closure_unavailable",
+    "status": 503,
+    "params": [],
+    "remediation": "retry",
+    "en": "Account closure is temporarily unavailable. Please retry later."
   }
 ]

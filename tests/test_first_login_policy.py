@@ -108,7 +108,10 @@ class LoginIntermediateTests(APITestCase):
         self.assertFalse(user.mfa_enrollment_required)
 
 
-@override_settings(URL_PREFIX="")
+@override_settings(
+    URL_PREFIX="",
+    STAPEL_AUTH={"AUTH_PASSWORD_LOGIN": True, "AUTH_LEGACY_TOKEN_LOGIN": True},
+)
 class TokenEndpointFlagTests(APITestCase):
     """The legacy /token/ obtain endpoint cannot run the intermediate dance —
     flagged accounts get the structured 403 instead of a session."""

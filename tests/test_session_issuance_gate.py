@@ -137,9 +137,9 @@ class CallSiteEnumerationTests(TestCase):
     def test_every_label_is_actually_wired_somewhere(self):
         """A label with no wiring is a path someone declared and forgot.
 
-        ``legacy_token`` is the one label that is wired without going through
-        the minter: ``/token/`` mints directly and runs the predicate itself,
-        so the scan looks for any reference to the label in the library.
+        The scan looks for any reference to the label rather than for a
+        minter call, so a label used somewhere other than a call site (a
+        settings default, a redirect branch) still counts as wired.
         """
         wired = set()
         for path in sorted(_REPO_ROOT.rglob("*.py")):
@@ -186,16 +186,10 @@ _BYPASS_ALLOWLIST = {
     "sessions/services.py::get_refresh_token_for_user": (
         "TokenService facade over the primitive — same, cookie-shaped return"
     ),
-    "sessions/views.py::post": (
-        "legacy /token/ — mints directly but runs session_precondition_error "
-        "itself first (see the call above the mint)"
-    ),
     "password/views.py::change_otp_verify": (
         "re-mint after a mid-flow guest promotion; the caller's own session "
         "was just revoked by the password change"
     ),
-    "password/views.py::reset_email_verify": "password reset just succeeded for this account",
-    "password/views.py::reset_phone_verify": "password reset just succeeded for this account",
     "qr/views.py::confirm": "login_request confirm mints for the already-authenticated scanner",
 }
 
@@ -248,7 +242,12 @@ class DirectMintCallerRosterTests(TestCase):
 
     def test_scan_finds_the_known_callers(self):
         # A roster test that matches nothing is worse than no roster test.
-        self.assertGreaterEqual(len(_direct_mint_callers()), 8)
+        # The floor moved 8 -> 4 when the legacy /token/ endpoint and both
+        # password-reset verify paths stopped minting around the gate and
+        # started calling _issue_session_tokens (audit AUTH-01/AUTH-04).
+        # Fewer bypasses is the direction of travel; the floor only exists
+        # so a broken scanner cannot pass by finding nothing.
+        self.assertGreaterEqual(len(_direct_mint_callers()), 4)
 
     def test_every_direct_mint_is_inside_the_minter_or_on_the_roster(self):
         unaccounted = sorted(
@@ -567,6 +566,136 @@ class OtpPathEndToEndTests(APITestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.data["tokens"]["access"])
         self.assertEqual(UserSession.objects.filter(user=user).count(), 1)
+
+
+@override_settings(URL_PREFIX="", FRONTEND_URL=_FRONTEND)
+class PasswordResetPathEndToEndTests(APITestCase):
+    """Password reset — recovery, and therefore an admission (audit AUTH-04).
+
+    Both verify endpoints used to call the low-level mint directly, on the
+    theory that a just-completed reset is proof enough. It is not: proving
+    control of a mailbox replaces the password, it does not decide whether
+    the account may be admitted. A disabled account walked in, a first-login
+    obligation was walked around, and the session that came out was
+    untracked — not listable, not revocable.
+
+    Email and phone are tested as a pair on purpose: they are copies of one
+    another, which is how a fix lands on one and misses the sibling.
+    """
+
+    def setUp(self):
+        cache.clear()
+
+    def _reset_email(self, user, password="brand-new-password-3"):
+        with patch(
+            "stapel_auth.otp.services.EmailVerificationService.verify_code",
+            return_value={"success": True},
+        ):
+            return self.client.post(
+                reverse("password_reset_email_verify"),
+                {"email": user.email, "code": "1234", "new_password": password},
+                format="json",
+            )
+
+    def _reset_phone(self, user, password="brand-new-password-3"):
+        with patch(
+            "stapel_auth.otp.services.PhoneVerificationService.verify_code",
+            return_value={"success": True},
+        ):
+            return self.client.post(
+                reverse("password_reset_phone_verify"),
+                {"phone": user.phone, "code": "1234", "new_password": password},
+                format="json",
+            )
+
+    def _phone_user(self, **kw):
+        # A distinct number per user; the reset lookup keys on it.
+        return _user(
+            phone=f"+7999{uuid.uuid4().int % 10**7:07d}",
+            is_phone_verified=True,
+            **kw,
+        )
+
+    def test_deactivated_user_gets_no_session_from_an_email_reset(self):
+        user = _user(is_active=False)
+        resp = self._reset_email(user)
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.data["localizable_error"], ERR_401_ACCOUNT_DISABLED)
+        self.assertNotIn("tokens", resp.data)
+        self.assertEqual(UserSession.objects.filter(user=user).count(), 0)
+
+    def test_deactivated_user_gets_no_session_from_a_phone_reset(self):
+        user = self._phone_user(is_active=False)
+        resp = self._reset_phone(user)
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.data["localizable_error"], ERR_401_ACCOUNT_DISABLED)
+        self.assertEqual(UserSession.objects.filter(user=user).count(), 0)
+
+    def test_flagged_user_gets_no_session_but_gets_the_next_step(self):
+        user = _user(mfa_enrollment_required=True)
+        resp = self._reset_email(user)
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(
+            resp.data["localizable_error"], ERR_403_MFA_ENROLLMENT_REQUIRED
+        )
+        self.assertTrue(resp.data["params"]["challenge_token"])
+        self.assertEqual(UserSession.objects.filter(user=user).count(), 0)
+
+    def test_the_password_is_still_reset_even_when_admission_is_refused(self):
+        """Recovery and admission are separate answers.
+
+        The reset itself succeeded before the gate ran — the user really did
+        prove control of the mailbox — so refusing the *session* must not
+        silently undo it, or a flagged user is stuck with a password they no
+        longer know.
+        """
+        user = _user(password_change_required=True)
+        self._reset_email(user, password="brand-new-password-3")
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("brand-new-password-3"))
+
+    def test_clean_email_reset_yields_exactly_one_tracked_session(self):
+        user = _user()
+        resp = self._reset_email(user)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["status"], "LOGGED_IN")
+        self.assertTrue(resp.data["tokens"]["access"])
+        self.assertEqual(UserSession.objects.filter(user=user).count(), 1)
+
+    def test_clean_phone_reset_yields_exactly_one_tracked_session(self):
+        user = self._phone_user()
+        resp = self._reset_phone(user)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["status"], "LOGGED_IN")
+        self.assertEqual(UserSession.objects.filter(user=user).count(), 1)
+
+    def test_the_reset_kills_the_sessions_that_existed_before_it(self):
+        """The point of recovery: the attacker's session does not survive it.
+
+        The one session left standing is the one the reset just issued.
+        """
+        user = _user()
+        _issue_session_tokens(user, None, path=SessionPath.PASSWORD)
+        _issue_session_tokens(user, None, path=SessionPath.OTP_EMAIL)
+        self.assertEqual(
+            UserSession.objects.filter(user=user, is_revoked=False).count(), 2
+        )
+
+        self.assertEqual(self._reset_email(user).status_code, 200)
+        self.assertEqual(
+            UserSession.objects.filter(user=user, is_revoked=False).count(), 1
+        )
+
+    def test_the_reset_is_audited_as_a_login(self):
+        """A recovery that admits somebody must leave the same evidence any
+        other admission leaves — the direct mint left none."""
+        from stapel_auth.models import AuthAuditLog
+
+        user = _user()
+        self.assertEqual(self._reset_email(user).status_code, 200)
+        self.assertTrue(
+            AuthAuditLog.objects.filter(user=user, event_type="login_success").exists()
+        )
 
 
 @override_settings(URL_PREFIX="", FRONTEND_URL=_FRONTEND)

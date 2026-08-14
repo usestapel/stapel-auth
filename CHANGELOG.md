@@ -2,6 +2,180 @@
 
 ## [Unreleased]
 
+### Security — permissive defaults closed (upgrade notes)
+
+Every item below changes a DEFAULT. The safe value is now what you get without
+saying anything; the permissive value is available, but only as an explicit
+act. Read this section before upgrading a running deployment.
+
+**`POST /token/` no longer bypasses the password-login gate, the TOTP step-up
+and the lockout counter.** The legacy token endpoint was registered with an
+empty gate tuple ("always on") and its view consulted no setting, so it served
+the same credential trade as `POST /password/login/` while ignoring all three
+answers that path respects: `AUTH_PASSWORD_LOGIN` (`False` on stock defaults —
+a deployment that never turned password login on had it fully open here),
+`PASSWORD_LOGIN_STEP_UP` (`True` — the dedicated path mints a TOTP challenge,
+this one minted the session, an MFA bypass for every TOTP-enabled account) and
+`LockoutService` (no counter, no throttle, no captcha — an unlimited
+password-guessing oracle).
+
+* **New setting `STAPEL_AUTH['AUTH_LEGACY_TOKEN_LOGIN']`, default `False`.**
+  While it is off, `POST /token/` answers `403`. To keep the endpoint, set it
+  to `True` **and** keep `AUTH_PASSWORD_LOGIN` on — the alias is refused
+  whenever password login itself is off.
+* **Behavior change when it is on:** the endpoint now applies the same lockout
+  as `/password/login/` (shared counter, keyed on the same identifier, `423`
+  once the threshold is crossed) and the same TOTP step-up. A TOTP-enabled
+  account therefore receives a `TOTPChallengeResponse`
+  (`status=TOTP_REQUIRED`, `challenge_token`) with HTTP 200 instead of a token
+  pair; finish it at `POST /totp/challenge/verify/`. A client that reads
+  `access` unconditionally will fail loudly rather than silently skipping the
+  second factor. `PASSWORD_LOGIN_STEP_UP=False` opts out of the step-up on
+  both paths, as before.
+* The route also moved out of the always-on `sessions` gate entry into its own
+  `legacy_token` entry, so a host assembling its own URLconf from the
+  factories gets no `/token/` route unless the setting is on. `/token/refresh/`
+  and the `/sessions/` management endpoints are unaffected and stay always-on.
+* `/token/` is deprecated: it is an alias of `POST /password/login/` kept for
+  clients pinned to the token-pair response shape. New deployments should use
+  the dedicated path and leave this setting alone.
+
+**SSO: what the assertion does not say is no longer read as consent.** Four
+`absent ⇒ accept` branches in `sso_service.py` now refuse, each with its own
+named opt-out so a deployment flips only the one its IdP forces:
+
+* an assertion with no `Conditions` (or a `Conditions` with no `NotOnOrAfter`)
+  has no validity window and never expires — refused.
+  **`STAPEL_AUTH['SAML_REQUIRE_CONDITIONS']`, default `True`.**
+* an assertion with no `AudienceRestriction` is addressed to nobody in
+  particular, so an assertion the IdP minted for a DIFFERENT service provider
+  was accepted here — refused.
+  **`STAPEL_AUTH['SAML_REQUIRE_AUDIENCE']`, default `True`.**
+* a response with no `InResponseTo` answers no request of ours, so the
+  single-use request-id correlation has nothing to bite on (IdP-initiated
+  login CSRF) — refused. Deployments that really run IdP-initiated SSO (a tile
+  in the IdP's app dashboard) must now say so:
+  **`STAPEL_AUTH['SAML_ALLOW_IDP_INITIATED']`, default `False`.**
+* an SSO login could take over an EXISTING local account purely because the
+  email string matched — no `email_verified` is checked anywhere on the OIDC
+  path, and an IdP is free to assert any address, including the deployment's
+  own admin@. An existing account is now claimed only when the user already
+  holds a membership in that org, or the address is inside the org's
+  configured `domain` (a staff-only, org-unique field). Otherwise the login is
+  refused (`?error=sso_invalid_response`) and the account is left alone.
+  **`STAPEL_AUTH['SSO_LINK_EXISTING_BY_EMAIL']`, default `False`,** restores
+  the old wholesale behavior. Just-in-time provisioning of a NEW account is
+  unchanged. **Upgrade note:** set `Organization.domain` for every org whose
+  members already have accounts here — the field used to be decorative for
+  login and is now load-bearing.
+
+**Permission allowlists are deny-by-default.** `PasswordViewSet` and
+`QRAuthViewSet` resolved permissions from a list of AUTHENTICATED actions and
+answered `AllowAny` for everything else, and `AdminUserViewSet` declared
+`AllowAny` at class level with the staff/service-key check written inside
+`create_user`'s body. No endpoint was actually open — every action that
+existed was classified — but the cost of adding one was "public". The lists
+are inverted now (they name the PUBLIC actions; anything unlisted needs a
+session, plus `DenyEnrollOnly`), matching the shape `TOTPViewSet` and
+`PasskeyViewSet` already had, and the admin broker carries the new
+`stapel_auth.permissions.IsStaffOrServiceAPIKey` at class level. No setting:
+there is no deployment for which "an action nobody classified is public" is
+the right answer. The refusal body and status for `POST /admin-users/` are
+unchanged (structured 403, not DRF's 401).
+
+**Guest minting is capped.** `POST /anonymous/` is unauthenticated by design
+(`AUTH_ANONYMOUS`, still on by default — a guest session carries no
+privileges, and turning it off would silently break every guest flow in the
+fleet) and every call created a real `User` row plus a JWT, with a
+caller-supplied `device_id` as the only dedup: no captcha, no throttle, no
+counter. **New setting `STAPEL_AUTH['ANONYMOUS_RATE_LIMIT_PER_HOUR']`,
+default `20`** — new guests per client per hour, `429` beyond it, `0`
+disables the cap. Reusing an existing guest session (same `device_id`, or
+presenting the anonymous JWT) costs nothing, so the legitimate flow is
+untouched; raise the number if your deployment fronts many guests behind one
+NAT.
+
+**`OTP_LENGTH` now defaults to `6`** (was `4` — a 10⁴ space that
+`OTP_MAX_ATTEMPTS` and `OTP_RATE_LIMIT_PER_HOUR` narrow but do not enlarge).
+Set `STAPEL_AUTH['OTP_LENGTH'] = 4` to keep short codes. `MOCK_OTP_CODE`
+still defaults to `'0000'`; mock mode is a development affordance and its
+length has never had to match.
+
+**The hourly limits in `conf.py` are consumed rather than decorative.**
+`OTP_RATE_LIMIT_PER_HOUR` (default `3`) and `MAGIC_LINK_RATE_LIMIT_PER_HOUR`
+(default `3`) shipped as documented caps that no code read: OTP sends were
+throttled only by `OTP_RESEND_COOLDOWN` (a gap between sends — 120 codes an
+hour to one address at the default 30s), and `MagicLinkService` used a
+hardcoded `RATE_LIMIT = 3` that ignored the setting. Both are wired now, per
+identifier, `0` disables. **Upgrade note:** if you were relying on more than
+three OTP sends per hour to one address, raise
+`OTP_RATE_LIMIT_PER_HOUR` — the shipped value is now enforced.
+
+### Security — the 2026-08-11 audit's authentication findings
+
+**AUTH-01 — a wrong password was a password.** The legacy `POST /token/`
+endpoint authenticates through `django.contrib.auth.authenticate()`, and the
+deployment wired `stapel_core.django.jwt.session.EmailAuthBackend`, which
+resolved a user by email and returned it without comparing a secret. The
+backend is fixed in stapel-core; what lands here is the regression gate that
+would have caught it — `tests/test_legacy_token_credentials.py` wires the real
+backend stack (this suite's settings never did, which is why the deployed
+configuration was the one nobody exercised) and asserts that every password
+alias refuses a wrong nonempty password with no token, no cookie and no
+session row, and that the stack passes core's `stapel_auth_backends` boot
+check.
+
+**AUTH-02 — a forged refresh token bought real tokens.** `POST
+/token/refresh/` decoded the submitted token with `verify=False`, trusted its
+`user_id`/`jti`, signed a fresh pair, and only then asked the session table
+whether that was legitimate. Verification now comes first — signature,
+algorithm, expiry, issuer, audience — followed by a token-type check (an
+access token is signed by the same key and is not a refresh credential). A
+token whose jti no `UserSession` tracks is refused instead of being read as a
+pre-session-tracking legacy token, which is the state a forgery lands in;
+`STAPEL_AUTH['ALLOW_UNTRACKED_REFRESH']` (default `False`) re-opens that door
+for a deployment that needs it as a migration aid.
+
+**AUTH-03 — a magic link walked past TOTP.** `magic_link/views.py` asked
+`getattr(user, "totp_enabled", False)` — an attribute the user model does not
+have, so the default answered "no second factor" for every TOTP user. It asks
+`TOTPService.is_enabled(user)` now, and so does the second copy of the same
+expression in `mfa/views.py`. `tests/test_user_attribute_probes.py` closes the
+shape rather than the two instances: every string-literal attribute this
+package probes on a user object must exist on the configured user model.
+
+**AUTH-04 — password reset was an admission nobody admitted to.** Both reset
+verify endpoints called the low-level mint directly, so a disabled account
+walked in, a first-login obligation was skipped, and the session that came out
+was untracked. Both go through `_issue_session_tokens` on the new
+`SessionPath.PASSWORD_RESET`, as does the legacy `/token/` endpoint, which had
+been running the admission predicate by hand and minting around the
+choke-point.
+
+**AUTH-05 — revocation that failed quietly, rotation that raced.** A failed
+`SessionService.revoke_all` during a password change was logged and swallowed,
+reporting a recovery that had not happened; it propagates now. Refresh
+rotation reads its session row `select_for_update` inside the transaction that
+writes it, and looks it up by `(jti, user)` so one user's jti cannot rotate
+another's session. Changing a password with the current one revokes every
+*other* session — the reaction to a suspected compromise no longer leaves the
+attacker logged in — while sparing the session the request is made from.
+
+### Notes
+
+- `tests/test_contract.py::test_matches_monolith_auth_slice` is red again, and
+  as in 0.14.6 it is not this library's emission that is wrong. Declaring the
+  real permission on `AdminUserViewSet` changed what `PermissionAwareAutoSchema`
+  renders into the description of `/auth/api/v1/admin-users/`: it no longer
+  claims `**Permissions:** AllowAny` for an endpoint that was never actually
+  open. `docs/schema.json` here was regenerated to match; the sibling
+  `stapel-example-monolith` aggregate it is byte-compared against was not, so
+  the stale half is the one still advertising the old string. Regenerating that
+  aggregate closes it with a zero diff. Module CI is unaffected — the test is
+  skipped when the monolith sibling is absent, which is every CI run — so this
+  is a workspace-only gap, recorded here rather than left for someone to
+  rediscover.
+
 ## [0.20.2] — 2026-08-10
 
 ### Fixed — this module translates only the keys it owns

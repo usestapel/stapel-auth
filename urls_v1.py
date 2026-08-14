@@ -90,9 +90,20 @@ def _gated(name, enabled, flags, patterns):
 
 
 def get_sessions_urls(enabled=None):
-    """JWT token obtain/refresh + session management. Always on."""
-    return _gated('sessions', enabled, (), [
+    """JWT token refresh + session management (always on) + the legacy
+    credential endpoint (gated by AUTH_LEGACY_TOKEN_LOGIN).
+
+    ``POST /token/`` is a login surface, not session plumbing: it trades a
+    password for a session exactly like ``/password/login/``. It used to ride
+    the always-on 'sessions' entry, which is how it ended up as the one
+    password door with no gate at all. It now has its own gate entry; the
+    view additionally requires AUTH_PASSWORD_LOGIN per request (this module's
+    ``urlpatterns`` mounts every factory with ``enabled=True``, so the URL
+    gate alone only serves hosts that assemble their own URLconf).
+    """
+    return _gated('legacy_token', enabled, ('AUTH_LEGACY_TOKEN_LOGIN',), [
         path('token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    ]) + _gated('sessions', enabled, (), [
         path('token/refresh/', CustomTokenRefreshView.as_view({'post': 'refresh_post', 'get': 'refresh_get'}), name='token_refresh'),
 
         path('sessions/', SessionViewSet.as_view({'get': 'list_sessions', 'delete': 'revoke_all'}), name='sessions'),

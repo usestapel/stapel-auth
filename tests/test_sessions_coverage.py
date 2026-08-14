@@ -17,6 +17,7 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient, APITestCase
 
+from stapel_auth.conf import auth_settings
 from stapel_auth.models import UserSession
 from stapel_auth.sessions import services as svc
 from stapel_core.django.jwt.provider import jwt_provider
@@ -144,7 +145,10 @@ class SessionViewSetTests(APITestCase):
 # =============================================================================
 
 
-@override_settings(URL_PREFIX="")
+@override_settings(
+    URL_PREFIX="",
+    STAPEL_AUTH={"AUTH_PASSWORD_LOGIN": True, "AUTH_LEGACY_TOKEN_LOGIN": True},
+)
 class TokenObtainTests(APITestCase):
     def setUp(self):
         self.client = APIClient()
@@ -239,13 +243,24 @@ class TokenRefreshTests(APITestCase):
         resp = self.client.post(reverse("token_refresh"), {"refresh": refresh})
         self.assertEqual(resp.status_code, 401)
 
-    def test_refresh_success_no_session_record(self):
-        # No UserSession for this jti and no other sessions -> rotate returns
-        # False -> refresh allowed through (legacy token path).
+    def test_refresh_without_session_record_is_denied(self):
+        # No UserSession for this jti and no other sessions. This used to be
+        # read as "a legacy token that pre-dates session tracking" and let
+        # through — the same state a forged jti lands in, which is what made
+        # a JWT-shaped forgery convertible into real tokens (audit AUTH-02).
         _, refresh = self._tokens()
         resp = self.client.post(reverse("token_refresh"), {"refresh": refresh})
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn("access", resp.data)
+        self.assertEqual(resp.status_code, 401)
+
+    @override_settings(STAPEL_AUTH={"ALLOW_UNTRACKED_REFRESH": True})
+    def test_untracked_refresh_can_be_re_enabled_for_a_migration(self):
+        auth_settings.reload()
+        try:
+            _, refresh = self._tokens()
+            resp = self.client.post(reverse("token_refresh"), {"refresh": refresh})
+            self.assertEqual(resp.status_code, 200)
+        finally:
+            auth_settings.reload()
 
     def test_refresh_replay_with_other_active_session_returns_401(self):
         # A different active session exists but old_jti has no record ->

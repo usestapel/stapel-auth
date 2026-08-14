@@ -99,6 +99,11 @@
       "business_label": "Sign-in with a password",
       "summary": "Existing users sign in with login and password (plus change/reset flows). Off by default."
     },
+    "AUTH_LEGACY_TOKEN_LOGIN": {
+      "business_label": "Sign-in through the legacy token endpoint",
+      "summary": "Deprecated alias of password sign-in for clients pinned to the old token-pair response. Off by default; needs password sign-in on as well.",
+      "behavior": "When on (and AUTH_PASSWORD_LOGIN is on too), POST /token/ trades username-or-email plus password for a JWT pair, under the same lockout and the same TOTP step-up as POST /password/login/. When off it answers 403."
+    },
     "AUTH_QR_LOGIN": {
       "business_label": "Sign-in by QR code from another device",
       "summary": "A signed-in device shows a QR code; scanning it signs the user in on the new device."

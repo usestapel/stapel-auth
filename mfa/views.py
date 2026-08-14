@@ -525,12 +525,17 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
         except PasskeyCredential.DoesNotExist:
             return StapelErrorResponse(404, ERR_404_PASSKEY_NOT_FOUND)
 
+        from stapel_auth.mfa.services import TOTPService
+
         # Require at least one other auth method
         user = request.user
         has_password = bool(
             getattr(user, "password", None) and user.password not in ("", "!")
         )
-        has_totp = getattr(user, "totp_enabled", False)
+        # Same reason as magic_link/views.py: TOTP lives in a TOTPDevice row,
+        # never on the user model, so a getattr probe here answered "no TOTP"
+        # for everybody.
+        has_totp = TOTPService.is_enabled(user)
         other_passkeys = (
             PasskeyCredential.objects.filter(user=user, is_active=True)
             .exclude(id=pk)

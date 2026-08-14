@@ -90,6 +90,18 @@ LoginResponseSerializer = PolymorphicProxySerializer(
 )
 
 
+# Legacy POST /token/ (CustomTokenObtainPairView) answers with the historic
+# TokenPair shape, or — once the TOTP step-up applies there too, as it always
+# has on /password/login/ — with the challenge instead. Undiscriminated union:
+# TokenPairResponse carries no `status` field to discriminate on, and inventing
+# one would change the legacy success payload the endpoint exists to preserve.
+LegacyTokenResponseSerializer = PolymorphicProxySerializer(
+    component_name='LegacyTokenResponse',
+    serializers=[TokenPairSerializer, TOTPChallengeResponseSerializer],
+    resource_type_field_name=None,
+)
+
+
 class SessionResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = SessionResponse

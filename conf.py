@@ -41,8 +41,11 @@ DEFAULTS = {
     'USE_MOCK_SMS_OTP': False,
     'USE_MOCK_EMAIL_OTP': False,
     'MOCK_OTP_CODE': '0000',
-    # Generated OTP digit count (storage cap is otp.constants.OTP_CODE_LENGTH=8)
-    'OTP_LENGTH': 4,
+    # Generated OTP digit count (storage cap is otp.constants.OTP_CODE_LENGTH=8).
+    # 6 is the industry default and what this ships with; 4 leaves a 10^4
+    # space, which OTP_MAX_ATTEMPTS + OTP_RATE_LIMIT_PER_HOUR only narrow —
+    # they do not make it big.
+    'OTP_LENGTH': 6,
     'OTP_TTL': 600,                 # seconds — also the single source for the
                                      # AuthCapabilities.otp.ttl_seconds contract
                                      # value (otp/services.py wires this same
@@ -68,9 +71,25 @@ DEFAULTS = {
 
     # Sessions
     'SESSION_TTL_DAYS': 30,
+    # Refresh with a valid signature but no tracked UserSession row: deny.
+    # Pre-0.21 this was allowed so tokens minted before session tracking
+    # existed kept working — and it was the precondition that made a forged
+    # refresh token exploitable (audit AUTH-02): "unknown jti" resolved to
+    # "legacy token, let it through" for any user with no session row.
+    # Turn it on only as a temporary migration aid for a deployment that
+    # still has such tokens in the wild; those users otherwise re-login once.
+    'ALLOW_UNTRACKED_REFRESH': False,
 
     # Anonymous users
     'ANONYMOUS_USER_LIFETIME_DAYS': 30,
+    # How many NEW guest accounts one client may mint per hour. POST
+    # /anonymous/ is unauthenticated and every call used to create a real
+    # User row plus a JWT, with a caller-supplied device_id as the only
+    # dedup — i.e. a table-growth faucet anyone could hold open. Reusing an
+    # existing guest session (same device_id, or an anonymous JWT already in
+    # hand) does not count against the budget; only creating a row does.
+    # 0 disables the limit and restores the pre-0.21 behavior.
+    'ANONYMOUS_RATE_LIMIT_PER_HOUR': 20,
     # Anonymous auth axis: gates POST /anonymous/ (own URL factory) and the
     # `anonymous` capability. Independent of the email/phone method gates.
     'AUTH_ANONYMOUS': True,
@@ -98,6 +117,20 @@ DEFAULTS = {
 
     # SSO
     'SSO_ENFORCED_REDIRECT_PATH': '/login',
+    # SAML assertion validation (sso_service.SAMLService). Each of these was
+    # an "absent ⇒ accept" branch until 0.21: an assertion with no validity
+    # window, an assertion addressed to a different SP, and an unsolicited
+    # IdP-initiated response that correlates to no request of ours. Absent
+    # now means refuse; a deployment whose IdP cannot be made to comply flips
+    # the one branch it needs, and only that one.
+    'SAML_REQUIRE_CONDITIONS': True,   # Conditions + NotOnOrAfter must be present
+    'SAML_REQUIRE_AUDIENCE': True,     # AudienceRestriction must name our SP
+    'SAML_ALLOW_IDP_INITIATED': False,  # accept responses without InResponseTo
+    # May an SSO assertion take over an account that already exists here,
+    # purely because the email string matches? Off: an existing account is
+    # claimed only through an existing org membership or the org's own
+    # configured domain (see sso_service._may_claim_existing_account).
+    'SSO_LINK_EXISTING_BY_EMAIL': False,
 
     # Notifications (optional integration)
     'LOGIN_NOTIFICATION_ENABLED': False,
@@ -209,6 +242,14 @@ DEFAULTS = {
     # Off by default — only deployments running the workspaces invite flow (or
     # another trusted grant issuer) should expose the exchange endpoint.
     'AUTH_LOGIN_GRANT':      False,
+    # Legacy credential endpoint POST /token/ — the pre-0.4 alias of
+    # /password/login/, kept for clients pinned to the TokenPair response
+    # shape. Off by default: it is a second door onto password login, and a
+    # deployment should have to say out loud that it still needs it. When on
+    # it ALSO requires AUTH_PASSWORD_LOGIN and behaves like the dedicated
+    # path (lockout + PASSWORD_LOGIN_STEP_UP); before 0.21 it was mounted
+    # unconditionally and consulted none of the three.
+    'AUTH_LEGACY_TOKEN_LOGIN': False,
 
     # Login method placement (UI composition — capability-config.md §1 sibling
     # axis to the *_LOGIN gates above): where the frontend renders each

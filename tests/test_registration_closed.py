@@ -270,7 +270,10 @@ class ClosedRegistrationKeepsLoginWorkingTests(APITestCase):
         self.assertEqual(resp.data["status"], "LOGGED_IN")
 
     def test_sso_login_for_an_existing_account(self):
-        org = Organization.objects.create(name="Acme", slug=_slug(), domain="acme.test")
+        # The org owns the member's address namespace — since 0.21 that is
+        # what lets an SSO login claim an account that already exists (see
+        # tests/test_sso_fail_closed.py); the domain used to be decorative.
+        org = Organization.objects.create(name="Acme", slug=_slug(), domain="example.com")
         user, created = SSOUserService.get_or_create_user(
             org,
             {

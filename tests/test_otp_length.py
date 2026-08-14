@@ -21,8 +21,21 @@ def test_generated_length_follows_setting(settings):
     assert len(code) == 6 and code.isdigit()
 
 
-def test_generated_length_default_four(settings):
+def test_generated_length_default_is_six(settings):
+    """The shipped default, not merely a supported value.
+
+    It was 4 — a 10^4 space, narrowed but not enlarged by OTP_MAX_ATTEMPTS
+    and OTP_RATE_LIMIT_PER_HOUR. 6 is the industry default.
+    """
     settings.STAPEL_AUTH = _sa(USE_MOCK_EMAIL_OTP=False)
+    from stapel_auth.conf import auth_settings
+    from stapel_auth.otp.services import EmailVerificationService
+    assert int(auth_settings.OTP_LENGTH) == 6
+    assert len(EmailVerificationService().generate_code()) == 6
+
+
+def test_a_deployment_can_still_choose_a_shorter_code(settings):
+    settings.STAPEL_AUTH = _sa(OTP_LENGTH=4, USE_MOCK_EMAIL_OTP=False)
     from stapel_auth.otp.services import EmailVerificationService
     assert len(EmailVerificationService().generate_code()) == 4
 
