@@ -157,6 +157,9 @@ class UrlFactoryGateTests(TestCase):
 # =============================================================================
 
 
+@override_settings(
+    STAPEL_AUTH={"AUTH_PASSWORD_LOGIN": True, "AUTH_LEGACY_TOKEN_LOGIN": True}
+)
 class TokenObtainInactiveUserTests(APITestCase):
     def test_inactive_user_from_custom_backend_gets_401_disabled(self):
         # ModelBackend never returns inactive users, but a host may install a

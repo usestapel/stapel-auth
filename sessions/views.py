@@ -22,6 +22,8 @@ from stapel_core.django.openapi import (
 
 from stapel_auth.conf import auth_settings
 from stapel_auth.errors import *
+from stapel_auth.mfa.dto import TOTPChallengeResponse, TOTPChallengeStatus
+from stapel_auth.mfa.serializers import TOTPChallengeResponseSerializer
 from stapel_auth.sessions.dto import (
     TokenPairResponse,
 )
@@ -31,6 +33,7 @@ from stapel_auth.sessions.guard import (
     session_precondition_error,
 )
 from stapel_auth.sessions.serializers import (
+    LegacyTokenResponseSerializer,
     SessionResponseSerializer,
     SimpleStatusSerializer,
     TokenPairSerializer,
@@ -48,6 +51,14 @@ from stapel_auth.permissions import DenyEnrollOnly
 
 @extend_schema(
     tags=["Token"],
+    description=(
+        "Deprecated alias of `POST /password/login/`. Mounted only while both "
+        "`AUTH_LEGACY_TOKEN_LOGIN` and `AUTH_PASSWORD_LOGIN` are on; otherwise "
+        "403. Subject to the same lockout and the same TOTP step-up "
+        "(`PASSWORD_LOGIN_STEP_UP`), so the answer is either a `TokenPair` or a "
+        "`TOTPChallengeResponse` — pass its `challenge_token` to "
+        "`POST /totp/challenge/verify/`."
+    ),
     request=inline_serializer(
         name="TokenObtainRequest",
         fields={
@@ -55,24 +66,52 @@ from stapel_auth.permissions import DenyEnrollOnly
             "password": serializers.CharField(help_text="Password"),
         },
     ),
-    responses={200: TokenPairSerializer, 401: StapelErrorSerializer},
+    responses={
+        200: LegacyTokenResponseSerializer,
+        401: StapelErrorSerializer,
+        403: StapelErrorSerializer,
+        423: StapelErrorSerializer,
+    },
 )
 class CustomTokenObtainPairView(SerializerSeamsMixin, APIView):
     """
     JWT token obtain view using unified jwt_provider.
 
     Accepts username/email and password, returns access and refresh tokens.
+
+    Legacy alias of ``POST /password/login/``: same credential trade, older
+    response shape. It is a second door onto the same room, so it must carry
+    the same locks — the gate, the lockout counter and the TOTP step-up are
+    the ones ``PasswordViewSet.login`` applies, read off the same settings.
     """
 
     permission_classes = [permissions.AllowAny]
 
-    # Overridable serializer seam (see SerializerSeamsMixin).
+    # Overridable serializer seams (see SerializerSeamsMixin).
     response_serializer_class = TokenPairSerializer
+    totp_challenge_response_serializer_class = TOTPChallengeResponseSerializer
 
     def post(self, request):
+        from stapel_core.django.api.errors import error_403_forbidden
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
+        from stapel_auth.errors import ERR_423_ACCOUNT_LOCKED, retry_params
         from stapel_auth.hint_cookie import set_auth_hint_cookie
+        from stapel_auth.mfa.services import TOTPService
+        from stapel_auth.security.services import LockoutService
+        from stapel_auth.sessions.services import AuditService
+
+        # Both gates must be open. AUTH_PASSWORD_LOGIN answers "may a password
+        # buy a session at all" (/password/login/ has always consulted it);
+        # AUTH_LEGACY_TOKEN_LOGIN answers "may it be bought through this
+        # deprecated alias". Until this check the route was mounted with an
+        # empty flag tuple and read neither, so a deployment on stock defaults
+        # (AUTH_PASSWORD_LOGIN=False) believed password login was off while it
+        # stood wide open here.
+        if not (
+            auth_settings.AUTH_LEGACY_TOKEN_LOGIN and auth_settings.AUTH_PASSWORD_LOGIN
+        ):
+            return error_403_forbidden()
 
         # Accept both 'username' and 'email' as login field (for backwards compatibility)
         username = request.data.get("username") or request.data.get("email")
@@ -80,6 +119,16 @@ class CustomTokenObtainPairView(SerializerSeamsMixin, APIView):
 
         if not username or not password:
             return StapelErrorResponse(400, ERR_400_CREDENTIALS_REQUIRED)
+
+        # The same lockout /password/login/ applies, keyed on the same
+        # identifier so attempts through either door share one counter.
+        # Without it this endpoint was an unlimited guessing oracle: no
+        # throttle, no captcha, no attempt count.
+        is_locked, retry_after = LockoutService.check(username)
+        if is_locked:
+            return StapelErrorResponse(
+                423, ERR_423_ACCOUNT_LOCKED, params=retry_params(retry_after)
+            )
 
         # Authenticate user
         user = authenticate(request, username=username, password=password)
@@ -95,7 +144,30 @@ class CustomTokenObtainPairView(SerializerSeamsMixin, APIView):
                 pass
 
         if user is None:
+            count = LockoutService.record_failure(username)
+            duration = LockoutService.apply_lockout(username, count, request=request)
+            if duration:
+                return StapelErrorResponse(
+                    423, ERR_423_ACCOUNT_LOCKED, params=retry_params(duration)
+                )
+            AuditService.log("login_failed", request=request, identifier=username)
             return StapelErrorResponse(401, ERR_401_INVALID_CREDENTIALS)
+
+        LockoutService.clear(username)
+
+        # TOTP step-up, gated by PASSWORD_LOGIN_STEP_UP exactly as
+        # /password/login/. Minting the session here unconditionally was an
+        # MFA bypass: a TOTP-enabled account was one password away from a full
+        # session as long as the caller knocked on the legacy door.
+        if auth_settings.PASSWORD_LOGIN_STEP_UP and TOTPService.is_enabled(user):
+            challenge = TOTPChallengeResponse(
+                status=TOTPChallengeStatus.TOTP_REQUIRED,
+                challenge_token=TOTPService.create_challenge(str(user.id)),
+                expires_in=TOTPService.CHALLENGE_TTL,
+            )
+            return StapelResponse(
+                self.get_totp_challenge_response_serializer_class()(challenge)
+            )
 
         # One issuer for every full session (sessions/guard.py). This used to
         # run the admission predicate by hand and then mint directly, which

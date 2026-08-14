@@ -2,6 +2,44 @@
 
 ## [Unreleased]
 
+### Security — permissive defaults closed (upgrade notes)
+
+Every item below changes a DEFAULT. The safe value is now what you get without
+saying anything; the permissive value is available, but only as an explicit
+act. Read this section before upgrading a running deployment.
+
+**`POST /token/` no longer bypasses the password-login gate, the TOTP step-up
+and the lockout counter.** The legacy token endpoint was registered with an
+empty gate tuple ("always on") and its view consulted no setting, so it served
+the same credential trade as `POST /password/login/` while ignoring all three
+answers that path respects: `AUTH_PASSWORD_LOGIN` (`False` on stock defaults —
+a deployment that never turned password login on had it fully open here),
+`PASSWORD_LOGIN_STEP_UP` (`True` — the dedicated path mints a TOTP challenge,
+this one minted the session, an MFA bypass for every TOTP-enabled account) and
+`LockoutService` (no counter, no throttle, no captcha — an unlimited
+password-guessing oracle).
+
+* **New setting `STAPEL_AUTH['AUTH_LEGACY_TOKEN_LOGIN']`, default `False`.**
+  While it is off, `POST /token/` answers `403`. To keep the endpoint, set it
+  to `True` **and** keep `AUTH_PASSWORD_LOGIN` on — the alias is refused
+  whenever password login itself is off.
+* **Behavior change when it is on:** the endpoint now applies the same lockout
+  as `/password/login/` (shared counter, keyed on the same identifier, `423`
+  once the threshold is crossed) and the same TOTP step-up. A TOTP-enabled
+  account therefore receives a `TOTPChallengeResponse`
+  (`status=TOTP_REQUIRED`, `challenge_token`) with HTTP 200 instead of a token
+  pair; finish it at `POST /totp/challenge/verify/`. A client that reads
+  `access` unconditionally will fail loudly rather than silently skipping the
+  second factor. `PASSWORD_LOGIN_STEP_UP=False` opts out of the step-up on
+  both paths, as before.
+* The route also moved out of the always-on `sessions` gate entry into its own
+  `legacy_token` entry, so a host assembling its own URLconf from the
+  factories gets no `/token/` route unless the setting is on. `/token/refresh/`
+  and the `/sessions/` management endpoints are unaffected and stay always-on.
+* `/token/` is deprecated: it is an alias of `POST /password/login/` kept for
+  clients pinned to the token-pair response shape. New deployments should use
+  the dedicated path and leave this setting alone.
+
 ### Security — the 2026-08-11 audit's authentication findings
 
 **AUTH-01 — a wrong password was a password.** The legacy `POST /token/`

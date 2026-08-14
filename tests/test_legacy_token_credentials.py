@@ -54,7 +54,10 @@ def _user(**kw):
 @override_settings(
     URL_PREFIX="",
     AUTHENTICATION_BACKENDS=_BACKENDS,
-    STAPEL_AUTH={"AUTH_PASSWORD_LOGIN": True},
+    # The legacy alias needs its own switch since 0.21 (see
+    # tests/test_legacy_token_gate.py) — a suite about credential
+    # verification opens the door it verifies.
+    STAPEL_AUTH={"AUTH_PASSWORD_LOGIN": True, "AUTH_LEGACY_TOKEN_LOGIN": True},
 )
 class PasswordAliasesRejectAWrongPasswordTests(APITestCase):
     """Wrong password, every alias, by email and by username."""

@@ -217,6 +217,14 @@ DEFAULTS = {
     # Off by default — only deployments running the workspaces invite flow (or
     # another trusted grant issuer) should expose the exchange endpoint.
     'AUTH_LOGIN_GRANT':      False,
+    # Legacy credential endpoint POST /token/ — the pre-0.4 alias of
+    # /password/login/, kept for clients pinned to the TokenPair response
+    # shape. Off by default: it is a second door onto password login, and a
+    # deployment should have to say out loud that it still needs it. When on
+    # it ALSO requires AUTH_PASSWORD_LOGIN and behaves like the dedicated
+    # path (lockout + PASSWORD_LOGIN_STEP_UP); before 0.21 it was mounted
+    # unconditionally and consulted none of the three.
+    'AUTH_LEGACY_TOKEN_LOGIN': False,
 
     # Login method placement (UI composition — capability-config.md §1 sibling
     # axis to the *_LOGIN gates above): where the frontend renders each

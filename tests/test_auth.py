@@ -291,7 +291,9 @@ class PhoneAuthenticationTests(APITestCase):
 
 
 @override_settings(
-    URL_PREFIX="", AUTHENTICATION_BACKENDS=["django.contrib.auth.backends.ModelBackend"]
+    URL_PREFIX="",
+    AUTHENTICATION_BACKENDS=["django.contrib.auth.backends.ModelBackend"],
+    STAPEL_AUTH={"AUTH_PASSWORD_LOGIN": True, "AUTH_LEGACY_TOKEN_LOGIN": True},
 )
 class TokenObtainPairAPITests(APITestCase):
     """Test standard username/password token obtain via API"""

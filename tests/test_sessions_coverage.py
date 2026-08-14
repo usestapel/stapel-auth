@@ -145,7 +145,10 @@ class SessionViewSetTests(APITestCase):
 # =============================================================================
 
 
-@override_settings(URL_PREFIX="")
+@override_settings(
+    URL_PREFIX="",
+    STAPEL_AUTH={"AUTH_PASSWORD_LOGIN": True, "AUTH_LEGACY_TOKEN_LOGIN": True},
+)
 class TokenObtainTests(APITestCase):
     def setUp(self):
         self.client = APIClient()

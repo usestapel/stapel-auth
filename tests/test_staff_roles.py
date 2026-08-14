@@ -335,6 +335,9 @@ class StaffRolesClaimTests(TestCase):
 # =============================================================================
 
 
+@override_settings(
+    STAPEL_AUTH={"AUTH_PASSWORD_LOGIN": True, "AUTH_LEGACY_TOKEN_LOGIN": True}
+)
 class TokenEndpointClaimTests(APITestCase):
     def setUp(self):
         self.password = "S3curePass!x"
