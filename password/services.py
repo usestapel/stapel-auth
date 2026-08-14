@@ -321,11 +321,26 @@ class PasswordService:
         return None
 
     @staticmethod
-    def change_via_old(user, old_password: str, new_password: str) -> bool:
+    def change_via_old(
+        user, old_password: str, new_password: str, *, keep_session_jti: str = None
+    ) -> bool:
+        """Change the password of a user who knows the current one.
+
+        *keep_session_jti* spares exactly one session — the one the caller is
+        making this request from. Every other session dies: the OTP-verified
+        reset paths have always revoked, the know-the-old-password path did
+        not, so the one case where the user is most likely reacting to a
+        suspected compromise left every existing session — including the
+        attacker's — alive (audit AUTH-05).
+
+        The default spares nothing, because a service-level caller with no
+        request behind it cannot vouch for any session.
+        """
         if not user.check_password(old_password):
             return False
         user.set_password(new_password)
         user.save(update_fields=["password"])
+        PasswordService._revoke_all_sessions(user, except_jti=keep_session_jti)
         return True
 
     @classmethod
@@ -408,17 +423,16 @@ class PasswordService:
         return user
 
     @staticmethod
-    def _revoke_all_sessions(user):
+    def _revoke_all_sessions(user, *, except_jti: str = None):
         """A changed/reset password must kill existing sessions — otherwise an
         attacker's session survives the victim's account recovery."""
-        try:
-            from stapel_auth.sessions.services import SessionService
+        # Deliberately NOT wrapped in a swallow: "the password changed but we
+        # could not revoke the old sessions" is not a success, and reporting
+        # it as one is what turns a revocation-store outage into a silently
+        # ineffective account recovery (audit AUTH-05, fail-open revocation).
+        from stapel_auth.sessions.services import SessionService
 
-            SessionService.revoke_all(user)
-        except Exception:
-            logger.exception(
-                "Failed to revoke sessions after password change for %s", user.pk
-            )
+        SessionService.revoke_all(user, except_jti=except_jti)
 
     @classmethod
     def reset_request(cls, *, email=None, phone=None) -> str:

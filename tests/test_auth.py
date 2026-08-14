@@ -14,7 +14,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APIClient, APITestCase
+from rest_framework.test import APIClient, APIRequestFactory, APITestCase
 
 from stapel_auth.models import (
     AuthenticatorChangeRequest,
@@ -512,12 +512,17 @@ class TokenRefreshTests(APITestCase):
 
     def test_token_refresh_returns_new_token(self):
         """Refreshed token should be returned successfully"""
-        # Get initial tokens
-        tokens = TokenService.create_tokens_for_user(self.user)
+        # Through the session issuer, so the pair has a tracked UserSession.
+        # A refresh token with no session row is refused now: that state was
+        # the precondition for the forged-refresh attack (audit AUTH-02).
+        from stapel_auth.sessions.guard import SessionPath
+        from stapel_auth.sessions.views import _issue_session_tokens
 
-        response = self.client.post(
-            reverse("token_refresh"), {"refresh": tokens["refresh"]}
+        _, refresh = _issue_session_tokens(
+            self.user, None, path=SessionPath.PASSWORD
         )
+
+        response = self.client.post(reverse("token_refresh"), {"refresh": refresh})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("access", response.data)
@@ -1833,10 +1838,13 @@ class CookieAuthenticationTests(APITestCase):
 
     def test_token_refresh_via_cookie(self):
         """Token refresh should work via cookie"""
-        from stapel_auth.sessions.services import TokenService
+        from stapel_auth.sessions.guard import SessionPath
+        from stapel_auth.sessions.views import _issue_session_tokens
 
-        refresh = TokenService.get_refresh_token_for_user(self.user)
-        self.client.cookies["stapel_refresh_jwt"] = str(refresh)
+        _, refresh = _issue_session_tokens(
+            self.user, None, path=SessionPath.PASSWORD
+        )
+        self.client.cookies["stapel_refresh_jwt"] = refresh
 
         response = self.client.get(reverse("token_refresh"))
 
@@ -1845,11 +1853,14 @@ class CookieAuthenticationTests(APITestCase):
 
     def test_token_refresh_via_body(self):
         """Token refresh should work via request body"""
-        from stapel_auth.sessions.services import TokenService
+        from stapel_auth.sessions.guard import SessionPath
+        from stapel_auth.sessions.views import _issue_session_tokens
 
-        refresh = TokenService.get_refresh_token_for_user(self.user)
+        _, refresh = _issue_session_tokens(
+            self.user, None, path=SessionPath.PASSWORD
+        )
 
-        response = self.client.post(reverse("token_refresh"), {"refresh": str(refresh)})
+        response = self.client.post(reverse("token_refresh"), {"refresh": refresh})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("access", response.data)
@@ -3922,6 +3933,77 @@ class PasswordChangeDirectTests(APITestCase):
             },
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@override_settings(URL_PREFIX="")
+class PasswordChangeDirectSessionPolicyTests(APITestCase):
+    """What a password change does to existing sessions (audit AUTH-05).
+
+    Changing a password you still know is the classic reaction to "someone
+    else may be in my account". Before this, the reaction did nothing to the
+    attacker's session: only the OTP-verified paths revoked. The policy is
+    now stated in one line — every OTHER session dies, the one the request
+    is made from survives — so reacting does not log the user out of the
+    device they are reacting on.
+    """
+
+    def setUp(self):
+        from stapel_auth.sessions.guard import SessionPath
+        from stapel_auth.sessions.views import _issue_session_tokens
+
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            username="sessionpolicyuser", password="oldpass123"
+        )
+        # The attacker's session — issued first, from another "device".
+        _issue_session_tokens(self.user, None, path=SessionPath.PASSWORD)
+        # The session this request is made from.
+        access, _ = _issue_session_tokens(self.user, None, path=SessionPath.PASSWORD)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+        self.access = access
+
+    def _change(self):
+        return self.client.post(
+            reverse("password_change"),
+            {"old_password": "oldpass123", "new_password": "newpass456!"},
+        )
+
+    def _current_session(self):
+        from stapel_auth.sessions.services import current_session_jti
+
+        request = APIRequestFactory().post("/")
+        request.user = self.user
+        request.META["HTTP_AUTHORIZATION"] = f"Bearer {self.access}"
+        return current_session_jti(request)
+
+    def test_other_sessions_are_revoked(self):
+        from stapel_auth.models import UserSession
+
+        self.assertEqual(self._change().status_code, status.HTTP_200_OK)
+        surviving = list(
+            UserSession.objects.filter(user=self.user, is_revoked=False)
+        )
+        self.assertEqual(len(surviving), 1)
+        self.assertEqual(surviving[0].jti, self._current_session())
+
+    def test_the_caller_is_not_logged_out_of_its_own_device(self):
+        self.assertEqual(self._change().status_code, status.HTTP_200_OK)
+        # The same credentials still work on an authenticated endpoint.
+        self.assertEqual(
+            self.client.get(reverse("sessions")).status_code, status.HTTP_200_OK
+        )
+
+    def test_a_failed_change_revokes_nothing(self):
+        from stapel_auth.models import UserSession
+
+        response = self.client.post(
+            reverse("password_change"),
+            {"old_password": "not-the-password", "new_password": "newpass456!"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            UserSession.objects.filter(user=self.user, is_revoked=False).count(), 2
+        )
 
 
 # =============================================================================

@@ -175,9 +175,16 @@ class TokenObtainInactiveUserTests(APITestCase):
 
 
 class LegacyNoJtiRefreshTests(APITestCase):
-    """Refresh tokens minted before session tracking carry no jti claim —
-    the refresh endpoint keeps the old refresh token and only re-issues the
-    access token (no session rotation)."""
+    """A refresh token with no jti names no session (audit AUTH-02).
+
+    Such a token — minted before session tracking existed — used to be
+    accepted and silently re-issued: no rotation, no session row, no way to
+    revoke the result. "The claim is missing, so skip the check that binds
+    this token to a session" is the same permissive default that made a
+    forged jti exploitable, so the endpoint refuses by default and a
+    deployment that still has such tokens in the wild opts in explicitly
+    while it drains them.
+    """
 
     def _legacy_refresh_token(self, user):
         from django.conf import settings
@@ -195,15 +202,33 @@ class LegacyNoJtiRefreshTests(APITestCase):
             payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
         )
 
-    def test_refresh_with_legacy_token_reuses_refresh(self):
+    def test_refresh_with_a_jtiless_token_is_refused_by_default(self):
         user = _make_user()
         legacy = self._legacy_refresh_token(user)
         resp = self.client.post(
             reverse("token_refresh"), {"refresh": legacy}, format="json"
         )
-        self.assertEqual(resp.status_code, 200, resp.data)
-        self.assertEqual(resp.data["refresh"], legacy)
-        self.assertTrue(resp.data["access"])
+        self.assertEqual(resp.status_code, 401, resp.data)
+        self.assertNotIn("access", resp.data)
+
+    @override_settings(STAPEL_AUTH={"ALLOW_UNTRACKED_REFRESH": True})
+    def test_the_migration_switch_restores_the_old_behavior(self):
+        """Opted in, the token is honoured as before: access re-issued, the
+        same refresh token kept, still no session row to rotate."""
+        from stapel_auth.conf import auth_settings
+
+        auth_settings.reload()
+        try:
+            user = _make_user()
+            legacy = self._legacy_refresh_token(user)
+            resp = self.client.post(
+                reverse("token_refresh"), {"refresh": legacy}, format="json"
+            )
+            self.assertEqual(resp.status_code, 200, resp.data)
+            self.assertEqual(resp.data["refresh"], legacy)
+            self.assertTrue(resp.data["access"])
+        finally:
+            auth_settings.reload()
 
 
 # =============================================================================

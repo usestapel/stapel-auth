@@ -2,6 +2,56 @@
 
 ## [Unreleased]
 
+### Security — the 2026-08-11 audit's authentication findings
+
+**AUTH-01 — a wrong password was a password.** The legacy `POST /token/`
+endpoint authenticates through `django.contrib.auth.authenticate()`, and the
+deployment wired `stapel_core.django.jwt.session.EmailAuthBackend`, which
+resolved a user by email and returned it without comparing a secret. The
+backend is fixed in stapel-core; what lands here is the regression gate that
+would have caught it — `tests/test_legacy_token_credentials.py` wires the real
+backend stack (this suite's settings never did, which is why the deployed
+configuration was the one nobody exercised) and asserts that every password
+alias refuses a wrong nonempty password with no token, no cookie and no
+session row, and that the stack passes core's `stapel_auth_backends` boot
+check.
+
+**AUTH-02 — a forged refresh token bought real tokens.** `POST
+/token/refresh/` decoded the submitted token with `verify=False`, trusted its
+`user_id`/`jti`, signed a fresh pair, and only then asked the session table
+whether that was legitimate. Verification now comes first — signature,
+algorithm, expiry, issuer, audience — followed by a token-type check (an
+access token is signed by the same key and is not a refresh credential). A
+token whose jti no `UserSession` tracks is refused instead of being read as a
+pre-session-tracking legacy token, which is the state a forgery lands in;
+`STAPEL_AUTH['ALLOW_UNTRACKED_REFRESH']` (default `False`) re-opens that door
+for a deployment that needs it as a migration aid.
+
+**AUTH-03 — a magic link walked past TOTP.** `magic_link/views.py` asked
+`getattr(user, "totp_enabled", False)` — an attribute the user model does not
+have, so the default answered "no second factor" for every TOTP user. It asks
+`TOTPService.is_enabled(user)` now, and so does the second copy of the same
+expression in `mfa/views.py`. `tests/test_user_attribute_probes.py` closes the
+shape rather than the two instances: every string-literal attribute this
+package probes on a user object must exist on the configured user model.
+
+**AUTH-04 — password reset was an admission nobody admitted to.** Both reset
+verify endpoints called the low-level mint directly, so a disabled account
+walked in, a first-login obligation was skipped, and the session that came out
+was untracked. Both go through `_issue_session_tokens` on the new
+`SessionPath.PASSWORD_RESET`, as does the legacy `/token/` endpoint, which had
+been running the admission predicate by hand and minting around the
+choke-point.
+
+**AUTH-05 — revocation that failed quietly, rotation that raced.** A failed
+`SessionService.revoke_all` during a password change was logged and swallowed,
+reporting a recovery that had not happened; it propagates now. Refresh
+rotation reads its session row `select_for_update` inside the transaction that
+writes it, and looks it up by `(jti, user)` so one user's jti cannot rotate
+another's session. Changing a password with the current one revokes every
+*other* session — the reaction to a suspected compromise no longer leaves the
+attacker logged in — while sparing the session the request is made from.
+
 ## [0.20.2] — 2026-08-10
 
 ### Fixed — this module translates only the keys it owns

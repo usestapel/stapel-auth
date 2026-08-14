@@ -68,6 +68,14 @@ DEFAULTS = {
 
     # Sessions
     'SESSION_TTL_DAYS': 30,
+    # Refresh with a valid signature but no tracked UserSession row: deny.
+    # Pre-0.21 this was allowed so tokens minted before session tracking
+    # existed kept working — and it was the precondition that made a forged
+    # refresh token exploitable (audit AUTH-02): "unknown jti" resolved to
+    # "legacy token, let it through" for any user with no session row.
+    # Turn it on only as a temporary migration aid for a deployment that
+    # still has such tokens in the wild; those users otherwise re-login once.
+    'ALLOW_UNTRACKED_REFRESH': False,
 
     # Anonymous users
     'ANONYMOUS_USER_LIFETIME_DAYS': 30,

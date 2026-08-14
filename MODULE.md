@@ -36,6 +36,7 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 | `MAGIC_LINK_RATE_LIMIT_PER_HOUR` | `3` | Magic link send rate limit |
 | `QR_TOKEN_TTL` | `300` | QR login token lifetime, seconds |
 | `SESSION_TTL_DAYS` | `30` | `UserSession` expiry |
+| `ALLOW_UNTRACKED_REFRESH` | `False` | Whether `POST /token/refresh/` accepts a validly signed refresh token that no `UserSession` row tracks. Off: such a token is refused, so a refresh can only ever rotate a session the server knows about. On, it is a **migration aid only** — a deployment holding tokens minted before session tracking existed keeps them working until they expire, at the price of accepting any token whose jti the session table has never seen. |
 | `ANONYMOUS_USER_LIFETIME_DAYS` | `30` | Anonymous account lifetime |
 | `AUTH_ANONYMOUS` | `True` | Anonymous (guest) auth axis: gates `POST /anonymous/` (own URL factory `get_anonymous_urls`, independent of the email/phone gates) and the `anonymous` capability |
 | `AUTH_TOTP` | `True` | TOTP axis: gates the `/totp/*` endpoints in `get_mfa_urls` (passkey-style) and the `mfa.totp` capability. Step-up rides `/totp/challenge/verify/` — keep it on where step-up is on |
@@ -303,7 +304,7 @@ Every path that mints a *full* session funnels through `sessions.views._issue_se
 - **`is_active=False` → refused everywhere, unconditionally.** No next step exists, the refusal is final (`401 error.401.account_disabled`), and the body deliberately carries no account detail — it must not become an account-enumeration oracle.
 - **First-login policy flags** (`password_change_required` / `mfa_enrollment_required`, raised by `auth.provision_user` / `auth.apply_first_login_policies`; INDEPENDENT since 0.17.0 — an org may demand both, and the login flow chains forced-change → mfa-enrol) → refused **with a next step**: the denial carries a freshly minted `challenge_token` plus a `requires` label, so the client can send the user to `POST /password/forced-change/` or `POST /mfa/enroll/exchange/`. A flag must never produce a dead 403 — otherwise a flagged user who arrived by magic link is locked out permanently (`/password/forced-change/` never asks for the old password, which is what makes the wide default humane). Scope is configurable via `FIRST_LOGIN_GATE_PATHS`; the default `'*'` treats a flag as "a mandatory step before ANY admission".
 
-The gate is deliberately **not** inside `create_tokens_for_user`: that primitive is shared with the *intermediate* paths (forced change, the enroll-only exchange, password reset), which must stay outside the invariant or the user can never complete the very step they are held on.
+The gate is deliberately **not** inside `create_tokens_for_user`: that primitive is shared with the *intermediate* paths (forced change, the enroll-only exchange), which must stay outside the invariant or the user can never complete the very step they are held on. Password **reset** is not one of them: proving control of a mailbox replaces a password, it does not decide admission, so `/password/reset/{email,phone}/verify/` goes through the gate on `SessionPath.PASSWORD_RESET` like any other login.
 
 Mechanics you have to respect when adding a path:
 

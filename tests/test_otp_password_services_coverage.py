@@ -817,8 +817,13 @@ class ChangeViaOtpTests(TestCase):
 
 
 class RevokeAllSessionsTests(TestCase):
-    def test_exception_is_swallowed(self):
-        # SessionService.revoke_all raises -> except lines 209-210 (logged, not raised)
+    def test_a_failed_revocation_is_not_reported_as_success(self):
+        """Fail closed: recovery that could not revoke has not recovered.
+
+        This used to assert the opposite — the exception was swallowed and
+        logged, so a Redis/DB outage during a password reset produced a
+        200 while the attacker's session stayed alive (audit AUTH-05).
+        """
         from stapel_auth.password.services import PasswordService
 
         user = _make_user()
@@ -826,8 +831,52 @@ class RevokeAllSessionsTests(TestCase):
             "stapel_auth.sessions.services.SessionService.revoke_all",
             side_effect=Exception("boom"),
         ):
-            # must not raise
-            PasswordService._revoke_all_sessions(user)
+            with self.assertRaises(Exception):
+                PasswordService._revoke_all_sessions(user)
+
+    def test_password_change_with_old_password_revokes_existing_sessions(self):
+        from stapel_auth.password.services import PasswordService
+        from stapel_auth.sessions.guard import SessionPath
+        from stapel_auth.sessions.views import _issue_session_tokens
+        from stapel_auth.models import UserSession
+
+        user = _make_user(password="OldPass123!")
+        _issue_session_tokens(user, None, path=SessionPath.PASSWORD)
+        self.assertTrue(
+            UserSession.objects.filter(user=user, is_revoked=False).exists()
+        )
+
+        self.assertTrue(
+            PasswordService.change_via_old(user, "OldPass123!", "NewPass123!")
+        )
+        self.assertFalse(
+            UserSession.objects.filter(user=user, is_revoked=False).exists()
+        )
+
+    def test_keep_session_jti_spares_exactly_one_session(self):
+        """The policy the view applies: every OTHER session dies.
+
+        The default spares nothing — a service-level caller with no request
+        behind it cannot vouch for any session, and guessing wrong in that
+        direction is what leaves the attacker logged in.
+        """
+        from stapel_auth.models import UserSession
+        from stapel_auth.password.services import PasswordService
+        from stapel_auth.sessions.guard import SessionPath
+        from stapel_auth.sessions.views import _issue_session_tokens
+
+        user = _make_user(password="OldPass123!")
+        _issue_session_tokens(user, None, path=SessionPath.PASSWORD)
+        _issue_session_tokens(user, None, path=SessionPath.PASSWORD)
+        keep = UserSession.objects.filter(user=user).first().jti
+
+        self.assertTrue(
+            PasswordService.change_via_old(
+                user, "OldPass123!", "NewPass123!", keep_session_jti=keep
+            )
+        )
+        alive = list(UserSession.objects.filter(user=user, is_revoked=False))
+        self.assertEqual([s.jti for s in alive], [keep])
 
 
 # ===========================================================================

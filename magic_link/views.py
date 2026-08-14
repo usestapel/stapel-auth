@@ -116,8 +116,13 @@ class MagicLinkViewSet(SerializerSeamsMixin, ViewSet):
         AuditService.log("magic_link_used", user=user, request=request)
         redirect_url = data.get("redirect_url") or "/"
 
-        # If TOTP enabled — redirect to login page with TOTP challenge pre-loaded
-        if getattr(user, "totp_enabled", False):
+        # If TOTP enabled — redirect to login page with TOTP challenge
+        # pre-loaded. Asked through TOTPService because that is where the
+        # answer lives: TOTP is a TOTPDevice row, and the user model has no
+        # `totp_enabled` attribute at all — a getattr default silently
+        # answered "no second factor" for every TOTP user, so a magic link
+        # walked straight past their strongest factor.
+        if TOTPService.is_enabled(user):
             challenge_token = TOTPService.create_challenge(str(user.id))
             from urllib.parse import urlencode
 

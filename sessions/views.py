@@ -20,12 +20,13 @@ from stapel_core.django.openapi import (
     StapelErrorSerializer,
 )
 
+from stapel_auth.conf import auth_settings
 from stapel_auth.errors import *
 from stapel_auth.sessions.dto import (
     TokenPairResponse,
 )
 from stapel_auth.sessions.guard import (
-    SessionIssuanceDenied,  # noqa: F401  (re-exported for call sites)
+    SessionIssuanceDenied,
     SessionPath,
     session_precondition_error,
 )
@@ -96,24 +97,23 @@ class CustomTokenObtainPairView(SerializerSeamsMixin, APIView):
         if user is None:
             return StapelErrorResponse(401, ERR_401_INVALID_CREDENTIALS)
 
-        # Admission preconditions — the shared gate (sessions/guard.py), not
-        # a hand-rolled copy: is_active plus the first-login policy. This
-        # legacy token endpoint has no room for the interactive intermediate
-        # /password/login/ performs, so a flagged account gets the structured
-        # 403 — but the denial now carries the challenge_token in `params`,
-        # so the caller can still finish the forced step instead of being
-        # dead-ended. Unflagged, active accounts: the predicate is None and
-        # nothing changes.
-        denied = session_precondition_error(user, path=SessionPath.LEGACY_TOKEN)
-        if denied is not None:
+        # One issuer for every full session (sessions/guard.py). This used to
+        # run the admission predicate by hand and then mint directly, which
+        # passed the gate but skipped everything else the choke-point does —
+        # above all the tracked UserSession. An untracked session cannot be
+        # listed, cannot be revoked, and is the precondition that made a
+        # forged refresh token exploitable (audit AUTH-01/AUTH-02/AUTH-04).
+        # The denial is raised, not returned: SessionIssuanceDenied renders
+        # identically on every JSON path and carries the challenge_token, so
+        # a flagged account can still finish the forced step.
+        try:
+            access_token, refresh_token = _issue_session_tokens(
+                user, request, path=SessionPath.LEGACY_TOKEN
+            )
+        except SessionIssuanceDenied as denied:
             return StapelErrorResponse(
                 denied.http_status, denied.error_key, denied.error_params
             )
-
-        # Create tokens (staff tokens carry the staff_roles claim — AS-2)
-        from stapel_auth.staff_roles import create_tokens_for_user
-
-        access_token, refresh_token = create_tokens_for_user(user)
 
         # Update last login
         from django.utils import timezone
@@ -193,15 +193,36 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
         if not refresh_token:
             return StapelErrorResponse(401, ERR_401_REFRESH_NOT_PROVIDED)
 
-        if jwt_provider.is_blacklisted(refresh_token):
-            return StapelErrorResponse(401, ERR_401_REFRESH_REVOKED)
-
-        _payload = jwt_provider.handler.decode_token(refresh_token, verify=False)
+        # FULL cryptographic verification FIRST — signature, algorithm,
+        # expiry, issuer and audience — before a single claim is read.
+        # Reversing these two steps (decode with verify=False, trust user_id,
+        # mint, validate afterwards) turned a JWT-shaped string with an
+        # attacker-chosen user_id into a real token pair for that user
+        # (audit AUTH-02). A claim from an unverified token is not data, it
+        # is an argument supplied by the caller.
+        _payload = jwt_provider.handler.decode_token(refresh_token)
         if not _payload:
             return StapelErrorResponse(401, ERR_401_REFRESH_INVALID)
 
+        # A verified signature is not enough: an ACCESS token is signed by the
+        # same key. Without this the shorter-lived, more widely exposed token
+        # is a valid refresh credential.
+        if _payload.get("token_type") != "refresh":
+            return StapelErrorResponse(401, ERR_401_REFRESH_INVALID)
+
+        if jwt_provider.is_blacklisted(refresh_token):
+            return StapelErrorResponse(401, ERR_401_REFRESH_REVOKED)
+
         old_jti = _payload.get("jti")
         _uid = _payload.get("user_id")
+
+        # A verified token with no jti names no session, so the rotation below
+        # has nothing to bind it to — the same untracked state an unknown jti
+        # lands in, and the same answer (audit AUTH-02). Every token this
+        # library issues carries a jti; the branch exists so the absence
+        # cannot become a quiet way around the session check.
+        if not old_jti and not auth_settings.ALLOW_UNTRACKED_REFRESH:
+            return StapelErrorResponse(401, ERR_401_REFRESH_INVALID)
 
         from stapel_core.django.jwt.authentication import is_user_blacklisted
 
@@ -274,8 +295,19 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
                 user_id=_uid,
                 new_access_jti=at_payload.get("jti", ""),
             )
-            if rotated is None:
-                return StapelErrorResponse(401, ERR_401_REFRESH_REVOKED)
+            if rotated is not True:
+                # `False` means "no tracked session row for this jti". That
+                # used to be accepted as a pre-session-tracking legacy token;
+                # it is also exactly the state a forged jti lands in, so the
+                # exception is opt-in and off by default (AUTH-02).
+                if rotated is False and auth_settings.ALLOW_UNTRACKED_REFRESH:
+                    logger.warning(
+                        "Refreshing an untracked session for user %s — "
+                        "STAPEL_AUTH['ALLOW_UNTRACKED_REFRESH'] is on",
+                        _uid,
+                    )
+                else:
+                    return StapelErrorResponse(401, ERR_401_REFRESH_REVOKED)
         else:
             new_refresh_token = refresh_token
 

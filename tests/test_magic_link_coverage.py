@@ -211,17 +211,43 @@ class MagicLinkViewCoverageTests(APITestCase):
         self.assertIn("invalid_link", resp["Location"])
 
     def test_verify_totp_enabled_redirects_to_challenge(self):
+        """A real TOTPDevice — the place TOTP actually lives.
+
+        This used to assert against ``patch.object(User, "totp_enabled",
+        True, create=True)``. ``create=True`` was the tell: the attribute
+        does not exist, so the test proved the redirect happens for a state
+        no real user can be in, while every genuine TOTP user sailed past
+        the challenge (audit AUTH-03).
+        """
+        from stapel_auth.models import TOTPDevice
+
         user = _make_user()
+        TOTPDevice.objects.create(user=user, secret="JBSWY3DPEHPK3PXP", is_active=True)
         token = MagicLinkService.create(user, redirect_url="/home")
-        with patch.object(User, "totp_enabled", True, create=True), \
-                patch(
-                    "stapel_auth.mfa.services.TOTPService.create_challenge",
-                    return_value="challenge-xyz",
-                ):
+        with patch(
+            "stapel_auth.mfa.services.TOTPService.create_challenge",
+            return_value="challenge-xyz",
+        ):
             resp = self.client.get(reverse("magic_verify") + f"?token={token}")
         self.assertIn(resp.status_code, [301, 302])
         self.assertIn("challenge_token=challenge-xyz", resp["Location"])
         self.assertIn("next=%2Fhome", resp["Location"])
+
+    def test_verify_with_active_totp_device_never_issues_a_session(self):
+        """The end the audit cared about: no cookies, no session, on a TOTP user."""
+        from stapel_auth.models import TOTPDevice, UserSession
+
+        user = _make_user()
+        TOTPDevice.objects.create(user=user, secret="JBSWY3DPEHPK3PXP", is_active=True)
+        token = MagicLinkService.create(user, redirect_url="/home")
+        resp = self.client.get(reverse("magic_verify") + f"?token={token}")
+        self.assertIn(resp.status_code, [301, 302])
+        self.assertIn("challenge_token=", resp["Location"])
+        # The cookie names this library actually sets — asserting on names it
+        # does not use would be a test that cannot fail.
+        self.assertNotIn("stapel_jwt", resp.cookies)
+        self.assertNotIn("stapel_refresh_jwt", resp.cookies)
+        self.assertFalse(UserSession.objects.filter(user=user).exists())
 
     def test_verify_valid_token_real_flow_sets_cookies(self):
         user = _make_user()

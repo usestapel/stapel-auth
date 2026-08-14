@@ -240,6 +240,51 @@ def _emit_session_revoked(user_id, session_id) -> None:
     )
 
 
+def current_session_jti(request) -> str | None:
+    """The tracked session *request* is authenticated with, or ``None``.
+
+    Returned as the ``UserSession.jti`` (the refresh jti), which is the key
+    :meth:`SessionService.revoke_all` excludes on. Both token shapes are
+    accepted because both identify the same row: an access token carries the
+    session in its ``refresh_jti`` claim and its own jti in
+    ``UserSession.access_jti``, a refresh token carries it as ``jti``.
+
+    ``None`` means "this request cannot vouch for any session" — an unsigned
+    caller, or a token whose session row is gone. Callers that spare a
+    session must read that as *spare nothing*, never as *spare everything*.
+
+    The claims are read from an unverified decode on purpose: the request is
+    already authenticated by the DRF layer, and the row is looked up under
+    ``user=request.user`` — so the claim only ever *selects among the
+    caller's own sessions*, it never grants anything.
+    """
+    from django.db.models import Q
+    from stapel_core.django.jwt.provider import jwt_provider
+    from stapel_core.django.jwt.utils import extract_jwt_from_request
+
+    from stapel_auth.models import UserSession
+
+    user = getattr(request, 'user', None)
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return None
+
+    access_token, refresh_token = extract_jwt_from_request(request)
+    candidates = []
+    for token in (access_token, refresh_token):
+        if not token:
+            continue
+        payload = jwt_provider.handler.decode_token(token, verify=False) or {}
+        candidates += [payload.get('refresh_jti'), payload.get('jti')]
+    candidates = [c for c in candidates if c]
+    if not candidates:
+        return None
+
+    session = UserSession.objects.filter(
+        Q(jti__in=candidates) | Q(access_jti__in=candidates), user=user
+    ).first()
+    return session.jti if session else None
+
+
 class SessionService:
     """Manages UserSession lifecycle: creation, rotation, revocation.
 
@@ -303,28 +348,47 @@ class SessionService:
         Swap jti on a session (normal token rotation).
         Returns True on success, None if the session is revoked or a replay is detected
         (caller should deny), False if no session record exists for this user at all
-        (legacy token pre-dating session tracking — caller should allow).
+        (untracked token — the caller decides, and denies by default).
+
+        The whole read-decide-write runs inside one transaction with the row
+        locked. Without the lock two concurrent refreshes of the same token
+        both read the pre-rotation row, both decide "fine", and both mint —
+        so a stolen refresh token stays usable alongside the victim's
+        (audit AUTH-05). With it, one caller wins and the loser sees the row
+        already rotated, which is a replay.
+
+        The session is looked up by ``(jti, user)`` rather than by ``jti``
+        alone: a jti from one user's token must never be able to rotate
+        another user's session row.
         """
+        from django.db import transaction
+
         from stapel_auth.models import UserSession
-        try:
-            session = UserSession.objects.get(jti=old_jti)
-        except UserSession.DoesNotExist:
-            # If the user has other active sessions, old_jti was already rotated → replay.
-            # If the user has no sessions at all, this is a legacy token → allow.
-            if user_id and UserSession.objects.filter(user_id=user_id, is_revoked=False).exists():
+
+        with transaction.atomic():
+            qs = UserSession.objects.select_for_update().filter(jti=old_jti)
+            if user_id:
+                qs = qs.filter(user_id=user_id)
+            session = qs.first()
+            if session is None:
+                # Distinguish "already rotated" (a replay of a token this
+                # user really held) from "never tracked at all".
+                if user_id and UserSession.objects.filter(
+                    user_id=user_id, is_revoked=False
+                ).exists():
+                    return None
+                return False
+            if session.is_revoked:
                 return None
-            return False
-        if session.is_revoked:
-            return None
-        update_fields = ['jti', 'expires_at', 'last_used_at']
-        session.jti = new_jti
-        session.expires_at = new_expires_at
-        session.last_used_at = timezone.now()
-        if new_access_jti:
-            session.access_jti = new_access_jti
-            update_fields.append('access_jti')
-        session.save(update_fields=update_fields)
-        return True
+            update_fields = ['jti', 'expires_at', 'last_used_at']
+            session.jti = new_jti
+            session.expires_at = new_expires_at
+            session.last_used_at = timezone.now()
+            if new_access_jti:
+                session.access_jti = new_access_jti
+                update_fields.append('access_jti')
+            session.save(update_fields=update_fields)
+            return True
 
     @staticmethod
     def revoke_by_jti(jti: str) -> bool:

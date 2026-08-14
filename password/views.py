@@ -58,6 +58,7 @@ from stapel_auth.sessions.guard import (
     account_disabled_error,
     first_login_error,
 )
+from stapel_auth.sessions.services import current_session_jti
 from stapel_auth.sessions.views import _add_login_hints, _issue_session_tokens
 from stapel_auth.utils import SerializerSeamsMixin
 from stapel_auth.permissions import DenyEnrollOnly
@@ -279,10 +280,19 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             data=request.data
         )
         serializer.is_valid(raise_exception=True)
+        # A password change revokes every OTHER session (audit AUTH-05): the
+        # user changing a password they still know is the classic reaction to
+        # "someone else may be in my account", and leaving those sessions
+        # alive is what lets the attacker outlive the reaction. The session
+        # this request is made from survives, so the reaction does not log
+        # the user out of the device they are reacting on — and no token is
+        # re-issued here, which keeps this endpoint out of the admission
+        # gate's business.
         ok = PasswordService.change_via_old(
             request.user,
             serializer.validated_data["old_password"],
             serializer.validated_data["new_password"],
+            keep_session_jti=current_session_jti(request),
         )
         if not ok:
             return StapelErrorResponse(400, ERR_400_WRONG_PASSWORD)
@@ -428,7 +438,6 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
         from stapel_auth.hint_cookie import set_auth_hint_cookie
-        from stapel_auth.staff_roles import create_tokens_for_user
 
         serializer = self.get_reset_email_verify_request_serializer_class()(
             data=request.data
@@ -439,7 +448,13 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             code=serializer.validated_data["code"],
             new_password=serializer.validated_data["new_password"],
         )
-        access_token, refresh_token = create_tokens_for_user(user)
+        # Recovery, not admission. Through the one issuer, so the account
+        # gate, the first-login policy, the tracked session, the audit event
+        # and the login notification all happen exactly as on any other
+        # login (audit AUTH-04).
+        access_token, refresh_token = _issue_session_tokens(
+            user, request, path=SessionPath.PASSWORD_RESET
+        )
         dto = AuthResponse(
             status=AuthStatus.LOGGED_IN,
             user=user,
@@ -495,7 +510,6 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
         from stapel_auth.hint_cookie import set_auth_hint_cookie
-        from stapel_auth.staff_roles import create_tokens_for_user
 
         serializer = self.get_reset_phone_verify_request_serializer_class()(
             data=request.data
@@ -506,7 +520,10 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             code=serializer.validated_data["code"],
             new_password=serializer.validated_data["new_password"],
         )
-        access_token, refresh_token = create_tokens_for_user(user)
+        # Same as the email path: recovery goes through the one issuer.
+        access_token, refresh_token = _issue_session_tokens(
+            user, request, path=SessionPath.PASSWORD_RESET
+        )
         dto = AuthResponse(
             status=AuthStatus.LOGGED_IN,
             user=user,

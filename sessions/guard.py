@@ -66,6 +66,13 @@ class SessionPath:
     PASSWORD_REGISTER = "password_register"
     #: ``POST /password/forced-change/`` — the flag was just cleared.
     FORCED_PASSWORD_CHANGE = "forced_password_change"
+    #: ``POST /password/reset/{email,phone}/verify/`` — authenticator
+    #: RECOVERY. It used to mint directly, on the theory that "the reset just
+    #: succeeded" is proof enough. It is not: proving control of a mailbox
+    #: replaces the password, it does not decide whether the account may be
+    #: admitted, and a disabled or closed account resetting its password
+    #: walked straight in (audit AUTH-04).
+    PASSWORD_RESET = "password_reset"
     #: ``POST /totp/challenge/verify/`` — password/OAuth step-up.
     TOTP_CHALLENGE = "totp_challenge"
     #: ``POST /totp/setup/confirm/`` under an enroll-only session.
