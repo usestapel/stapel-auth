@@ -202,6 +202,9 @@ _EXPECTED_AXES = {
     "AUTH_PHONE_LOGIN", "AUTH_EMAIL_LOGIN", "AUTH_OAUTH_LOGIN", "AUTH_SSO_LOGIN",
     "AUTH_PASSWORD_LOGIN", "AUTH_QR_LOGIN", "AUTH_PASSKEY_LOGIN",
     "AUTH_MAGIC_LINK_LOGIN", "AUTH_LOGIN_GRANT",
+    # The deprecated POST /token/ alias, off by default (0.21) — a login
+    # surface of its own, so it is an axis like every other door.
+    "AUTH_LEGACY_TOKEN_LOGIN",
     # auth.anonymous / auth.mfa / auth.stepup
     "AUTH_ANONYMOUS", "AUTH_TOTP", "OAUTH_STEP_UP", "PASSWORD_LOGIN_STEP_UP",
     # auth.placement (§60-follow-up: per-method UI placement, sibling axis to
@@ -228,7 +231,7 @@ def test_capabilities_axes_inventory():
     password-deanonymizes and closed-registration-behavior policy, all grouped."""
     doc = _capabilities()
     assert {a["key"] for a in doc["axes"]} == _EXPECTED_AXES
-    assert len(doc["axes"]) == 28
+    assert len(doc["axes"]) == 29
     for axis in doc["axes"]:
         expected_kind = "enum" if axis["key"] in _ENUM_AXES else "bool"
         assert axis["kind"] == expected_kind, axis["key"]
