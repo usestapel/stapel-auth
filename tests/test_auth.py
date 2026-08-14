@@ -787,9 +787,12 @@ class PhoneVerificationServiceTests(TestCase):
 
     def test_generate_code_force_real(self):
         """With force_real, should generate real code even in mock mode"""
+        from stapel_auth.conf import auth_settings
+
         code = self.service.generate_code(force_real=True)
         self.assertNotEqual(code, "1234")
-        self.assertEqual(len(code), 4)
+        # The shipped OTP_LENGTH (6 since 0.21), not a literal of its own.
+        self.assertEqual(len(code), int(auth_settings.OTP_LENGTH))
         self.assertTrue(code.isdigit())
 
     def test_send_verification_code_creates_record(self):
@@ -877,9 +880,11 @@ class EmailVerificationServiceTests(TestCase):
 
     def test_generate_code_force_real(self):
         """With force_real, should generate real code"""
+        from stapel_auth.conf import auth_settings
+
         code = self.service.generate_code(force_real=True)
         self.assertNotEqual(code, "5678")
-        self.assertEqual(len(code), 4)
+        self.assertEqual(len(code), int(auth_settings.OTP_LENGTH))
 
     def test_send_verification_code_creates_record(self):
         """send_verification_code should create EmailVerification record"""

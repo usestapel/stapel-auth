@@ -998,8 +998,9 @@ class CapabilitiesMethodsAndOtpMetaTests(APITestCase):
     def test_otp_meta_default_values(self):
         response = self.client.get(reverse('capabilities'))
         otp = response.data['otp']
-        self.assertEqual(otp['email_code_length'], 4)
-        self.assertEqual(otp['phone_code_length'], 4)
+        # OTP_LENGTH defaults to 6 since 0.21 (was 4 — a 10^4 space).
+        self.assertEqual(otp['email_code_length'], 6)
+        self.assertEqual(otp['phone_code_length'], 6)
         self.assertEqual(otp['totp_code_length'], 6)
         self.assertEqual(otp['ttl_seconds'], 600)
         self.assertEqual(otp['resend_cooldown_seconds'], 30)
