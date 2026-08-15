@@ -4,70 +4,80 @@
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Bad request"
+    "en": "Bad request",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.captcha_invalid",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "Captcha verification failed. Please try again."
+    "en": "Captcha verification failed. Please try again.",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.captcha_required",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "Captcha token is required."
+    "en": "Captcha token is required.",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.code_expired",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "Verification code has expired. Please request a new one."
+    "en": "Verification code has expired. Please request a new one.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.code_required",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "A verification code is required."
+    "en": "A verification code is required.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.credentials_required",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Username/email and password are required"
+    "en": "Username/email and password are required",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.email_or_phone_not_both",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Provide either email or phone, not both"
+    "en": "Provide either email or phone, not both",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.email_or_phone_required",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Either email or phone is required"
+    "en": "Either email or phone is required",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.email_required",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Email is required."
+    "en": "Email is required.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.expected_list",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Expected a list of items"
+    "en": "Expected a list of items",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.blank",
@@ -76,7 +86,8 @@
       "field"
     ],
     "remediation": "fix_input",
-    "en": "{field} may not be blank"
+    "en": "{field} may not be blank",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.does_not_exist",
@@ -85,7 +96,8 @@
       "field"
     ],
     "remediation": "fix_input",
-    "en": "{field} does not exist"
+    "en": "{field} does not exist",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.invalid",
@@ -94,7 +106,8 @@
       "field"
     ],
     "remediation": "fix_input",
-    "en": "{field} is invalid"
+    "en": "{field} is invalid",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.invalid_choice",
@@ -103,7 +116,8 @@
       "field"
     ],
     "remediation": "fix_input",
-    "en": "{field} is not a valid choice"
+    "en": "{field} is not a valid choice",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.max_length",
@@ -113,7 +127,8 @@
       "max_length"
     ],
     "remediation": "fix_input",
-    "en": "{field} must be at most {max_length} characters"
+    "en": "{field} must be at most {max_length} characters",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.max_value",
@@ -123,7 +138,8 @@
       "max_value"
     ],
     "remediation": "fix_input",
-    "en": "{field} must be at most {max_value}"
+    "en": "{field} must be at most {max_value}",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.min_length",
@@ -133,7 +149,8 @@
       "min_length"
     ],
     "remediation": "fix_input",
-    "en": "{field} must be at least {min_length} characters"
+    "en": "{field} must be at least {min_length} characters",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.min_value",
@@ -143,7 +160,8 @@
       "min_value"
     ],
     "remediation": "fix_input",
-    "en": "{field} must be at least {min_value}"
+    "en": "{field} must be at least {min_value}",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.null",
@@ -152,7 +170,8 @@
       "field"
     ],
     "remediation": "fix_input",
-    "en": "{field} may not be null"
+    "en": "{field} may not be null",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.required",
@@ -161,7 +180,8 @@
       "field"
     ],
     "remediation": "fix_input",
-    "en": "{field} is required"
+    "en": "{field} is required",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.field.unique",
@@ -170,42 +190,48 @@
       "field"
     ],
     "remediation": "fix_input",
-    "en": "{field} must be unique"
+    "en": "{field} must be unique",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.first_login_challenge_invalid",
     "status": 400,
     "params": [],
     "remediation": "reauthenticate",
-    "en": "First-login challenge is invalid or has expired. Sign in again to restart."
+    "en": "First-login challenge is invalid or has expired. Sign in again to restart.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.grant_invalid",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "Login grant is invalid, already used, or has expired."
+    "en": "Login grant is invalid, already used, or has expired.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.invalid_ad_id",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Invalid advertisement ID"
+    "en": "Invalid advertisement ID",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.invalid_change_token",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "Invalid or expired change token."
+    "en": "Invalid or expired change token.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.invalid_code",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Invalid verification code"
+    "en": "Invalid verification code",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.invalid_code_attempts",
@@ -214,644 +240,736 @@
       "attempts_remaining"
     ],
     "remediation": "fix_input",
-    "en": "Invalid verification code. {attempts_remaining} attempts remaining."
+    "en": "Invalid verification code. {attempts_remaining} attempts remaining.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.invalid_method",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Invalid or unavailable method for this account."
+    "en": "Invalid or unavailable method for this account.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.invalid_phone",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Invalid phone number"
+    "en": "Invalid phone number",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.invalid_phone_format",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Invalid phone number format"
+    "en": "Invalid phone number format",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.invalid_redirect_url",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "redirect_url must be a relative path starting with /  — absolute URLs are not allowed."
+    "en": "redirect_url must be a relative path starting with /  — absolute URLs are not allowed.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.last_auth_method",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Cannot remove the last authentication method."
+    "en": "Cannot remove the last authentication method.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.magic_link_invalid",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "Magic link is invalid or has expired."
+    "en": "Magic link is invalid or has expired.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.no_current_value",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "No current value on this account."
+    "en": "No current value on this account.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.no_password",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "No password is set. Use set password first."
+    "en": "No password is set. Use set password first.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.no_verified_contact",
     "status": 400,
     "params": [],
     "remediation": "verify",
-    "en": "No verified email or phone on this account."
+    "en": "No verified email or phone on this account.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.not_available",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "This value is already registered or reserved."
+    "en": "This value is already registered or reserved.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.oauth_failed",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "Failed to authenticate with OAuth provider"
+    "en": "Failed to authenticate with OAuth provider",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.oauth_fields_required",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Provider and access_token are required"
+    "en": "Provider and access_token are required",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.passkey_challenge_expired",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "Passkey challenge has expired. Please try again."
+    "en": "Passkey challenge has expired. Please try again.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.passkey_invalid",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "Passkey verification failed."
+    "en": "Passkey verification failed.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.password_already_set",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Password is already set. Use the change password flow."
+    "en": "Password is already set. Use the change password flow.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.passwords_dont_match",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Password fields didn't match"
+    "en": "Password fields didn't match",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.phone_required",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Phone number is required."
+    "en": "Phone number is required.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.phone_too_long",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Phone number is too long"
+    "en": "Phone number is too long",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.qr_expired",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "QR code has expired."
+    "en": "QR code has expired.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.qr_fulfilled",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "QR code has already been used."
+    "en": "QR code has already been used.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.qr_type_required",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "QR type is required (session_share or login_request)."
+    "en": "QR type is required (session_share or login_request).",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.sso_invalid_response",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "Invalid SSO response from identity provider."
+    "en": "Invalid SSO response from identity provider.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.sso_not_configured",
     "status": 400,
     "params": [],
     "remediation": "contact_support",
-    "en": "SSO is not configured for this organization."
+    "en": "SSO is not configured for this organization.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.staff_role_target_not_staff",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Staff roles can only be assigned to staff accounts. Make the user staff first."
+    "en": "Staff roles can only be assigned to staff accounts. Make the user staff first.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.token_required",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Token is required"
+    "en": "Token is required",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.totp_not_enabled",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "TOTP is not enabled on this account."
+    "en": "TOTP is not enabled on this account.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.totp_not_pending",
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "No pending TOTP setup. Call /totp/setup/ first."
+    "en": "No pending TOTP setup. Call /totp/setup/ first.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.totp_proof_required",
     "status": 400,
     "params": [],
     "remediation": "verify",
-    "en": "A TOTP already exists on this account. Provide the current code or a backup code to replace it, or use the delayed change flow if you lost your authenticator."
+    "en": "A TOTP already exists on this account. Provide the current code or a backup code to replace it, or use the delayed change flow if you lost your authenticator.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.unknown_staff_role",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Unknown staff role. Define it in the STAPEL_ACCESS[\"ROLES\"] deploy config first."
+    "en": "Unknown staff role. Define it in the STAPEL_ACCESS[\"ROLES\"] deploy config first.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.username_namespace_invalid",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Invalid namespaced login. Use 'org_slug/username' with exactly one '/' and valid characters on both sides."
+    "en": "Invalid namespaced login. Use 'org_slug/username' with exactly one '/' and valid characters on both sides.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.400.validation_error",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Validation error"
+    "en": "Validation error",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.verification_failed",
     "status": 400,
     "params": [],
     "remediation": "verify",
-    "en": "Verification failed"
+    "en": "Verification failed",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.verification_invalid_factor",
     "status": 400,
     "params": [],
     "remediation": "verify",
-    "en": "This verification factor is not available"
+    "en": "This verification factor is not available",
+    "owner": "stapel_core"
   },
   {
     "code": "error.400.wrong_password",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
-    "en": "Wrong password."
+    "en": "Wrong password.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.401.account_disabled",
     "status": 401,
     "params": [],
     "remediation": "contact_support",
-    "en": "User account is disabled"
+    "en": "User account is disabled",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.401.invalid_credentials",
     "status": 401,
     "params": [],
     "remediation": "reauthenticate",
-    "en": "Invalid credentials"
+    "en": "Invalid credentials",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.401.qr_auth_required",
     "status": 401,
     "params": [],
     "remediation": "reauthenticate",
-    "en": "Authentication required to generate a session_share QR code."
+    "en": "Authentication required to generate a session_share QR code.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.401.refresh_invalid",
     "status": 401,
     "params": [],
     "remediation": "reauthenticate",
-    "en": "Invalid or expired refresh token"
+    "en": "Invalid or expired refresh token",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.401.refresh_not_provided",
     "status": 401,
     "params": [],
     "remediation": "reauthenticate",
-    "en": "Refresh token not provided"
+    "en": "Refresh token not provided",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.401.refresh_revoked",
     "status": 401,
     "params": [],
     "remediation": "reauthenticate",
-    "en": "Token has been revoked"
+    "en": "Token has been revoked",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.401.token_invalid",
     "status": 401,
     "params": [],
     "remediation": "reauthenticate",
-    "en": "Invalid token"
+    "en": "Invalid token",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.401.token_revoked",
     "status": 401,
     "params": [],
     "remediation": "reauthenticate",
-    "en": "Token has been revoked"
+    "en": "Token has been revoked",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.401.unauthorized",
     "status": 401,
     "params": [],
     "remediation": "reauthenticate",
-    "en": "Authentication required"
+    "en": "Authentication required",
+    "owner": "stapel_core"
   },
   {
     "code": "error.401.user_not_found",
     "status": 401,
     "params": [],
     "remediation": "reauthenticate",
-    "en": "User not found"
+    "en": "User not found",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.402.payment_required",
     "status": 402,
     "params": [],
     "remediation": "retry",
-    "en": "Payment required"
+    "en": "Payment required",
+    "owner": "stapel_core"
   },
   {
     "code": "error.403.forbidden",
     "status": 403,
     "params": [],
     "remediation": "retry",
-    "en": "You do not have permission to perform this action"
+    "en": "You do not have permission to perform this action",
+    "owner": "stapel_core"
   },
   {
     "code": "error.403.gdpr.account_closed",
     "status": 403,
     "params": [],
     "remediation": "retry",
-    "en": "This account is being erased and can no longer be used."
+    "en": "This account is being erased and can no longer be used.",
+    "owner": "stapel_gdpr"
   },
   {
     "code": "error.403.mfa_enrollment_required",
     "status": 403,
     "params": [],
     "remediation": "verify",
-    "en": "Two-factor enrollment is required before this account can be used. Set up an authenticator app or a passkey first."
+    "en": "Two-factor enrollment is required before this account can be used. Set up an authenticator app or a passkey first.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.403.mock_otp_admin",
     "status": 403,
     "params": [],
     "remediation": "contact_support",
-    "en": "OTP-based auth is disabled for admin accounts in mock mode."
+    "en": "OTP-based auth is disabled for admin accounts in mock mode.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.403.network_blocked",
     "status": 403,
     "params": [],
     "remediation": "contact_support",
-    "en": "Requests from this network are not allowed"
+    "en": "Requests from this network are not allowed",
+    "owner": "stapel_core"
   },
   {
     "code": "error.403.password_change_required",
     "status": 403,
     "params": [],
     "remediation": "reauthenticate",
-    "en": "A password change is required before this account can sign in. Complete the forced password change first."
+    "en": "A password change is required before this account can sign in. Complete the forced password change first.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.403.privileged_account",
     "status": 403,
     "params": [],
     "remediation": "contact_support",
-    "en": "This account holds deployment-wide privileges. Its password cannot be reset from an organization surface."
+    "en": "This account holds deployment-wide privileges. Its password cannot be reset from an organization surface.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.403.qr_device_mismatch",
     "status": 403,
     "params": [],
     "remediation": "retry",
-    "en": "This QR code belongs to another device."
+    "en": "This QR code belongs to another device.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.403.qr_unauth_scan",
     "status": 403,
     "params": [],
     "remediation": "reauthenticate",
-    "en": "This QR code cannot be scanned by an unauthenticated device."
+    "en": "This QR code cannot be scanned by an unauthenticated device.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.403.registration_closed",
     "status": 403,
     "params": [],
     "remediation": "contact_support",
-    "en": "New accounts are not open for sign-up here. Ask an administrator to create one for you."
+    "en": "New accounts are not open for sign-up here. Ask an administrator to create one for you.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.403.sso_required",
     "status": 403,
     "params": [],
     "remediation": "reauthenticate",
-    "en": "This account must sign in via SSO. Use your organization SSO link."
+    "en": "This account must sign in via SSO. Use your organization SSO link.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.403.verification_enrollment_required",
     "status": 403,
     "params": [],
     "remediation": "verify",
-    "en": "Verification factor enrollment required"
+    "en": "Verification factor enrollment required",
+    "owner": "stapel_core"
   },
   {
     "code": "error.403.verification_required",
     "status": 403,
     "params": [],
     "remediation": "verify",
-    "en": "Additional verification required"
+    "en": "Additional verification required",
+    "owner": "stapel_core"
   },
   {
     "code": "error.404.ad_not_found",
     "status": 404,
     "params": [],
     "remediation": "retry",
-    "en": "Listing not found"
+    "en": "Listing not found",
+    "owner": "stapel_core"
   },
   {
     "code": "error.404.change_not_found",
     "status": 404,
     "params": [],
     "remediation": "retry",
-    "en": "Change request not found."
+    "en": "Change request not found.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.404.gdpr.export_not_found",
     "status": 404,
     "params": [],
     "remediation": "retry",
-    "en": "Export request not found."
+    "en": "Export request not found.",
+    "owner": "stapel_gdpr"
   },
   {
     "code": "error.404.gdpr.no_active_closure",
     "status": 404,
     "params": [],
     "remediation": "fix_input",
-    "en": "No pending account closure found."
+    "en": "No pending account closure found.",
+    "owner": "stapel_gdpr"
   },
   {
     "code": "error.404.not_found",
     "status": 404,
     "params": [],
     "remediation": "retry",
-    "en": "Not found."
+    "en": "Not found.",
+    "owner": "stapel_core"
   },
   {
     "code": "error.404.oauth_link_not_found",
     "status": 404,
     "params": [],
     "remediation": "retry",
-    "en": "No linked account found for this provider."
+    "en": "No linked account found for this provider.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.404.passkey_not_found",
     "status": 404,
     "params": [],
     "remediation": "retry",
-    "en": "Passkey not found."
+    "en": "Passkey not found.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.404.qr_not_found",
     "status": 404,
     "params": [],
     "remediation": "retry",
-    "en": "QR code not found or expired."
+    "en": "QR code not found or expired.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.404.sso_org_not_found",
     "status": 404,
     "params": [],
     "remediation": "fix_input",
-    "en": "Organization not found."
+    "en": "Organization not found.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.404.user_for_reset",
     "status": 404,
     "params": [],
     "remediation": "fix_input",
-    "en": "No account found with this email or phone."
+    "en": "No account found with this email or phone.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.404.verification_challenge_not_found",
     "status": 404,
     "params": [],
     "remediation": "verify",
-    "en": "Verification challenge not found or expired"
+    "en": "Verification challenge not found or expired",
+    "owner": "stapel_core"
   },
   {
     "code": "error.405.method_not_allowed",
     "status": 405,
     "params": [],
     "remediation": "retry",
-    "en": "Method not allowed"
+    "en": "Method not allowed",
+    "owner": "stapel_core"
   },
   {
     "code": "error.406.not_acceptable",
     "status": 406,
     "params": [],
     "remediation": "retry",
-    "en": "Not acceptable"
+    "en": "Not acceptable",
+    "owner": "stapel_core"
   },
   {
     "code": "error.408.request_timeout",
     "status": 408,
     "params": [],
     "remediation": "retry",
-    "en": "Request timeout"
+    "en": "Request timeout",
+    "owner": "stapel_core"
   },
   {
     "code": "error.409.conflict",
     "status": 409,
     "params": [],
     "remediation": "fix_input",
-    "en": "Resource already exists"
+    "en": "Resource already exists",
+    "owner": "stapel_core"
   },
   {
     "code": "error.409.email_reserved",
     "status": 409,
     "params": [],
     "remediation": "fix_input",
-    "en": "This email is reserved by another pending change request."
+    "en": "This email is reserved by another pending change request.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.409.email_taken",
     "status": 409,
     "params": [],
     "remediation": "fix_input",
-    "en": "This email is already registered to another account."
+    "en": "This email is already registered to another account.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.409.gdpr.closure_already_pending",
     "status": 409,
     "params": [],
     "remediation": "fix_input",
-    "en": "Account closure is already in progress."
+    "en": "Account closure is already in progress.",
+    "owner": "stapel_gdpr"
   },
   {
     "code": "error.409.gdpr.export_cooldown",
     "status": 409,
     "params": [],
     "remediation": "fix_input",
-    "en": "A data export was already requested in the last 30 days."
+    "en": "A data export was already requested in the last 30 days.",
+    "owner": "stapel_gdpr"
   },
   {
     "code": "error.409.gdpr.legal_hold",
     "status": 409,
     "params": [],
     "remediation": "fix_input",
-    "en": "Account data is under a legal hold and cannot be deleted."
+    "en": "Account data is under a legal hold and cannot be deleted.",
+    "owner": "stapel_gdpr"
   },
   {
     "code": "error.409.oauth_account_linked_elsewhere",
     "status": 409,
     "params": [],
     "remediation": "fix_input",
-    "en": "This provider account is already linked to a different user."
+    "en": "This provider account is already linked to a different user.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.409.oauth_already_linked",
     "status": 409,
     "params": [],
     "remediation": "fix_input",
-    "en": "This provider is already linked to your account."
+    "en": "This provider is already linked to your account.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.409.passkey_already_registered",
     "status": 409,
     "params": [],
     "remediation": "fix_input",
-    "en": "This passkey is already registered."
+    "en": "This passkey is already registered.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.409.phone_reserved",
     "status": 409,
     "params": [],
     "remediation": "fix_input",
-    "en": "This phone number is reserved by another pending change request."
+    "en": "This phone number is reserved by another pending change request.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.409.phone_taken",
     "status": 409,
     "params": [],
     "remediation": "fix_input",
-    "en": "This phone number is already registered to another account."
+    "en": "This phone number is already registered to another account.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.409.qr_account_conflict",
     "status": 409,
     "params": [],
     "remediation": "reauthenticate",
-    "en": "A different account is already signed in on this device."
+    "en": "A different account is already signed in on this device.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.409.sso_org_slug_taken",
     "status": 409,
     "params": [],
     "remediation": "fix_input",
-    "en": "An organization with this slug already exists."
+    "en": "An organization with this slug already exists.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.409.username_taken",
     "status": 409,
     "params": [],
     "remediation": "fix_input",
-    "en": "This username is already taken."
+    "en": "This username is already taken.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.410.gdpr.download_consumed",
     "status": 410,
     "params": [],
     "remediation": "retry",
-    "en": "Download link was already used. Request a new export."
+    "en": "Download link was already used. Request a new export.",
+    "owner": "stapel_gdpr"
   },
   {
     "code": "error.410.gdpr.download_expired",
     "status": 410,
     "params": [],
     "remediation": "retry",
-    "en": "Download link has expired."
+    "en": "Download link has expired.",
+    "owner": "stapel_gdpr"
   },
   {
     "code": "error.410.gone",
     "status": 410,
     "params": [],
     "remediation": "retry",
-    "en": "Resource has been permanently removed"
+    "en": "Resource has been permanently removed",
+    "owner": "stapel_core"
   },
   {
     "code": "error.413.payload_too_large",
     "status": 413,
     "params": [],
     "remediation": "retry",
-    "en": "Request body is too large"
+    "en": "Request body is too large",
+    "owner": "stapel_core"
   },
   {
     "code": "error.415.unsupported_media_type",
     "status": 415,
     "params": [],
     "remediation": "retry",
-    "en": "Unsupported media type"
+    "en": "Unsupported media type",
+    "owner": "stapel_core"
   },
   {
     "code": "error.422.blocked",
@@ -860,14 +978,16 @@
       "retry_after_minutes"
     ],
     "remediation": "wait_and_retry",
-    "en": "Account temporarily blocked. Try again in {retry_after_minutes} minutes."
+    "en": "Account temporarily blocked. Try again in {retry_after_minutes} minutes.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.422.unprocessable_entity",
     "status": 422,
     "params": [],
     "remediation": "wait_and_retry",
-    "en": "Unprocessable entity"
+    "en": "Unprocessable entity",
+    "owner": "stapel_core"
   },
   {
     "code": "error.423.account_locked",
@@ -876,35 +996,40 @@
       "retry_after_minutes"
     ],
     "remediation": "wait_and_retry",
-    "en": "Account temporarily locked due to too many failed attempts. Try again in {retry_after_minutes} minutes."
+    "en": "Account temporarily locked due to too many failed attempts. Try again in {retry_after_minutes} minutes.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.423.locked",
     "status": 423,
     "params": [],
     "remediation": "wait_and_retry",
-    "en": "Resource is locked"
+    "en": "Resource is locked",
+    "owner": "stapel_core"
   },
   {
     "code": "error.423.verification_locked",
     "status": 423,
     "params": [],
     "remediation": "wait_and_retry",
-    "en": "Too many failed attempts — verification locked"
+    "en": "Too many failed attempts — verification locked",
+    "owner": "stapel_core"
   },
   {
     "code": "error.425.gdpr.export_not_ready",
     "status": 425,
     "params": [],
     "remediation": "retry",
-    "en": "Export is still being prepared."
+    "en": "Export is still being prepared.",
+    "owner": "stapel_gdpr"
   },
   {
     "code": "error.429.magic_link_rate",
     "status": 429,
     "params": [],
     "remediation": "wait_and_retry",
-    "en": "Too many magic link requests. Please try again later."
+    "en": "Too many magic link requests. Please try again later.",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.429.rate_limit",
@@ -913,34 +1038,39 @@
       "retry_after_minutes"
     ],
     "remediation": "wait_and_retry",
-    "en": "Too many attempts. Try again in {retry_after_minutes} minutes."
+    "en": "Too many attempts. Try again in {retry_after_minutes} minutes.",
+    "owner": "stapel_core"
   },
   {
     "code": "error.429.too_many_requests",
     "status": 429,
     "params": [],
     "remediation": "wait_and_retry",
-    "en": "Too many requests. Please try again later."
+    "en": "Too many requests. Please try again later.",
+    "owner": "stapel_core"
   },
   {
     "code": "error.500.internal",
     "status": 500,
     "params": [],
     "remediation": "contact_support",
-    "en": "Something went wrong"
+    "en": "Something went wrong",
+    "owner": "stapel_core"
   },
   {
     "code": "error.500.send_failed",
     "status": 500,
     "params": [],
     "remediation": "retry",
-    "en": "Failed to send verification code"
+    "en": "Failed to send verification code",
+    "owner": "stapel_auth"
   },
   {
     "code": "error.503.gdpr.closure_unavailable",
     "status": 503,
     "params": [],
     "remediation": "retry",
-    "en": "Account closure is temporarily unavailable. Please retry later."
+    "en": "Account closure is temporarily unavailable. Please retry later.",
+    "owner": "stapel_gdpr"
   }
 ]
