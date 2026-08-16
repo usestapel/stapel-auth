@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-08-17
+
+### Fixed — the device a QR signs in could not use what it was handed
+
+`GET /qr/{key}/status/` answered a fulfilled `login_request` with a JSON token
+pair and nothing else. That is enough for a native/bearer caller and useless to
+a cookie-mode browser front end — `@stapel/auth-react`'s default, where the
+client attaches no bearer header at all by contract. Such a front end received
+a real grant it could not spend on a single subsequent request: its own user
+lookup went out with no credential, was refused, and the delivered session was
+dropped without a word on either device. Every other flow that signs a browser
+in over a plain response sets the JWT cookies (`/qr/{key}/scan/`, magic link,
+SSO, OAuth); this one now does too, plus the non-httponly `stapel_auth_hint`
+that accompanies every cookie-minted session. The JSON pair is unchanged, so
+bearer callers see no difference.
+
+The same handler recorded the polling device's session inside a bare
+`except Exception: pass`. A session row or audit line that fails to write is a
+real failure of that request; it is now logged (`logger.exception`) instead of
+being unfindable afterwards.
+
+### Fixed — the two halves of `/qr/{key}/scan/` named two different sign-in pages
+
+A `login_request` scanned by a browser with no session redirected to
+`/sign-in?redirect=…`, while the account-conflict branch of the same view — and
+the sign-in route the pair's own nav manifest declares (`@stapel/auth-react`'s
+`auth.login`) — say `/login`. One of the two was therefore always a
+fall-through into whatever the host's catch-all does, and a redirect to a route
+that does not exist fails nowhere, so it stayed quiet. Both halves now name
+`/login`. Hosts that really do serve the sign-in screen at `/sign-in` need a
+redirect from it, or the route renamed.
+
 ## [0.22.1] — 2026-08-16
 
 ### Fixed — the suite CI runs and the suite we run were two different suites
