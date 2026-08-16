@@ -4460,6 +4460,76 @@ class QRAuthStatusTests(APITestCase):
         self.assertIsNotNone(status_resp.data["access_token"])
         self.assertIsNotNone(status_resp.data["refresh_token"])
 
+    def test_status_fulfilled_sets_session_cookies_on_the_polling_device(self):
+        """The polling device is the one being signed in — it must end the
+        poll holding a usable session, not only a JSON token pair.
+
+        A cookie-mode SPA (`@stapel/auth-react`'s default) attaches NO bearer
+        header: `getAccessToken()` is null by contract there. Handing it
+        tokens in a JSON body and nothing else left it unable to authenticate
+        a single subsequent request — its own `me()` 401'd and the freshly
+        delivered session was discarded. Every other flow that signs a
+        browser in over a plain response sets the JWT cookies (see
+        `qr/views.py::scan`, magic link, SSO); this one has to as well.
+        """
+        user = User.objects.create_user(username="cookiepoller", password="pass")
+        access, _ = create_token_for_user(user)
+
+        key = self._generate_key("login_request")
+
+        confirmer = APIClient()
+        confirmer.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+        self.assertEqual(
+            confirmer.post(reverse("qr_confirm", kwargs={"key": key})).status_code,
+            status.HTTP_200_OK,
+        )
+
+        status_resp = self.client.get(reverse("qr_status", kwargs={"key": key}))
+        self.assertEqual(status_resp.data["status"], "fulfilled")
+
+        from django.conf import settings as _settings
+
+        access_cookie = getattr(_settings, "JWT_COOKIE_NAME", "stapel_jwt")
+        refresh_cookie = getattr(
+            _settings, "JWT_REFRESH_COOKIE_NAME", "stapel_refresh_jwt"
+        )
+        self.assertIn(access_cookie, status_resp.cookies)
+        self.assertIn(refresh_cookie, status_resp.cookies)
+        self.assertEqual(
+            status_resp.cookies[access_cookie].value,
+            status_resp.data["access_token"],
+        )
+        # The non-httponly doorbell rides along with every cookie-minted
+        # session (hint_cookie.py) — a bearer host's bootstrap probe reads it.
+        self.assertIn("stapel_auth_hint", status_resp.cookies)
+
+    def test_status_fulfilled_logs_a_failed_session_write_instead_of_swallowing_it(
+        self,
+    ):
+        """A session row that cannot be written is a real failure of this
+        request — the caller still gets its tokens, but the operator must be
+        able to find out. `except Exception: pass` made it unfindable.
+        """
+        user = User.objects.create_user(username="loudpoller", password="pass")
+        access, _ = create_token_for_user(user)
+        key = self._generate_key("login_request")
+
+        confirmer = APIClient()
+        confirmer.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+        confirmer.post(reverse("qr_confirm", kwargs={"key": key}))
+
+        with patch(
+            "stapel_auth.sessions.services.SessionService.create",
+            side_effect=RuntimeError("boom"),
+        ):
+            with self.assertLogs("stapel_auth.qr.views", level="ERROR") as logs:
+                status_resp = self.client.get(
+                    reverse("qr_status", kwargs={"key": key})
+                )
+
+        self.assertEqual(status_resp.data["status"], "fulfilled")
+        self.assertTrue(any("boom" in line for line in logs.output))
+
 
 @override_settings(URL_PREFIX="")
 class QRAuthConfirmTests(APITestCase):
@@ -4601,12 +4671,17 @@ class QRAuthScanTests(APITestCase):
         self.assertIn(key, response.get("Location", ""))
 
     def test_scan_login_request_unauthenticated_redirects_to_signin(self):
+        """`/login` — the SAME address the account-conflict branch of this view
+        already redirects to, and the one the pair's nav manifest declares.
+        The two halves used to name two different paths, so one of them was
+        always a fall-through into the host's catch-all, silently."""
         key = self._generate_login_request_key()
         response = self.client.get(
             reverse("qr_scan", kwargs={"key": key}), follow=False
         )
         self.assertIn(response.status_code, [301, 302])
-        self.assertIn("sign-in", response.get("Location", ""))
+        self.assertIn("/login", response.get("Location", ""))
+        self.assertNotIn("sign-in", response.get("Location", ""))
 
     def test_scan_fulfilled_key_returns_400(self):
         key = self._generate_login_request_key()

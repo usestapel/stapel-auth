@@ -3392,7 +3392,7 @@
     "/auth/api/v1/qr/{key}/scan/": {
       "get": {
         "operationId": "auth_api_v1_qr_scan_retrieve",
-        "description": "Browser endpoint embedded in QR code. Processes the scan and redirects.\n\n**session_share** (scanner has no session) → logs scanner in as the QR owner and redirects to `redirect_url`.\n**session_share** (scanner already logged in as the same user) → marks fulfilled, redirects.\n**session_share** (scanner logged in as a *different* user) → redirects with `?qr_status=account_conflict`.\n**login_request** (scanner logged in) → redirects to `/qr-confirm?key=…` for confirmation.\n**login_request** (scanner not logged in) → redirects to `/sign-in?redirect=<scan_url>`.\n\n\n**Permissions:** `AllowAny`",
+        "description": "Browser endpoint embedded in QR code. Processes the scan and redirects.\n\n**session_share** (scanner has no session) → logs scanner in as the QR owner and redirects to `redirect_url`.\n**session_share** (scanner already logged in as the same user) → marks fulfilled, redirects.\n**session_share** (scanner logged in as a *different* user) → redirects with `?qr_status=account_conflict`.\n**login_request** (scanner logged in) → redirects to `/qr-confirm?key=…` for confirmation.\n**login_request** (scanner not logged in) → redirects to `/login?redirect=<scan_url>`.\n\n\n**Permissions:** `AllowAny`",
         "parameters": [
           {
             "in": "path",
@@ -3432,7 +3432,7 @@
     "/auth/api/v1/qr/{key}/status/": {
       "get": {
         "operationId": "auth_api_v1_qr_status_retrieve",
-        "description": "Poll the status of a QR auth key.\n\n**Statuses:**\n- `pending` — waiting for scan/confirm.\n- `fulfilled` — action completed; for `login_request`, tokens are included so the polling device can authenticate.\n- `expired` — key was not found (TTL elapsed).\n- `rejected` — scanner or confirmer rejected the request; show error UI.\n\n\n**Permissions:** `AllowAny`",
+        "description": "Poll the status of a QR auth key.\n\n**Statuses:**\n- `pending` — waiting for scan/confirm.\n- `fulfilled` — action completed; for `login_request`, tokens are included so the polling device can authenticate, AND the same session is set as httponly JWT cookies on this response (plus the non-httponly `stapel_auth_hint`), so a cookie-mode front end is signed in without touching the body.\n- `expired` — key was not found (TTL elapsed).\n- `rejected` — scanner or confirmer rejected the request; show error UI.\n\n\n**Permissions:** `AllowAny`",
         "parameters": [
           {
             "in": "path",

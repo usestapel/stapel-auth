@@ -172,7 +172,7 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
 **Statuses:**
 - `pending` — waiting for scan/confirm.
-- `fulfilled` — action completed; for `login_request`, tokens are included so the polling device can authenticate.
+- `fulfilled` — action completed; for `login_request`, tokens are included so the polling device can authenticate, AND the same session is set as httponly JWT cookies on this response (plus the non-httponly `stapel_auth_hint`), so a cookie-mode front end is signed in without touching the body.
 - `expired` — key was not found (TTL elapsed).
 - `rejected` — scanner or confirmer rejected the request; show error UI.
 """,
@@ -237,16 +237,45 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                         if _session:
                             LoginNotificationService.check_and_notify(_user, _session)
                 except Exception:
-                    pass
+                    # The caller still gets the tokens it waited for — the
+                    # grant is real and was minted by `confirm`. But the
+                    # session row / audit entry failing is a failure of THIS
+                    # request, and a bare `pass` made it invisible: no row, no
+                    # audit line, no log, nothing to find afterwards.
+                    logger.exception(
+                        "QR login_request fulfilment: could not record the "
+                        "session for the polling device (key=%s)",
+                        key,
+                    )
                 QRAuthService.delete(key)
             dto = QRStatusResponse(
                 status=QRStatus.FULFILLED,
                 access_token=access_token,
                 refresh_token=refresh_token,
             )
-        else:
-            dto = QRStatusResponse(status=QRStatus.PENDING)
+            response = StapelResponse(self.get_status_response_serializer_class()(dto))
+            if access_token:
+                # THE POLLING DEVICE IS THE ONE BEING SIGNED IN — so it is
+                # signed in the same way every other flow signs a browser in:
+                # httponly JWT cookies on the response, plus the non-httponly
+                # hint cookie (`scan` above, magic link, SSO, OAuth all do
+                # this). The JSON token pair stays for native/bearer callers.
+                #
+                # Without this, a cookie-mode front end (the default for
+                # `@stapel/auth-react`, where `getAccessToken()` is null by
+                # contract) received a grant it could not use on a single
+                # subsequent request: its user-resolution call went out with
+                # no credential at all, was refused, and the delivered session
+                # was dropped on the floor without a word.
+                from stapel_core.django.jwt.utils import set_jwt_cookies
 
+                from stapel_auth.hint_cookie import set_auth_hint_cookie
+
+                set_jwt_cookies(response, access_token, refresh_token)
+                set_auth_hint_cookie(response)
+            return response
+
+        dto = QRStatusResponse(status=QRStatus.PENDING)
         return StapelResponse(self.get_status_response_serializer_class()(dto))
 
     @extend_schema(
@@ -256,7 +285,7 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 **session_share** (scanner already logged in as the same user) → marks fulfilled, redirects.
 **session_share** (scanner logged in as a *different* user) → redirects with `?qr_status=account_conflict`.
 **login_request** (scanner logged in) → redirects to `/qr-confirm?key=…` for confirmation.
-**login_request** (scanner not logged in) → redirects to `/sign-in?redirect=<scan_url>`.
+**login_request** (scanner not logged in) → redirects to `/login?redirect=<scan_url>`.
 """,
         responses={302: None, 404: StapelErrorSerializer},
     )
@@ -337,8 +366,16 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
         else:  # login_request
             if scanner is None:
+                # `/login`, not `/sign-in`: the same path the account-conflict
+                # branch below already redirects to, and the one the pair's own
+                # nav manifest declares for the sign-in screen
+                # (`@stapel/auth-react`'s `auth.login`). The two halves of this
+                # very view used to name two different addresses, so one of
+                # them was always a fall-through to whatever the host's
+                # catch-all does — silently, since a redirect to a route that
+                # does not exist fails nowhere.
                 scan_url = request.build_absolute_uri()
-                sign_in_url = "/sign-in?" + urlencode({"redirect": scan_url})
+                sign_in_url = "/login?" + urlencode({"redirect": scan_url})
                 return HttpResponseRedirect(sign_in_url)
 
             # Logged-in scanner → confirm page
