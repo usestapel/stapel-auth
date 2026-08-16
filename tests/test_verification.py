@@ -246,11 +246,14 @@ class ChallengeInitiateTests(VerificationEndpointTestBase):
         target = resp.data["data"]["target"]
         self.assertNotEqual(target, self.user.email)
         self.assertIn("*", target)
-        # The OTP record was actually created for the user's email.
-        from stapel_auth.models import EmailVerification
+        # A code is actually waiting for the user's email.
+        from stapel_core.verification.codes import CodeOutcome
 
-        self.assertTrue(
-            EmailVerification.objects.filter(email=self.user.email).exists()
+        from stapel_auth.otp.services import email_code_store
+
+        self.assertIsNot(
+            email_code_store.check(self.user.email, "000000").outcome,
+            CodeOutcome.NOT_FOUND,
         )
 
     def test_initiate_factor_not_in_challenge_400(self):
@@ -494,13 +497,9 @@ class ProtectedViewEndToEndTests(APITestCase):
         self.assertTrue(mock_send.called)
         self.assertEqual(mock_send.call_args.kwargs["email"], self.user.email)
 
-        from stapel_auth.models import EmailVerification
-
-        code = (
-            EmailVerification.objects.filter(email=self.user.email)
-            .latest("created_at")
-            .code
-        )
+        # The code the user got is the one in the message we queued — read it
+        # there rather than from a store that (rightly) hands nothing back.
+        code = mock_send.call_args.kwargs["variables"]["code"]
         complete = self._complete_email(challenge_id, code=code)
         self.assertEqual(complete.status_code, 200)
         self.assertEqual(self.client.post("/payout-demo/", {}).status_code, 200)

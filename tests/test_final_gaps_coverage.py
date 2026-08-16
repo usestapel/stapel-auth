@@ -38,20 +38,6 @@ class ModelDunderTests(TestCase):
     def setUp(self):
         self.user = _make_user()
 
-    def test_phone_verification_save_defaults_expiry(self):
-        from stapel_auth.models import PhoneVerification
-
-        v = PhoneVerification.objects.create(phone="+15550001111", code="1234")
-        self.assertIsNotNone(v.expires_at)
-        self.assertGreater(v.expires_at, timezone.now())
-
-    def test_email_verification_save_defaults_expiry(self):
-        from stapel_auth.models import EmailVerification
-
-        v = EmailVerification.objects.create(email="x@example.com", code="1234")
-        self.assertIsNotNone(v.expires_at)
-        self.assertGreater(v.expires_at, timezone.now())
-
     def test_refresh_token_tracker_str(self):
         from stapel_auth.models import RefreshTokenTracker
 

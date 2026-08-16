@@ -43,20 +43,24 @@ class AuthGDPRProvider(GDPRProvider):
 
     def delete(self, user_id: int) -> None:
         from django.contrib.auth import get_user_model
+        from stapel_auth.otp.services import email_code_store, phone_code_store
+
         from .models import (
-            AuthAuditLog, AuthenticatorChangeRequest, EmailVerification,
+            AuthAuditLog, AuthenticatorChangeRequest,
             LoginAttempt, OrgMembership, PasskeyCredential,
-            PhoneVerification, RefreshTokenTracker, TOTPDevice, UserSession,
+            RefreshTokenTracker, TOTPDevice, UserSession,
         )
         self._store_reregistration_hashes(user_id)
 
         User = get_user_model()
         try:
             user = User.objects.get(pk=user_id)
+            # Pending codes expire on their own, but erasure must not wait
+            # ten minutes to be true.
             if user.email:
-                EmailVerification.objects.filter(email=user.email).delete()
+                email_code_store.discard(user.email)
             if hasattr(user, 'phone') and user.phone:
-                PhoneVerification.objects.filter(phone=str(user.phone)).delete()
+                phone_code_store.discard(str(user.phone))
         except User.DoesNotExist:
             pass
 

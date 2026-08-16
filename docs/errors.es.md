@@ -1,13 +1,13 @@
 # Errors — Español
 
-`130` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
+`132` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
 
 | Código | Estado | Parámetros | Acción | Texto |
 |---|---|---|---|---|
 | `error.400.bad_request` | 400 | — | `fix_input` | Solicitud incorrecta |
 | `error.400.captcha_invalid` | 400 | — | `retry` | La verificación del captcha ha fallado. Inténtalo de nuevo. |
 | `error.400.captcha_required` | 400 | — | `retry` | Se requiere el token del captcha. |
-| `error.400.code_expired` | 400 | — | `retry` | El código de verificación ha caducado. Solicita uno nuevo. |
+| `error.400.code_expired` | 400 | — | `retry` | La espera de tu código ha caducado. Vuelve a iniciar sesión. |
 | `error.400.code_required` | 400 | — | `fix_input` | Se requiere un código de verificación. |
 | `error.400.credentials_required` | 400 | — | `fix_input` | Se requieren nombre de usuario/correo electrónico y contraseña |
 | `error.400.email_or_phone_not_both` | 400 | — | `fix_input` | Proporciona un correo electrónico o un teléfono, no ambos |
@@ -134,3 +134,5 @@
 | `error.500.internal` | 500 | — | `contact_support` | Algo salió mal |
 | `error.500.send_failed` | 500 | — | `retry` | No se pudo enviar el código de verificación |
 | `error.503.gdpr.closure_unavailable` | 503 | — | `retry` | El cierre de la cuenta no está disponible temporalmente. Inténtalo de nuevo más tarde. |
+| `error.503.mandate_unavailable` | 503 | — | `retry` | No se puede verificar el mandato del espacio de trabajo |
+| `error.503.verification_unavailable` | 503 | — | `wait_and_retry` | Ahora mismo no podemos comprobar tu inicio de sesión. Inténtalo de nuevo en un momento. |

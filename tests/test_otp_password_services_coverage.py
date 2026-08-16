@@ -107,8 +107,8 @@ class VerifyOldOtpTests(TestCase):
         user.phone = "+79991234504"
         user.save()
         result = self.svc.verify_old_otp(user, "phone", "0000")
-        # no PhoneVerification record exists -> invalid_code
-        self.assertEqual(result.get("error"), "invalid_code")
+        # nothing is waiting -> the wait expired, not a wrong code
+        self.assertEqual(result.get("error"), "expired")
 
     def test_success_creates_change_token(self):
         user = _make_user()

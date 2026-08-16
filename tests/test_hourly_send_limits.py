@@ -16,9 +16,6 @@ import uuid
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase, override_settings
-from django.utils import timezone
-
-from stapel_auth.models import EmailVerification, PhoneVerification
 
 User = get_user_model()
 
@@ -41,7 +38,6 @@ class OtpHourlyLimitTests(TestCase):
         third = svc.send_verification_code(email)
         self.assertEqual(third.get("error"), "rate_limit")
         self.assertGreater(third.get("retry_after"), 0)
-        self.assertEqual(EmailVerification.objects.filter(email=email).count(), 2)
 
     def test_phone_sends_are_capped_per_hour(self):
         from stapel_auth.otp.services import PhoneVerificationService
@@ -52,7 +48,6 @@ class OtpHourlyLimitTests(TestCase):
         self.assertNotIsInstance(svc.send_verification_code(phone), dict)
         third = svc.send_verification_code(phone)
         self.assertEqual(third.get("error"), "rate_limit")
-        self.assertEqual(PhoneVerification.objects.filter(phone=phone).count(), 2)
 
     def test_the_budget_is_per_identifier(self):
         from stapel_auth.otp.services import EmailVerificationService
@@ -66,15 +61,19 @@ class OtpHourlyLimitTests(TestCase):
         self.assertNotIsInstance(svc.send_verification_code(second), dict)
 
     def test_sends_older_than_the_window_do_not_count(self):
-        from stapel_auth.otp.services import EmailVerificationService
+        """The window rolls; it is not a bucket that resets on the hour."""
+        import time
+
+        from stapel_auth.otp.services import EmailVerificationService, email_code_store
 
         svc = EmailVerificationService()
         email = f"old-{uuid.uuid4().hex[:8]}@example.com"
         for _ in range(2):
             svc.send_verification_code(email)
-        EmailVerification.objects.filter(email=email).update(
-            created_at=timezone.now() - timezone.timedelta(hours=2)
-        )
+        key = email_code_store._sends_key(email)
+        stale = [t - 2 * 3600 for t in cache.get(key)]
+        cache.set(key, stale, 3600)
+        assert stale[0] < int(time.time()) - 3600
         self.assertNotIsInstance(svc.send_verification_code(email), dict)
 
     @override_settings(

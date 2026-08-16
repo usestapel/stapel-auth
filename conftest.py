@@ -44,6 +44,21 @@ def pytest_configure(config):
 import pytest  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _isolate_cache():
+    """Empty the cache around every test.
+
+    The database rolls back between tests; the cache does not, and since the
+    OTP codes, their attempt budgets and the lockout counters all live there
+    now, one test's block would otherwise decide the next test's verdict.
+    """
+    from django.core.cache import cache
+
+    cache.clear()
+    yield
+    cache.clear()
+
+
 @pytest.fixture(scope="session")
 def django_db_setup(django_test_environment, django_db_blocker):
     from django.test.utils import setup_databases

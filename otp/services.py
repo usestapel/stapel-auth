@@ -1,18 +1,35 @@
 """
 OTP (One-Time Password) service classes for phone and email verification,
 and authenticator change flows.
+
+Codes live in :class:`stapel_core.verification.codes.OneTimeCodeStore` — a
+hashed, TTL-scoped cache entry — not in a table. What stays here is the policy
+the store deliberately does not own: how long a code lives, how many guesses it
+survives, how often one may be asked for, how it is generated and how it is
+delivered. See the core module for why a bearer credential with a ten-minute
+life has no business in a row.
 """
-import hmac
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 import logging
 import secrets
 import uuid
-from stapel_auth.models import PhoneVerification
+
+from stapel_core.verification.codes import (
+    CodeOutcome,
+    OneTimeCodeStore,
+    StoreUnavailable,
+)
+
 from stapel_auth.otp.constants import OTP_CODE_LENGTH  # noqa: F401 — re-exported
 
 logger = logging.getLogger(__name__)
+
+#: One store per code family. Separate purposes, so a code sent to an address
+#: can never satisfy a challenge on a number.
+email_code_store = OneTimeCodeStore("otp_email")
+phone_code_store = OneTimeCodeStore("otp_phone")
 
 
 def promote_anonymous_session(user, *, auth_type: str) -> None:
@@ -48,38 +65,192 @@ def _generate_numeric_code(length: int) -> str:
     return str(secrets.randbelow(span) + lo)
 
 
-_HOUR = 3600
+def _result_for(check, *, block_duration: int) -> dict:
+    """Translate a store verdict into this service's result envelope.
 
-
-def _hourly_send_budget_spent(model, field: str, identifier: str, limit: int) -> int:
-    """Seconds to wait when *identifier* has spent its hourly send budget.
-
-    ``OTP_RATE_LIMIT_PER_HOUR`` shipped in conf.py from day one and was read
-    by nobody: the only send-side throttle was ``OTP_RESEND_COOLDOWN``, a
-    gap between consecutive sends, which at the default 30s still allows 120
-    codes an hour to one address. A knob that changes nothing is worse than
-    a missing one — the deployment believed it had a cap.
-
-    Returns ``0`` while budget remains, otherwise the seconds until the
-    oldest send in the window ages out. ``limit <= 0`` disables the cap.
+    The ``NOT_FOUND`` arm is the whole point. Nothing waiting means the wait
+    expired — aged out, already spent, or the cache restarted — and the user is
+    owed an invitation to start over, not the accusation that they mistyped.
+    The table this replaced answered ``invalid_code`` to all three.
     """
-    if limit <= 0:
-        return 0
-    window_start = timezone.now() - timedelta(seconds=_HOUR)
-    recent = model.objects.filter(
-        **{field: identifier}, created_at__gte=window_start
-    ).order_by('created_at')
-    if recent.count() < limit:
-        return 0
-    oldest = recent.first()
-    wait = (oldest.created_at + timedelta(seconds=_HOUR)) - timezone.now()
-    return max(int(wait.total_seconds()), 1)
+    if check.outcome is CodeOutcome.OK:
+        return {'success': True}
+    if check.outcome is CodeOutcome.NOT_FOUND:
+        return {'error': 'expired'}
+    if check.outcome is CodeOutcome.BLOCKED:
+        return {'error': 'blocked', 'retry_after': check.retry_after or block_duration}
+    if check.outcome is CodeOutcome.UNAVAILABLE:
+        # Fail closed, and say so honestly: "we could not ask" is not
+        # "you may not", and must never be rendered as a wrong code.
+        return {'error': 'unavailable'}
+    return {
+        'error': 'invalid_code',
+        'attempts_remaining': max(check.attempts_remaining or 0, 0),
+    }
 
 
-class PhoneVerificationService:
+class _OtpCodeService:
+    """Shared OTP mechanics for the phone and email services.
+
+    Subclasses supply the store, the mock-mode switch and the delivery kwargs;
+    everything the two flows did identically lives here once.
+    """
+
+    #: The core store this service issues into.
+    store: OneTimeCodeStore
+    #: What the log calls the thing being verified.
+    channel = ''
+
+    # Read at call time, not in __init__: this package's rule everywhere
+    # else, and the reason it matters here is mundane — a long-lived
+    # service instance would otherwise freeze whatever the settings said
+    # when it was built.
+    @property
+    def max_attempts(self) -> int:
+        """Wrong codes allowed before the block. OTP_MAX_ATTEMPTS shipped in
+        conf.py from day one and was read by nobody — the checks hardcoded
+        5, so a host that raised it still got 5 with no way to tell."""
+        from stapel_auth.conf import auth_settings
+
+        return int(auth_settings.OTP_MAX_ATTEMPTS)
+
+    @property
+    def block_duration(self) -> int:
+        """Seconds the block lasts. Was a literal timedelta(minutes=10)."""
+        from stapel_auth.conf import auth_settings
+
+        return int(auth_settings.OTP_BLOCK_DURATION)
+
+    @property
+    def hourly_limit(self) -> int:
+        """Sends per hour per identifier. OTP_RATE_LIMIT_PER_HOUR was the
+        sibling of OTP_MAX_ATTEMPTS: shipped, documented, and read by
+        nobody — the resend cooldown was the only send-side throttle."""
+        from stapel_auth.conf import auth_settings
+
+        return int(auth_settings.OTP_RATE_LIMIT_PER_HOUR)
+
+    def generate_code(self, force_real=False):
+        """
+        Generate an OTP_CODE_LENGTH-digit verification code.
+
+        Args:
+            force_real: If True, generate real OTP even in mock mode (for admin accounts)
+        """
+        if self.use_mock_otp and not force_real:
+            return self.mock_code
+        from stapel_auth.conf import auth_settings
+        return _generate_numeric_code(int(auth_settings.OTP_LENGTH))
+
+    def _deliver(self, identifier: str, code: str) -> bool:
+        """Queue the notification carrying *code*. Subclass hook."""
+        raise NotImplementedError
+
+    def send_verification_code(self, identifier, device_id=None, force_real_otp=False,
+                               deliver=True):
+        """Issue a code for *identifier* and (usually) send it.
+
+        *deliver* ``False`` runs the whole flow — the same rate-limit and block
+        bookkeeping, the same stored code, the same return value — but sends
+        nothing, and the stored code is always a real random one (never the
+        mock code). That is the 'silent' arm of
+        ``AUTH_REGISTRATION_CLOSED_BEHAVIOR`` (registration.py): a stranger
+        must be indistinguishable from a member on this endpoint, which they
+        would not be if the code, the cooldown or the block state were skipped
+        for them.
+
+        Returns the store's receipt on success, an error envelope when a limit
+        or a block refuses the send, and ``None`` when nothing could be sent.
+        """
+        try:
+            wait = self.store.send_wait(
+                identifier,
+                cooldown=self.resend_cooldown,
+                hourly_limit=self.hourly_limit,
+                device_id=device_id,
+            )
+            if wait:
+                logger.warning(f"Rate limit exceeded for {self.channel}")
+                return {'error': 'rate_limit', 'retry_after': wait}
+
+            blocked = self.store.blocked_for(identifier)
+            if blocked:
+                logger.warning(f"{self.channel} is blocked for {blocked}s")
+                return {'error': 'blocked', 'retry_after': blocked}
+
+            # Generate code (force real OTP for admin accounts; an
+            # undelivered code is ALWAYS real — the mock code is public)
+            code = self.generate_code(force_real=force_real_otp or not deliver)
+
+            # Issuing is what spends the cooldown and the hourly slot, so a
+            # send refused above costs the user nothing.
+            issued = self.store.issue(
+                identifier,
+                code,
+                ttl=self.otp_ttl,
+                max_attempts=self.max_attempts,
+                device_id=device_id,
+            )
+
+            if not deliver:
+                # Nothing is sent and nothing is logged about the code — the
+                # caller's answer is the ordinary success envelope.
+                return issued
+
+            if self.use_mock_otp and not force_real_otp:
+                # The code is MOCK_OTP_CODE by construction; logging it would
+                # print a credential to say something the setting already says.
+                logger.info(f"Mock OTP mode - code issued for {self.channel}")
+                return issued
+
+            if not self._deliver(identifier, code):
+                logger.error(f"Failed to queue OTP notification for {self.channel}")
+                self.store.discard(identifier)
+                return None
+
+            logger.info(f"Verification code sent to {self.channel}")
+            return issued
+        except StoreUnavailable:
+            # No store, no code. Refusing to send beats sending one that
+            # nothing can later verify.
+            logger.error(f"OTP store unavailable; no code issued for {self.channel}")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to send verification code: {e}")
+            return None
+
+    def verify_code(self, identifier, code):
+        """Check *code* for *identifier*.
+
+        A match spends the entry, so a code works exactly once. A miss bumps
+        the attempt counter that lives inside the same entry — one lifetime for
+        both, so a fresh code always arrives with a fresh budget.
+        """
+        try:
+            check = self.store.check(
+                identifier, code, block_seconds=self.block_duration
+            )
+            result = _result_for(check, block_duration=self.block_duration)
+            if check.outcome is CodeOutcome.MISMATCH:
+                logger.warning(
+                    f"Invalid code for {self.channel}, "
+                    f"{result['attempts_remaining']} attempts left"
+                )
+            elif check.outcome is CodeOutcome.BLOCKED:
+                logger.warning(f"Verification blocked for {self.channel}")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to verify code: {e}")
+            return {'error': 'server_error'}
+
+
+class PhoneVerificationService(_OtpCodeService):
     """
     Service for phone verification using Twilio
     """
+
+    store = phone_code_store
+    channel = 'phone'
 
     def __init__(self):
         from stapel_auth.conf import auth_settings
@@ -92,212 +263,38 @@ class PhoneVerificationService:
         self.otp_ttl = auth_settings.OTP_TTL
         self.resend_cooldown = auth_settings.OTP_RESEND_COOLDOWN
 
-
-
-    # Read at call time, not in __init__: this package's rule everywhere
-    # else, and the reason it matters here is mundane — a long-lived
-    # service instance would otherwise freeze whatever the settings said
-    # when it was built.
-    @property
-    def max_attempts(self) -> int:
-        """Wrong codes allowed before the block. OTP_MAX_ATTEMPTS shipped in
-        conf.py from day one and was read by nobody — the checks hardcoded
-        5, so a host that raised it still got 5 with no way to tell."""
-        from stapel_auth.conf import auth_settings
-
-        return int(auth_settings.OTP_MAX_ATTEMPTS)
-
-    @property
-    def block_duration(self) -> int:
-        """Seconds the block lasts. Was a literal timedelta(minutes=10)."""
-        from stapel_auth.conf import auth_settings
-
-        return int(auth_settings.OTP_BLOCK_DURATION)
-
-    @property
-    def hourly_limit(self) -> int:
-        """Sends per hour per identifier. OTP_RATE_LIMIT_PER_HOUR was the
-        sibling of OTP_MAX_ATTEMPTS: shipped, documented, and read by
-        nobody — the resend cooldown was the only send-side throttle."""
-        from stapel_auth.conf import auth_settings
-
-        return int(auth_settings.OTP_RATE_LIMIT_PER_HOUR)
-
-    def generate_code(self, force_real=False):
-        """
-        Generate an OTP_CODE_LENGTH-digit verification code.
-
-        Args:
-            force_real: If True, generate real OTP even in mock mode (for admin accounts)
-        """
-        if self.use_mock_otp and not force_real:
-            return self.mock_code
-        from stapel_auth.conf import auth_settings
-        return _generate_numeric_code(int(auth_settings.OTP_LENGTH))
-
+    # Thin overrides: `phone=` / `email=` are keyword arguments callers pass
+    # by name, so the parameter is part of the signature, not an internal one.
     def send_verification_code(self, phone, device_id=None, force_real_otp=False,
                                deliver=True):
-        """Send verification code to phone number.
-
-        *deliver* ``False`` runs the whole flow — the same rate-limit and
-        block bookkeeping, the same ``PhoneVerification`` row, the same
-        return value — but sends nothing, and the stored code is always a
-        real random one (never the mock code). That is the 'silent' arm of
-        ``AUTH_REGISTRATION_CLOSED_BEHAVIOR`` (registration.py): a stranger
-        must be indistinguishable from a member on this endpoint, which they
-        would not be if the record, the cooldown or the block state were
-        skipped for them.
-        """
-        try:
-            # Check for rate limiting - AUTH_OTP_RESEND_COOLDOWN window
-            cutoff_time = timezone.now() - timedelta(seconds=self.resend_cooldown)
-
-            # Check recent requests by phone
-            recent_by_phone = PhoneVerification.objects.filter(
-                phone=phone,
-                created_at__gte=cutoff_time
-            ).exists()
-
-            if recent_by_phone:
-                logger.warning(f"Rate limit exceeded for phone {phone}")
-                return {'error': 'rate_limit', 'retry_after': self.resend_cooldown}
-
-            # Check recent requests by device_id if provided
-            if device_id:
-                recent_by_device = PhoneVerification.objects.filter(
-                    device_id=device_id,
-                    created_at__gte=cutoff_time
-                ).exists()
-
-                if recent_by_device:
-                    logger.warning(f"Rate limit exceeded for device {device_id}")
-                    return {'error': 'rate_limit', 'retry_after': self.resend_cooldown}
-
-            # Hourly cap on top of the per-send cooldown (OTP_RATE_LIMIT_PER_HOUR)
-            hourly_wait = _hourly_send_budget_spent(
-                PhoneVerification, 'phone', phone, self.hourly_limit
-            )
-            if hourly_wait:
-                logger.warning(f"Hourly OTP limit reached for phone {phone}")
-                return {'error': 'rate_limit', 'retry_after': hourly_wait}
-
-            # Check if there's a blocked verification for this phone/device
-            latest_verification = PhoneVerification.objects.filter(
-                phone=phone
-            ).order_by('-created_at').first()
-
-            if latest_verification and latest_verification.is_blocked():
-                time_remaining = int((latest_verification.blocked_until - timezone.now()).total_seconds())
-                logger.warning(f"Phone {phone} is blocked until {latest_verification.blocked_until}")
-                return {'error': 'blocked', 'retry_after': max(time_remaining, 0)}
-
-            # Generate code (force real OTP for admin accounts; an
-            # undelivered code is ALWAYS real — the mock code is public)
-            code = self.generate_code(force_real=force_real_otp or not deliver)
-
-            # Create verification record
-            verification = PhoneVerification.objects.create(
-                phone=phone,
-                code=code,
-                device_id=device_id,
-                expires_at=timezone.now() + timedelta(seconds=self.otp_ttl)
-            )
-
-            if not deliver:
-                # Nothing is sent and nothing is logged about the code — the
-                # caller's answer is the ordinary success envelope.
-                return verification
-
-            # Use mock OTP in development/testing (unless forced real)
-            if self.use_mock_otp and not force_real_otp:
-                logger.info(f"Mock OTP mode - Verification code for {phone}: {code}")
-                return verification
-
-            # Send via notification service
-            from django.utils.translation import get_language
-
-            from stapel_core.notifications import request_notification
-            sent = request_notification(
-                notification_type="otp_code",
-                phone=phone,
-                variables={"code": code, "expiry_minutes": self.otp_ttl // 60},
-                source_service="auth",
-                language=get_language(),
-            )
-            if not sent:
-                logger.error(f"Failed to queue OTP notification for phone {phone}")
-                verification.delete()
-                return None
-            logger.info(f"Verification code sent to {phone}")
-
-            return verification
-        except Exception as e:
-            logger.error(f"Failed to send verification code: {e}")
-            return None
+        return super().send_verification_code(
+            phone, device_id, force_real_otp=force_real_otp, deliver=deliver
+        )
 
     def verify_code(self, phone, code):
-        """Verify the code for phone number"""
-        try:
-            # Get latest unverified verification
-            verification = PhoneVerification.objects.filter(
-                phone=phone,
-                is_verified=False
-            ).order_by('-created_at').first()
+        return super().verify_code(phone, code)
 
-            if not verification:
-                logger.warning(f"No verification found for {phone}")
-                return {'error': 'invalid_code'}
+    def _deliver(self, identifier, code) -> bool:
+        from django.utils.translation import get_language
 
-            # Check if blocked
-            if verification.is_blocked():
-                time_remaining = int((verification.blocked_until - timezone.now()).total_seconds())
-                logger.warning(f"Verification blocked for {phone}")
-                return {'error': 'blocked', 'retry_after': max(time_remaining, 0)}
+        from stapel_core.notifications import request_notification
 
-            # Check if expired (if expired and more than 5 minutes passed, generate new code)
-            if verification.is_expired():
-                # If more than 5 minutes passed, allow new request
-                if timezone.now() > verification.expires_at + timedelta(minutes=5):
-                    logger.info(f"Expired verification cleanup for {phone}, new request allowed")
-                    return {'error': 'expired_retry_allowed'}
-
-                logger.warning(f"Verification code expired for {phone}")
-                return {'error': 'expired'}
-
-            # Increment attempts before checking
-            verification.attempts += 1
-
-            # Verify code
-            if hmac.compare_digest(str(verification.code), str(code)):
-                verification.is_verified = True
-                verification.blocked_until = None  # Clear block on success
-                verification.save()
-                return {'success': True}
-
-            # Check if max attempts reached (5 attempts max)
-            if verification.attempts >= self.max_attempts:
-                # Block for 10 minutes
-                verification.blocked_until = timezone.now() + timedelta(
-                    seconds=self.block_duration
-                )
-                verification.save()
-                logger.warning(f"Too many verification attempts for {phone}, blocked for %s s" % self.block_duration)
-                return {'error': 'blocked', 'retry_after': self.block_duration}
-
-            # Save incremented attempts
-            verification.save()
-
-            logger.warning(f"Invalid code for {phone}, attempt {verification.attempts}/{self.max_attempts}")
-            return {'error': 'invalid_code', 'attempts_remaining': max(self.max_attempts - verification.attempts, 0)}
-        except Exception as e:
-            logger.error(f"Failed to verify code: {e}")
-            return {'error': 'server_error'}
+        return bool(request_notification(
+            notification_type="otp_code",
+            phone=identifier,
+            variables={"code": code, "expiry_minutes": self.otp_ttl // 60},
+            source_service="auth",
+            language=get_language(),
+        ))
 
 
-class EmailVerificationService:
+class EmailVerificationService(_OtpCodeService):
     """
     Service for email verification using OTP
     """
+
+    store = email_code_store
+    channel = 'email'
 
     def __init__(self):
         from stapel_auth.conf import auth_settings
@@ -307,207 +304,27 @@ class EmailVerificationService:
         self.otp_ttl = auth_settings.OTP_TTL
         self.resend_cooldown = auth_settings.OTP_RESEND_COOLDOWN
 
-
-
-    # Read at call time, not in __init__: this package's rule everywhere
-    # else, and the reason it matters here is mundane — a long-lived
-    # service instance would otherwise freeze whatever the settings said
-    # when it was built.
-    @property
-    def max_attempts(self) -> int:
-        """Wrong codes allowed before the block. OTP_MAX_ATTEMPTS shipped in
-        conf.py from day one and was read by nobody — the checks hardcoded
-        5, so a host that raised it still got 5 with no way to tell."""
-        from stapel_auth.conf import auth_settings
-
-        return int(auth_settings.OTP_MAX_ATTEMPTS)
-
-    @property
-    def block_duration(self) -> int:
-        """Seconds the block lasts. Was a literal timedelta(minutes=10)."""
-        from stapel_auth.conf import auth_settings
-
-        return int(auth_settings.OTP_BLOCK_DURATION)
-
-    @property
-    def hourly_limit(self) -> int:
-        """Sends per hour per identifier. OTP_RATE_LIMIT_PER_HOUR was the
-        sibling of OTP_MAX_ATTEMPTS: shipped, documented, and read by
-        nobody — the resend cooldown was the only send-side throttle."""
-        from stapel_auth.conf import auth_settings
-
-        return int(auth_settings.OTP_RATE_LIMIT_PER_HOUR)
-
-    def generate_code(self, force_real=False):
-        """
-        Generate an OTP_CODE_LENGTH-digit verification code.
-
-        Args:
-            force_real: If True, generate real OTP even in mock mode (for admin accounts)
-        """
-        if self.use_mock_otp and not force_real:
-            return self.mock_code
-        from stapel_auth.conf import auth_settings
-        return _generate_numeric_code(int(auth_settings.OTP_LENGTH))
-
     def send_verification_code(self, email, device_id=None, force_real_otp=False,
                                deliver=True):
-        """Send verification code to email address.
-
-        *deliver* ``False``: see
-        :meth:`PhoneVerificationService.send_verification_code` — the record
-        and every rate-limit side effect happen exactly as usual, only the
-        notification is not queued and the code is never the mock one.
-        """
-        try:
-            from stapel_auth.models import EmailVerification
-
-            # Check for rate limiting - AUTH_OTP_RESEND_COOLDOWN window
-            cutoff_time = timezone.now() - timedelta(seconds=self.resend_cooldown)
-
-            # Check recent requests by email
-            recent_by_email = EmailVerification.objects.filter(
-                email=email,
-                created_at__gte=cutoff_time
-            ).exists()
-
-            if recent_by_email:
-                logger.warning(f"Rate limit exceeded for email {email}")
-                return {'error': 'rate_limit', 'retry_after': self.resend_cooldown}
-
-            # Check recent requests by device_id if provided
-            if device_id:
-                recent_by_device = EmailVerification.objects.filter(
-                    device_id=device_id,
-                    created_at__gte=cutoff_time
-                ).exists()
-
-                if recent_by_device:
-                    logger.warning(f"Rate limit exceeded for device {device_id}")
-                    return {'error': 'rate_limit', 'retry_after': self.resend_cooldown}
-
-            # Hourly cap on top of the per-send cooldown (OTP_RATE_LIMIT_PER_HOUR)
-            hourly_wait = _hourly_send_budget_spent(
-                EmailVerification, 'email', email, self.hourly_limit
-            )
-            if hourly_wait:
-                logger.warning(f"Hourly OTP limit reached for email {email}")
-                return {'error': 'rate_limit', 'retry_after': hourly_wait}
-
-            # Check if there's a blocked verification for this email/device
-            latest_verification = EmailVerification.objects.filter(
-                email=email
-            ).order_by('-created_at').first()
-
-            if latest_verification and latest_verification.is_blocked():
-                time_remaining = int((latest_verification.blocked_until - timezone.now()).total_seconds())
-                logger.warning(f"Email {email} is blocked until {latest_verification.blocked_until}")
-                return {'error': 'blocked', 'retry_after': max(time_remaining, 0)}
-
-            # Generate code (force real OTP for admin accounts; an
-            # undelivered code is ALWAYS real — the mock code is public)
-            code = self.generate_code(force_real=force_real_otp or not deliver)
-
-            # Create verification record
-            verification = EmailVerification.objects.create(
-                email=email,
-                code=code,
-                device_id=device_id,
-                expires_at=timezone.now() + timedelta(seconds=self.otp_ttl)
-            )
-
-            if not deliver:
-                # Nothing is sent and nothing is logged about the code — the
-                # caller's answer is the ordinary success envelope.
-                return verification
-
-            # Use mock OTP in development/testing (unless forced real)
-            if self.use_mock_otp and not force_real_otp:
-                logger.info(f"Mock OTP mode - Verification code for {email}: {code}")
-                return verification
-
-            # Send via notification service
-            from django.utils.translation import get_language
-
-            from stapel_core.notifications import request_notification
-            sent = request_notification(
-                notification_type="otp_code",
-                email=email,
-                variables={"code": code, "expiry_minutes": self.otp_ttl // 60},
-                source_service="auth",
-                language=get_language(),
-            )
-            if not sent:
-                logger.error(f"Failed to queue OTP notification for email {email}")
-                verification.delete()
-                return None
-
-            logger.info(f"Verification code sent to {email}")
-
-            return verification
-        except Exception as e:
-            logger.error(f"Failed to send verification code: {e}")
-            return None
+        return super().send_verification_code(
+            email, device_id, force_real_otp=force_real_otp, deliver=deliver
+        )
 
     def verify_code(self, email, code):
-        """Verify the code for email address"""
-        try:
-            from stapel_auth.models import EmailVerification
+        return super().verify_code(email, code)
 
-            # Get latest unverified verification
-            verification = EmailVerification.objects.filter(
-                email=email,
-                is_verified=False
-            ).order_by('-created_at').first()
+    def _deliver(self, identifier, code) -> bool:
+        from django.utils.translation import get_language
 
-            if not verification:
-                logger.warning(f"No verification found for {email}")
-                return {'error': 'invalid_code'}
+        from stapel_core.notifications import request_notification
 
-            # Check if blocked
-            if verification.is_blocked():
-                time_remaining = int((verification.blocked_until - timezone.now()).total_seconds())
-                logger.warning(f"Verification blocked for {email}")
-                return {'error': 'blocked', 'retry_after': max(time_remaining, 0)}
-
-            # Check if expired (if expired and more than 5 minutes passed, generate new code)
-            if verification.is_expired():
-                # If more than 5 minutes passed, allow new request
-                if timezone.now() > verification.expires_at + timedelta(minutes=5):
-                    logger.info(f"Expired verification cleanup for {email}, new request allowed")
-                    return {'error': 'expired_retry_allowed'}
-
-                logger.warning(f"Verification code expired for {email}")
-                return {'error': 'expired'}
-
-            # Increment attempts before checking
-            verification.attempts += 1
-
-            # Verify code
-            if hmac.compare_digest(str(verification.code), str(code)):
-                verification.is_verified = True
-                verification.blocked_until = None  # Clear block on success
-                verification.save()
-                return {'success': True}
-
-            # Check if max attempts reached (7 attempts max for email)
-            if verification.attempts >= 7:
-                # Block for 10 minutes
-                verification.blocked_until = timezone.now() + timedelta(
-                    seconds=self.block_duration
-                )
-                verification.save()
-                logger.warning(f"Too many verification attempts for {email}, blocked for %s s" % self.block_duration)
-                return {'error': 'blocked', 'retry_after': self.block_duration}
-
-            # Save incremented attempts
-            verification.save()
-
-            logger.warning(f"Invalid code for {email}, attempt {verification.attempts}/7")
-            return {'error': 'invalid_code', 'attempts_remaining': 7 - verification.attempts}
-        except Exception as e:
-            logger.error(f"Failed to verify code: {e}")
-            return {'error': 'server_error'}
+        return bool(request_notification(
+            notification_type="otp_code",
+            email=identifier,
+            variables={"code": code, "expiry_minutes": self.otp_ttl // 60},
+            source_service="auth",
+            language=get_language(),
+        ))
 
 
 class AuthenticatorChangeService:

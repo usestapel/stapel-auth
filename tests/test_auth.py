@@ -19,8 +19,6 @@ from rest_framework.test import APIClient, APIRequestFactory, APITestCase
 from stapel_auth.models import (
     AuthenticatorChangeRequest,
     AuthenticatorChangeStatus,
-    EmailVerification,
-    PhoneVerification,
 )
 from stapel_auth.oauth_providers import OAuthUserData
 from stapel_auth.sessions.services import TokenService
@@ -795,12 +793,13 @@ class PhoneVerificationServiceTests(TestCase):
         self.assertEqual(len(code), int(auth_settings.OTP_LENGTH))
         self.assertTrue(code.isdigit())
 
-    def test_send_verification_code_creates_record(self):
-        """send_verification_code should create PhoneVerification record"""
+    def test_send_verification_code_stores_a_code(self):
+        """send_verification_code returns a receipt and leaves a live entry"""
         result = self.service.send_verification_code("+15551234567")
         self.assertIsNotNone(result)
-        self.assertEqual(result.phone, "+15551234567")
-        self.assertEqual(result.code, "1234")
+        self.assertEqual(result.purpose, "otp_phone")
+        self.assertEqual(self.service.verify_code("+15551234567", "1234"),
+                         {"success": True})
 
     def test_send_verification_code_rate_limit(self):
         """Should return rate_limit error if called too quickly"""
@@ -823,9 +822,9 @@ class PhoneVerificationServiceTests(TestCase):
         self.assertEqual(result.get("error"), "invalid_code")
 
     def test_verify_code_no_verification(self):
-        """verify_code should return error if no verification exists"""
+        """Nothing waiting is an expired wait, never a wrong code"""
         result = self.service.verify_code("+15559999999", "1234")
-        self.assertEqual(result.get("error"), "invalid_code")
+        self.assertEqual(result.get("error"), "expired")
 
     def test_verify_code_max_attempts_blocks(self):
         """After 5 failed attempts, should block verification"""
@@ -854,14 +853,13 @@ class PhoneVerificationServiceTests(TestCase):
     @override_settings(STAPEL_AUTH={"OTP_TTL": 120})
     def test_otp_ttl_setting_drives_actual_expiry(self):
         """AUTH_OTP_TTL isn't just contract metadata — it is the exact
-        lifetime the created PhoneVerification record gets (single source)."""
+        lifetime the stored entry gets (single source)."""
         from stapel_auth.conf import auth_settings
         from stapel_auth.otp.services import PhoneVerificationService
         auth_settings.reload()
         service = PhoneVerificationService()
-        verification = service.send_verification_code("+15559998888")
-        delta = verification.expires_at - verification.created_at
-        self.assertAlmostEqual(delta.total_seconds(), 120, delta=5)
+        issued = service.send_verification_code("+15559998888")
+        self.assertEqual(issued.ttl, 120)
 
 
 @override_settings(USE_MOCK_EMAIL_OTP=True, MOCK_OTP_CODE="5678")
@@ -886,11 +884,11 @@ class EmailVerificationServiceTests(TestCase):
         self.assertNotEqual(code, "5678")
         self.assertEqual(len(code), int(auth_settings.OTP_LENGTH))
 
-    def test_send_verification_code_creates_record(self):
-        """send_verification_code should create EmailVerification record"""
+    def test_send_verification_code_stores_a_code(self):
+        """send_verification_code returns a receipt and leaves a live entry"""
         result = self.service.send_verification_code("test@example.com")
         self.assertIsNotNone(result)
-        self.assertEqual(result.email, "test@example.com")
+        self.assertEqual(result.purpose, "otp_email")
 
     def test_send_verification_code_rate_limit(self):
         """Should return rate_limit error if called too quickly"""
@@ -1226,19 +1224,11 @@ class EmailVerificationEdgeCaseTests(APITestCase):
 
     def test_email_verify_blocked_returns_422(self):
         """Email verify when blocked should return 422"""
-        from datetime import timedelta
-
-        from stapel_auth.models import EmailVerification
-        from stapel_auth.otp.services import EmailVerificationService
+        from stapel_auth.otp.services import EmailVerificationService, email_code_store
 
         service = EmailVerificationService()
         service.send_verification_code("blocked@example.com")
-
-        # Simulate blocked state directly (max_attempts varies by config)
-        verification = EmailVerification.objects.get(email="blocked@example.com")
-        verification.attempts = 10
-        verification.blocked_until = timezone.now() + timedelta(minutes=5)
-        verification.save()
+        email_code_store.block("blocked@example.com", 300)
 
         # Now try to verify via API
         response = self.client.post(
@@ -1249,20 +1239,7 @@ class EmailVerificationEdgeCaseTests(APITestCase):
         self.assertIn("localizable_error", response.data)
 
     def test_email_verify_expired_returns_400(self):
-        """Email verify with expired code should return 400"""
-        from datetime import timedelta
-
-        from django.utils import timezone
-
-        from stapel_auth.models import EmailVerification
-
-        # Create expired verification
-        EmailVerification.objects.create(
-            email="expired@example.com",
-            code="1234",
-            expires_at=timezone.now() - timedelta(minutes=1),
-        )
-
+        """An entry that aged out reads as an expired wait, not a wrong code"""
         response = self.client.post(
             reverse("email_verify"), {"email": "expired@example.com", "code": "1234"}
         )
@@ -1607,18 +1584,12 @@ class PhoneVerificationEdgeCaseTests(APITestCase):
     def setUp(self):
         self.client = APIClient()
 
-    @patch.object(PhoneVerification, "is_blocked", return_value=True)
-    def test_phone_verify_blocked_returns_422(self, mock_blocked):
+    def test_phone_verify_blocked_returns_422(self):
         """Blocked phone should return 422 with retry_after"""
-        from datetime import timedelta
+        from stapel_auth.otp.services import PhoneVerificationService, phone_code_store
 
-        # Create verification with blocked state
-        PhoneVerification.objects.create(
-            phone="+12345678901",
-            code="1234",
-            expires_at=timezone.now() + timedelta(minutes=10),
-            blocked_until=timezone.now() + timedelta(minutes=5),
-        )
+        PhoneVerificationService().send_verification_code("+12345678901")
+        phone_code_store.block("+12345678901", 300)
 
         response = self.client.post(
             reverse("phone_verify"), {"phone": "+12345678901", "code": "0000"}
@@ -1628,16 +1599,7 @@ class PhoneVerificationEdgeCaseTests(APITestCase):
         self.assertIn("localizable_error", response.data)
 
     def test_phone_verify_expired_returns_400(self):
-        """Expired phone verification should return 400"""
-        from datetime import timedelta
-
-        # Create expired verification
-        PhoneVerification.objects.create(
-            phone="+12345678902",
-            code="1234",
-            expires_at=timezone.now() - timedelta(minutes=1),
-        )
-
+        """An entry that aged out reads as an expired wait"""
         response = self.client.post(
             reverse("phone_verify"), {"phone": "+12345678902", "code": "0000"}
         )
@@ -2147,92 +2109,6 @@ class AdminOTPSecurityTests(APITestCase):
         mock_generate.assert_called_with(force_real=True)
 
 
-class VerificationModelTests(TestCase):
-    """Tests for verification model behavior"""
-
-    def test_phone_verification_is_expired(self):
-        """Phone verification should correctly report expiry"""
-        from datetime import timedelta
-
-        from django.utils import timezone
-
-        expired = PhoneVerification.objects.create(
-            phone="+12345678960",
-            code="1234",
-            expires_at=timezone.now() - timedelta(minutes=1),
-        )
-        valid = PhoneVerification.objects.create(
-            phone="+12345678961",
-            code="1234",
-            expires_at=timezone.now() + timedelta(minutes=10),
-        )
-
-        self.assertTrue(expired.is_expired())
-        self.assertFalse(valid.is_expired())
-
-    def test_phone_verification_is_blocked(self):
-        """Phone verification should correctly report blocked state"""
-        from datetime import timedelta
-
-        from django.utils import timezone
-
-        blocked = PhoneVerification.objects.create(
-            phone="+12345678962",
-            code="1234",
-            expires_at=timezone.now() + timedelta(minutes=10),
-            blocked_until=timezone.now() + timedelta(minutes=5),
-        )
-        not_blocked = PhoneVerification.objects.create(
-            phone="+12345678963",
-            code="1234",
-            expires_at=timezone.now() + timedelta(minutes=10),
-        )
-
-        self.assertTrue(blocked.is_blocked())
-        self.assertFalse(not_blocked.is_blocked())
-
-    def test_email_verification_is_expired(self):
-        """Email verification should correctly report expiry"""
-        from datetime import timedelta
-
-        from django.utils import timezone
-
-        expired = EmailVerification.objects.create(
-            email="expired@example.com",
-            code="1234",
-            expires_at=timezone.now() - timedelta(minutes=1),
-        )
-        valid = EmailVerification.objects.create(
-            email="valid@example.com",
-            code="1234",
-            expires_at=timezone.now() + timedelta(minutes=10),
-        )
-
-        self.assertTrue(expired.is_expired())
-        self.assertFalse(valid.is_expired())
-
-    def test_email_verification_is_blocked(self):
-        """Email verification should correctly report blocked state"""
-        from datetime import timedelta
-
-        from django.utils import timezone
-
-        blocked = EmailVerification.objects.create(
-            email="blocked@example.com",
-            code="1234",
-            expires_at=timezone.now() + timedelta(minutes=10),
-            blocked_until=timezone.now() + timedelta(minutes=5),
-        )
-        not_blocked = EmailVerification.objects.create(
-            email="notblocked@example.com",
-            code="1234",
-            expires_at=timezone.now() + timedelta(minutes=10),
-        )
-
-        self.assertTrue(blocked.is_blocked())
-        self.assertFalse(not_blocked.is_blocked())
-
-
 @override_settings(USE_MOCK_EMAIL_OTP=True, USE_MOCK_SMS_OTP=True)
 class LoginAttemptTests(TestCase):
     """Tests for login attempt logging"""
@@ -2541,19 +2417,12 @@ class EmailVerifyMaxAttemptsTests(APITestCase):
 
     def test_email_verify_max_attempts_blocks(self):
         """Max failed attempts should block verification"""
-        from datetime import timedelta
-
-        from stapel_auth.models import EmailVerification
         from stapel_auth.otp.services import EmailVerificationService
 
         service = EmailVerificationService()
         service.send_verification_code("maxattempts@example.com")
-
-        # Simulate max attempts with blocked state
-        verification = EmailVerification.objects.get(email="maxattempts@example.com")
-        verification.attempts = 10
-        verification.blocked_until = timezone.now() + timedelta(minutes=5)
-        verification.save()
+        for _ in range(service.max_attempts):
+            service.verify_code("maxattempts@example.com", "9999")
 
         response = self.client.post(
             reverse("email_verify"),
@@ -2572,18 +2441,12 @@ class PhoneVerifyMaxAttemptsTests(APITestCase):
 
     def test_phone_verify_max_attempts_blocks(self):
         """Max failed attempts should block verification"""
-        from datetime import timedelta
-
         from stapel_auth.otp.services import PhoneVerificationService
 
         service = PhoneVerificationService()
         service.send_verification_code("+12025559999")
-
-        # Simulate max attempts with blocked state
-        verification = PhoneVerification.objects.get(phone="+12025559999")
-        verification.attempts = 10
-        verification.blocked_until = timezone.now() + timedelta(minutes=5)
-        verification.save()
+        for _ in range(service.max_attempts):
+            service.verify_code("+12025559999", "9999")
 
         response = self.client.post(
             reverse("phone_verify"), {"phone": "+12025559999", "code": "0000"}
@@ -2595,38 +2458,6 @@ class PhoneVerifyMaxAttemptsTests(APITestCase):
 
 class ModelStringRepresentationTests(TestCase):
     """Tests for model __str__ methods"""
-
-    def test_email_verification_str(self):
-        """EmailVerification __str__ should return email"""
-        from datetime import timedelta
-
-        from django.utils import timezone
-
-        from stapel_auth.models import EmailVerification
-
-        verification = EmailVerification.objects.create(
-            email="str@example.com",
-            code="1234",
-            expires_at=timezone.now() + timedelta(minutes=10),
-        )
-
-        self.assertIn("str@example.com", str(verification))
-
-    def test_phone_verification_str(self):
-        """PhoneVerification __str__ should return phone"""
-        from datetime import timedelta
-
-        from django.utils import timezone
-
-        from stapel_auth.models import PhoneVerification
-
-        verification = PhoneVerification.objects.create(
-            phone="+12025558888",
-            code="1234",
-            expires_at=timezone.now() + timedelta(minutes=10),
-        )
-
-        self.assertIn("+12025558888", str(verification))
 
     def test_login_attempt_str(self):
         """LoginAttempt __str__ should return identifier"""
@@ -2658,8 +2489,8 @@ class DeviceIdTrackingTests(APITestCase):
         self.client = APIClient()
 
     def test_email_request_stores_device_id(self):
-        """Email request should store device_id"""
-        from stapel_auth.models import EmailVerification
+        """Email request should bind the code to the device"""
+        from stapel_auth.otp.services import email_code_store
 
         response = self.client.post(
             reverse("email_request"),
@@ -2667,12 +2498,12 @@ class DeviceIdTrackingTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        verification = EmailVerification.objects.get(email="device@example.com")
-        self.assertEqual(verification.device_id, "test-device-001")
+        check = email_code_store.check("device@example.com", "1234")
+        self.assertEqual(check.device_id, "test-device-001")
 
     def test_phone_request_stores_device_id(self):
-        """Phone request should store device_id"""
-        from stapel_auth.models import PhoneVerification
+        """Phone request should bind the code to the device"""
+        from stapel_auth.otp.services import phone_code_store
 
         response = self.client.post(
             reverse("phone_request"),
@@ -2680,8 +2511,8 @@ class DeviceIdTrackingTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        verification = PhoneVerification.objects.get(phone="+12025557777")
-        self.assertEqual(verification.device_id, "test-device-002")
+        check = phone_code_store.check("+12025557777", "1234")
+        self.assertEqual(check.device_id, "test-device-002")
 
 
 # =============================================================================

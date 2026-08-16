@@ -571,7 +571,11 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                         ERR_422_BLOCKED,
                         params=retry_params(result.get("retry_after")),
                     )
-                elif result.get("error") in ("expired", "expired_retry_allowed"):
+                elif result.get("error") == "unavailable":
+                    # Fail closed and say why. Rendering an outage as a wrong
+                    # code tells the user they made a mistake we never checked.
+                    return StapelErrorResponse(503, ERR_503_VERIFICATION_UNAVAILABLE)
+                elif result.get("error") == "expired":
                     return StapelErrorResponse(400, ERR_400_CODE_EXPIRED)
                 elif result.get("error") == "invalid_code":
                     attempts_remaining = result.get("attempts_remaining")
@@ -875,7 +879,11 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                         ERR_422_BLOCKED,
                         params=retry_params(result.get("retry_after")),
                     )
-                elif result.get("error") in ("expired", "expired_retry_allowed"):
+                elif result.get("error") == "unavailable":
+                    # Fail closed and say why. Rendering an outage as a wrong
+                    # code tells the user they made a mistake we never checked.
+                    return StapelErrorResponse(503, ERR_503_VERIFICATION_UNAVAILABLE)
+                elif result.get("error") == "expired":
                     return StapelErrorResponse(400, ERR_400_CODE_EXPIRED)
                 elif result.get("error") == "invalid_code":
                     attempts_remaining = result.get("attempts_remaining")
@@ -1712,7 +1720,9 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 ERR_400_INVALID_CODE,
                 params={"attempts_remaining": result.get("attempts_remaining")},
             )
-        if error in ("expired", "expired_retry_allowed"):
+        if error == "unavailable":
+            return StapelErrorResponse(503, ERR_503_VERIFICATION_UNAVAILABLE)
+        if error == "expired":
             return StapelErrorResponse(400, ERR_400_CODE_EXPIRED)
         if error == "send_failed":
             return StapelErrorResponse(500, ERR_500_SEND_FAILED)

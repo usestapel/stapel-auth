@@ -3,8 +3,6 @@ from django.utils import timezone
 from datetime import timedelta
 import logging
 
-from stapel_auth.models import PhoneVerification
-
 logger = logging.getLogger(__name__)
 
 
@@ -46,20 +44,6 @@ class SecurityService:
         expired_users.delete()
 
         logger.info(f"Cleaned up {count} expired anonymous users")
-        return count
-
-    @staticmethod
-    def cleanup_expired_verifications():
-        """Clean up expired phone verifications"""
-        expired_verifications = PhoneVerification.objects.filter(
-            expires_at__lt=timezone.now(),
-            is_verified=False
-        )
-
-        count = expired_verifications.count()
-        expired_verifications.delete()
-
-        logger.info(f"Cleaned up {count} expired verifications")
         return count
 
 
@@ -104,13 +88,30 @@ class LockoutService:
 
     @classmethod
     def check(cls, identifier: str):
-        """Returns (is_locked, retry_after_seconds)."""
+        """Returns (is_locked, retry_after_seconds).
+
+        Raises 503 when the store cannot answer. This gate stands in front of
+        every credential check on the login path, and an unanswerable gate has
+        no verdict to give: admitting would hand an attacker an unlimited
+        guessing budget by taking the cache down, and answering "locked" would
+        accuse a user of something nothing checked. Both are lies; the honest
+        answer is that we could not ask.
+        """
         from django.core.cache import cache
+
+        from stapel_core.django.api.errors import StapelServiceError
+
+        from stapel_auth.errors import ERR_503_VERIFICATION_UNAVAILABLE
+
         _, lock_key = cls._keys(identifier)
-        val = cache.get(lock_key)
-        if val is None:
-            return False, 0
-        ttl = cache.ttl(lock_key) if hasattr(cache, 'ttl') else 0
+        try:
+            val = cache.get(lock_key)
+            if val is None:
+                return False, 0
+            ttl = cache.ttl(lock_key) if hasattr(cache, 'ttl') else 0
+        except Exception as exc:  # noqa: BLE001 — any backend error is an outage
+            logger.error(f"Lockout store unavailable: {exc}")
+            raise StapelServiceError(503, ERR_503_VERIFICATION_UNAVAILABLE) from exc
         return True, max(ttl, 1)
 
     @classmethod

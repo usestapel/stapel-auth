@@ -244,6 +244,7 @@ class PasswordService:
             ERR_400_NO_VERIFIED_CONTACT,
             ERR_404_USER_FOR_RESET,
             ERR_422_BLOCKED,
+            ERR_503_VERIFICATION_UNAVAILABLE,
             retry_params,
         )
 
@@ -262,7 +263,9 @@ class PasswordService:
             raise StapelServiceError(
                 422, ERR_422_BLOCKED, params=retry_params(result.get("retry_after"))
             )
-        if err in ("expired", "expired_retry_allowed"):
+        if err == "unavailable":
+            raise StapelServiceError(503, ERR_503_VERIFICATION_UNAVAILABLE)
+        if err == "expired":
             raise StapelServiceError(400, ERR_400_CODE_EXPIRED)
         if err == "invalid_code":
             rem = result.get("attempts_remaining")

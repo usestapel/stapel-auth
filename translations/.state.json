@@ -1,7 +1,7 @@
 {
   "errors.es": {
     "error.400.code_expired": {
-      "hash": "c15696e012650622",
+      "hash": "e97cbbbc4a81551f",
       "origin": "seed:stapel-builtin"
     },
     "error.400.code_required": {
@@ -315,11 +315,15 @@
     "error.500.send_failed": {
       "hash": "6401f8f4d83cb35c",
       "origin": "seed:stapel-builtin"
+    },
+    "error.503.verification_unavailable": {
+      "hash": "d85679ea648d2ae1",
+      "origin": "imported"
     }
   },
   "errors.ru": {
     "error.400.code_expired": {
-      "hash": "c15696e012650622",
+      "hash": "e97cbbbc4a81551f",
       "origin": "seed:stapel-builtin"
     },
     "error.400.code_required": {
@@ -637,6 +641,10 @@
     "error.500.send_failed": {
       "hash": "6401f8f4d83cb35c",
       "origin": "seed:stapel-builtin"
+    },
+    "error.503.verification_unavailable": {
+      "hash": "d85679ea648d2ae1",
+      "origin": "imported"
     }
   }
 }

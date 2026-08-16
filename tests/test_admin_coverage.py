@@ -22,9 +22,7 @@ from stapel_core.django.jwt.provider import jwt_provider
 
 from stapel_auth.models import (
     AuthenticatorChangeRequest,
-    EmailVerification,
     LoginAttempt,
-    PhoneVerification,
     RefreshTokenTracker,
     ServiceAPIKey,
 )
@@ -32,8 +30,6 @@ from stapel_auth.models import (
 User = get_user_model()
 
 _ADMIN_MODELS = (
-    PhoneVerification,
-    EmailVerification,
     ServiceAPIKey,
     RefreshTokenTracker,
     AuthenticatorChangeRequest,

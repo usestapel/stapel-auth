@@ -413,13 +413,18 @@ class SilentBehaviorLeaksNothingTests(APITestCase):
         Mock OTP is on in the test settings, so the *stored* code must also
         stop being the public mock value — otherwise 'undeliverable' would be
         a code everybody knows."""
-        from stapel_auth.models import EmailVerification
+        from stapel_core.verification.codes import CodeOutcome
+
+        from stapel_auth.otp.services import email_code_store
 
         with patch("stapel_core.notifications.request_notification") as notify:
             self.client.post(reverse("email_request"), {"email": "nobody@example.com"})
         notify.assert_not_called()
-        record = EmailVerification.objects.get(email="nobody@example.com")
-        self.assertNotEqual(record.code, MOCK_CODE)
+        # A code was stored, and it is not the one everybody knows.
+        self.assertIs(
+            email_code_store.check("nobody@example.com", MOCK_CODE).outcome,
+            CodeOutcome.MISMATCH,
+        )
 
     def test_the_mock_code_does_not_open_an_account_for_a_stranger(self):
         self.client.post(reverse("email_request"), {"email": "nobody@example.com"})
@@ -471,12 +476,17 @@ class RequestBehaviorRefusesEarlyTests(APITestCase):
         )
 
     def test_stranger_is_refused_at_request(self):
-        from stapel_auth.models import EmailVerification
+        from stapel_core.verification.codes import CodeOutcome
+
+        from stapel_auth.otp.services import email_code_store
 
         resp = self.client.post(reverse("email_request"), {"email": "nobody@example.com"})
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(resp.data["localizable_error"], ERR_403_REGISTRATION_CLOSED)
-        self.assertFalse(EmailVerification.objects.filter(email="nobody@example.com").exists())
+        self.assertIs(
+            email_code_store.check("nobody@example.com", MOCK_CODE).outcome,
+            CodeOutcome.NOT_FOUND,
+        )
 
     def test_member_is_untouched(self):
         resp = self.client.post(reverse("email_request"), {"email": "member@example.com"})
@@ -491,13 +501,10 @@ class VerifyBehaviorRefusesLateTests(APITestCase):
     the refusal lands at the last step."""
 
     def test_code_is_sent_and_refusal_comes_at_verify(self):
-        from stapel_auth.models import EmailVerification
-
         req = self.client.post(reverse("email_request"), {"email": "nobody@example.com"})
         self.assertEqual(req.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            EmailVerification.objects.get(email="nobody@example.com").code, MOCK_CODE
-        )
+        # The 403 below is itself the proof the stored code was the mock one:
+        # the refusal is reached only after the code matched.
         resp = self.client.post(
             reverse("email_verify"), {"email": "nobody@example.com", "code": MOCK_CODE}
         )

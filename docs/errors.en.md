@@ -1,13 +1,13 @@
 # Errors — English
 
-`130` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
+`132` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
 
 | Code | Status | Params | Remediation | Text |
 |---|---|---|---|---|
 | `error.400.bad_request` | 400 | — | `fix_input` | Bad request |
 | `error.400.captcha_invalid` | 400 | — | `retry` | Captcha verification failed. Please try again. |
 | `error.400.captcha_required` | 400 | — | `retry` | Captcha token is required. |
-| `error.400.code_expired` | 400 | — | `retry` | Verification code has expired. Please request a new one. |
+| `error.400.code_expired` | 400 | — | `retry` | The wait for your code expired. Please sign in again. |
 | `error.400.code_required` | 400 | — | `fix_input` | A verification code is required. |
 | `error.400.credentials_required` | 400 | — | `fix_input` | Username/email and password are required |
 | `error.400.email_or_phone_not_both` | 400 | — | `fix_input` | Provide either email or phone, not both |
@@ -134,3 +134,5 @@
 | `error.500.internal` | 500 | — | `contact_support` | Something went wrong |
 | `error.500.send_failed` | 500 | — | `retry` | Failed to send verification code |
 | `error.503.gdpr.closure_unavailable` | 503 | — | `retry` | Account closure is temporarily unavailable. Please retry later. |
+| `error.503.mandate_unavailable` | 503 | — | `retry` | Cannot verify workspace mandate right now |
+| `error.503.verification_unavailable` | 503 | — | `wait_and_retry` | We could not check your sign-in right now. Please try again in a moment. |

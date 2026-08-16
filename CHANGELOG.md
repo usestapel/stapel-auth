@@ -2,6 +2,53 @@
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-08-16
+
+### Removed — the OTP tables; codes live in a TTL store
+
+`PhoneVerification` and `EmailVerification` are gone, along with their tables,
+their admin pages and `SecurityService.cleanup_expired_verifications`. One-time
+codes now live in `stapel_core.verification.codes.OneTimeCodeStore` (core
+0.28.0, the new floor): hashed, TTL-scoped, and swept by nothing because
+nothing accumulates.
+
+The tables were wrong in two ways. They held the code **verbatim**, so one read
+of that table — a dump, a backup, a support query, an injection elsewhere —
+authenticated as any account with a pending code. And they held it **after it
+stopped meaning anything**, which is why they needed a sweeper: a job a host
+merges into its own beat schedule, or forgets to. Migration `0019` drops both.
+No data migration is owed and none is offered: every row is a one-time code
+with a ten-minute life, so the set worth carrying is empty before any deploy
+finishes.
+
+### Changed — absence and wrongness are different facts
+
+Presenting a code with nothing waiting for it used to answer `invalid_code`.
+It now answers `error.400.code_expired`, reworded to say what actually
+happened: **"The wait for your code expired. Please sign in again."** An
+expired wait is not a refusal, it is an invitation to start over, and
+rendering it as "invalid code" tells a user they made a mistake when the
+system merely stopped waiting. This also covers the case a cache restart
+produces — Redis is not durable, every pending code dies with it, and the
+message is already true for that too.
+
+The email path spent a hardcoded **7** guesses while `OTP_MAX_ATTEMPTS` said
+5; both paths now read the setting. The resend cooldown and
+`OTP_RATE_LIMIT_PER_HOUR` moved to the store with their semantics intact (the
+hourly window still rolls; it is not a bucket that resets on the hour), and
+the attempt budget now lives *inside* the code's own entry, so a fresh code
+always arrives with a fresh budget and a spent budget cannot outlive the code
+it killed.
+
+### Added — `error.503.verification_unavailable`
+
+The login path fails **closed** when the store cannot answer, and says so:
+*"We could not check your sign-in right now. Please try again in a moment."*
+It is returned by the OTP verify endpoints and by `LockoutService.check`,
+which previously let a cache outage escape as an unhandled 500. Neither may
+render as a wrong code or a lockout: an unanswerable question has no verdict
+in it, and "we could not ask" is not "you may not".
+
 ## [0.21.1] — 2026-08-15
 
 ### Changed — `stapel-core` floor raised to 0.26.0

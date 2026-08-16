@@ -1,8 +1,8 @@
-# stapel-auth 0.21.1
+# stapel-auth 0.22.0
 
 User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.
 
-Contract: axes 29 · surface 18 · extension points 6 · operations 111 · error codes 130 · flows 4.
+Contract: axes 29 · surface 18 · extension points 6 · operations 111 · error codes 132 · flows 4.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -297,7 +297,7 @@ Paths are relative to `/auth/api/v1/`.
 - PUT /verification/preferences/ — auth_api_v1_verification_preferences_update
 - GET /verification/{challenge_id}/ — auth_api_v1_verification_retrieve
 
-## Error codes (130) — the StapelError envelope
+## Error codes (132) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
@@ -429,6 +429,8 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.500.internal [500] contact_support
 - error.500.send_failed [500] retry
 - error.503.gdpr.closure_unavailable [503] retry
+- error.503.mandate_unavailable [503] retry
+- error.503.verification_unavailable [503] wait_and_retry
 
 ## Documented flows (4) — full steps in docs/flows.json
 - auth.first_login — First login of an org-provisioned account

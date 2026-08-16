@@ -253,47 +253,6 @@ class SecurityServiceCheckLoginAttemptsTests(TestCase):
 
 
 class SecurityServiceCleanupTests(TestCase):
-    def test_cleanup_expired_verifications_deletes_expired(self):
-        from stapel_auth.models import PhoneVerification
-        from stapel_auth.security.services import SecurityService
-
-        past = timezone.now() - timedelta(hours=1)
-        v = PhoneVerification.objects.create(
-            phone="+10000000001",
-            code="1234",
-            expires_at=past,
-        )
-        count = SecurityService.cleanup_expired_verifications()
-        self.assertGreaterEqual(count, 1)
-        self.assertFalse(PhoneVerification.objects.filter(pk=v.pk).exists())
-
-    def test_cleanup_expired_verifications_keeps_active(self):
-        from stapel_auth.models import PhoneVerification
-        from stapel_auth.security.services import SecurityService
-
-        future = timezone.now() + timedelta(hours=1)
-        v = PhoneVerification.objects.create(
-            phone="+10000000002",
-            code="5678",
-            expires_at=future,
-        )
-        SecurityService.cleanup_expired_verifications()
-        self.assertTrue(PhoneVerification.objects.filter(pk=v.pk).exists())
-
-    def test_cleanup_expired_verifications_keeps_verified(self):
-        from stapel_auth.models import PhoneVerification
-        from stapel_auth.security.services import SecurityService
-
-        past = timezone.now() - timedelta(hours=1)
-        v = PhoneVerification.objects.create(
-            phone="+10000000003",
-            code="0000",
-            expires_at=past,
-            is_verified=True,
-        )
-        SecurityService.cleanup_expired_verifications()
-        self.assertTrue(PhoneVerification.objects.filter(pk=v.pk).exists())
-
     def _make_anon(self, username, created_at):
         from django.contrib.auth import get_user_model
 
@@ -364,32 +323,16 @@ class PhoneVerificationSendErrorTests(TestCase):
         self.svc = PhoneVerificationService()
 
     def test_device_rate_limit_returns_error(self):
-        from stapel_auth.models import PhoneVerification
-
         device = uuid.uuid4().hex
-        PhoneVerification.objects.create(
-            phone="+19990000001",
-            code="0000",
-            device_id=device,
-            expires_at=timezone.now() + timedelta(minutes=10),
-        )
+        self.svc.send_verification_code("+19990000001", device_id=device)
         result = self.svc.send_verification_code("+19990000099", device_id=device)
         self.assertEqual(result.get("error"), "rate_limit")
 
     def test_blocked_phone_returns_blocked(self):
-        from stapel_auth.models import PhoneVerification
+        from stapel_auth.otp.services import phone_code_store
 
         phone = "+19990000002"
-        v = PhoneVerification.objects.create(
-            phone=phone,
-            code="0000",
-            expires_at=timezone.now() + timedelta(minutes=10),
-            blocked_until=timezone.now() + timedelta(minutes=10),
-        )
-        # Push created_at outside the 30s rate-limit window so blocked check is reached
-        PhoneVerification.objects.filter(pk=v.pk).update(
-            created_at=timezone.now() - timedelta(minutes=2)
-        )
+        phone_code_store.block(phone, 600)
         result = self.svc.send_verification_code(phone)
         self.assertEqual(result.get("error"), "blocked")
 
@@ -403,8 +346,7 @@ class PhoneVerificationSendErrorTests(TestCase):
 
     def test_exception_returns_none(self):
         with patch(
-            "stapel_auth.models.PhoneVerification.objects.filter",
-            side_effect=Exception("db error"),
+            "django.core.cache.cache.set", side_effect=Exception("store error")
         ):
             result = self.svc.send_verification_code("+19990000004")
         self.assertIsNone(result)
@@ -416,26 +358,15 @@ class PhoneVerificationVerifyErrorTests(TestCase):
 
         self.svc = PhoneVerificationService()
 
-    def test_expired_retry_allowed(self):
-        from stapel_auth.models import PhoneVerification
+    def test_an_aged_out_code_is_an_expired_wait(self):
+        result = self.svc.verify_code("+19990000010", "1234")
+        self.assertEqual(result.get("error"), "expired")
 
-        phone = "+19990000010"
-        # expired more than 5 minutes ago
-        PhoneVerification.objects.create(
-            phone=phone,
-            code="1234",
-            expires_at=timezone.now() - timedelta(minutes=10),
-        )
-        result = self.svc.verify_code(phone, "1234")
-        self.assertEqual(result.get("error"), "expired_retry_allowed")
-
-    def test_exception_returns_server_error(self):
-        with patch(
-            "stapel_auth.models.PhoneVerification.objects.filter",
-            side_effect=Exception("boom"),
-        ):
+    def test_store_outage_never_admits(self):
+        self.svc.send_verification_code("+19990000011")
+        with patch("django.core.cache.cache.get", side_effect=Exception("boom")):
             result = self.svc.verify_code("+19990000011", "0000")
-        self.assertEqual(result.get("error"), "server_error")
+        self.assertEqual(result.get("error"), "unavailable")
 
 
 # ---------------------------------------------------------------------------
@@ -450,32 +381,16 @@ class EmailVerificationSendErrorTests(TestCase):
         self.svc = EmailVerificationService()
 
     def test_device_rate_limit_returns_error(self):
-        from stapel_auth.models import EmailVerification
-
         device = uuid.uuid4().hex
-        EmailVerification.objects.create(
-            email="ratetest@example.com",
-            code="0000",
-            device_id=device,
-            expires_at=timezone.now() + timedelta(minutes=10),
-        )
+        self.svc.send_verification_code("ratetest@example.com", device_id=device)
         result = self.svc.send_verification_code("other@example.com", device_id=device)
         self.assertEqual(result.get("error"), "rate_limit")
 
     def test_blocked_email_returns_blocked(self):
-        from stapel_auth.models import EmailVerification
+        from stapel_auth.otp.services import email_code_store
 
         email = "blocked@example.com"
-        v = EmailVerification.objects.create(
-            email=email,
-            code="0000",
-            expires_at=timezone.now() + timedelta(minutes=10),
-            blocked_until=timezone.now() + timedelta(minutes=10),
-        )
-        # Push created_at outside the 30s rate-limit window so blocked check is reached
-        EmailVerification.objects.filter(pk=v.pk).update(
-            created_at=timezone.now() - timedelta(minutes=2)
-        )
+        email_code_store.block(email, 600)
         result = self.svc.send_verification_code(email)
         self.assertEqual(result.get("error"), "blocked")
 
@@ -489,8 +404,7 @@ class EmailVerificationSendErrorTests(TestCase):
 
     def test_exception_returns_none(self):
         with patch(
-            "stapel_auth.models.EmailVerification.objects.filter",
-            side_effect=Exception("db error"),
+            "django.core.cache.cache.set", side_effect=Exception("store error")
         ):
             result = self.svc.send_verification_code("exc@example.com")
         self.assertIsNone(result)
@@ -502,47 +416,29 @@ class EmailVerificationVerifyErrorTests(TestCase):
 
         self.svc = EmailVerificationService()
 
-    def test_expired_retry_allowed(self):
-        from stapel_auth.models import EmailVerification
-
-        email = "expiredretry@example.com"
-        EmailVerification.objects.create(
-            email=email,
-            code="1234",
-            expires_at=timezone.now() - timedelta(minutes=10),
-        )
-        result = self.svc.verify_code(email, "1234")
-        self.assertEqual(result.get("error"), "expired_retry_allowed")
+    def test_an_aged_out_code_is_an_expired_wait(self):
+        result = self.svc.verify_code("expiredretry@example.com", "1234")
+        self.assertEqual(result.get("error"), "expired")
 
     def test_max_attempts_blocks(self):
-        from stapel_auth.models import EmailVerification
+        from stapel_auth.otp.services import email_code_store
 
         email = "maxattempts@example.com"
-        v = EmailVerification.objects.create(
-            email=email,
-            code="9999",
-            expires_at=timezone.now() + timedelta(minutes=5),
-            attempts=6,  # one more = 7, triggers block
-        )
-        result = self.svc.verify_code(email, "0000")
+        self.svc.send_verification_code(email)
+        for _ in range(self.svc.max_attempts):
+            result = self.svc.verify_code(email, "9999")
         self.assertEqual(result.get("error"), "blocked")
-        v.refresh_from_db()
-        self.assertIsNotNone(v.blocked_until)
+        self.assertGreater(email_code_store.blocked_for(email), 0)
 
-    def test_exception_returns_server_error(self):
-        with patch(
-            "stapel_auth.models.EmailVerification.objects.filter",
-            side_effect=Exception("boom"),
-        ):
+    def test_store_outage_never_admits(self):
+        self.svc.send_verification_code("exc@example.com")
+        with patch("django.core.cache.cache.get", side_effect=Exception("boom")):
             result = self.svc.verify_code("exc@example.com", "0000")
-        self.assertEqual(result.get("error"), "server_error")
+        self.assertEqual(result.get("error"), "unavailable")
 
-    def test_no_verification_returns_invalid_code(self):
-        from stapel_auth.otp.services import EmailVerificationService
-
-        svc = EmailVerificationService()
-        result = svc.verify_code("norecord@example.com", "0000")
-        self.assertEqual(result.get("error"), "invalid_code")
+    def test_no_verification_is_an_expired_wait_not_a_wrong_code(self):
+        result = self.svc.verify_code("norecord@example.com", "0000")
+        self.assertEqual(result.get("error"), "expired")
 
 
 # ---------------------------------------------------------------------------

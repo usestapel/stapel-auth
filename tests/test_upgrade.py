@@ -222,18 +222,35 @@ class EmailOtpLockoutTests(APITestCase):
             reverse('email_verify'), {'email': self.email, 'code': code}
         )
 
-    def test_five_failed_codes_lock_the_identifier(self):
+    def test_the_codes_own_budget_runs_out_first(self):
+        """OTP_MAX_ATTEMPTS guesses against ONE code, then it is dead.
+
+        The email path used to spend a hardcoded 7 here while the setting said
+        5, which is why the lockout tier below fired before the code's own
+        budget did. Both now read the same knob, and the nearer limit wins.
+        """
         for i in range(4):
             resp = self._verify('9999')
             self.assertEqual(resp.status_code, 400, i)
+        resp = self._verify('9999')
+        self.assertEqual(resp.status_code, 422)
+        self.assertEqual(resp.data['localizable_error'], 'error.422.blocked')
+        # Even the correct code is rejected while blocked.
+        self.assertEqual(self._verify('0000').status_code, 422)
+
+    def test_the_lockout_tier_still_catches_re_requested_codes(self):
+        """What the lockout is for: guessing that outruns any single code."""
+        from stapel_auth.security.services import LockoutService
+
+        for _ in range(4):
+            LockoutService.record_failure(self.email)
         resp = self._verify('9999')
         self.assertEqual(resp.status_code, 423)
         self.assertEqual(
             resp.data['localizable_error'], 'error.423.account_locked'
         )
         # Even the correct code is rejected while locked.
-        resp = self._verify('0000')
-        self.assertEqual(resp.status_code, 423)
+        self.assertEqual(self._verify('0000').status_code, 423)
 
     def test_successful_verify_clears_lockout_counter(self):
         from stapel_auth.security.services import LockoutService

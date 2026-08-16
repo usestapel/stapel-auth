@@ -1020,7 +1020,6 @@ class CapabilitiesMethodsAndOtpMetaTests(APITestCase):
         generated length (STAPEL_AUTH["OTP_LENGTH"]) which must fit the cap
         (enforced by stapel_auth.E002)."""
         from stapel_auth.conf import auth_settings
-        from stapel_auth.models import EmailVerification, PhoneVerification
         from stapel_auth.otp.constants import OTP_CODE_LENGTH
 
         response = self.client.get(reverse('capabilities'))
@@ -1028,12 +1027,6 @@ class CapabilitiesMethodsAndOtpMetaTests(APITestCase):
             response.data['otp']['email_code_length'], int(auth_settings.OTP_LENGTH)
         )
         self.assertLessEqual(int(auth_settings.OTP_LENGTH), OTP_CODE_LENGTH)
-        self.assertEqual(
-            PhoneVerification._meta.get_field('code').max_length, OTP_CODE_LENGTH
-        )
-        self.assertEqual(
-            EmailVerification._meta.get_field('code').max_length, OTP_CODE_LENGTH
-        )
 
     def test_totp_code_length_matches_service_constant(self):
         from stapel_auth.mfa.services import TOTPService

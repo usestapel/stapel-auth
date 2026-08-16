@@ -16,37 +16,13 @@ from stapel_core.django.admin.base import StapelModelAdmin
 from stapel_auth.models import (
     AuthAuditLog,
     AuthenticatorChangeRequest,
-    EmailVerification,
     LoginAttempt,
-    PhoneVerification,
     RefreshTokenTracker,
     ServiceAPIKey,
     SSOConfig,
     StaffRoleAssignment,
     TOTPDevice,
 )
-
-
-@admin.register(PhoneVerification)
-class PhoneVerificationAdmin(StapelModelAdmin):
-    """Phone Verification admin (ops journal — TTL-expiring OTP junk, admin-suite AS-5)"""
-
-    list_display = ['phone', 'code', 'is_verified', 'created_at', 'expires_at', 'attempts']
-    list_filter = ['is_verified', 'created_at']
-    search_fields = ['phone']
-    ordering = ['-created_at']
-    readonly_fields = ['created_at']
-
-
-@admin.register(EmailVerification)
-class EmailVerificationAdmin(StapelModelAdmin):
-    """Email Verification admin (ops journal — TTL-expiring OTP junk, admin-suite AS-5)"""
-
-    list_display = ['email', 'code', 'is_verified', 'created_at', 'expires_at', 'attempts']
-    list_filter = ['is_verified', 'created_at']
-    search_fields = ['email']
-    ordering = ['-created_at']
-    readonly_fields = ['created_at']
 
 
 @admin.register(ServiceAPIKey)

@@ -6,6 +6,7 @@ ERR_401_INVALID_CREDENTIALS = 'error.401.invalid_credentials'
 ERR_401_ACCOUNT_DISABLED = 'error.401.account_disabled'
 ERR_422_BLOCKED = 'error.422.blocked'
 ERR_400_CODE_EXPIRED = 'error.400.code_expired'
+ERR_503_VERIFICATION_UNAVAILABLE = 'error.503.verification_unavailable'
 ERR_400_INVALID_CODE = 'error.400.invalid_code'
 ERR_400_INVALID_CODE_ATTEMPTS = 'error.400.invalid_code_attempts'
 ERR_500_SEND_FAILED = 'error.500.send_failed'
@@ -104,7 +105,11 @@ AUTH_ERRORS = {
     ERR_401_INVALID_CREDENTIALS: 'Invalid credentials',
     ERR_401_ACCOUNT_DISABLED: 'User account is disabled',
     ERR_422_BLOCKED: 'Account temporarily blocked. Try again in {retry_after_minutes} minutes.',
-    ERR_400_CODE_EXPIRED: 'Verification code has expired. Please request a new one.',
+    # Absence, not wrongness: nothing is waiting for this code — it aged out,
+    # it was already spent, or the store restarted. The answer is an invitation
+    # to start over, never an accusation that the user mistyped.
+    ERR_400_CODE_EXPIRED: 'The wait for your code expired. Please sign in again.',
+    ERR_503_VERIFICATION_UNAVAILABLE: 'We could not check your sign-in right now. Please try again in a moment.',
     ERR_400_INVALID_CODE: 'Invalid verification code',
     ERR_400_INVALID_CODE_ATTEMPTS: 'Invalid verification code. {attempts_remaining} attempts remaining.',
     ERR_500_SEND_FAILED: 'Failed to send verification code',
@@ -222,6 +227,8 @@ AUTH_REMEDIATION = {
     ERR_400_WRONG_PASSWORD: 'fix_input',
     # OTP / verification codes
     ERR_400_CODE_EXPIRED: 'retry',
+    # An outage is a wait, never a verdict on the code the user typed.
+    ERR_503_VERIFICATION_UNAVAILABLE: 'wait_and_retry',
     ERR_400_INVALID_CODE: 'fix_input',
     ERR_400_INVALID_CODE_ATTEMPTS: 'fix_input',
     ERR_400_CODE_REQUIRED: 'fix_input',

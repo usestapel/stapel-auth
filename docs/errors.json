@@ -28,7 +28,7 @@
     "status": 400,
     "params": [],
     "remediation": "retry",
-    "en": "Verification code has expired. Please request a new one.",
+    "en": "The wait for your code expired. Please sign in again.",
     "owner": "stapel_auth"
   },
   {
@@ -1072,5 +1072,21 @@
     "remediation": "retry",
     "en": "Account closure is temporarily unavailable. Please retry later.",
     "owner": "stapel_gdpr"
+  },
+  {
+    "code": "error.503.mandate_unavailable",
+    "status": 503,
+    "params": [],
+    "remediation": "retry",
+    "en": "Cannot verify workspace mandate right now",
+    "owner": "stapel_core"
+  },
+  {
+    "code": "error.503.verification_unavailable",
+    "status": 503,
+    "params": [],
+    "remediation": "wait_and_retry",
+    "en": "We could not check your sign-in right now. Please try again in a moment.",
+    "owner": "stapel_auth"
   }
 ]

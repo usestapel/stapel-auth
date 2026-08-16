@@ -1,13 +1,13 @@
 # Errors — Русский
 
-`130` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
+`132` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
 
 | Код | Статус | Параметры | Действие | Текст |
 |---|---|---|---|---|
 | `error.400.bad_request` | 400 | — | `fix_input` | Некорректный запрос |
 | `error.400.captcha_invalid` | 400 | — | `retry` | Проверка капчи не пройдена. Пожалуйста, попробуйте ещё раз. |
 | `error.400.captcha_required` | 400 | — | `retry` | Требуется токен капчи. |
-| `error.400.code_expired` | 400 | — | `retry` | Срок действия кода подтверждения истёк. Пожалуйста, запросите новый. |
+| `error.400.code_expired` | 400 | — | `retry` | Время ожидания кода истекло. Пожалуйста, войдите снова. |
 | `error.400.code_required` | 400 | — | `fix_input` | Требуется код подтверждения. |
 | `error.400.credentials_required` | 400 | — | `fix_input` | Необходимо указать имя пользователя или адрес электронной почты и пароль |
 | `error.400.email_or_phone_not_both` | 400 | — | `fix_input` | Укажите либо адрес электронной почты, либо номер телефона, но не оба |
@@ -134,3 +134,5 @@
 | `error.500.internal` | 500 | — | `contact_support` | Что-то пошло не так |
 | `error.500.send_failed` | 500 | — | `retry` | Не удалось отправить код подтверждения |
 | `error.503.gdpr.closure_unavailable` | 503 | — | `retry` | Закрытие учётной записи временно недоступно. Повторите попытку позже. |
+| `error.503.mandate_unavailable` | 503 | — | `retry` | Не удалось проверить доступ к рабочему пространству |
+| `error.503.verification_unavailable` | 503 | — | `wait_and_retry` | Сейчас мы не можем проверить ваш вход. Пожалуйста, попробуйте через минуту. |

@@ -1,5 +1,5 @@
 {
-  "error.400.code_expired": "El código de verificación ha caducado. Solicita uno nuevo.",
+  "error.400.code_expired": "La espera de tu código ha caducado. Vuelve a iniciar sesión.",
   "error.400.code_required": "Se requiere un código de verificación.",
   "error.400.credentials_required": "Se requieren nombre de usuario/correo electrónico y contraseña",
   "error.400.email_or_phone_not_both": "Proporciona un correo electrónico o un teléfono, no ambos",
@@ -77,5 +77,6 @@
   "error.422.blocked": "Cuenta bloqueada temporalmente. Inténtalo de nuevo en {retry_after_minutes} minutos.",
   "error.423.account_locked": "Cuenta bloqueada temporalmente por demasiados intentos fallidos. Inténtalo de nuevo en {retry_after_minutes} minutos.",
   "error.429.magic_link_rate": "Demasiadas solicitudes de enlace mágico. Inténtalo de nuevo más tarde.",
-  "error.500.send_failed": "No se pudo enviar el código de verificación"
+  "error.500.send_failed": "No se pudo enviar el código de verificación",
+  "error.503.verification_unavailable": "Ahora mismo no podemos comprobar tu inicio de sesión. Inténtalo de nuevo en un momento."
 }
