@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+## [0.22.1] — 2026-08-16
+
+### Fixed — the suite CI runs and the suite we run were two different suites
+
+`0.22.0` was green here and red in CI: 18 failures, all of them the shape of
+state carried between tests — a `429` where a `200` belonged, a stale-code
+`MISMATCH` where `NOT_FOUND` belonged, a `change_token` that was never minted.
+Nothing was wrong with the codes. The autouse fixture that empties the cache
+around every test lived in the repo-root `conftest.py`, and CI runs
+`pytest --pyargs stapel_auth.tests`, where collection is rooted at the *package*
+directory: test node ids start at `test_*.py`, the repo root is not an ancestor
+of any of them, and its fixtures reach nothing. The file is still imported,
+which is what kept the hole quiet.
+
+That mattered here and not before because `0.22.0` is the release that moved
+one-time codes out of their tables and into the cache-backed TTL store. The
+database rolls back between tests; the cache does not. The move turned a
+harmless asymmetry into eighteen failures.
+
+The harness now lives in `tests/conftest.py`, the one conftest both invocation
+styles load, and the root file is a path-only shim with no definitions at all —
+`tests/test_harness_isolation.py` fails if anything is added back to it. Two
+further consequences of the same split are closed with it: `ROOT_URLCONF`
+depended on which `pytest_configure` won a race (bare vs mounted urlconf), and
+the `sys.path` de-shadowing that keeps `import openid` off the repo-local
+`openid/` directory now runs where it is needed rather than relying on that
+race. No library code changed.
+
 ## [0.22.0] — 2026-08-16
 
 ### Removed — the OTP tables; codes live in a TTL store

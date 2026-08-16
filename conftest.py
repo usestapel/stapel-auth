@@ -1,3 +1,18 @@
+"""Path-only shim — the real harness is tests/conftest.py.
+
+Nothing test-facing may live here. CI runs ``python -m pytest --pyargs
+stapel_auth.tests``, and under ``--pyargs`` collection is rooted at the *package*
+directory: the test node ids start at ``test_*.py``, so this file's directory is
+not one of their ancestors and its fixtures are never applied to them. The file
+still gets imported, which is what makes the hole quiet — measured 2026-08-16,
+``_isolate_cache`` present under ``pytest tests/`` and absent under ``--pyargs``,
+worth 18 failures. Its ``pytest_configure`` is worse than useless: whether it or
+the package one wins the race decides ``ROOT_URLCONF``, so it is gone.
+
+What must stay: the sys.path surgery below. It only matters when the repo root
+is on sys.path, i.e. precisely the path-based runs that do load this file.
+``tests/test_harness_isolation.py`` keeps everything else out.
+"""
 import os as _os
 import sys as _sys
 
@@ -7,60 +22,3 @@ import sys as _sys
 # Remove the repo root from sys.path before any imports.
 _repo_root = _os.path.dirname(_os.path.abspath(__file__))
 _sys.path = [p for p in _sys.path if _os.path.abspath(p or _os.getcwd()) != _repo_root]
-
-
-def pytest_configure(config):
-    # Bootstrap a minimal Celery app so shared_task decorators have a configured
-    # app with ALWAYS_EAGER=True before Django settings are loaded.
-    from celery import Celery
-
-    _celery = Celery("stapel_auth_test")
-    _celery.config_from_object(
-        {
-            "task_always_eager": True,
-            "task_eager_propagates": True,
-            "broker_url": "memory://",
-            "result_backend": "cache+memory://",
-        }
-    )
-    _celery.set_default()
-
-    from django.conf import settings
-
-    if settings.configured:
-        return
-
-    # Single source of truth for this block lives in _codegen_settings.py so the
-    # test harness and the contract-emission harness (make contract) can never
-    # drift (contract-pipeline.md §3). Tests keep the bare mount + no spectacular,
-    # exactly as before the extraction.
-    from stapel_auth._codegen_settings import settings_kwargs
-
-    settings.configure(**settings_kwargs())
-    import django
-    django.setup()
-
-
-import pytest  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def _isolate_cache():
-    """Empty the cache around every test.
-
-    The database rolls back between tests; the cache does not, and since the
-    OTP codes, their attempt budgets and the lockout counters all live there
-    now, one test's block would otherwise decide the next test's verdict.
-    """
-    from django.core.cache import cache
-
-    cache.clear()
-    yield
-    cache.clear()
-
-
-@pytest.fixture(scope="session")
-def django_db_setup(django_test_environment, django_db_blocker):
-    from django.test.utils import setup_databases
-    with django_db_blocker.unblock():
-        setup_databases(verbosity=0, interactive=False)
