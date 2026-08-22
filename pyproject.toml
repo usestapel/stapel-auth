@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-auth"
-version = "0.23.0"
+version = "0.24.0"
 description = "Full-featured authentication Django app for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -79,6 +79,10 @@ packages = [
     "stapel_auth.openid",
     "stapel_auth.admin",
     "stapel_auth.verification",
+    # The consumer half of the user projection: a models-free Django app a
+    # service installs on its own (INSTALLED_APPS gets "stapel_auth.projection",
+    # never "stapel_auth"), so it must ship as its own package directory.
+    "stapel_auth.projection",
     "stapel_auth.management",
     "stapel_auth.management.commands",
 ]

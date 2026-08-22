@@ -10,6 +10,8 @@ auth emits ``emit("user.registered")`` and consumers (e.g. workspaces'
 from dataclasses import dataclass, field
 
 EVENT_USER_REGISTERED = "user.registered"
+EVENT_USER_CREATED = "user.created"
+EVENT_USER_UPDATED = "user.updated"
 EVENT_STAFF_ROLE_ASSIGNED = "staff.role.assigned"
 EVENT_STAFF_ROLE_REVOKED = "staff.role.revoked"
 EVENT_USER_SESSION_CREATED = "user.session_created"
@@ -49,6 +51,57 @@ class UserRegisteredPayload:
     avatar_url: str | None = None
     language: str | None = None
     display_name: str | None = None
+
+
+@dataclass
+class UserProjectionPayload:
+    """Payload for ``user.created`` / ``user.updated`` — the user projection
+    (schemas/emits/user.created.json, schemas/emits/user.updated.json).
+
+    NOT a second ``user.registered``. ``user.registered`` is a *milestone*
+    ("somebody signed up", with dead-reckoning hints like ``avatar_url`` and
+    ``display_name`` that auth does not even store); this pair is the
+    *identity row itself*, announced so that a service holding a shadow user
+    table can materialise a row for a user it has never seen. That is the
+    whole reason it exists: before it, a service learned about a user only
+    when that user personally presented a JWT (``JWT_CREATE_USERS_FROM_TOKEN``
+    in ``stapel_core.django.jwt.utils``), so any flow naming a SECOND user —
+    chat's ``participant_ids``, an assignee, a recipient — hit a bare foreign
+    key violation.
+
+    **The field set is not chosen here.** It is exactly
+    ``stapel_core.django.jwt.utils.serialize_user_to_jwt_data(user)`` — the
+    same function that builds the JWT claims a shadow row is otherwise made
+    from. Mirroring that call rather than re-listing its fields is what makes
+    the two writers (token-driven creation, event-driven creation) incapable
+    of drifting: they read the same serializer and are applied by the same
+    materializer. Adding a field here means adding a claim there, on purpose.
+
+    Fields (all optional ones are OMITTED, not nulled, when the user model
+    has no such field or the value is empty — mirroring the serializer):
+        user_id: UUID of the user (always present; the projection key).
+        username: ``USERNAME_FIELD`` value.
+        email: Email address, or None.
+        phone: E.164 phone, omitted when unset.
+        auth_type: How the account was born (email/phone/oauth/sso/
+            anonymous/login), omitted on user models without the field.
+        is_anonymous: Guest account flag, omitted likewise.
+        is_staff / is_superuser / is_active: Django's three account flags.
+        staff_roles: Materialised role names — present only for staff or
+            superuser accounts, exactly as in the JWT claim (present-but-
+            empty is authoritative "zero roles"; absence carries no
+            information and consumers must not act on it).
+    """
+    user_id: str
+    username: str = ""
+    email: str | None = None
+    phone: str | None = None
+    auth_type: str | None = None
+    is_anonymous: bool | None = None
+    is_staff: bool = False
+    is_superuser: bool = False
+    is_active: bool = True
+    staff_roles: list | None = None
 
 
 @dataclass
@@ -192,6 +245,8 @@ class UserReactivatedPayload:
 # Canonical event registry — keyed by the action name actually emitted.
 EVENT_REGISTRY = {
     EVENT_USER_REGISTERED: UserRegisteredPayload,
+    EVENT_USER_CREATED: UserProjectionPayload,
+    EVENT_USER_UPDATED: UserProjectionPayload,
     EVENT_STAFF_ROLE_ASSIGNED: StaffRoleAssignedPayload,
     EVENT_STAFF_ROLE_REVOKED: StaffRoleRevokedPayload,
     EVENT_USER_SESSION_CREATED: UserSessionCreatedPayload,

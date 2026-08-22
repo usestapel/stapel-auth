@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "user.created",
+  "description": "A user row was born in the identity owner. Carries exactly the JWT claim set (stapel_core.django.jwt.utils.serialize_user_to_jwt_data), so a service with a shadow user table can materialise the row for a user who has never presented a token here.",
+  "type": "object",
+  "required": ["user_id", "username", "email", "is_staff", "is_superuser", "is_active"],
+  "properties": {
+    "user_id":      { "type": "string", "format": "uuid" },
+    "username":     { "type": "string" },
+    "email":        { "type": ["string", "null"] },
+    "phone":        { "type": "string" },
+    "auth_type":    { "type": "string" },
+    "is_anonymous": { "type": "boolean" },
+    "is_staff":     { "type": "boolean" },
+    "is_superuser": { "type": "boolean" },
+    "is_active":    { "type": "boolean" },
+    "staff_roles":  { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

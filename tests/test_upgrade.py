@@ -776,9 +776,11 @@ class UserRegisteredEventTests(APITestCase):
             user = view._resolve_oauth_user('test', _Data())
 
         self.assertEqual(user.avatar, _Data.avatar)
-        m_emit.assert_called_once()
-        args, kwargs = m_emit.call_args
-        self.assertEqual(args[0], 'user.registered')
+        # Birth also announces the identity row itself (user.created, the
+        # projection); filter for the registration milestone under test.
+        reg_calls = [c for c in m_emit.call_args_list if c[0][0] == 'user.registered']
+        self.assertEqual(len(reg_calls), 1)
+        args, kwargs = reg_calls[0]
         self.assertEqual(args[1]['avatar_url'], _Data.avatar)
         self.assertEqual(args[1]['auth_type'], 'oauth')
 
@@ -825,10 +827,16 @@ class UserRegisteredEmitAtomicityTests(TestCase):
     def test_emit_failure_does_not_poison_request_transaction(self):
         from stapel_auth.otp.views import _notify_user_registered
 
+        # The user row is written OUTSIDE the break: creating it emits
+        # user.created (the projection), and that one is a transactional
+        # outbox write whose failure legitimately fails the write — a
+        # consumer's foreign keys depend on the fact, exactly like the
+        # session events. The best-effort property under test belongs to the
+        # registration fan-out alone.
+        user = User.objects.create(
+            username=f'u-{uuid.uuid4().hex[:8]}', auth_type='email'
+        )
         with _break_emit_via_outbox():
-            user = User.objects.create(
-                username=f'u-{uuid.uuid4().hex[:8]}', auth_type='email'
-            )
             _notify_user_registered(user)
             # A rollback-only (poisoned) transaction raises here:
             self.assertTrue(User.objects.filter(pk=user.pk).exists())
@@ -843,11 +851,13 @@ class UserRegisteredEmitAutocommitTests(TransactionTestCase):
     def test_emit_failure_survives_autocommit_without_guard_spam(self):
         from stapel_auth.otp.views import _notify_user_registered
 
+        # Created outside the break, for the reason spelled out in the sibling
+        # test above: user.created is an outbox write, not a best-effort one.
+        user = User.objects.create(
+            username=f'u-{uuid.uuid4().hex[:8]}', auth_type='email'
+        )
         with _break_emit_via_outbox():
             with self.assertNoLogs('stapel_core.comm.actions', level='WARNING'):
-                user = User.objects.create(
-                    username=f'u-{uuid.uuid4().hex[:8]}', auth_type='email'
-                )
                 _notify_user_registered(user)
 
         self.assertTrue(User.objects.filter(pk=user.pk).exists())

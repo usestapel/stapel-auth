@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "user.updated",
+  "description": "A projected field of an existing user row changed in the identity owner. Same payload as user.created (the full claim set, not a delta), so an out-of-order or first-seen delivery still yields a correct shadow row.",
+  "type": "object",
+  "required": ["user_id", "username", "email", "is_staff", "is_superuser", "is_active"],
+  "properties": {
+    "user_id":      { "type": "string", "format": "uuid" },
+    "username":     { "type": "string" },
+    "email":        { "type": ["string", "null"] },
+    "phone":        { "type": "string" },
+    "auth_type":    { "type": "string" },
+    "is_anonymous": { "type": "boolean" },
+    "is_staff":     { "type": "boolean" },
+    "is_superuser": { "type": "boolean" },
+    "is_active":    { "type": "boolean" },
+    "staff_roles":  { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

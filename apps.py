@@ -48,5 +48,13 @@ class StapelAuthConfig(AppConfig):
         from .activation import register_activation_observer
         register_activation_observer()
 
+        # User projection observer: announces every identity row this module
+        # owns as user.created / user.updated, so a service holding a shadow
+        # users table can materialise a user who never presented a token to
+        # it (chat participant_ids, an assignee, a recipient). The consumer
+        # half is the installable app stapel_auth.projection.
+        from .user_projection import register_user_projection_observer
+        register_user_projection_observer()
+
         # System check: USE_MOCK_*_OTP left on with DEBUG=False (checks.py).
         from . import checks as _checks  # noqa: F401

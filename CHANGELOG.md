@@ -2,6 +2,78 @@
 
 ## [Unreleased]
 
+## [0.24.0] — 2026-08-22
+
+### Added — the user projection: a service can now hold a row for a user it has never met
+
+Every Stapel service keeps its own `users` table, and until now exactly one
+thing filled it: `JWT_CREATE_USERS_FROM_TOKEN`, which materialises a row for
+*the subject of the token being verified*. One user per request — the one
+holding the token. Any flow that **names a second user the service has never
+seen** therefore had nothing to hang a foreign key on. stapel-chat's
+`participant_ids` is the case that surfaced it: a buyer opening a thread with
+a seller who has never opened chat inserts a `ConversationParticipant` whose
+`user_id` matches no local row, the insert dies on a foreign key violation,
+and a well-formed request gets a bare 500. The same hole is under every
+assignee, recipient and mention in the fleet.
+
+The fix is an owner-emitted projection, not N services inventing user rows on
+demand (that is the same disease with more mirrors, each with its own truth,
+each outliving the account it copied). Auth now publishes its identity rows
+as facts, and ships the consumer that applies them:
+
+- **`user.created` / `user.updated`** (`events.py: UserProjectionPayload`,
+  `schemas/emits/`), emitted through the transactional outbox by a
+  `pre_save`/`post_save` observer on `AUTH_USER_MODEL` (`user_projection.py`,
+  wired in `AppConfig.ready`). By observer and not by call site because a
+  user row is born in at least eight places here — OTP verify, password
+  register, OAuth resolve, SSO, `auth.provision_user`, the login-grant mint,
+  `POST /anonymous/`, `POST /admin-users/` — plus every host's own
+  `createsuperuser`, data migration and management shell. A fact stream that
+  foreign keys depend on cannot be maintained by remembering to call
+  something. A re-save that changes nothing, and any write whose
+  `update_fields` cannot touch a projected field (`update_last_login`, the
+  hottest write in the module), emit nothing and cost no query.
+
+- **`stapel_auth.projection`** — the consumer, a Django app with no models
+  and no migrations that a service adds to `INSTALLED_APPS` (the app, never
+  `stapel_auth` itself, so no auth tables land in a consumer's database).
+  The two topics are ordinary Actions, so an existing `manage.py
+  consume_actions` worker picks them up with nothing new to run. The handler
+  is inert wherever `JWT_CREATE_USERS_FROM_TOKEN` is `False` — the switch by
+  which the identity owner already declares that its `users` table is the
+  original, not a copy.
+
+What keeps the two writers from drifting is that they are the same two
+functions. The payload is `serialize_user_to_jwt_data(user)` verbatim — the
+function that builds the claims a shadow row is otherwise made from — and the
+consumer applies it with `get_or_create_user_from_jwt`, the function the JWT
+middleware applies a token with. Adding a claim to one adds it to both, and
+the schemas are `additionalProperties: false` so adding one to neither fails
+loudly at the first emit. Idempotency comes from the same place: the
+materializer is a get-or-create that field-syncs, so a redelivered event, a
+full replay, and a row this service already minted from a JWT all end in one
+row with the same values.
+
+- **`manage.py emit_user_projection`** (`--since`, `--dry-run`;
+  `user_projection.replay()` programmatically) re-announces existing accounts
+  as `user.created`. The observer only sees writes made after it exists, so
+  without this the fix would read "*new* users can be named in a chat". It is
+  also the repair for a `QuerySet.update()`, the one write model signals
+  cannot see.
+
+Unlike `user.registered` — a milestone, deliberately swallowed on failure so
+a signup never depends on a listener — `user.created` commits with its row or
+not at all: an account whose birth nobody recorded is exactly the silent
+defect this closes. That couples the user write to a *database* write, not to
+a broker; the outbox row lands in the same transaction and delivery is
+somebody else's retry.
+
+`user.updated` carrying `is_active: false` is a suspension and never an
+erasure: `user.deactivated`/`user.reactivated` (#92) still carry the
+administrative transition, and GDPR removal is still `user.deleted`. Deletion
+is not part of this stream.
+
 ## [0.23.0] — 2026-08-17
 
 ### Fixed — the device a QR signs in could not use what it was handed

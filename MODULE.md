@@ -139,6 +139,8 @@ Emitted events (`stapel_core.comm.emit`, transactional outbox; schemas in `schem
 | Event | Payload | When |
 |---|---|---|
 | `user.registered` | `{user_id, auth_type, email, avatar_url}` (`events.py: UserRegisteredPayload`) — `avatar_url` is `User.avatar` (OAuth only today), `null` otherwise | First successful auth of a new account (`otp/views.py: _notify_user_registered`) — profile/workspace creation is done by subscribers |
+| `user.created` | the JWT claim set: `{user_id, username, email, phone?, auth_type?, is_anonymous?, is_staff, is_superuser, is_active, staff_roles?}` (`events.py: UserProjectionPayload`) | An identity row was born, whoever wrote it — a `post_save` observer (`user_projection.py`), not a call site. See **The user projection** below |
+| `user.updated` | same payload (the full claim set, not a delta) | A projected field of an existing row really changed. A re-save with no change, and any write whose `update_fields` cannot touch a projected field, emit nothing |
 | `user.session_created` | `{user_id, session_id, device_type, ip_address, created_at}` | Schema declared; **no `emit()` call in code yet** (see gaps) |
 | `user.session_revoked` | schema in `schemas/emits/` | Schema declared; **no `emit()` call in code yet** (see gaps) |
 | `staff.role.assigned` | `{user_id, role, staff_roles, actor_id}` (`events.py: StaffRoleAssignedPayload`; `staff_roles` = full list **after** the change) | A staff role was assigned (`staff_roles.py: assign_staff_role` — admin, API, or direct service call). Audit stream for eventstore/notifications (admin-suite §3.8) |
@@ -159,6 +161,85 @@ Provided functions (`functions.py`, registered in `ready()`; schema in `schemas/
 | `auth.issue_login_grant` | `{email, verified_email?, create_if_missing?, language?}` → `{grant_token}` | stapel-workspaces invitation claim (unregistered invitee). The token is a credential — never logged |
 
 Consumed events: `gdpr.export.requested`, `gdpr.delete.requested` — only in microservices mode, via `manage.py consume_gdpr` (`management/commands/consume_gdpr.py`, service name `auth`). stapel-auth calls no other module's functions.
+
+### The user projection — the seam for services that FK users
+
+**The problem it solves.** Every Stapel service keeps its own `users` rows,
+and until now they were filled from exactly one place: `JWT_CREATE_USERS_FROM_TOKEN`
+in `stapel_core.django.jwt.utils`, which materialises a row for *the subject
+of the token being verified*. One user per request — the one holding the
+token. A flow that **names a second user the service has never seen** has
+nothing to hang a foreign key on: stapel-chat's `participant_ids` (a buyer
+opening a thread with a seller who has never opened chat), an assignee, a
+recipient, a mention. The insert dies on a foreign key violation and a
+well-formed request gets a bare 500.
+
+**The shape.** Not "let every service invent a user row when it needs one" —
+that is N silent mirrors with N different truths, and the mirror outlives
+the account it copied. The owner publishes the fact once and consumers
+project it: `user.created` / `user.updated`, through the transactional
+outbox, applied by a component this module ships.
+
+| Half | Where | What it is |
+|---|---|---|
+| Owner (emit) | `user_projection.py`, wired in `AppConfig.ready` | A `pre_save`/`post_save` pair on `AUTH_USER_MODEL`. Every birth path announces — OTP verify, password register, OAuth resolve, SSO, `auth.provision_user`, the login-grant mint, `POST /anonymous/`, `POST /admin-users/`, and a host's own `createsuperuser`, data migration or shell |
+| Consumer (apply) | `stapel_auth.projection` — a Django app with **no models and no migrations** | `@on_action("user.created"/"user.updated")` handlers that upsert the local shadow row |
+
+Installing the consumer in a service:
+
+```python
+INSTALLED_APPS = [
+    ...,
+    "stapel_auth.projection",   # NOT "stapel_auth" — no auth tables land here
+]
+```
+
+and nothing else: the two topics are ordinary Actions, so the service's
+existing `manage.py consume_actions` worker picks them up. The handler is
+inert wherever `JWT_CREATE_USERS_FROM_TOKEN` is `False`, which is precisely
+how the identity owner already declares "my `users` table is the original,
+not a copy" — installing the app there is a no-op rather than a duplicate
+writer.
+
+**Why the two writers cannot diverge.** The payload is not a designed field
+list. It is `stapel_core.django.jwt.utils.serialize_user_to_jwt_data(user)`
+verbatim — the same function that builds the claims a shadow row is
+otherwise made from — and the consumer applies it with
+`get_or_create_user_from_jwt`, the same function the JWT middleware applies a
+token with. Token-driven creation and event-driven creation are *the same two
+functions reached two ways*; a claim added to one is a claim added to both,
+and `schemas/emits/user.created.json` is `additionalProperties: false` so a
+claim added without the schema fails every emit immediately.
+
+**Idempotency** falls out of the same choice: `get_or_create_user_from_jwt`
+is a get-or-create that field-syncs an existing row, so a redelivered event,
+a full replay, and a row this service already minted from a JWT all end in
+one row with the same values.
+
+**Backfill.** The observer only sees writes made after it is installed, so
+accounts that predate the release are invisible to a consumer's table — the
+difference between "new users can be named in a chat" and "users can be named
+in a chat". Run `manage.py emit_user_projection` in the identity owner once
+the consumers are listening (`--since`, `--dry-run`; `user_projection.replay()`
+programmatically). It is also the repair for a `QuerySet.update()`, the one
+write model signals cannot see.
+
+**Outbox discipline, not best-effort.** `user.registered` is a milestone and
+is swallowed on failure — a signup must not depend on a listener.
+`user.created` is the opposite kind of fact: foreign keys resolve against it,
+so it commits with its row or not at all. That couples the user write to a
+*database* write, not to a broker: the outbox row lands in the same
+transaction, and delivery is somebody else's retry.
+
+**Not the `Projection` primitive.** `stapel_core.comm.Projection` materialises
+a read-only `ProjectionModel` side table. A shadow user row is not a read
+model — it is the row other tables' foreign keys point at — so this seam
+writes `AUTH_USER_MODEL` directly and takes its idempotency from the
+get-or-create instead of a sequence column.
+
+**Deletion is not here.** An erased account is announced by `user.deleted`
+(stapel-gdpr) with its own consumers; `user.updated` carrying `is_active:
+false` is a suspension, and the two must never be conflated (see below).
 
 ### Account activation — `active` / `suspended` / `deleted` (#92)
 
