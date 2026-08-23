@@ -228,6 +228,278 @@
         }
       }
     },
+    "/auth/api/v1/dsar": {
+      "get": {
+        "operationId": "auth_api_v1_dsar_list",
+        "description": "Intake and queue for data-subject requests.\n\n``POST`` takes both an authenticated app request and an anonymous one\nfrom a public /privacy form — the form is the channel a regulator\nexpects to exist, and it cannot require a login. The anonymous variant\ngoes through the core's tiered captcha policy\n(``@captcha_protected``); an unconfigured captcha backend leaves the\nform open exactly as before, which is a host's decision to make.\n\n**Permissions:** `AllowAny`",
+        "summary": "List data-protection requests (staff)",
+        "tags": [
+          "GDPR"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DsarStatusDTO"
+                  }
+                },
+                "examples": {
+                  "DsarStatusDTO": {
+                    "value": [
+                      {
+                        "request_id": 5,
+                        "kind": "access",
+                        "channel": "form",
+                        "subject_email": "person@example.com",
+                        "state": "acknowledged",
+                        "received_at": "2026-08-24T09:00:00Z",
+                        "ack_due_at": "2026-08-27T09:00:00Z",
+                        "ack_sent_at": "2026-08-24T09:00:03Z",
+                        "resolve_due_at": "2026-09-23T09:00:00Z",
+                        "erasure_request_id": 17,
+                        "export_request_id": 42,
+                        "note": "matched to account"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "post": {
+        "operationId": "auth_api_v1_dsar_create",
+        "description": "Records the request, sends the acknowledgement that satisfies the three-business-day clock, notifies staff, and — for a request matched to an account — starts the machine that answers it (erasure: the cancellable closure; access/portability: a data export). Anonymous submissions require a captcha token when a captcha backend is configured.\n\n**Permissions:** `AllowAny`",
+        "summary": "Submit a data-protection request",
+        "tags": [
+          "GDPR"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GDPRDsarRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/GDPRDsarRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/GDPRDsarRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarStatusDTO"
+                },
+                "examples": {
+                  "DsarStatusDTO": {
+                    "value": {
+                      "request_id": 5,
+                      "kind": "access",
+                      "channel": "form",
+                      "subject_email": "person@example.com",
+                      "state": "acknowledged",
+                      "received_at": "2026-08-24T09:00:00Z",
+                      "ack_due_at": "2026-08-27T09:00:00Z",
+                      "ack_sent_at": "2026-08-24T09:00:03Z",
+                      "resolve_due_at": "2026-09-23T09:00:00Z",
+                      "erasure_request_id": 17,
+                      "export_request_id": 42,
+                      "note": "matched to account"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/auth/api/v1/dsar/{dsar_id}": {
+      "get": {
+        "operationId": "auth_api_v1_dsar_retrieve",
+        "description": "Staff triage of one request: state, note, and matching it to a person.\n\n**Permissions:** `IsAdminUser`",
+        "summary": "Get one data-protection request (staff)",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dsar_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "GDPR"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarStatusDTO"
+                },
+                "examples": {
+                  "DsarStatusDTO": {
+                    "value": {
+                      "request_id": 5,
+                      "kind": "access",
+                      "channel": "form",
+                      "subject_email": "person@example.com",
+                      "state": "acknowledged",
+                      "received_at": "2026-08-24T09:00:00Z",
+                      "ack_due_at": "2026-08-27T09:00:00Z",
+                      "ack_sent_at": "2026-08-24T09:00:03Z",
+                      "resolve_due_at": "2026-09-23T09:00:00Z",
+                      "erasure_request_id": 17,
+                      "export_request_id": 42,
+                      "note": "matched to account"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "patch": {
+        "operationId": "auth_api_v1_dsar_partial_update",
+        "description": "Setting `user_id` on a request that arrived anonymously matches it to an account and wires it to the mechanism that answers it — intake deliberately refuses to do that itself, since turning an unverified email into an erasure is a deletion oracle.\n\n**Permissions:** `IsAdminUser`",
+        "summary": "Update a data-protection request (staff)",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dsar_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "GDPR"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedGDPRDsarPatch"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedGDPRDsarPatch"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedGDPRDsarPatch"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarStatusDTO"
+                },
+                "examples": {
+                  "DsarStatusDTO": {
+                    "value": {
+                      "request_id": 5,
+                      "kind": "access",
+                      "channel": "form",
+                      "subject_email": "person@example.com",
+                      "state": "acknowledged",
+                      "received_at": "2026-08-24T09:00:00Z",
+                      "ack_due_at": "2026-08-27T09:00:00Z",
+                      "ack_sent_at": "2026-08-24T09:00:03Z",
+                      "resolve_due_at": "2026-09-23T09:00:00Z",
+                      "erasure_request_id": 17,
+                      "export_request_id": 42,
+                      "note": "matched to account"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
     "/auth/api/v1/email/change/delayed/cancel/": {
       "post": {
         "operationId": "auth_api_v1_email_change_delayed_cancel_create",
@@ -855,6 +1127,140 @@
         }
       }
     },
+    "/auth/api/v1/erasures": {
+      "post": {
+        "operationId": "auth_api_v1_erasures_create",
+        "description": "Opens an erasure for a subject the host has already removed from its UI: one receipt slot per data owner that claims this subject type, a purge SLA in `due_at`, and a `gdpr.erasure.requested` action. Authorization is the host's `ERASURE_AUTHORIZER` callable; the default is staff only.\n\n**Permissions:** `IsAuthenticated, AccountNotClosed`",
+        "summary": "Request erasure of one subject",
+        "tags": [
+          "GDPR"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GDPRErasureRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/GDPRErasureRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/GDPRErasureRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErasureStatusDTO"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/auth/api/v1/erasures/{request_id}": {
+      "get": {
+        "operationId": "auth_api_v1_erasures_retrieve",
+        "description": "State, receipts, obligations and `fully_erased_by` for one erasure.\n\n**Permissions:** `IsAuthenticated`",
+        "summary": "Get erasure status",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "GDPR"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErasureStatusDTO"
+                },
+                "examples": {
+                  "ErasureStatusDTO": {
+                    "value": {
+                      "request_id": 17,
+                      "subject_type": "recording",
+                      "subject_key": "9f1c2d3e",
+                      "workspace_id": "ws-42",
+                      "state": "erasing",
+                      "origin": "user",
+                      "requested_at": "2026-08-24T09:00:00Z",
+                      "due_at": "2026-09-23T09:00:00Z",
+                      "fully_erased_by": "2026-10-18T09:00:00Z",
+                      "completed_at": "2026-08-24T09:12:00Z",
+                      "grace_ends_at": "2026-09-23T09:00:00Z",
+                      "unreceipted_owners": [
+                        "media"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
     "/auth/api/v1/gdpr/schema/": {
       "get": {
         "operationId": "auth_api_v1_gdpr_schema_retrieve",
@@ -1316,6 +1722,58 @@
         }
       }
     },
+    "/auth/api/v1/me/erasures": {
+      "get": {
+        "operationId": "auth_api_v1_me_erasures_list",
+        "description": "The caller's own erasures — the \"pending deletion\" list a UI shows.\n\n**Permissions:** `IsAuthenticated`",
+        "summary": "List my erasure requests",
+        "tags": [
+          "GDPR"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ErasureStatusDTO"
+                  }
+                },
+                "examples": {
+                  "ErasureStatusDTO": {
+                    "value": [
+                      {
+                        "request_id": 17,
+                        "subject_type": "recording",
+                        "subject_key": "9f1c2d3e",
+                        "workspace_id": "ws-42",
+                        "state": "erasing",
+                        "origin": "user",
+                        "requested_at": "2026-08-24T09:00:00Z",
+                        "due_at": "2026-09-23T09:00:00Z",
+                        "fully_erased_by": "2026-10-18T09:00:00Z",
+                        "completed_at": "2026-08-24T09:12:00Z",
+                        "grace_ends_at": "2026-09-23T09:00:00Z",
+                        "unreceipted_owners": [
+                          "media"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
     "/auth/api/v1/mfa/enroll/exchange/": {
       "post": {
         "operationId": "auth_api_v1_mfa_enroll_exchange_create",
@@ -1712,6 +2170,51 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/auth/api/v1/owners/health": {
+      "get": {
+        "operationId": "auth_api_v1_owners_health_list",
+        "description": "The table behind the `gdpr.W006` boot warning: every declared data owner, when it last answered `gdpr.owner.probe`, and whether the subjects it claims match the inventory.\n\n**Permissions:** `IsAdminUser`",
+        "summary": "Data owner liveness table (staff)",
+        "tags": [
+          "GDPR"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DataOwnerHealthDTO"
+                  }
+                },
+                "examples": {
+                  "DataOwnerHealthDTO": {
+                    "value": [
+                      {
+                        "owner": "workspaces",
+                        "last_alive_at": "2026-08-20T05:00:00Z",
+                        "last_probe_at": "2026-08-24T05:00:00Z",
+                        "declared_subject_types": [
+                          "account",
+                          "workspace"
+                        ]
+                      }
+                    ]
+                  }
                 }
               }
             },
@@ -6315,6 +6818,57 @@
           "status"
         ]
       },
+      "DataOwnerHealthDTO": {
+        "type": "object",
+        "description": "Whether a declared data owner is answering probes.",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Data owner name",
+            "example": "workspaces"
+          },
+          "alive": {
+            "type": "boolean",
+            "description": "Whether it answered within OWNER_ALIVE_MAX_AGE_HOURS"
+          },
+          "last_alive_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO datetime of its last answer, null if it never answered",
+            "example": "2026-08-20T05:00:00Z"
+          },
+          "last_probe_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO datetime it was last asked",
+            "example": "2026-08-24T05:00:00Z"
+          },
+          "declared_subject_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Subjects the inventory says it holds",
+            "example": [
+              "account",
+              "workspace"
+            ]
+          },
+          "answered_subject_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Subjects it says it holds"
+          }
+        },
+        "required": [
+          "alive",
+          "last_alive_at",
+          "last_probe_at",
+          "owner"
+        ]
+      },
       "DelayedCancelResponse": {
         "type": "object",
         "description": "Delayed change cancelled.",
@@ -6461,6 +7015,86 @@
           "has_pending_change"
         ]
       },
+      "DsarStatusDTO": {
+        "type": "object",
+        "description": "A data-subject request and the statutory clocks on it.",
+        "properties": {
+          "request_id": {
+            "type": "integer",
+            "description": "DSAR ID, quoted back to the subject as their reference",
+            "example": 5
+          },
+          "kind": {
+            "type": "string",
+            "description": "One of access, erasure, rectification, portability",
+            "example": "access"
+          },
+          "channel": {
+            "type": "string",
+            "description": "How it arrived — app, form or email",
+            "example": "form"
+          },
+          "subject_email": {
+            "type": "string",
+            "description": "Email the request was made from",
+            "example": "person@example.com"
+          },
+          "state": {
+            "type": "string",
+            "description": "One of received, acknowledged, in_progress, resolved, rejected",
+            "example": "acknowledged"
+          },
+          "received_at": {
+            "type": "string",
+            "description": "ISO datetime the request arrived",
+            "example": "2026-08-24T09:00:00Z"
+          },
+          "ack_due_at": {
+            "type": "string",
+            "description": "ISO datetime the acknowledgement is due (3 business days)",
+            "example": "2026-08-27T09:00:00Z"
+          },
+          "ack_sent_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO datetime the acknowledgement went out, null if not yet",
+            "example": "2026-08-24T09:00:03Z"
+          },
+          "resolve_due_at": {
+            "type": "string",
+            "description": "ISO datetime resolution is due (30 days)",
+            "example": "2026-09-23T09:00:00Z"
+          },
+          "erasure_request_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Linked erasure, null when none was started",
+            "example": 17
+          },
+          "export_request_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Linked data export, null when none was started",
+            "example": 42
+          },
+          "note": {
+            "type": "string",
+            "description": "Staff notes and automation outcomes",
+            "example": "matched to account"
+          }
+        },
+        "required": [
+          "ack_due_at",
+          "ack_sent_at",
+          "channel",
+          "kind",
+          "received_at",
+          "request_id",
+          "resolve_due_at",
+          "state",
+          "subject_email"
+        ]
+      },
       "EmailAuthRequest": {
         "type": "object",
         "description": "Serializer for email authentication request (OTP)",
@@ -6497,6 +7131,145 @@
         "required": [
           "code",
           "email"
+        ]
+      },
+      "ErasurePartDTO": {
+        "type": "object",
+        "description": "One data owner's receipt for an erasure.",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Data owner name",
+            "example": "recordings"
+          },
+          "state": {
+            "type": "string",
+            "description": "One of pending, done, failed, timeout",
+            "example": "done"
+          },
+          "receipt_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO datetime the owner confirmed, null while pending",
+            "example": "2026-08-24T09:12:00Z"
+          },
+          "receipt_id": {
+            "type": "string",
+            "description": "The owner's own durable proof of erasure",
+            "example": "recordings:job-8812"
+          },
+          "counts": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "What the owner removed, by its own count",
+            "example": {
+              "recordings": 3
+            }
+          }
+        },
+        "required": [
+          "owner",
+          "receipt_at",
+          "state"
+        ]
+      },
+      "ErasureStatusDTO": {
+        "type": "object",
+        "description": "State of an erasure request, with everything it is waiting on.",
+        "properties": {
+          "request_id": {
+            "type": "integer",
+            "description": "Erasure request ID",
+            "example": 17
+          },
+          "subject_type": {
+            "type": "string",
+            "description": "What is being erased",
+            "example": "recording"
+          },
+          "subject_key": {
+            "type": "string",
+            "description": "The host's id for that subject",
+            "example": "9f1c2d3e"
+          },
+          "workspace_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "Workspace the subject belongs to, null when not partitioned",
+            "example": "ws-42"
+          },
+          "state": {
+            "type": "string",
+            "description": "One of queued, erasing, deleted, timeout",
+            "example": "erasing"
+          },
+          "origin": {
+            "type": "string",
+            "description": "Why this erasure exists",
+            "example": "user"
+          },
+          "requested_at": {
+            "type": "string",
+            "description": "ISO datetime the erasure was opened",
+            "example": "2026-08-24T09:00:00Z"
+          },
+          "due_at": {
+            "type": "string",
+            "description": "ISO datetime our own purge SLA expires",
+            "example": "2026-09-23T09:00:00Z"
+          },
+          "fully_erased_by": {
+            "type": "string",
+            "description": "ISO datetime every subprocessor window has also closed",
+            "example": "2026-10-18T09:00:00Z"
+          },
+          "completed_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO datetime the erasure was certified, null while open",
+            "example": "2026-08-24T09:12:00Z"
+          },
+          "grace_ends_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO datetime a cancellable grace ends (accounts only)",
+            "example": "2026-09-23T09:00:00Z"
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErasurePartDTO"
+            },
+            "description": "Per-owner receipts"
+          },
+          "obligations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubprocessorObligationDTO"
+            },
+            "description": "Per-processor deletion windows"
+          },
+          "unreceipted_owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Owners still blocking completion",
+            "example": [
+              "media"
+            ]
+          }
+        },
+        "required": [
+          "due_at",
+          "fully_erased_by",
+          "origin",
+          "request_id",
+          "requested_at",
+          "state",
+          "subject_key",
+          "subject_type",
+          "workspace_id"
         ]
       },
       "ExportRequestDTO": {
@@ -6660,6 +7433,56 @@
           "token"
         ]
       },
+      "GDPRDsarRequest": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/KindEnum"
+              }
+            ],
+            "description": "access, erasure, rectification or portability.\n\n* `access` - access\n* `erasure` - erasure\n* `rectification` - rectification\n* `portability` - portability"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Required for anonymous submissions; ignored when authenticated."
+          },
+          "note": {
+            "type": "string",
+            "description": "What the subject is asking for, in their words."
+          },
+          "captcha_token": {
+            "type": "string",
+            "description": "Captcha token for anonymous submissions."
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "GDPRErasureRequest": {
+        "type": "object",
+        "properties": {
+          "subject_type": {
+            "type": "string",
+            "description": "One of STAPEL_GDPR[\"SUBJECT_TYPES\"], e.g. \"recording\"."
+          },
+          "subject_key": {
+            "type": "string",
+            "description": "The host's own id for the subject."
+          },
+          "workspace_id": {
+            "type": "string",
+            "description": "Workspace the subject belongs to, for owners that partition by it."
+          }
+        },
+        "required": [
+          "subject_key",
+          "subject_type"
+        ]
+      },
       "InstantChangeRequestNew": {
         "type": "object",
         "description": "Request OTP to new authenticator (phone or email).",
@@ -6787,6 +7610,16 @@
           "expires_at",
           "status"
         ]
+      },
+      "KindEnum": {
+        "enum": [
+          "access",
+          "erasure",
+          "rectification",
+          "portability"
+        ],
+        "type": "string",
+        "description": "* `access` - access\n* `erasure` - erasure\n* `rectification` - rectification\n* `portability` - portability"
       },
       "LegacyTokenResponse": {
         "oneOf": [
@@ -7521,6 +8354,20 @@
           "new_password",
           "phone"
         ]
+      },
+      "PatchedGDPRDsarPatch": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/StateEnum"
+          },
+          "note": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        }
       },
       "PatchedServiceAPIKey": {
         "type": "object",
@@ -8317,6 +9164,49 @@
         "required": [
           "error",
           "localizable_error"
+        ]
+      },
+      "StateEnum": {
+        "enum": [
+          "received",
+          "acknowledged",
+          "in_progress",
+          "resolved",
+          "rejected"
+        ],
+        "type": "string",
+        "description": "* `received` - received\n* `acknowledged` - acknowledged\n* `in_progress` - in_progress\n* `resolved` - resolved\n* `rejected` - rejected"
+      },
+      "SubprocessorObligationDTO": {
+        "type": "object",
+        "description": "One processor's contractual deletion window for an erasure.",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "Processor name",
+            "example": "openai"
+          },
+          "window_days": {
+            "type": "integer",
+            "description": "Contractual window in days from our own completion",
+            "example": 30
+          },
+          "due_at": {
+            "type": "string",
+            "description": "ISO datetime the window closes",
+            "example": "2026-09-23T09:12:00Z"
+          },
+          "state": {
+            "type": "string",
+            "description": "One of pending, confirmed, overdue",
+            "example": "pending"
+          }
+        },
+        "required": [
+          "due_at",
+          "provider",
+          "state",
+          "window_days"
         ]
       },
       "TOTPChallengeResponse": {

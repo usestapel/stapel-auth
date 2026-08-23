@@ -2,7 +2,7 @@
 
 User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.
 
-Contract: axes 29 · surface 18 · extension points 6 · operations 111 · error codes 132 · flows 4.
+Contract: axes 29 · surface 18 · extension points 6 · operations 119 · error codes 137 · flows 4.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -160,7 +160,7 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - stapel-gdpr (optional) — default REREGISTRATION_MODEL target (lazy dotted path); co-mounted under /auth/api/ in the contract harness
 - stapel-notifications (optional) — delivers the OTP / magic-link / security emails and SMS this module requests via notification.requested
 
-## HTTP operations (111) — call by operationId, never by a typed path
+## HTTP operations (119) — call by operationId, never by a typed path
 Paths are relative to `/auth/api/v1/`.
 ### API Keys
 - POST /service-keys — auth_api_v1_service_keys_create
@@ -191,6 +191,14 @@ Paths are relative to `/auth/api/v1/`.
 - POST /email/change/instant/verify-new/ — auth_api_v1_email_change_instant_verify_new_create
 - POST /email/change/instant/verify-old/ — auth_api_v1_email_change_instant_verify_old_create
 ### GDPR
+- POST /dsar — auth_api_v1_dsar_create
+- GET /dsar — auth_api_v1_dsar_list
+- PATCH /dsar/{dsar_id} — auth_api_v1_dsar_partial_update
+- GET /dsar/{dsar_id} — auth_api_v1_dsar_retrieve
+- POST /erasures — auth_api_v1_erasures_create
+- GET /erasures/{request_id} — auth_api_v1_erasures_retrieve
+- GET /me/erasures — auth_api_v1_me_erasures_list
+- GET /owners/health — auth_api_v1_owners_health_list
 - POST /user/account/cancel-close — auth_api_v1_user_account_cancel_close_create
 - POST /user/account/close — auth_api_v1_user_account_close_create
 - GET /user/account/close/status — auth_api_v1_user_account_close_status_retrieve
@@ -297,7 +305,7 @@ Paths are relative to `/auth/api/v1/`.
 - PUT /verification/preferences/ — auth_api_v1_verification_preferences_update
 - GET /verification/{challenge_id}/ — auth_api_v1_verification_retrieve
 
-## Error codes (132) — the StapelError envelope
+## Error codes (137) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
@@ -321,6 +329,8 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.400.field.required [400] fix_input {field}
 - error.400.field.unique [400] fix_input {field}
 - error.400.first_login_challenge_invalid [400] reauthenticate
+- error.400.gdpr.unknown_dsar_kind [400] fix_input
+- error.400.gdpr.unknown_subject_type [400] fix_input
 - error.400.grant_invalid [400] retry
 - error.400.invalid_ad_id [400] fix_input
 - error.400.invalid_change_token [400] retry
@@ -373,6 +383,7 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.402.payment_required [402] retry
 - error.403.forbidden [403] retry
 - error.403.gdpr.account_closed [403] retry
+- error.403.gdpr.erasure_forbidden [403] contact_support
 - error.403.mfa_enrollment_required [403] verify
 - error.403.mock_otp_admin [403] contact_support
 - error.403.network_blocked [403] contact_support
@@ -386,6 +397,8 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.403.verification_required [403] verify
 - error.404.ad_not_found [404] retry
 - error.404.change_not_found [404] retry
+- error.404.gdpr.dsar_not_found [404] retry
+- error.404.gdpr.erasure_not_found [404] retry
 - error.404.gdpr.export_not_found [404] retry
 - error.404.gdpr.no_active_closure [404] fix_input
 - error.404.not_found [404] retry

@@ -1,6 +1,6 @@
 # Errors — Español
 
-`132` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
+`137` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
 
 | Código | Estado | Parámetros | Acción | Texto |
 |---|---|---|---|---|
@@ -26,6 +26,8 @@
 | `error.400.field.required` | 400 | `field` | `fix_input` | {field} es obligatorio |
 | `error.400.field.unique` | 400 | `field` | `fix_input` | {field} debe ser único |
 | `error.400.first_login_challenge_invalid` | 400 | — | `reauthenticate` | El desafío de primer inicio de sesión no es válido o ha caducado. Vuelve a iniciar sesión para empezar de nuevo. |
+| `error.400.gdpr.unknown_dsar_kind` | 400 | — | `fix_input` | Tipo de solicitud de protección de datos desconocido. |
+| `error.400.gdpr.unknown_subject_type` | 400 | — | `fix_input` | Este tipo de datos no se puede eliminar a través de este endpoint. |
 | `error.400.grant_invalid` | 400 | — | `retry` | La concesión de inicio de sesión no es válida, ya se ha utilizado o ha caducado. |
 | `error.400.invalid_ad_id` | 400 | — | `fix_input` | ID de anuncio no válido |
 | `error.400.invalid_change_token` | 400 | — | `retry` | Token de cambio no válido o caducado. |
@@ -78,6 +80,7 @@
 | `error.402.payment_required` | 402 | — | `retry` | Se requiere pago |
 | `error.403.forbidden` | 403 | — | `retry` | No tienes permiso para realizar esta acción |
 | `error.403.gdpr.account_closed` | 403 | — | `retry` | Esta cuenta se está eliminando y ya no se puede utilizar. |
+| `error.403.gdpr.erasure_forbidden` | 403 | — | `contact_support` | No tienes permiso para solicitar la eliminación de este elemento. |
 | `error.403.mfa_enrollment_required` | 403 | — | `verify` | Es necesario registrar la autenticación de dos factores antes de poder usar esta cuenta. Configura primero una aplicación de autenticación o una llave de acceso. |
 | `error.403.mock_otp_admin` | 403 | — | `contact_support` | La autenticación por OTP está deshabilitada para cuentas de administrador en modo mock. |
 | `error.403.network_blocked` | 403 | — | `contact_support` | No se permiten solicitudes desde esta red. |
@@ -91,6 +94,8 @@
 | `error.403.verification_required` | 403 | — | `verify` | Se requiere verificación adicional |
 | `error.404.ad_not_found` | 404 | — | `retry` | Anuncio no encontrado |
 | `error.404.change_not_found` | 404 | — | `retry` | Solicitud de cambio no encontrada. |
+| `error.404.gdpr.dsar_not_found` | 404 | — | `retry` | Solicitud de protección de datos no encontrada. |
+| `error.404.gdpr.erasure_not_found` | 404 | — | `retry` | Solicitud de eliminación no encontrada. |
 | `error.404.gdpr.export_not_found` | 404 | — | `retry` | Solicitud de exportación no encontrada. |
 | `error.404.gdpr.no_active_closure` | 404 | — | `fix_input` | No se encontró ningún cierre de cuenta pendiente. |
 | `error.404.not_found` | 404 | — | `retry` | Recurso solicitado no encontrado |

@@ -1,6 +1,6 @@
 # Errors — Русский
 
-`132` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
+`137` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
 
 | Код | Статус | Параметры | Действие | Текст |
 |---|---|---|---|---|
@@ -26,6 +26,8 @@
 | `error.400.field.required` | 400 | `field` | `fix_input` | Поле «{field}» обязательно |
 | `error.400.field.unique` | 400 | `field` | `fix_input` | Значение поля «{field}» должно быть уникальным |
 | `error.400.first_login_challenge_invalid` | 400 | — | `reauthenticate` | Челлендж первого входа недействителен или истёк. Войдите ещё раз, чтобы начать заново. |
+| `error.400.gdpr.unknown_dsar_kind` | 400 | — | `fix_input` | Неизвестный вид запроса о защите данных. |
+| `error.400.gdpr.unknown_subject_type` | 400 | — | `fix_input` | Данные этого вида нельзя удалить через этот эндпоинт. |
 | `error.400.grant_invalid` | 400 | — | `retry` | Грант для входа недействителен, уже использован или его срок действия истёк. |
 | `error.400.invalid_ad_id` | 400 | — | `fix_input` | Недопустимый идентификатор объявления |
 | `error.400.invalid_change_token` | 400 | — | `retry` | Недействительный или просроченный токен изменения. |
@@ -78,6 +80,7 @@
 | `error.402.payment_required` | 402 | — | `retry` | Требуется оплата |
 | `error.403.forbidden` | 403 | — | `retry` | У вас нет прав для выполнения этого действия |
 | `error.403.gdpr.account_closed` | 403 | — | `retry` | Эта учётная запись удаляется и больше не может использоваться. |
+| `error.403.gdpr.erasure_forbidden` | 403 | — | `contact_support` | У вас нет прав запрашивать удаление этого объекта. |
 | `error.403.mfa_enrollment_required` | 403 | — | `verify` | Перед использованием этой учётной записи необходимо настроить двухфакторную аутентификацию. Сначала подключите приложение-аутентификатор или ключ доступа. |
 | `error.403.mock_otp_admin` | 403 | — | `contact_support` | Аутентификация по OTP отключена для учётных записей администраторов в mock-режиме. |
 | `error.403.network_blocked` | 403 | — | `contact_support` | Запросы из этой сети не разрешены. |
@@ -91,6 +94,8 @@
 | `error.403.verification_required` | 403 | — | `verify` | Требуется дополнительная проверка |
 | `error.404.ad_not_found` | 404 | — | `retry` | Объявление не найдено |
 | `error.404.change_not_found` | 404 | — | `retry` | Запрос на изменение не найден. |
+| `error.404.gdpr.dsar_not_found` | 404 | — | `retry` | Запрос о защите данных не найден. |
+| `error.404.gdpr.erasure_not_found` | 404 | — | `retry` | Запрос на удаление не найден. |
 | `error.404.gdpr.export_not_found` | 404 | — | `retry` | Запрос на экспорт не найден. |
 | `error.404.gdpr.no_active_closure` | 404 | — | `fix_input` | Незавершённый запрос на закрытие учётной записи не найден. |
 | `error.404.not_found` | 404 | — | `retry` | Запрошенный ресурс не найден |

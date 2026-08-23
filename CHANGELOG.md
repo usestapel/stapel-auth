@@ -2,6 +2,37 @@
 
 ## [Unreleased]
 
+## [0.24.1] — 2026-08-23
+
+### Docs — contract regenerated against stapel-gdpr 0.5.1
+
+The contract harness mounts `stapel_gdpr`, and gdpr 0.5.x (entity-scoped
+erasure, DSAR intake, owner health) had gone unreflected: `docs/schema.json`
+was missing the six paths gdpr 0.5 added — `erasures`, `erasures/{id}`,
+`me/erasures`, `dsar`, `dsar/{id}`, `owners/health` — plus their error keys,
+so `test_contract_has_no_drift` and `test_matches_monolith_auth_slice` were
+red. Regenerated `docs/{schema,flows,errors,capabilities,llms.txt}` +
+`README.md` against stapel-gdpr 0.5.1 (PyPI latest); no source changes.
+
+`docs/errors.{en,es,ru}.md` regenerated in step (the new gdpr-owned error
+keys are covered by gdpr's own translation catalogs, not auth's — no
+`translations/errors.*.json` changes were needed).
+
+### Known gap — carried, not introduced
+
+`test_matches_monolith_auth_slice` still fails locally (only when the
+sibling `stapel-example-monolith` checkout is present; CI does not check it
+out, so this does not gate publishing): the `/auth/api/v1/gdpr/schema/`
+path's `IsStaffUserForSwagger` vs `AllowAny` permission description differs
+from the monolith's aggregate. That path's content is byte-identical before
+and after this release's regen, so the drift is pre-existing and orthogonal
+to the gdpr catch-up — most likely `drf-spectacular`'s settings singleton
+freezing to library defaults before the single-module codegen harness
+configures Django (`_codegen.py`'s own comment already flags this as
+fragile), which the stapel-core 0.28→0.34 pin jump appears to have broken
+parity on. Left for a follow-up that touches `_codegen.py`'s settings
+freezing order, out of scope for a contract-artifacts-only patch.
+
 ## [0.24.0] — 2026-08-22
 
 ### Added — the user projection: a service can now hold a row for a user it has never met
