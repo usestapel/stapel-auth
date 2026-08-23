@@ -2,6 +2,69 @@
 
 ## [Unreleased]
 
+## [0.25.1] — 2026-08-24
+
+### `last_login` was never written by anything in this module
+
+Django stamps `User.last_login` from `update_last_login`, a receiver of the
+`user_logged_in` signal that `django.contrib.auth.login` sends. Nothing here
+uses session login: every flow in this module — password, each OTP verify,
+OAuth, SSO, magic link, QR, passkey, TOTP challenge, login grant, the legacy
+`/token/` endpoint — mints a JWT and sends no signal. So for every account
+that authenticated through this library, a column the rest of Django (and
+every host reading it) treats as "has this account ever signed in" stayed
+NULL indefinitely.
+
+It was not a hypothetical. A host's accounting page filtered
+`last_login IS NOT NULL` and found nobody — while `auth_audit_log`, in the
+same database, listed those users' logins with timestamps. The library was
+recording the truth in its own table and lying in the one Django exposes.
+
+**`sessions.services.stamp_last_login(user)`** is now the one place the
+column is written, and the main caller is
+`sessions.views._issue_session_tokens` — the choke point every full-session
+path already funnels through (org-program §P13). That placement is the point:
+a login flow added next year inherits the stamp by going through the gate it
+must go through anyway, instead of having to remember a line. The two minters
+that legitimately mint around the choke point (the guest-promotion re-mint in
+`password/views.py::change_otp_verify`, the QR `login_request` confirm) call
+it directly, and `tests/test_last_login_stamp.py` gates that with an AST scan:
+a new bypassing minter that does not stamp fails the build.
+
+Two smaller things fall out of having one place:
+
+- **Token refresh does not stamp.** Presenting a live refresh token proves a
+  session is still alive, not that anyone authenticated; stamping there would
+  quietly redefine the column as "last request by a logged-in browser". The
+  exclusion is pinned by a test so it cannot be "fixed" by someone reading
+  the refresh path on its own.
+- **A challenge is no longer recorded as a login.** Password login used to
+  stamp by hand *before* its TOTP step-up and first-login branches, so an
+  account that got a challenge and no session came out looking like it had
+  signed in. The stamp now sits downstream of every branch that can still
+  turn the request away. The other hand-written stamp, on the legacy
+  `/token/` endpoint, is gone the same way — it was why that one endpoint
+  told the truth and no other did.
+
+### The accounts that already logged in
+
+`0020_backfill_last_login_from_audit_log` fills the historical NULLs from the
+evidence the module had all along: the latest successful-login row per user
+in `auth_audit_log` (`login_success`, `sso_login`, `oauth_login`, `qr_login`,
+`totp_login`, `passkey_login`, `magic_link_used`, `login_grant_used` — the
+verbs frozen at migration time, so later edits to `AuthEventType` cannot
+change what a shipped migration means).
+
+NULLs only, and no row means no stamp: an account with no successful-login
+event stays NULL, because NULL is the honest answer to "we have no evidence
+this ever happened" and substituting `date_joined` would turn a knowable gap
+into a plausible lie. Keyset-paginated in batches of 1000, so it is bounded
+on a user table of any size. Backwards is a no-op — once written, a
+backfilled stamp is indistinguishable from a real one, so "undo" could only
+destroy data.
+
+No schema change, no API change: `docs/schema.json` is byte-identical.
+
 ## [0.25.0] — 2026-08-23
 
 ### `auth: alive=false` — the one module in the fleet that answered no probe

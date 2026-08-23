@@ -94,6 +94,47 @@ class TokenService:
 
 
 
+def stamp_last_login(user) -> bool:
+    """Stamp ``user.last_login`` for an authentication that just succeeded.
+
+    THE one place the field is written. Django only ever stamps it from
+    ``update_last_login``, a receiver of the ``user_logged_in`` signal that
+    ``django.contrib.auth.login`` sends — i.e. session login. Every flow in
+    this module hands out a JWT instead and sends no such signal, so the
+    column stayed NULL for accounts that had logged in for months. Hosts do
+    read it: an accounting page filtering ``last_login IS NOT NULL`` found
+    nobody while this module's own ``auth_audit_log`` listed their logins.
+
+    Callers are the token-issuing *authentication* sites — above all
+    :func:`stapel_auth.sessions.views._issue_session_tokens`, the choke point
+    every full-session path funnels through, so a new login flow inherits the
+    stamp instead of having to remember it. Token **refresh** is deliberately
+    not a caller: presenting a live refresh token proves the session is still
+    alive, not that anyone authenticated again.
+
+    Writes ``update_fields=["last_login"]`` — the projection observer's fast
+    path (``user_projection.PROJECTED_FIELDS``) skips its pre-save SELECT for
+    exactly this write. Never raises: a bookkeeping column must not be able
+    to fail a login. Returns whether the stamp landed.
+    """
+    if user is None or getattr(user, 'pk', None) is None:
+        return False
+    # pk alone is not "is this row in the database": the user model's pk is a
+    # UUID with a default, so an unsaved instance already carries one and an
+    # update_fields save against it silently updates nothing.
+    if getattr(getattr(user, '_state', None), 'adding', False):
+        return False
+    if not hasattr(user, 'last_login'):
+        return False
+    try:
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
+    except Exception:
+        logger.exception('failed to stamp last_login for user %s', user.pk)
+        return False
+    return True
+
+
 def _get_client_ip(request) -> str | None:
     if not request:
         return None

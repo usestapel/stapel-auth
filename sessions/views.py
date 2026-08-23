@@ -187,12 +187,9 @@ class CustomTokenObtainPairView(SerializerSeamsMixin, APIView):
                 denied.http_status, denied.error_key, denied.error_params
             )
 
-        # Update last login
-        from django.utils import timezone
-
-        user.last_login = timezone.now()
-        user.save(update_fields=["last_login"])
-
+        # (last_login is stamped inside _issue_session_tokens — it used to be
+        # stamped by hand here, which is why this one endpoint told the truth
+        # and every other login flow did not.)
         tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
         response = Response(
             self.get_response_serializer_class()(tokens_dto).data,
@@ -437,7 +434,12 @@ def _issue_session_tokens(
 
     from stapel_auth.staff_roles import create_tokens_for_user
 
-    from .services import AuditService, LoginNotificationService, SessionService
+    from .services import (
+        AuditService,
+        LoginNotificationService,
+        SessionService,
+        stamp_last_login,
+    )
 
     denied = session_precondition_error(user, path=path)
     if denied is not None:
@@ -465,6 +467,10 @@ def _issue_session_tokens(
         session = SessionService.create(
             user, jti, expires_at, request=request, access_jti=at_payload.get("jti", "")
         )
+    # Django's own last_login stamp rides on the user_logged_in signal, which
+    # no JWT path sends — so it happens here, at the choke point, and a login
+    # flow added later gets it without knowing it exists (see stamp_last_login).
+    stamp_last_login(user)
     AuditService.log(audit_event, user=user, request=request, session=session)
     if session:
         LoginNotificationService.check_and_notify(user, session)

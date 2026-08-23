@@ -421,6 +421,7 @@ Issues tokens for the waiting device. The device polling `/status` will receive 
         permission_classes=[permissions.IsAuthenticated],
     )
     def confirm(self, request, key=None):  # noqa: R007
+        from stapel_auth.sessions.services import stamp_last_login
         from stapel_auth.staff_roles import create_tokens_for_user
 
         data = QRAuthService.get(key)
@@ -432,6 +433,10 @@ Issues tokens for the waiting device. The device polling `/status` will receive 
             return StapelErrorResponse(400, ERR_400_QR_TYPE_REQUIRED)
 
         access_token, refresh_token = create_tokens_for_user(request.user)
+        # Mints around the choke point (bypass roster): the scanner is handing
+        # the waiting device a session on this account, so this account is
+        # logging in — on the other device — right now.
+        stamp_last_login(request.user)
         QRAuthService.fulfill_login_request(
             key,
             approver_user_id=request.user.id,

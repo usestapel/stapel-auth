@@ -179,7 +179,6 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if not auth_settings.AUTH_PASSWORD_LOGIN:
             return error_403_forbidden()
 
-        from django.utils import timezone
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
         from stapel_auth.errors import ERR_423_ACCOUNT_LOCKED, retry_params
@@ -221,8 +220,10 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
         LockoutService.clear(identifier)
 
-        user.last_login = timezone.now()
-        user.save(update_fields=["last_login"])
+        # last_login is NOT stamped here: the two branches below can still turn
+        # this request away with a TOTP challenge or a first-login challenge,
+        # and a challenge is not a login. It is stamped by the choke point
+        # (_issue_session_tokens) once a session is actually handed out.
 
         # TOTP step-up on password login, gated by PASSWORD_LOGIN_STEP_UP
         # (default True — a password alone is phishable).
@@ -395,9 +396,14 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
         from stapel_auth.hint_cookie import set_auth_hint_cookie
+        from stapel_auth.sessions.services import stamp_last_login
         from stapel_auth.staff_roles import create_tokens_for_user
 
         access_token, refresh_token = create_tokens_for_user(user)
+        # Mints around the choke point (see the bypass roster in
+        # tests/test_session_issuance_gate.py), so it stamps for itself: the
+        # promoted account is authenticating as a registered user right here.
+        stamp_last_login(user)
         dto = AuthResponse(
             status=AuthStatus.REGISTERED,
             user=user,
