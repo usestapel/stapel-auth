@@ -2,6 +2,89 @@
 
 ## [Unreleased]
 
+## [0.25.0] — 2026-08-23
+
+### `auth: alive=false` — the one module in the fleet that answered no probe
+
+stapel-gdpr's owners-health board has said `auth: alive=false` in production
+for as long as it has existed, and every part of that was true: liveness is
+answered by the subscriber that *erases*, and stapel-auth had none. It was a
+declared data owner, its in-process provider really did erase, and it was
+the last module in the fleet with no `gdpr.owner.probe` handler — so the one
+store that holds everybody's credentials was also the one the board could
+not vouch for.
+
+**The first migration onto `stapel_core.gdpr.register_gdpr_owner`**
+(stapel-core 0.35.0, hence the floor bump to `>=0.35.0`). The protocol is
+not re-implemented here — none of it. `apps.ready()` registers the owner and
+hands over one callable:
+
+```python
+register_gdpr_owner("auth", ["account"], erase_subject)
+```
+
+and core subscribes `gdpr.erasure.requested` (erase → `gdpr.section.erased`
+with `counts` and the derived `receipt_id`, inside the erase's transaction),
+`gdpr.owner.probe` (→ `gdpr.owner.alive {owner, subject_types}` from the
+same module), and the deprecated `user.deleted`, which runs the same erase.
+Contracts documented in `schemas/consumes/` and `schemas/emits/`.
+
+### Auth hosts stapel-gdpr — so both receipt paths run in one process
+
+Auth is not an ordinary owner: it is the service the orchestrator itself
+lives in, so a single account erasure now runs the comm subscriber **and**
+the in-process provider the orchestrator walks, and the local self-receipt
+(`_record_local_receipts`) sits beside the receipt the subscriber emits. Two
+paths to one `ErasurePart` is exactly the shape that produces a double
+receipt, and a receipt is the thing an erasure is finalized against.
+
+It does not double-receipt, and that is now pinned rather than assumed:
+`mark_section_erased` excludes parts already `done` and the local pass skips
+them, so whichever path arrives second changes nothing —
+`tests/test_gdpr_owner.py::test_hosting_gdpr_in_process_writes_exactly_one_receipt`
+drives a real `execute_deletion` with synchronous in-process comm, counts
+every write that actually flips a part to `done`, and asserts there is
+exactly one — the subscriber's, with its measured counts, not overwritten by
+the later path's zeroes. A redelivered request finds the part done and
+leaves `receipt_id`, `receipt_at` and `counts` untouched.
+
+### One erasure, two callers — and it now erases three tables it forgot
+
+The erasure moved out of `gdpr.py` into `erasure.py: erase_subject(subject_type,
+subject_key, workspace_id)` — idempotent, returning what it removed per
+model (`{"sessions": 1, "passkeys": 1, ...}`), `None` for a subject type
+this module does not claim. The provider's `delete()` and the comm
+subscribers both call it, so a monolith and a fleet erase the same rows the
+same way; `AuthGDPRProvider.export()` and the `_user_identifiers` /
+`_store_reregistration_hashes` seams are unchanged.
+
+Routing it through one counted function is what exposed the gap: three
+tables were never erased at all —
+
+- `LinkedOAuthAccount` — the person's Google/GitHub user ids, plus the email
+  and display name those providers reported;
+- `StaffRoleAssignment` — a staff role left standing on an erased account;
+- `VerificationPreference` — their step-up preferences.
+
+Nothing cascaded them away either: the default primary-identity strategy is
+`anonymize`, which keeps the user row. They are erased now and counted in
+the receipt. A receipt that certifies an erasure while a provider's id for
+the person stays joinable is worse than no receipt at all.
+
+Also: the subject key is no longer stringified on its way to the ORM. The
+fleet's user pk is a UUID and other deployments' is an integer; `str()`
+around an integer pk turns a valid key into an unparseable one, and an
+unparseable key is — correctly — never receipted.
+
+### Docs — contract regenerated against stapel-gdpr 0.5.2
+
+The contract harness mounts `stapel_gdpr`, whose 0.5.2 (its own OpenAPI, for
+the frontend pair) moved three paths auth emits: `dsar`,
+`user/account/close/status` and the added `internal/export/{request_id}/part-ready`.
+Regenerated `docs/{schema,flows,errors,capabilities,llms.txt}` + `README.md`.
+The `test_matches_monolith_auth_slice` gap carried from 0.24.1 is unchanged
+and still local-only (CI does not check the monolith sibling out).
+
 ## [0.24.1] — 2026-08-23
 
 ### Docs — contract regenerated against stapel-gdpr 0.5.1

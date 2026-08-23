@@ -1,8 +1,8 @@
-# stapel-auth 0.24.1
+# stapel-auth 0.25.0
 
 User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.
 
-Contract: axes 29 · surface 18 · extension points 6 · operations 119 · error codes 137 · flows 4.
+Contract: axes 29 · surface 18 · extension points 6 · operations 120 · error codes 137 · flows 4.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -160,7 +160,7 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - stapel-gdpr (optional) — default REREGISTRATION_MODEL target (lazy dotted path); co-mounted under /auth/api/ in the contract harness
 - stapel-notifications (optional) — delivers the OTP / magic-link / security emails and SMS this module requests via notification.requested
 
-## HTTP operations (119) — call by operationId, never by a typed path
+## HTTP operations (120) — call by operationId, never by a typed path
 Paths are relative to `/auth/api/v1/`.
 ### API Keys
 - POST /service-keys — auth_api_v1_service_keys_create
@@ -197,6 +197,7 @@ Paths are relative to `/auth/api/v1/`.
 - GET /dsar/{dsar_id} — auth_api_v1_dsar_retrieve
 - POST /erasures — auth_api_v1_erasures_create
 - GET /erasures/{request_id} — auth_api_v1_erasures_retrieve
+- POST /internal/export/{request_id}/part-ready — auth_api_v1_internal_export_part_ready_create
 - GET /me/erasures — auth_api_v1_me_erasures_list
 - GET /owners/health — auth_api_v1_owners_health_list
 - POST /user/account/cancel-close — auth_api_v1_user_account_cancel_close_create

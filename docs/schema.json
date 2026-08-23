@@ -275,6 +275,16 @@
               }
             },
             "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
           }
         }
       },
@@ -1480,6 +1490,76 @@
               }
             },
             "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/auth/api/v1/internal/export/{request_id}/part-ready": {
+      "post": {
+        "operationId": "auth_api_v1_internal_export_part_ready_create",
+        "description": "Called by a remote data owner once its portion of an export is staged. Requires a service credential (`IsServiceRequest`), not a user session. When the last outstanding part arrives the archive is assembled.\n\n**Permissions:** `IsServiceRequest, IsAuthenticated`",
+        "summary": "Mark an export part ready (service-to-service)",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "GDPR"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GDPRExportPartReadyRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/GDPRExportPartReadyRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/GDPRExportPartReadyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
           },
           "400": {
             "content": {
@@ -5918,6 +5998,16 @@
               }
             },
             "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
           }
         }
       }
@@ -7481,6 +7571,22 @@
         "required": [
           "subject_key",
           "subject_type"
+        ]
+      },
+      "GDPRExportPartReadyRequest": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "description": "The data owner's section name, e.g. \"recordings\"."
+          },
+          "bucket_path": {
+            "type": "string",
+            "description": "Where the staged payload lives, empty for in-process owners."
+          }
+        },
+        "required": [
+          "service"
         ]
       },
       "InstantChangeRequestNew": {

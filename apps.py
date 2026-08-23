@@ -42,6 +42,25 @@ class StapelAuthConfig(AppConfig):
             from .gdpr import AuthGDPRProvider
             gdpr_registry.register(AuthGDPRProvider())
 
+        # The erasure protocol (stapel-gdpr 0.5.0+), implemented once in
+        # stapel-core: gdpr.erasure.requested -> erase -> gdpr.section.erased
+        # with a deterministic receipt inside the erase's transaction, plus
+        # the gdpr.owner.probe answer from the same module. Unconditional —
+        # auth was the fleet's only declared owner that answered no probe, so
+        # owners-health reported `auth: alive=false` in a deployment where the
+        # erasure worked fine. Liveness is answered by the subscriber that
+        # erases or it is not evidence of anything.
+        #
+        # Auth is also the module that HOSTS stapel-gdpr, so both this
+        # subscriber and the in-process provider above run in one process for
+        # one account erasure. Registering both does not double-receipt: the
+        # orchestrator's local receipt skips a part that is already done and
+        # mark_section_erased excludes done parts (tests/test_gdpr_owner.py
+        # pins exactly that).
+        from stapel_core.gdpr import register_gdpr_owner
+        from .erasure import OWNER, SUBJECT_TYPES, erase_subject
+        register_gdpr_owner(OWNER, SUBJECT_TYPES, erase_subject)
+
         # Account activation observer (#92): announces the real is_active
         # True<->False transition as user.deactivated / user.reactivated,
         # whoever flipped the flag (service call, admin checkbox, shell).

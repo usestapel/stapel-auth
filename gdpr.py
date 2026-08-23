@@ -1,4 +1,14 @@
+"""The Art. 15 export, and the registry seam onto the Art. 17 erasure.
+
+The erasure itself is not here: it lives in :mod:`stapel_auth.erasure`, as
+one function the in-process registry (below) and the comm subscribers
+registered in ``apps.ready()`` both reach. Two callers, one implementation —
+a monolith and a fleet erase the same rows the same way, and there is no
+second erasure to drift.
+"""
 from stapel_core.gdpr import GDPRProvider
+
+from .erasure import erase_subject, store_reregistration_hashes, user_identifiers
 
 
 class AuthGDPRProvider(GDPRProvider):
@@ -42,115 +52,31 @@ class AuthGDPRProvider(GDPRProvider):
         }
 
     def delete(self, user_id: int) -> None:
-        from django.contrib.auth import get_user_model
-        from stapel_auth.otp.services import email_code_store, phone_code_store
+        """Erase the subject — the same operation the comm path runs.
 
-        from .models import (
-            AuthAuditLog, AuthenticatorChangeRequest,
-            LoginAttempt, OrgMembership, PasskeyCredential,
-            RefreshTokenTracker, TOTPDevice, UserSession,
-        )
-        self._store_reregistration_hashes(user_id)
-
-        User = get_user_model()
-        try:
-            user = User.objects.get(pk=user_id)
-            # Pending codes expire on their own, but erasure must not wait
-            # ten minutes to be true.
-            if user.email:
-                email_code_store.discard(user.email)
-            if hasattr(user, 'phone') and user.phone:
-                phone_code_store.discard(str(user.phone))
-        except User.DoesNotExist:
-            pass
-
-        RefreshTokenTracker.objects.filter(user_id=user_id).delete()
-        UserSession.objects.filter(user_id=user_id).delete()
-        TOTPDevice.objects.filter(user_id=user_id).delete()
-        PasskeyCredential.objects.filter(user_id=user_id).delete()
-        AuthenticatorChangeRequest.objects.filter(user_id=user_id).delete()
-        LoginAttempt.objects.filter(
-            identifier__in=self._user_identifiers(user_id),
-        ).delete()
-        AuthAuditLog.objects.filter(user_id=user_id).delete()
-        OrgMembership.objects.filter(user_id=user_id).delete()
+        The registry reaches the erasure here; the ``gdpr.erasure.requested``
+        subscriber registered in ``apps.ready()`` reaches it there. Auth
+        hosts stapel-gdpr, so in the fleet's own deployment both callers run
+        in one process for one account — the second finds nothing left and
+        says so, and the orchestrator writes one receipt either way (see
+        :mod:`stapel_auth.erasure`).
+        """
+        erase_subject('account', user_id)
 
     def anonymize(self, user_id: int) -> None:
         # Auth data is fully deleted — nothing to anonymize
         pass
 
     # -------------------------------------------------------------------------
+    # Thin seams onto stapel_auth.erasure — the implementation is there, and
+    # these stay because the export above and callers outside this class ask
+    # the provider for them.
 
     def _user_identifiers(self, user_id: int) -> list[str]:
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        try:
-            user = User.objects.get(pk=user_id)
-            ids = []
-            if user.email:
-                ids.append(user.email)
-            if hasattr(user, 'phone') and user.phone:
-                ids.append(str(user.phone))
-            return ids
-        except User.DoesNotExist:
-            return []
+        return user_identifiers(user_id)
 
     def _store_reregistration_hashes(self, user_id: int) -> None:
-        """Store irreversible hashes for re-registration detection (24-month retention).
-
-        The hash model is resolved lazily from the REREGISTRATION_MODEL auth
-        setting (default: stapel_gdpr.models.ReRegistrationHash) so stapel-auth
-        has no hard import-time dependency on stapel-gdpr. If the model is
-        unavailable, we degrade to a warning instead of failing deletion.
-        """
-        import hashlib
-        import warnings
-        from datetime import timedelta
-
-        from django.contrib.auth import get_user_model
-        from django.utils import timezone
-        from django.utils.module_loading import import_string
-
-        from .conf import auth_settings
-
-        model_path = auth_settings.REREGISTRATION_MODEL
-        if not model_path:
-            return
-        try:
-            ReRegistrationHash = import_string(model_path)
-        except ImportError:
-            warnings.warn(
-                f"stapel-auth: re-registration model {model_path!r} is not "
-                "available — skipping re-registration hash storage. Install "
-                "stapel-gdpr or point STAPEL_AUTH['REREGISTRATION_MODEL'] at "
-                "a compatible model.",
-                stacklevel=2,
-            )
-            return
-
-        User = get_user_model()
-        try:
-            user = User.objects.get(pk=user_id)
-        except User.DoesNotExist:
-            return
-
-        expires_at = timezone.now() + timedelta(days=730)  # 24 months
-
-        def _sha256(value: str) -> str:
-            return hashlib.sha256(value.lower().strip().encode()).hexdigest()
-
-        if user.email:
-            ReRegistrationHash.objects.get_or_create(
-                hash_type=ReRegistrationHash.TYPE_EMAIL,
-                hash_value=_sha256(user.email),
-                defaults={'user_id_was': str(user_id), 'expires_at': expires_at},
-            )
-        if hasattr(user, 'phone') and user.phone:
-            ReRegistrationHash.objects.get_or_create(
-                hash_type=ReRegistrationHash.TYPE_PHONE,
-                hash_value=_sha256(str(user.phone)),
-                defaults={'user_id_was': str(user_id), 'expires_at': expires_at},
-            )
+        store_reregistration_hashes(user_id)
 
 
 def _serialize_dates(rows: list[dict]) -> list[dict]:
