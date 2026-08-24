@@ -75,6 +75,30 @@ def _configure() -> None:
 
     spectacular_settings.SCHEMA_PATH_PREFIX = CODEGEN_SCHEMA_PATH_PREFIX
 
+    # SERVE_PERMISSIONS is the second knob, and unlike the rest of
+    # SPECTACULAR_SETTINGS it is NOT frozen at import: drf-spectacular reads it
+    # when `SpectacularAPIView.as_view()` runs, i.e. when the urlconf loads,
+    # which is after this harness has configured Django. The monolith inherits
+    # `stapel_core.django.settings.SPECTACULAR_SETTINGS` and therefore mounts
+    # the schema endpoints under IsStaffUserForSwagger; this harness sets no
+    # SPECTACULAR_SETTINGS at all and got drf's AllowAny default, so the ONE
+    # path both sides mount through that helper — /auth/api/v1/gdpr/schema/ —
+    # rendered a different `**Permissions:**` line and a different `security`
+    # block, and the monolith-identity gate failed on it for reasons that had
+    # nothing to do with auth's own surface.
+    #
+    # Pinned here rather than by setting Django's SPECTACULAR_SETTINGS,
+    # deliberately: the rest of that dict IS frozen at import time on both
+    # sides, so populating it would start honouring keys (TITLE, SECURITY,
+    # x-stapel extensions) that the monolith emits *without* — trading one
+    # divergence for several.
+    # Assigned as the CLASS, not the dotted path: APISettings resolves dotted
+    # strings only when it reads them out of Django settings, and this writes
+    # past that step.
+    from stapel_core.django.openapi.swagger import IsStaffUserForSwagger
+
+    spectacular_settings.SERVE_PERMISSIONS = [IsStaffUserForSwagger]
+
 
 def _require_python_312() -> None:
     """Abort emission if not running the pinned 3.12 interpreter.

@@ -1294,7 +1294,7 @@
     "/auth/api/v1/gdpr/schema/": {
       "get": {
         "operationId": "auth_api_v1_gdpr_schema_retrieve",
-        "description": "OpenApi3 schema for this API. Format can be selected via content negotiation.\n\n- YAML: application/vnd.oai.openapi\n- JSON: application/vnd.oai.openapi+json\n\n**Permissions:** `AllowAny`",
+        "description": "OpenApi3 schema for this API. Format can be selected via content negotiation.\n\n- YAML: application/vnd.oai.openapi\n- JSON: application/vnd.oai.openapi+json\n\n**Permissions:** `IsStaffUserForSwagger`",
         "parameters": [
           {
             "in": "query",
@@ -1423,8 +1423,7 @@
         "security": [
           {
             "JWTCookieAuth": []
-          },
-          {}
+          }
         ],
         "responses": {
           "200": {

@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+## [0.27.1] — 2026-08-24
+
+### Fixed — the monolith-identity gate was failing on the harness, not the surface
+
+`tests/test_contract.py::test_matches_monolith_auth_slice` asserts that
+`docs/schema.json` is byte-identical to the monolith aggregate's `/auth/api/`
+slice. It had been red on `/auth/api/v1/gdpr/schema/`, and the cause was in the
+emission harness rather than in anything this module serves.
+
+`SERVE_PERMISSIONS` is the one `SPECTACULAR_SETTINGS` key drf-spectacular does
+**not** freeze at import time — it is read when `SpectacularAPIView.as_view()`
+runs, i.e. when the urlconf loads, which is after a `configure()`-based harness
+has populated Django settings. The monolith inherits
+`stapel_core.django.settings.SPECTACULAR_SETTINGS` and mounts the schema
+endpoints under `IsStaffUserForSwagger`; this harness sets no
+`SPECTACULAR_SETTINGS` at all and got drf's `AllowAny` default. The single path
+both instances mount through `get_swagger_urls` therefore rendered a different
+`**Permissions:**` line and a different `security` block on each side.
+
+`_codegen._configure` now pins `SERVE_PERMISSIONS` on the spectacular singleton,
+the same way it already pins `SCHEMA_PATH_PREFIX` — and deliberately *not* by
+populating Django's `SPECTACULAR_SETTINGS`, because the rest of that dict IS
+frozen at import on both sides, so honouring it here would start emitting
+`TITLE`, `SECURITY` and the `x-stapel-*` extensions the monolith emits without.
+That would trade one divergence for several.
+
+`docs/schema.json` regenerated. No library behaviour changes; the emitted
+description of one gdpr-mounted schema endpoint does.
+
 ## [0.27.0] — 2026-08-24
 
 **Requires stapel-core >= 0.42.0** (the OAuth audience seam).
