@@ -10,6 +10,9 @@ itself imports models.py.
 #: STORAGE/WIRE CAP for email/phone OTP codes (DB columns + serializer
 #: max_length). Deliberately a plain constant (not a runtime setting): the DB
 #: column width can't follow settings. 8 accommodates 4-8 digit deployments.
-#: The GENERATED length is the runtime setting STAPEL_AUTH["OTP_LENGTH"]
-#: (default 4, must be <= this cap — enforced by a system check in checks.py).
+#: The GENERATED length is NOT this constant: it is
+#: ``otp.services.issued_code_length(channel)``, which reads the runtime
+#: setting STAPEL_AUTH["OTP_LENGTH"] (default 6 since 0.21.0; it was 4 before)
+#: — or, on a mocked channel, the width of MOCK_OTP_CODE. Both must be <= this
+#: cap; a system check in checks.py (E002) enforces it.
 OTP_CODE_LENGTH = 8

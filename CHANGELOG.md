@@ -2,6 +2,42 @@
 
 ## [Unreleased]
 
+## [0.25.2] — 2026-08-24
+
+### The contract promised six boxes for a four-digit code
+
+A stand running mock OTP (`USE_MOCK_EMAIL_OTP`/`USE_MOCK_SMS_OTP` on,
+`MOCK_OTP_CODE='0000'`) issued a four-character code and told the frontend, via
+`GET /capabilities/` → `otp.email_code_length`/`phone_code_length`, that codes
+are `OTP_LENGTH` (6) digits long. The frontend was doing exactly the right
+thing — reading the contract instead of hardcoding — and drew six boxes for a
+code that can only fill four. Nobody could log in.
+
+The defect was not the number; it was that there were two of them. Generation
+read `MOCK_OTP_CODE` (`otp/services.py::generate_code`) and the contract read
+`OTP_LENGTH` (`oauth/services.py::AuthCapabilitiesService.get_capabilities`),
+two independent computations of one fact that agreed only while the mock code
+happened to be as wide as the setting.
+
+**`otp.services.issued_code_length(channel, *, force_real=False)`** is now the
+single source: the width this deployment ACTUALLY issues on that channel — the
+mock code's width when that channel is mocked, `OTP_LENGTH` otherwise. Both the
+generation path and `OtpMeta` consume it, and no third place computes it. The
+mock arm of `generate_code` still returns `MOCK_OTP_CODE` verbatim, which is
+what makes the function's answer true by construction rather than by agreement;
+`force_real` (the admin escape hatch) asks for the real width without moving
+the contract, which describes what an ordinary caller receives.
+
+Consequences for a host: a deployment with mock OTP on now advertises the mock
+code's width, so a capabilities-driven code input renders the right number of
+boxes with no frontend change. A deployment with mocks off is unaffected —
+`OTP_LENGTH` as before. `tests/test_otp_length.py` gates the property across
+the whole mock × length matrix, not a sample: for every combination, what the
+contract reports IS the length of the code the service hands out.
+
+Also: `otp/constants.py` said `OTP_LENGTH` defaults to 4. It has defaulted to 6
+since 0.21.0.
+
 ## [0.25.1] — 2026-08-24
 
 ### `last_login` was never written by anything in this module

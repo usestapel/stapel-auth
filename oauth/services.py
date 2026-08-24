@@ -225,8 +225,8 @@ class AuthCapabilitiesService:
             RegistrationCapabilities,
         )
         from stapel_auth.oauth_providers import get_enabled_providers
+        from stapel_auth.otp.services import issued_code_length
 
-        from stapel_auth.conf import auth_settings as _auth_settings
         s = auth_settings
         # Mock OTP providers do NOT turn a channel off — they change how the
         # code is delivered (to logs instead of a real SMS/email), which is
@@ -287,8 +287,12 @@ class AuthCapabilitiesService:
                 ),
             ],
             otp=OtpMeta(
-                email_code_length=int(_auth_settings.OTP_LENGTH),
-                phone_code_length=int(_auth_settings.OTP_LENGTH),
+                # THE SINGLE SOURCE, shared with the generation path: a mocked
+                # channel issues MOCK_OTP_CODE, so its width is that string's,
+                # not OTP_LENGTH. Reporting OTP_LENGTH here rendered six boxes
+                # for a four-digit mock code — a login nobody could complete.
+                email_code_length=issued_code_length('email'),
+                phone_code_length=issued_code_length('phone'),
                 totp_code_length=TOTPService.CODE_LENGTH,
                 ttl_seconds=s.OTP_TTL,
                 resend_cooldown_seconds=s.OTP_RESEND_COOLDOWN,

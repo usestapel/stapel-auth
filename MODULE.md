@@ -27,10 +27,10 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 | `FRONTEND_URL` | `None` (env `FRONTEND_URL`) | Redirect base for SSO / magic link / QR login and the OAuth step-up `/totp-challenge` redirect; OAuth `redirect_after` validation. Unset ⇒ same-origin-relative redirects |
 | `BACKEND_URL` | `None` (env `BACKEND_URL`) | Absolute backend URL for SAML/OIDC endpoints and revoke-suspicious links |
 | `USE_MOCK_SMS_OTP` / `USE_MOCK_EMAIL_OTP` | `False` | Mock OTP delivery (dev/test) |
-| `MOCK_OTP_CODE` | `'0000'` | The accepted code in mock mode |
+| `MOCK_OTP_CODE` | `'0000'` | The accepted code in mock mode — and, on a mocked channel, the width the capabilities contract reports (see `OTP_LENGTH`) |
 | `OTP_TTL` | `600` | OTP code lifetime, seconds — the single source for both the stored entry's TTL (`otp/services.py` over `stapel_core.verification.codes`) and the `capabilities.otp.ttl_seconds` contract value |
 | `OTP_MAX_ATTEMPTS` | `5` | Wrong-code attempts before block. The budget lives inside the code's own store entry, so a fresh code always arrives with a fresh budget |
-| `OTP_LENGTH` | `6` | Digits in a generated code (storage cap 8). Was `4` before 0.21 — a 10⁴ space that the attempt/rate caps narrow but do not enlarge |
+| `OTP_LENGTH` | `6` | Digits in a generated code (storage cap 8). Was `4` before 0.21 — a 10⁴ space that the attempt/rate caps narrow but do not enlarge. Not read directly by either consumer: `otp.services.issued_code_length(channel)` is the single source both the generation path and `capabilities.otp.{email,phone}_code_length` go through, so a mocked channel reports the width of `MOCK_OTP_CODE` instead (0.25.2) |
 | `OTP_RATE_LIMIT_PER_HOUR` | `3` | OTP sends per hour per phone/email, on top of the per-send cooldown. `0` disables. Enforced since 0.21 — before that it was configured and read by nobody |
 | `OTP_RESEND_COOLDOWN` | `30` | Seconds between OTP sends per phone/email/device — single source for both the rate-limit window and `capabilities.otp.resend_cooldown_seconds` |
 | `MAGIC_LINK_TTL` | `900` | Magic link lifetime, seconds |

@@ -65,6 +65,41 @@ def _generate_numeric_code(length: int) -> str:
     return str(secrets.randbelow(span) + lo)
 
 
+#: channel -> the setting that decides whether that channel is mocked.
+_MOCK_FLAG_BY_CHANNEL = {
+    'email': 'USE_MOCK_EMAIL_OTP',
+    'phone': 'USE_MOCK_SMS_OTP',
+}
+
+
+def issued_code_length(channel: str, *, force_real: bool = False) -> int:
+    """Digits in the code this deployment ACTUALLY issues on *channel*.
+
+    THE SINGLE SOURCE for that number. Two consumers used to compute it
+    independently: the generation path (``_OtpCodeService.generate_code``)
+    and the capabilities contract the frontend builds its code input from
+    (``oauth/services.py`` -> ``OtpMeta.email_code_length`` /
+    ``phone_code_length``). They agreed only by coincidence, and stopped the
+    moment a deployment turned a mock channel on with a ``MOCK_OTP_CODE``
+    narrower than ``OTP_LENGTH``: the server issued ``'0000'`` while the
+    contract promised six boxes, so the code could not be typed in. Issuance
+    and contract now read the same function; there is no second computation.
+
+    A mocked channel issues ``MOCK_OTP_CODE`` verbatim, so its width IS that
+    string's; every other case issues a random ``OTP_LENGTH``-digit code.
+    *force_real* is the generation path's admin escape hatch (see
+    ``generate_code``): it asks for the real width even on a mocked channel,
+    and is never what the contract reports — the contract describes the code
+    an ordinary caller receives.
+    """
+    from stapel_auth.conf import auth_settings
+
+    flag = _MOCK_FLAG_BY_CHANNEL.get(channel)
+    if flag and not force_real and bool(getattr(auth_settings, flag)):
+        return len(str(auth_settings.MOCK_OTP_CODE or ''))
+    return int(auth_settings.OTP_LENGTH)
+
+
 def _result_for(check, *, block_duration: int) -> dict:
     """Translate a store verdict into this service's result envelope.
 
@@ -131,16 +166,19 @@ class _OtpCodeService:
         return int(auth_settings.OTP_RATE_LIMIT_PER_HOUR)
 
     def generate_code(self, force_real=False):
-        """
-        Generate an OTP_CODE_LENGTH-digit verification code.
+        """Generate a verification code ``issued_code_length(self.channel)``
+        digits wide — the same width the capabilities contract reports.
+
+        The mock arm returns ``MOCK_OTP_CODE`` verbatim, which is what makes
+        that function's mock answer true by construction; the real arm asks
+        the same function for the real width. One computation, two consumers.
 
         Args:
             force_real: If True, generate real OTP even in mock mode (for admin accounts)
         """
         if self.use_mock_otp and not force_real:
             return self.mock_code
-        from stapel_auth.conf import auth_settings
-        return _generate_numeric_code(int(auth_settings.OTP_LENGTH))
+        return _generate_numeric_code(issued_code_length(self.channel, force_real=True))
 
     def _deliver(self, identifier: str, code: str) -> bool:
         """Queue the notification carrying *code*. Subclass hook."""

@@ -193,16 +193,19 @@ class OtpMeta:
     instead of guessing (e.g. hardcoding a 6-box code input when the backend
     actually issues 4-digit codes).
 
-    Every value here is sourced from the exact same constant/setting that
-    the backend validates against (otp/services.py.OTP_CODE_LENGTH,
-    mfa/services.py.TOTPService.CODE_LENGTH, AUTH_OTP_TTL, AUTH_OTP_RESEND_COOLDOWN)
-    — a guard test asserts the DB/serializer field widths agree with the
-    same constants, so this can't silently drift from what the server
-    actually accepts.
+    Every value here is sourced from the exact same function/constant the
+    backend issues by: the code lengths come from
+    ``otp/services.py.issued_code_length(channel)`` — the SAME function
+    ``generate_code`` derives its width from, so a mocked channel reports the
+    width of MOCK_OTP_CODE and not OTP_LENGTH — and the rest from
+    mfa/services.py.TOTPService.CODE_LENGTH, AUTH_OTP_TTL,
+    AUTH_OTP_RESEND_COOLDOWN. A guard test asserts the DB/serializer field
+    widths agree with the same constants, so this can't silently drift from
+    what the server actually accepts.
 
     Attributes:
-        email_code_length: Digits in an email OTP code. Example: 4
-        phone_code_length: Digits in a phone/SMS OTP code. Example: 4
+        email_code_length: Digits in the email OTP code this deployment issues — the mock code's width on a mocked channel. Example: 6
+        phone_code_length: Digits in the phone/SMS OTP code this deployment issues — the mock code's width on a mocked channel. Example: 6
         totp_code_length: Digits in a TOTP authenticator-app code. Example: 6
         ttl_seconds: Seconds an OTP code stays valid after being sent. Example: 600
         resend_cooldown_seconds: Seconds the client must wait before requesting

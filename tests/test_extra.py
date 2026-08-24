@@ -998,9 +998,13 @@ class CapabilitiesMethodsAndOtpMetaTests(APITestCase):
     def test_otp_meta_default_values(self):
         response = self.client.get(reverse('capabilities'))
         otp = response.data['otp']
-        # OTP_LENGTH defaults to 6 since 0.21 (was 4 — a 10^4 space).
-        self.assertEqual(otp['email_code_length'], 6)
-        self.assertEqual(otp['phone_code_length'], 6)
+        # The harness runs with mock OTP on (see the mock-flag test above), so
+        # the issued code IS MOCK_OTP_CODE ('0000') and the contract must say
+        # four — reporting OTP_LENGTH here is what drew six boxes for a
+        # four-digit code on a live stand. The mock-off value is asserted
+        # in test_otp_length.py against the same single source.
+        self.assertEqual(otp['email_code_length'], 4)
+        self.assertEqual(otp['phone_code_length'], 4)
         self.assertEqual(otp['totp_code_length'], 6)
         self.assertEqual(otp['ttl_seconds'], 600)
         self.assertEqual(otp['resend_cooldown_seconds'], 30)
@@ -1016,17 +1020,20 @@ class CapabilitiesMethodsAndOtpMetaTests(APITestCase):
 
     def test_otp_code_length_matches_db_field_width(self):
         """Single-source guarantees, post-0.13 split: the DB CharField width IS
-        the storage cap constant, and the contract value is the RUNTIME
-        generated length (STAPEL_AUTH["OTP_LENGTH"]) which must fit the cap
+        the storage cap constant, and the contract value is the length this
+        deployment actually ISSUES — otp.services.issued_code_length(), the
+        same function generate_code() derives from — which must fit the cap
         (enforced by stapel_auth.E002)."""
         from stapel_auth.conf import auth_settings
         from stapel_auth.otp.constants import OTP_CODE_LENGTH
+        from stapel_auth.otp.services import issued_code_length
 
         response = self.client.get(reverse('capabilities'))
-        self.assertEqual(
-            response.data['otp']['email_code_length'], int(auth_settings.OTP_LENGTH)
-        )
+        otp = response.data['otp']
+        self.assertEqual(otp['email_code_length'], issued_code_length('email'))
+        self.assertEqual(otp['phone_code_length'], issued_code_length('phone'))
         self.assertLessEqual(int(auth_settings.OTP_LENGTH), OTP_CODE_LENGTH)
+        self.assertLessEqual(otp['email_code_length'], OTP_CODE_LENGTH)
 
     def test_totp_code_length_matches_service_constant(self):
         from stapel_auth.mfa.services import TOTPService

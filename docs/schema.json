@@ -5876,7 +5876,7 @@
     "/auth/api/v1/user/account/cancel-close": {
       "post": {
         "operationId": "auth_api_v1_user_account_cancel_close_create",
-        "description": "Base view exposing serializer seams.\n\nEvery concrete view declares ``request_serializer_class`` /\n``response_serializer_class`` (``None`` when that direction carries no\nserialized payload). Subclasses may swap either class attribute — or\noverride the getters — to customize the request/response envelopes\nwithout rewriting the method bodies.\n\n**Permissions:** `IsAuthenticated, AccountNotClosed`",
+        "description": "Stop a closure that is still inside its grace period.\n\nThe account is reactivated and a ``user.deletion_cancelled`` comm action\nis emitted — the mirror of the ``user.deletion_initiated`` that started\nthe closure, so every consumer that took a reversible action on the\ninitiation (suppressed notifications, hidden content, suspended\nmemberships) is told to lift it instead of waiting for its next sync.\n\n**Permissions:** `IsAuthenticated, AccountNotClosed`",
         "summary": "Cancel account closure during grace period",
         "tags": [
           "GDPR"
@@ -8081,17 +8081,17 @@
       },
       "OtpMeta": {
         "type": "object",
-        "description": "Server-authoritative OTP parameters — the frontend must read these\ninstead of guessing (e.g. hardcoding a 6-box code input when the backend\nactually issues 4-digit codes).\n\nEvery value here is sourced from the exact same constant/setting that\nthe backend validates against (otp/services.py.OTP_CODE_LENGTH,\nmfa/services.py.TOTPService.CODE_LENGTH, AUTH_OTP_TTL, AUTH_OTP_RESEND_COOLDOWN)\n— a guard test asserts the DB/serializer field widths agree with the\nsame constants, so this can't silently drift from what the server\nactually accepts.",
+        "description": "Server-authoritative OTP parameters — the frontend must read these\ninstead of guessing (e.g. hardcoding a 6-box code input when the backend\nactually issues 4-digit codes).\n\nEvery value here is sourced from the exact same function/constant the\nbackend issues by: the code lengths come from\n``otp/services.py.issued_code_length(channel)`` — the SAME function\n``generate_code`` derives its width from, so a mocked channel reports the\nwidth of MOCK_OTP_CODE and not OTP_LENGTH — and the rest from\nmfa/services.py.TOTPService.CODE_LENGTH, AUTH_OTP_TTL,\nAUTH_OTP_RESEND_COOLDOWN. A guard test asserts the DB/serializer field\nwidths agree with the same constants, so this can't silently drift from\nwhat the server actually accepts.",
         "properties": {
           "email_code_length": {
             "type": "integer",
-            "description": "Digits in an email OTP code",
-            "example": 4
+            "description": "Digits in the email OTP code this deployment issues — the mock code's width on a mocked channel",
+            "example": 6
           },
           "phone_code_length": {
             "type": "integer",
-            "description": "Digits in a phone/SMS OTP code",
-            "example": 4
+            "description": "Digits in the phone/SMS OTP code this deployment issues — the mock code's width on a mocked channel",
+            "example": 6
           },
           "totp_code_length": {
             "type": "integer",
