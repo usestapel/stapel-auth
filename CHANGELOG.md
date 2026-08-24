@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+## [0.28.1] — 2026-08-24
+
+### Fixed — the step-up test expired a challenge in a cache core had stopped using
+
+`0.28.0` never reached PyPI: its publish run's test job went red on
+`test_info_expired_challenge_404` (200 != 404), on both 3.11 and 3.13. The
+cause is a seam, not this module's surface — the library payload of 0.28.1 is
+0.28.0's.
+
+`ChallengeInfoTests._expire_challenge` simulated an expired challenge by
+deleting core's `CHALLENGE_KEY` through `django.core.cache.cache`. Since
+**stapel-core 0.45.0** the challenge lives in the *fleet* cache
+(`stapel_core.core.fleet_cache` — the same connection with `KEY_PREFIX` and
+`VERSION` forced to fleet values), so that delete computes a different key,
+removes nothing, and the endpoint correctly keeps answering 200 for a challenge
+the helper only believed it had expired. CI installs stapel-core from git main,
+which is why the first run after 0.45.0 landed was the one that went red — the
+same failure reproduces on `0.27.1`.
+
+The helper now deletes through core's own accessor and **asserts the challenge
+is actually gone** before the test proceeds. If core moves the store again this
+fails in the setup, naming it, instead of downstream looking like an endpoint
+bug.
+
+Nothing in the library reads that cache directly — `CHALLENGE_KEY` appears in
+this module only in the test.
+
+**Left for core:** `stapel_core.verification` exports `create_challenge`,
+`get_challenge` and `complete_challenge`, but nothing that drops a challenge,
+so a consumer wanting to test the expired path has to reach for the private
+`grants._cache()`. A public primitive there would close this seam for the whole
+fleet rather than one test.
+
 ## [0.28.0] — 2026-08-24
 
 **Requires stapel-core >= 0.45.0** (the canonical serializer seam).

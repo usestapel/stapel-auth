@@ -33,6 +33,7 @@ from stapel_core.verification import (
     has_grant,
     requires_verification,
 )
+from stapel_core.verification import grants
 from stapel_core.verification.grants import (
     CHALLENGE_KEY,
     get_challenge,
@@ -199,7 +200,26 @@ class VerificationEndpointTestBase(APITestCase):
         return reverse(name, kwargs={"challenge_id": challenge_id or self.challenge_id})
 
     def _expire_challenge(self):
-        cache.delete(CHALLENGE_KEY.format(challenge_id=self.challenge_id))
+        """Drop the challenge from the store core actually keeps it in.
+
+        Not ``django.core.cache.cache``. Since stapel-core 0.45.0 the
+        challenge lives in the *fleet* cache — the same connection with
+        ``KEY_PREFIX``/``VERSION`` forced to fleet values
+        (``stapel_core.core.fleet_cache``) — so a delete through the plain
+        default cache computes a different key, removes nothing, and the
+        endpoint keeps answering 200 for a challenge this helper believes it
+        expired. Reaching through core's own accessor is what keeps the
+        simulation and the storage from drifting apart again.
+
+        The assertion below is the guard: if core moves the store once more,
+        this fails here, naming the setup, instead of somewhere downstream
+        looking like an endpoint bug.
+        """
+        grants._cache().delete(CHALLENGE_KEY.format(challenge_id=self.challenge_id))
+        assert get_challenge(self.challenge_id) is None, (
+            "the challenge is still readable after _expire_challenge — core "
+            "has moved the challenge store again"
+        )
 
 
 class ChallengeInfoTests(VerificationEndpointTestBase):
