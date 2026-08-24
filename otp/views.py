@@ -216,6 +216,36 @@ def _notify_user_registered(user, request=None, language=None, display_name=None
         logger.exception("Failed to emit user.registered for user %s", user.id)
 
 
+def _rewrites_a_verified_authenticator(user, field, verified_flag, new_value) -> bool:
+    """Whether applying *new_value* would overwrite a PROVEN authenticator.
+
+    A single OTP to a NEW address proves the caller controls that address.
+    It proves nothing about the address already on the account — so it is
+    enough to SET a first authenticator, and not enough to REPLACE one.
+
+    Letting it replace one is account takeover with extra steps: whoever
+    holds a live session (a stolen JWT, a borrowed unlocked phone, an XSS)
+    rewrites the recovery address to their own and the real owner can never
+    get back in — no code was ever sent to the address they still control.
+    Proving the current authenticator is what the request-old → verify-old →
+    ``change_token`` flow in this module exists for (audit F4).
+
+    True only when there IS something to protect: a non-empty current value
+    that the account has actually verified, differing from the new one.
+    Re-verifying the same value, or setting one where none is verified, is
+    the legitimate single-step case and stays.
+    """
+    if not getattr(user, verified_flag, False):
+        return False
+    current = (getattr(user, field, "") or "").strip()
+    if not current:
+        return False
+    incoming = (new_value or "").strip()
+    if field == "email":
+        return current.casefold() != incoming.casefold()
+    return current != incoming
+
+
 def _anonymous_mint_budget_spent(client_ip: str) -> int:
     """Spend one guest-minting slot for *client_ip*; retry-after when empty.
 
@@ -301,13 +331,22 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     token_verify_response_serializer_class = TokenVerifyResponseSerializer
 
     def get_client_ip(self, request):
-        """Get client IP address from request"""
-        x_forwarded_for = request.headers.get("x-forwarded-for")
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(",")[0]
-        else:
-            ip = request.META.get("REMOTE_ADDR")
-        return ip
+        """The caller's IP, as the deployment has declared it can be known.
+
+        Delegates to :func:`stapel_core.netintel.client_ip`: ``REMOTE_ADDR``
+        unless the deployment names a proxy-set header in
+        ``STAPEL_NETINTEL["TRUSTED_PROXY_HEADER"]``.
+
+        Never read ``X-Forwarded-For`` by hand here. Any client can send that
+        header, and behind an *appending* proxy (nginx
+        ``$proxy_add_x_forwarded_for``) the leftmost element is whatever the
+        client wrote — which is exactly what this method used to return. That
+        value keys the anonymous-mint budget, the lockout counters and every
+        audit row, so rotating one header reset all three (audit F6).
+        """
+        from stapel_core.netintel import client_ip
+
+        return client_ip(request)
 
     def log_login_attempt(self, identifier, attempt_type, request):
         """Log login attempt"""
@@ -328,12 +367,14 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 - OTP codes expire after 10 minutes
 - Rate limited to 1 request per 30 seconds per email/device
 - If authenticated non-anonymous user requests OTP for an email already registered to another account, returns 409 Conflict
+- If the caller already has a VERIFIED email, requesting a code for a different one returns 403 `error.403.change_requires_current` — replacing a verified authenticator goes through the email change flow, which proves the current address first
 - Admin accounts (staff/superuser) always receive real OTP even in mock mode for security
 """,
         request=EmailAuthRequestSerializer,
         responses={
             200: OtpSentResponseSerializer,
             400: StapelErrorSerializer,
+            403: StapelErrorSerializer,
             409: StapelErrorSerializer,
             422: StapelErrorSerializer,
             500: StapelErrorSerializer,
@@ -395,6 +436,14 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 )
                 if existing_user:
                     return StapelErrorResponse(409, ERR_409_EMAIL_TAKEN)
+                # A code to the new address can never apply over a verified
+                # one (audit F4) — refuse before spending a send, so the
+                # caller is pointed at the change flow instead of at an OTP
+                # that is going to be rejected on verify.
+                if _rewrites_a_verified_authenticator(
+                    request_user, "email", "is_email_verified", email
+                ):
+                    return StapelErrorResponse(403, ERR_403_CHANGE_REQUIRES_CURRENT)
 
             # Check if email is reserved by a pending change request
             from stapel_auth.models import (
@@ -470,7 +519,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 - **Unauthenticated user + existing email** → LOGGED_IN (login to existing account)
 - **Anonymous user + new email** → REGISTERED (anonymous completes registration)
 - **Anonymous user + existing email** → MERGED (anonymous merged into existing account)
-- **Authenticated user + own/new email** → MODIFIED (user adds/changes email)
+- **Authenticated user + FIRST email** → MODIFIED (user sets a email the account did not have verified)
+- **Authenticated user + a DIFFERENT email over a verified one** → 403 `error.403.change_requires_current` (use the email change flow: it proves the current email first)
 - **Invalid/expired code** → REJECTED
 
 **Status values:**
@@ -478,12 +528,13 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 - `REGISTERED` - New account created or anonymous completed registration
 - `LOGGED_IN` - Existing user logged in
 - `MERGED` - Anonymous user merged into existing account
-- `MODIFIED` - Authenticated user added/changed email
+- `MODIFIED` - Authenticated user set a email, or re-verified the one already on the account
 """,
         request=EmailAuthVerifySerializer,
         responses={
             200: AuthResponseSerializer,
             400: StapelErrorSerializer,
+            403: StapelErrorSerializer,
             409: StapelErrorSerializer,
             422: StapelErrorSerializer,
         },
@@ -541,7 +592,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         - REGISTERED: New account created (or anonymous completed registration)
         - LOGGED_IN: Existing user logged in
         - MERGED: Anonymous user merged into existing account
-        - MODIFIED: Authenticated user added/changed email
+        - MODIFIED: Authenticated user set a email (replacing a VERIFIED one
+          needs the change flow — 403 error.403.change_requires_current)
         """
         from stapel_auth.security.services import LockoutService
 
@@ -615,6 +667,15 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 if existing_user and existing_user.id != request_user.id:
                     # Email belongs to another account - should not happen (checked in request)
                     return StapelErrorResponse(409, ERR_409_EMAIL_TAKEN)
+
+                # Replacing a verified email is an authenticator CHANGE and
+                # needs proof of the current one — see
+                # _rewrites_a_verified_authenticator (audit F4). Setting a
+                # first email still happens right here, in one step.
+                if _rewrites_a_verified_authenticator(
+                    request_user, "email", "is_email_verified", email
+                ):
+                    return StapelErrorResponse(403, ERR_403_CHANGE_REQUIRES_CURRENT)
 
                 # Update current user's email
                 request_user.email = email
@@ -690,12 +751,14 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 - OTP codes expire after 10 minutes
 - Rate limited to 1 request per 30 seconds per phone/device
 - If authenticated non-anonymous user requests OTP for a phone already registered to another account, returns 409 Conflict
+- If the caller already has a VERIFIED phone, requesting a code for a different one returns 403 `error.403.change_requires_current` — replacing a verified authenticator goes through the phone change flow, which proves the current number first
 - Admin accounts (staff/superuser) always receive real OTP even in mock mode for security
 """,
         request=PhoneAuthRequestSerializer,
         responses={
             200: OtpSentResponseSerializer,
             400: StapelErrorSerializer,
+            403: StapelErrorSerializer,
             409: StapelErrorSerializer,
             422: StapelErrorSerializer,
             500: StapelErrorSerializer,
@@ -743,6 +806,14 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 )
                 if existing_user:
                     return StapelErrorResponse(409, ERR_409_PHONE_TAKEN)
+                # A code to the new number can never apply over a verified
+                # one (audit F4) — refuse before spending an SMS, so the
+                # caller is pointed at the change flow instead of at an OTP
+                # that is going to be rejected on verify.
+                if _rewrites_a_verified_authenticator(
+                    request_user, "phone", "is_phone_verified", phone
+                ):
+                    return StapelErrorResponse(403, ERR_403_CHANGE_REQUIRES_CURRENT)
 
             # Check if phone is reserved by a pending change request
             from stapel_auth.models import (
@@ -814,7 +885,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 - **Unauthenticated user + existing phone** → LOGGED_IN (login to existing account)
 - **Anonymous user + new phone** → REGISTERED (anonymous completes registration)
 - **Anonymous user + existing phone** → MERGED (anonymous merged into existing account)
-- **Authenticated user + own/new phone** → MODIFIED (user adds/changes phone)
+- **Authenticated user + FIRST phone** → MODIFIED (user sets a phone the account did not have verified)
+- **Authenticated user + a DIFFERENT phone over a verified one** → 403 `error.403.change_requires_current` (use the phone change flow: it proves the current phone first)
 - **Invalid/expired code** → REJECTED
 
 **Status values:**
@@ -822,12 +894,13 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 - `REGISTERED` - New account created or anonymous completed registration
 - `LOGGED_IN` - Existing user logged in
 - `MERGED` - Anonymous user merged into existing account
-- `MODIFIED` - Authenticated user added/changed phone
+- `MODIFIED` - Authenticated user set a phone, or re-verified the one already on the account
 """,
         request=PhoneAuthVerifySerializer,
         responses={
             200: AuthResponseSerializer,
             400: StapelErrorSerializer,
+            403: StapelErrorSerializer,
             409: StapelErrorSerializer,
             422: StapelErrorSerializer,
         },
@@ -849,7 +922,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         - REGISTERED: New account created (or anonymous completed registration)
         - LOGGED_IN: Existing user logged in
         - MERGED: Anonymous user merged into existing account
-        - MODIFIED: Authenticated user added/changed phone
+        - MODIFIED: Authenticated user set a phone (replacing a VERIFIED one
+          needs the change flow — 403 error.403.change_requires_current)
         """
         from stapel_auth.security.services import LockoutService
 
@@ -923,6 +997,15 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 if existing_user and existing_user.id != request_user.id:
                     # Phone belongs to another account - should not happen (checked in request)
                     return StapelErrorResponse(409, ERR_409_PHONE_TAKEN)
+
+                # Replacing a verified phone is an authenticator CHANGE and
+                # needs proof of the current one — see
+                # _rewrites_a_verified_authenticator (audit F4). Setting a
+                # first phone still happens right here, in one step.
+                if _rewrites_a_verified_authenticator(
+                    request_user, "phone", "is_phone_verified", phone
+                ):
+                    return StapelErrorResponse(403, ERR_403_CHANGE_REQUIRES_CURRENT)
 
                 # Update current user's phone
                 request_user.phone = phone
@@ -1580,9 +1663,9 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             # Log detailed info about failed authentication
             auth_header = request.headers.get("authorization", "")
             user_agent = request.headers.get("user-agent", "unknown")
-            client_ip = request.headers.get(
-                "x-forwarded-for", request.META.get("REMOTE_ADDR", "unknown")
-            )
+            from stapel_core.netintel import client_ip as _client_ip
+
+            client_ip = _client_ip(request) or "unknown"
 
             # Check cookies
             _cookie_name = getattr(settings, "JWT_COOKIE_NAME", "stapel_jwt")
@@ -1987,9 +2070,9 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         svc = AuthenticatorChangeService()
         from stapel_auth.utils import mask_value
 
-        ip = request.headers.get("x-forwarded-for", request.META.get("REMOTE_ADDR", ""))
-        if ip and "," in ip:
-            ip = ip.split(",")[0].strip()
+        from stapel_core.netintel import client_ip
+
+        ip = client_ip(request)
         result = svc.initiate_delayed(
             request.user,
             "phone",
@@ -2066,9 +2149,9 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         svc = AuthenticatorChangeService()
         from stapel_auth.utils import mask_value
 
-        ip = request.headers.get("x-forwarded-for", request.META.get("REMOTE_ADDR", ""))
-        if ip and "," in ip:
-            ip = ip.split(",")[0].strip()
+        from stapel_core.netintel import client_ip
+
+        ip = client_ip(request)
         result = svc.initiate_delayed(
             request.user,
             "email",

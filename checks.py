@@ -224,3 +224,132 @@ __all__ += [
     "E004_MOCK_OTP_ON_A_PUBLIC_HOST",
     "check_mock_otp_not_on_a_public_host",
 ]
+
+
+W005_PROXY_TRUST_UNDECLARED = "stapel_auth.W005"
+W006_APPENDING_PROXY_HEADER_TRUSTED = "stapel_auth.W006"
+
+#: Settings whose presence means "this process is served through a proxy".
+#: A deployment that already tells Django to believe the edge about the
+#: scheme/host/port is, by its own statement, behind one.
+_BEHIND_A_PROXY_SETTINGS = (
+    "SECURE_PROXY_SSL_HEADER",
+    "USE_X_FORWARDED_HOST",
+    "USE_X_FORWARDED_PORT",
+)
+
+#: META keys of headers a proxy conventionally *appends* to rather than
+#: overwrites (nginx ``$proxy_add_x_forwarded_for``, most cloud LBs). The
+#: first element of an appended header is whatever the client sent.
+_APPENDING_HEADERS = ("HTTP_X_FORWARDED_FOR",)
+
+
+def _proxy_declarations(settings) -> list:
+    """Which of _BEHIND_A_PROXY_SETTINGS this deployment has set."""
+    declared = []
+    for name in _BEHIND_A_PROXY_SETTINGS:
+        if getattr(settings, name, None):
+            declared.append(name)
+    return declared
+
+
+@checks.register("stapel_auth")
+def check_proxy_trust_declared(app_configs=None, **kwargs):
+    """W005 — behind a proxy with no declared client-IP header.
+
+    Everything this module rate-limits, locks out or writes to an audit row
+    is keyed by the caller's IP: the anonymous-mint budget
+    (``ANONYMOUS_RATE_LIMIT_PER_HOUR``), the progressive OTP lockout, the
+    ``LoginAttempt``/``AuthAuditLog``/``UserSession`` rows the security
+    screen shows the user. That IP now comes from one place —
+    ``stapel_core.netintel.client_ip`` — which trusts ``REMOTE_ADDR`` and
+    nothing else until the deployment names a header.
+
+    Behind a proxy with nothing named, ``REMOTE_ADDR`` is the proxy: every
+    caller shares one budget, one lockout counter, and one address in the
+    audit trail. That is the *safe* wrong answer (it over-restricts and
+    never lies in the attacker's favour), but it is still wrong, and it is
+    invisible — hence a check rather than silence. The unsafe wrong answer
+    is what this pair used to do: read ``X-Forwarded-For`` by hand and
+    believe its first element (audit F6).
+
+    Only fires when the deployment has already declared, through a stock
+    Django setting, that it sits behind a proxy — there is no reliable way
+    to detect one otherwise, and guessing would make this noise.
+    """
+    from django.conf import settings
+
+    declared = _proxy_declarations(settings)
+    if not declared:
+        return []
+
+    from stapel_core.netintel.conf import netintel_settings
+
+    if netintel_settings.TRUSTED_PROXY_HEADER:
+        return []
+
+    return [checks.Warning(
+        f"This deployment declares it is behind a proxy ({', '.join(declared)}) "
+        "but STAPEL_NETINTEL['TRUSTED_PROXY_HEADER'] is unset, so every "
+        "request's client IP resolves to the proxy's own address. Rate "
+        "limits, lockouts and audit/session IPs are all keyed on that value: "
+        "they now collapse onto a single shared bucket.",
+        hint="Have the edge proxy OVERWRITE a client-IP header on every "
+             "request (nginx: proxy_set_header X-Real-IP $remote_addr) and "
+             "point STAPEL_NETINTEL['TRUSTED_PROXY_HEADER'] at its META key "
+             "(e.g. 'HTTP_X_REAL_IP'). Never point it at a header the edge "
+             "only appends to — see stapel_auth.W006. If the proxy settings "
+             "are inherited but this process is reached directly, silence "
+             "this with SILENCED_SYSTEM_CHECKS.",
+        id=W005_PROXY_TRUST_UNDECLARED,
+    )]
+
+
+@checks.register("stapel_auth")
+def check_trusted_proxy_header_is_overwritten(app_configs=None, **kwargs):
+    """W006 — the trusted client-IP header is one proxies usually append to.
+
+    ``stapel_core.netintel.client_ip`` takes the FIRST element of the
+    trusted header, which is correct only if the edge *replaces* the header
+    on every request. The common nginx recipe
+    ``proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for`` appends
+    instead, so the first element is the client's own text — and trusting it
+    hands every attacker a fresh rate-limit budget, a clean lockout counter
+    and a forged audit IP by rotating one header. That is the production
+    defect this pair shipped as a hand-rolled read (audit F6); pointing the
+    setting at ``X-Forwarded-For`` behind an appending proxy reintroduces it
+    verbatim, one layer down.
+
+    The library cannot see the proxy config, so this is a warning with a
+    written-down escape: a deployment whose edge really does overwrite
+    ``X-Forwarded-For`` silences it and thereby records that it checked.
+    """
+    from stapel_core.netintel.conf import netintel_settings
+
+    header = netintel_settings.TRUSTED_PROXY_HEADER
+    if not header or str(header).upper() not in _APPENDING_HEADERS:
+        return []
+
+    return [checks.Warning(
+        f"STAPEL_NETINTEL['TRUSTED_PROXY_HEADER'] = {header!r}. The first "
+        "element of this header is trusted as the client IP, but proxies "
+        "conventionally APPEND to X-Forwarded-For (nginx "
+        "$proxy_add_x_forwarded_for) rather than replace it — in which case "
+        "that element is client-supplied and every IP-keyed rate limit, "
+        "lockout and audit row is forgeable by rotating the header.",
+        hint="Prefer a header the edge overwrites unconditionally (nginx: "
+             "proxy_set_header X-Real-IP $remote_addr, then "
+             "TRUSTED_PROXY_HEADER='HTTP_X_REAL_IP'). If your edge really "
+             "does `proxy_set_header X-Forwarded-For $remote_addr` — "
+             "overwrite, not append — and no other hop can prepend to it, "
+             "record that by silencing stapel_auth.W006.",
+        id=W006_APPENDING_PROXY_HEADER_TRUSTED,
+    )]
+
+
+__all__ += [
+    "W005_PROXY_TRUST_UNDECLARED",
+    "W006_APPENDING_PROXY_HEADER_TRUSTED",
+    "check_proxy_trust_declared",
+    "check_trusted_proxy_header_is_overwritten",
+]

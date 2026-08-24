@@ -3132,7 +3132,14 @@ class EmailDelayedChangeViewTests(APITestCase):
     URL_PREFIX="", USE_MOCK_SMS_OTP=True, USE_MOCK_EMAIL_OTP=True, MOCK_OTP_CODE="0000"
 )
 class ReservationCheckTests(APITestCase):
-    """Tests that reserved phone/email are blocked during registration OTP request"""
+    """Tests that reserved phone/email are blocked during registration OTP request.
+
+    The caller here is unauthenticated on purpose — that is the registration
+    path the reservation protects. An authenticated account that already has
+    a VERIFIED email/phone cannot request an OTP for a different one at all
+    (audit F4: replacing a verified authenticator goes through the change
+    flow), so it never reaches the reservation check.
+    """
 
     def setUp(self):
         self.client = APIClient()
@@ -3162,8 +3169,7 @@ class ReservationCheckTests(APITestCase):
             scheduled_at=timezone.now() + timedelta(days=14),
         )
 
-        # user_b tries to request OTP for the reserved email
-        self.client.force_authenticate(user=self.user_b)
+        # an unauthenticated caller tries to register on the reserved email
         response = self.client.post(
             reverse("email_request"),
             {
@@ -3183,7 +3189,6 @@ class ReservationCheckTests(APITestCase):
             scheduled_at=timezone.now() + timedelta(days=14),
         )
 
-        self.client.force_authenticate(user=self.user_b)
         response = self.client.post(
             reverse("phone_request"),
             {
@@ -3205,7 +3210,6 @@ class ReservationCheckTests(APITestCase):
         req.status = AuthenticatorChangeStatus.CANCELLED
         req.save()
 
-        self.client.force_authenticate(user=self.user_b)
         response = self.client.post(
             reverse("email_request"),
             {

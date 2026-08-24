@@ -353,17 +353,22 @@ class ClientIpTests(TestCase):
     def test_none_request_returns_none(self):
         self.assertIsNone(svc._get_client_ip(None))
 
-    def test_public_forwarded_for(self):
+    def test_undeclared_forwarded_for_is_not_the_client(self):
+        """Audit F6 — this used to answer "203.0.113.9", i.e. caller text."""
         rf = RequestFactory()
-        req = rf.get("/", HTTP_X_FORWARDED_FOR="203.0.113.9, 10.0.0.1")
-        self.assertEqual(svc._get_client_ip(req), "203.0.113.9")
+        req = rf.get(
+            "/", HTTP_X_FORWARDED_FOR="203.0.113.9, 10.0.0.1", REMOTE_ADDR="172.18.0.5"
+        )
+        self.assertEqual(svc._get_client_ip(req), "172.18.0.5")
 
-    def test_private_forwarded_falls_back_to_real_ip(self):
+    @override_settings(STAPEL_NETINTEL={"TRUSTED_PROXY_HEADER": "HTTP_X_REAL_IP"})
+    def test_a_declared_header_is_the_client(self):
         rf = RequestFactory()
         req = rf.get(
             "/",
             HTTP_X_FORWARDED_FOR="10.0.0.1, 192.168.1.1",
             HTTP_X_REAL_IP="198.51.100.7",
+            REMOTE_ADDR="172.18.0.5",
         )
         self.assertEqual(svc._get_client_ip(req), "198.51.100.7")
 
@@ -431,7 +436,7 @@ class SessionServiceTests(TestCase):
             "/",
             HTTP_USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
-            HTTP_X_FORWARDED_FOR="203.0.113.5",
+            REMOTE_ADDR="203.0.113.5",
         )
         session = svc.SessionService.create(
             self.user, "jti-a", timezone.now() + timedelta(days=1), request=req

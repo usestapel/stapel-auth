@@ -99,9 +99,20 @@ class GetClientIpAndLogAttemptTests(TestCase):
 
         return AuthViewSet()
 
-    def test_get_client_ip_from_forwarded_header(self):
+    def test_get_client_ip_ignores_an_undeclared_forwarded_header(self):
+        """Audit F6 — this used to answer "1.2.3.4", i.e. whatever was sent."""
         rf = RequestFactory()
-        req = rf.get("/", HTTP_X_FORWARDED_FOR="1.2.3.4, 5.6.7.8")
+        req = rf.get(
+            "/", HTTP_X_FORWARDED_FOR="1.2.3.4, 5.6.7.8", REMOTE_ADDR="172.18.0.5"
+        )
+        self.assertEqual(self._view().get_client_ip(req), "172.18.0.5")
+
+    @override_settings(STAPEL_NETINTEL={"TRUSTED_PROXY_HEADER": "HTTP_X_FORWARDED_FOR"})
+    def test_get_client_ip_uses_a_declared_header(self):
+        rf = RequestFactory()
+        req = rf.get(
+            "/", HTTP_X_FORWARDED_FOR="1.2.3.4, 5.6.7.8", REMOTE_ADDR="172.18.0.5"
+        )
         self.assertEqual(self._view().get_client_ip(req), "1.2.3.4")
 
     def test_get_client_ip_from_remote_addr(self):
@@ -779,7 +790,7 @@ class AuthenticatorChangeEndpointBranchTests(APITestCase):
         )
         self.assertEqual(resp.status_code, 400)
 
-    # ── delayed initiate x-forwarded-for splitting ──
+    # ── delayed initiate reads the client IP through the one seam ──
     def test_phone_delayed_initiate_forwarded_for_split(self):
         with patch(f"{_ACS}.initiate_delayed", return_value={"error": "send_failed"}):
             resp = self.client.post(

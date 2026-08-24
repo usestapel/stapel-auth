@@ -288,21 +288,43 @@ class ClosedRegistrationKeepsLoginWorkingTests(APITestCase):
 
     def test_authenticated_member_can_still_change_their_own_email(self):
         """A change is not a registration: the account already exists and no
-        new row appears. Gating it would have been the obvious over-reach."""
+        new row appears. Gating it would have been the obvious over-reach.
+
+        Driven through the change flow, which is where replacing a VERIFIED
+        address lives (audit F4) — the point under test is that the closed
+        registration gate does not reach into it.
+        """
         from stapel_auth.tests.test_auth import create_token_for_user
 
         access, _ = create_token_for_user(self.member)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
         before = User.objects.count()
-        req = self.client.post(reverse("email_request"), {"email": "member-new@example.com"})
-        self.assertEqual(req.status_code, status.HTTP_200_OK)
-        resp = self.client.post(
-            reverse("email_verify"),
-            {"email": "member-new@example.com", "code": MOCK_CODE},
+
+        self.client.post(reverse("email_instant_request_old"), {})
+        old_verified = self.client.post(
+            reverse("email_instant_verify_old"), {"code": MOCK_CODE}
         )
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(old_verified.status_code, status.HTTP_200_OK, old_verified.data)
+        token = old_verified.data["change_token"]
+
+        req = self.client.post(
+            reverse("email_instant_request_new"),
+            {"email": "member-new@example.com", "change_token": token},
+        )
+        self.assertEqual(req.status_code, status.HTTP_200_OK, req.data)
+        resp = self.client.post(
+            reverse("email_instant_verify_new"),
+            {
+                "email": "member-new@example.com",
+                "code": MOCK_CODE,
+                "change_token": token,
+            },
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
         self.assertEqual(resp.data["status"], "MODIFIED")
         self.assertEqual(User.objects.count(), before)
+        self.member.refresh_from_db()
+        self.assertEqual(self.member.email, "member-new@example.com")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

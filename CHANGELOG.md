@@ -2,6 +2,113 @@
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-08-24
+
+### Security — a live session was authority over the recovery address
+
+`POST /email/verify/` and `POST /phone/verify/` treated an authenticated
+non-anonymous session plus one OTP delivered to a **new** address as authority
+to rewrite the address already on the account:
+
+```python
+request_user.email = email          # otp/views.py, both channels, verbatim
+request_user.is_email_verified = True
+request_user.save()
+```
+
+The code proves the caller controls the new address. It says nothing about the
+one the account had already verified — so whoever held a live session (a stolen
+JWT, a borrowed unlocked phone, an XSS) could point the recovery address at
+themselves and the real owner was locked out permanently, never having been
+sent anything at the address they still controlled. The machinery that proves
+the CURRENT authenticator — request-old → verify-old → `change_token` — lives
+in the same file and was simply bypassed.
+
+The line is now drawn where the proof is: **setting** a first authenticator is
+one step, **replacing** a verified one is the change flow.
+
+| Account state on that channel | `*/request/` and `*/verify/` for a different value |
+|---|---|
+| Nothing verified, or the same value | Works, single step → `MODIFIED` (unchanged) |
+| A verified value, different from the new one | `403 error.403.change_requires_current` |
+
+Both steps refuse, so no OTP is spent on a code that could not be applied.
+Replacing a verified value goes through
+`{email,phone}/change/instant/{request-old,verify-old,request-new,verify-new}/`
+(or the delayed 14-day strategy for a channel the user has lost) — all of which
+are unchanged and keep working. There is deliberately **no configuration axis**:
+no deployment wants "a code to an address you chose rewrites the address you
+did not".
+
+### Security — the client IP was whatever the client said it was
+
+`otp/views.py::AuthViewSet.get_client_ip` read `X-Forwarded-For` and took its
+**leftmost** element. Behind the standard nginx recipe
+`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for` the proxy
+*appends*, so that element is the caller's own text. Everything this module
+keys on the client IP was therefore forgeable by rotating one header: the
+`ANONYMOUS_RATE_LIMIT_PER_HOUR` guest-mint budget, the progressive OTP lockout,
+and the IP written into `LoginAttempt`, `AuthAuditLog` and `UserSession` — the
+last of which is what a user is shown as "where you signed in from".
+
+Every hand-rolled read in the repo now goes through the one library seam,
+`stapel_core.netintel.client_ip`:
+
+- `otp/views.py::AuthViewSet.get_client_ip` (login attempts, lockouts, the
+  guest-mint budget) — kept as an overridable method, reimplemented;
+- `otp/views.py::AuthViewSet.me` (the unauthenticated-request diagnostic log);
+- `otp/views.py::phone_delayed_initiate` / `email_delayed_initiate`;
+- `mfa/views.py::delayed_initiate`;
+- `sessions/services.py::_get_client_ip` (session rows + `AuditService`).
+
+**Deployments must declare their proxy trust.** `client_ip` trusts
+`REMOTE_ADDR` and nothing else until told otherwise, so behind a proxy with
+nothing declared every caller now shares one rate-limit budget, one lockout
+counter and one audit address — safe, but wrong. Say what the edge sets:
+
+```python
+# settings.py — ONLY if the proxy OVERWRITES this header on every request
+STAPEL_NETINTEL = {"TRUSTED_PROXY_HEADER": "HTTP_X_REAL_IP"}
+```
+```nginx
+proxy_set_header X-Real-IP $remote_addr;   # replace, never append
+```
+
+Two new system checks make the silence audible, because a silent wrong default
+is what made this exploitable in the first place:
+
+- **`stapel_auth.W005`** — the deployment declares it is behind a proxy
+  (`SECURE_PROXY_SSL_HEADER`, `USE_X_FORWARDED_HOST`, `USE_X_FORWARDED_PORT`)
+  but names no client-IP header.
+- **`stapel_auth.W006`** — `TRUSTED_PROXY_HEADER` names `HTTP_X_FORWARDED_FOR`,
+  a header proxies conventionally append to; pointing the setting at it behind
+  an appending edge reintroduces the original defect one layer down. Silence it
+  via `SILENCED_SYSTEM_CHECKS` once you have confirmed your edge replaces the
+  header — so the fact that somebody checked is written down.
+
+Also note: `sessions/services.py::_get_client_ip` used to skip private-looking
+candidates in order to reach past the proxy, which is precisely what made it
+read caller text. Session rows now carry `REMOTE_ADDR` (the proxy) until the
+header is declared.
+
+### Added
+
+- `error.403.change_requires_current` (remediation `verify`), with `ru`/`es`
+  catalogs and `docs/errors.*` regenerated.
+- `stapel_auth.W005` / `stapel_auth.W006` in `checks.py`.
+- `otp/views.py::_rewrites_a_verified_authenticator` — the shared predicate
+  behind the four call sites (`{email,phone}_{request,verify}`).
+- `tests/test_authenticator_rewrite_guard.py`, `tests/test_client_ip_trust.py`.
+
+### Upgrading
+
+- Hosts whose frontend implemented "change my email/phone" as
+  `*/request/` + `*/verify/` must move that button to the change flow; the old
+  call answers `403 error.403.change_requires_current`. First-time set is
+  unaffected.
+- Hosts behind a reverse proxy should add `STAPEL_NETINTEL['TRUSTED_PROXY_HEADER']`
+  as above; `manage.py check` names the omission.
+
 ## [0.25.2] — 2026-08-24
 
 ### The contract promised six boxes for a four-digit code

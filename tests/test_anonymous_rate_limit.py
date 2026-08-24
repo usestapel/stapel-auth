@@ -52,15 +52,23 @@ class AnonymousMintingIsCappedTests(APITestCase):
         # guest surface for everybody.
         self.assertEqual(self._mint(ip="10.0.0.8").status_code, 201)
 
-    def test_the_forwarded_client_is_what_counts_behind_a_proxy(self):
-        def mint():
+    def test_the_forwarded_client_counts_only_where_it_is_declared(self):
+        """Behind a proxy the budget follows the DECLARED client-IP header.
+
+        It used to follow ``X-Forwarded-For`` unconditionally, which meant a
+        caller could buy a fresh budget by editing a header (audit F6). See
+        tests/test_client_ip_trust.py for that exploit in full.
+        """
+        def mint(ip):
             return self.client_class().post(
-                reverse("anonymous"), {}, format="json", HTTP_X_FORWARDED_FOR="1.2.3.4"
+                reverse("anonymous"), {}, format="json", HTTP_X_REAL_IP=ip
             )
 
-        for _ in range(3):
-            self.assertEqual(mint().status_code, 201)
-        self.assertEqual(mint().status_code, 429)
+        with override_settings(STAPEL_NETINTEL={"TRUSTED_PROXY_HEADER": "HTTP_X_REAL_IP"}):
+            for _ in range(3):
+                self.assertEqual(mint("1.2.3.4").status_code, 201)
+            self.assertEqual(mint("1.2.3.4").status_code, 429)
+            self.assertEqual(mint("1.2.3.5").status_code, 201)
 
     def test_reusing_a_device_id_is_free(self):
         """The legitimate flow must not be the thing that runs out of budget.

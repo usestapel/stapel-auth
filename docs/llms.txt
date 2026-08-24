@@ -1,8 +1,8 @@
-# stapel-auth 0.25.2
+# stapel-auth 0.26.0
 
 User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.
 
-Contract: axes 29 · surface 18 · extension points 6 · operations 120 · error codes 137 · flows 4.
+Contract: axes 29 · surface 18 · extension points 6 · operations 120 · error codes 138 · flows 4.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -306,7 +306,7 @@ Paths are relative to `/auth/api/v1/`.
 - PUT /verification/preferences/ — auth_api_v1_verification_preferences_update
 - GET /verification/{challenge_id}/ — auth_api_v1_verification_retrieve
 
-## Error codes (137) — the StapelError envelope
+## Error codes (138) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
@@ -382,6 +382,7 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.401.unauthorized [401] reauthenticate
 - error.401.user_not_found [401] reauthenticate
 - error.402.payment_required [402] retry
+- error.403.change_requires_current [403] verify
 - error.403.forbidden [403] retry
 - error.403.gdpr.account_closed [403] retry
 - error.403.gdpr.erasure_forbidden [403] contact_support

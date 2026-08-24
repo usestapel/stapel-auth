@@ -620,6 +620,14 @@
     "owner": "stapel_core"
   },
   {
+    "code": "error.403.change_requires_current",
+    "status": 403,
+    "params": [],
+    "remediation": "verify",
+    "en": "Changing a verified email or phone needs a code sent to the current one. Start the change flow instead.",
+    "owner": "stapel_auth"
+  },
+  {
     "code": "error.403.forbidden",
     "status": 403,
     "params": [],

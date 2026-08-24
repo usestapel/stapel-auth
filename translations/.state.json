@@ -204,6 +204,10 @@
       "hash": "4a1793e9900cd312",
       "origin": "seed:stapel-builtin"
     },
+    "error.403.change_requires_current": {
+      "hash": "7f2fa8c16dd48c8f",
+      "origin": "llm"
+    },
     "error.403.mfa_enrollment_required": {
       "hash": "d5b6b7dd53071c1c",
       "origin": "llm"
@@ -525,6 +529,10 @@
     "error.401.user_not_found": {
       "hash": "4a1793e9900cd312",
       "origin": "seed:stapel-builtin"
+    },
+    "error.403.change_requires_current": {
+      "hash": "7f2fa8c16dd48c8f",
+      "origin": "llm"
     },
     "error.403.mfa_enrollment_required": {
       "hash": "d5b6b7dd53071c1c",

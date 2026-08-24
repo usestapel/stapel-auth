@@ -136,13 +136,24 @@ def stamp_last_login(user) -> bool:
 
 
 def _get_client_ip(request) -> str | None:
+    """The client IP for a session row / audit entry.
+
+    One seam for the whole module: :func:`stapel_core.netintel.client_ip`,
+    i.e. ``REMOTE_ADDR`` unless the deployment names a proxy-set header in
+    ``STAPEL_NETINTEL["TRUSTED_PROXY_HEADER"]``.
+
+    This used to walk ``X-Forwarded-For`` and take the first element that
+    did not look private. Any client can write that header, so a session
+    row's "where you signed in from" — and the security screen built on it —
+    was caller-supplied text (audit F6). Under an undeclared proxy the value
+    is now the proxy's own address: wrong-but-honest beats attacker-chosen,
+    and W005 tells the deployment to declare its header.
+    """
     if not request:
         return None
-    for candidate in request.META.get('HTTP_X_FORWARDED_FOR', '').split(','):
-        candidate = candidate.strip()
-        if candidate and not candidate.startswith(('127.', '10.', '172.', '192.168.')):
-            return candidate
-    return request.META.get('HTTP_X_REAL_IP') or request.META.get('REMOTE_ADDR') or None
+    from stapel_core.netintel import client_ip
+
+    return client_ip(request)
 
 
 import re as _re

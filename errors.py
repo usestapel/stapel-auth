@@ -100,6 +100,8 @@ ERR_400_FIRST_LOGIN_CHALLENGE_INVALID = 'error.400.first_login_challenge_invalid
 ERR_403_PRIVILEGED_ACCOUNT = 'error.403.privileged_account'
 # Closed registration (#86)
 ERR_403_REGISTRATION_CLOSED = 'error.403.registration_closed'
+# Authenticator rewrite without proof of the current authenticator (audit F4)
+ERR_403_CHANGE_REQUIRES_CURRENT = 'error.403.change_requires_current'
 
 AUTH_ERRORS = {
     ERR_401_INVALID_CREDENTIALS: 'Invalid credentials',
@@ -207,6 +209,8 @@ AUTH_ERRORS = {
     ERR_403_PRIVILEGED_ACCOUNT: 'This account holds deployment-wide privileges. Its password cannot be reset from an organization surface.',
     # Closed registration
     ERR_403_REGISTRATION_CLOSED: 'New accounts are not open for sign-up here. Ask an administrator to create one for you.',
+    # Authenticator rewrite without proof of the current authenticator
+    ERR_403_CHANGE_REQUIRES_CURRENT: 'Changing a verified email or phone needs a code sent to the current one. Start the change flow instead.',
 }
 
 # Machine-readable recovery hints (remediation) — the canonical "what to do"
@@ -331,6 +335,10 @@ AUTH_REMEDIATION = {
     # Registration is closed by deployment policy: no input fix and no retry
     # opens it — an administrator has to create the account.
     ERR_403_REGISTRATION_CLOSED: 'contact_support',
+    # The caller holds a session but has not proven the CURRENT authenticator.
+    # The fix is a code sent to the address already on the account — i.e. the
+    # change flow's request-old/verify-old pair, which is a verification step.
+    ERR_403_CHANGE_REQUIRES_CURRENT: 'verify',
 }
 
 register_service_errors(AUTH_ERRORS, remediation=AUTH_REMEDIATION)

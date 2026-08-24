@@ -74,6 +74,38 @@ The `AUTH_*` gates also drive the URL factories in `urls.py`: `include('stapel_a
 
 The boolean gates above are this module's **config axes** (capability-config.md §1 in the stapel workspace root): machine-readable metadata over `STAPEL_AUTH`, published as the fourth contract artifact `docs/capabilities.json` (see below). Each factory declares its gating flags and contributed URL patterns in `urls.py: GATE_REGISTRY` via the `_gated()` helper — the declaration lives where the gating executes, so the artifact cannot drift from the code.
 
+### Deployment requirement — the client IP behind a proxy (`STAPEL_NETINTEL['TRUSTED_PROXY_HEADER']`)
+
+Everything this module rate-limits, locks out or writes to an audit row is keyed on the caller's IP: the guest-mint budget (`ANONYMOUS_RATE_LIMIT_PER_HOUR`), the progressive OTP lockout, and the `LoginAttempt` / `AuthAuditLog` / `UserSession` rows the user's own security screen shows. **There is exactly one place that value comes from — `stapel_core.netintel.client_ip`** (`otp/views.py: AuthViewSet.get_client_ip`, `sessions/services.py: _get_client_ip`, `mfa/views.py`, the delayed-change initiators). It trusts `REMOTE_ADDR` and nothing else until the deployment says otherwise:
+
+```python
+# settings.py — ONLY when the edge proxy overwrites this header on every request
+STAPEL_NETINTEL = {"TRUSTED_PROXY_HEADER": "HTTP_X_REAL_IP"}
+```
+
+```nginx
+# nginx — the header must be REPLACED, not appended to
+proxy_set_header X-Real-IP $remote_addr;
+```
+
+Two rules, both load-bearing:
+
+- **Declare the header, or every caller shares one bucket.** Behind a proxy with nothing declared, `REMOTE_ADDR` is the proxy: one rate-limit budget and one lockout counter for the whole internet, and one address in every audit row. `stapel_auth.W005` fires when the deployment has already declared it is behind a proxy (`SECURE_PROXY_SSL_HEADER`, `USE_X_FORWARDED_HOST`, `USE_X_FORWARDED_PORT`) without naming a client-IP header.
+- **Never point it at a header your edge only appends to.** `client_ip` takes the FIRST element of the trusted header, which is correct only under an overwriting proxy. The common nginx recipe `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for` **appends**, so behind it the first element is client-supplied text and every IP-keyed limit, lockout and audit IP becomes forgeable by rotating one header. `stapel_auth.W006` warns whenever `TRUSTED_PROXY_HEADER` names `HTTP_X_FORWARDED_FOR`; silence it via `SILENCED_SYSTEM_CHECKS` only once you have confirmed the edge replaces the header and no later hop can prepend to it. Depth-counting (trust the Nth element from the right) is deliberately not offered — a wrong depth fails silently and open, whereas an overwritten header cannot.
+
+Pre-0.26 this module read `X-Forwarded-For` by hand and used its leftmost element, which is the spoofable form of exactly this decision. If you extend auth, do not reintroduce it: **read the client IP through `stapel_core.netintel.client_ip`, never from `request.META` / `request.headers` directly.**
+
+### Changing a verified email or phone requires proving the current one
+
+`POST /email/verify/` and `POST /phone/verify/` **set** an authenticator; they do not **replace** one. With an authenticated non-anonymous session:
+
+| Account state | `*/request/` + `*/verify/` for a new value |
+|---|---|
+| No verified value on that channel (or the same value) | Works, single step → `MODIFIED` |
+| A different value, and the channel is verified | `403 error.403.change_requires_current` at **both** steps (no OTP is spent) |
+
+Replacing a verified value goes through the change flow that already proves the current authenticator — `{email,phone}/change/instant/{request-old,verify-old,request-new,verify-new}/` (or the delayed 14-day strategy for a lost channel). A single OTP to the *new* address proves control of the new address only; accepting it as authority over the old one turns any live session — a stolen JWT, an unlocked phone, an XSS — into a permanent account takeover, because the attacker rewrites the recovery address without ever touching the one the owner still holds. **This has no configuration axis on purpose**: there is no deployment for which "one code to an address you chose rewrites the address you didn't" is the intended contract.
+
 ### Celery beat schedule
 
 `tasks.py` defines three periodic tasks the **delayed** (14-day, no-old-channel-proof) authenticator-change strategy depends on end-to-end — `send_change_notifications` (day-1/7/13 emails/SMS to the old contact — or, for `change_type='totp'`, the user's current verified contact, since TOTP has no "old address"), `execute_pending_changes` (flips the email/phone, or force-disables the TOTP device, once `scheduled_at` is reached), `cleanup_expired_requests` (marks >30-day abandoned requests `EXPIRED`). No new beat entry was needed for TOTP — it reuses these same three tasks by `change_type`. Installing this app does **not** wire a host's `celery.py` — with no beat entry, a `PENDING` delayed change just sits there forever: no notifications, and it never applies. This is a fork-free extension point the same way OAuth providers and verification factors are: a **discoverability + documentation** contract, not auto-wiring (auto-editing a host's celery config is a scaffold concern, out of scope for a library).
@@ -610,6 +642,8 @@ billing / workspaces — copy this module, 4 steps):
 - **Don't mint a session outside `_issue_session_tokens`.** Calling `create_tokens_for_user` (or `TokenService`) directly in a new login path re-opens the exact hole `sessions/guard.py` closes — an account that is deactivated or owes a first-login step walks straight in. Route it through the minter with a `SessionPath` label. If it genuinely resolves an intermediate, say so on the bypass roster in `tests/test_session_issuance_gate.py`; the roster is what turns "we remember which bypasses are legitimate" into a failing build.
 - **Don't consume `PROVIDER_REGISTRY` mutation as an API.** It is exposed for tests; the supported mutation path is `register_provider` / settings.
 - **Don't reference the concrete user class.** Always `get_user_model()` / `settings.AUTH_USER_MODEL` (the module itself follows this rule everywhere).
+- **Don't read the client IP from `request.META` / `request.headers`.** `X-Forwarded-For` and friends are caller-supplied unless a trusted edge overwrites them, and this module keys rate limits, lockouts and audit rows on that value. Go through `stapel_core.netintel.client_ip`; a deployment declares its proxy once via `STAPEL_NETINTEL['TRUSTED_PROXY_HEADER']` (see above).
+- **Don't let a code sent to a new address overwrite a verified one.** Setting a first email/phone is one step; replacing a verified one goes through the change flow that proves the current authenticator. A new-address OTP is not authority over the old address (see above).
 
 ## App-layer override vs upstream contribution — rule of thumb
 

@@ -24,13 +24,13 @@ pip install stapel-auth
 
 | Fact | Value |
 |---|---|
-| Version | `0.25.2` |
+| Version | `0.26.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | HTTP operations | 120 |
 | Config axes | 29 |
 | Usage surface | 18 |
 | Extension points | 6 |
-| Error codes | 137 |
+| Error codes | 138 |
 | Documented flows | 4 |
 | Fleet dependencies | [`stapel-core`](https://github.com/usestapel/stapel-core) · [`stapel-gdpr`](https://github.com/usestapel/stapel-gdpr) (optional) · [`stapel-notifications`](https://github.com/usestapel/stapel-notifications) (optional) |
 
@@ -81,6 +81,21 @@ path("auth/", include("stapel_auth.urls")),
 python manage.py migrate
 ```
 
+Behind a reverse proxy, tell the framework which header carries the client
+IP — rate limits, lockouts and the IP in every audit row are keyed on it, and
+by default only `REMOTE_ADDR` (i.e. the proxy) is trusted:
+
+```python
+# ONLY if the edge overwrites this header on every request
+# (nginx: proxy_set_header X-Real-IP $remote_addr)
+STAPEL_NETINTEL = {"TRUSTED_PROXY_HEADER": "HTTP_X_REAL_IP"}
+```
+
+`manage.py check` says so too: `stapel_auth.W005` when a proxy is declared but
+no header is, `stapel_auth.W006` when the named header is one proxies usually
+*append* to (`X-Forwarded-For`), where the first element is whatever the caller
+wrote.
+
 Every configuration axis, its default and the operations it gates are listed
 in [`docs/capabilities.json`](https://github.com/usestapel/stapel-auth/blob/main/docs/capabilities.json) — the same document the
 table above is generated from, and the one an agent reads before writing code
@@ -109,7 +124,10 @@ detected, notified and revocable from the notification itself.
 
 Authenticator changes — email, phone or TOTP — run through one model and one
 set of tasks, in two speeds: instant, when the user can prove control of the
-current authenticator, and delayed, when they cannot. The delayed path is the
+current authenticator, and delayed, when they cannot. There is no third
+speed: a code sent to a *new* address can set a first email or phone, never
+replace a verified one, so a stolen session cannot quietly move the recovery
+address out of the owner's reach. The delayed path is the
 one that matters after a lost phone: it notifies the verified contact on day
 1, 7 and 13 and completes on day 14, which gives an attacker who has the inbox
 but not the device two weeks of loud warnings and the real owner two weeks to

@@ -102,6 +102,9 @@ _MACHINE_RU = {
     "error.403.registration_closed":
         "Здесь нельзя зарегистрироваться самостоятельно. Попросите "
         "администратора создать вам учётную запись.",
+    "error.403.change_requires_current":
+        "Чтобы изменить подтверждённые эл. почту или телефон, нужен код, "
+        "отправленный на текущие. Воспользуйтесь процедурой смены.",
 }
 
 _MACHINE_ES = {
@@ -147,6 +150,9 @@ _MACHINE_ES = {
     "error.403.registration_closed":
         "Aquí no está abierto el registro de cuentas nuevas. Pide a un "
         "administrador que te cree una.",
+    "error.403.change_requires_current":
+        "Para cambiar un correo o un teléfono verificados hace falta un "
+        "código enviado al actual. Usa el flujo de cambio.",
 }
 
 #: language -> machine-translation table, consulted for the keys the

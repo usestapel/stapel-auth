@@ -909,7 +909,7 @@
     "/auth/api/v1/email/request/": {
       "post": {
         "operationId": "auth_api_v1_email_request_create",
-        "description": "Request email verification code (OTP).\n\n**Notes:**\n- OTP codes expire after 10 minutes\n- Rate limited to 1 request per 30 seconds per email/device\n- If authenticated non-anonymous user requests OTP for an email already registered to another account, returns 409 Conflict\n- Admin accounts (staff/superuser) always receive real OTP even in mock mode for security\n\n\n**Permissions:** `DenyEnrollOnly`",
+        "description": "Request email verification code (OTP).\n\n**Notes:**\n- OTP codes expire after 10 minutes\n- Rate limited to 1 request per 30 seconds per email/device\n- If authenticated non-anonymous user requests OTP for an email already registered to another account, returns 409 Conflict\n- If the caller already has a VERIFIED email, requesting a code for a different one returns 403 `error.403.change_requires_current` — replacing a verified authenticator goes through the email change flow, which proves the current address first\n- Admin accounts (staff/superuser) always receive real OTP even in mock mode for security\n\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Email Auth"
         ],
@@ -977,6 +977,16 @@
             },
             "description": ""
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          },
           "409": {
             "content": {
               "application/json": {
@@ -1013,7 +1023,7 @@
     "/auth/api/v1/email/verify/": {
       "post": {
         "operationId": "auth_api_v1_email_verify_create",
-        "description": "Verify email and authenticate/register.\n\n**Authentication Flows:**\n- **Unauthenticated user + new email** → REGISTERED (new account created)\n- **Unauthenticated user + existing email** → LOGGED_IN (login to existing account)\n- **Anonymous user + new email** → REGISTERED (anonymous completes registration)\n- **Anonymous user + existing email** → MERGED (anonymous merged into existing account)\n- **Authenticated user + own/new email** → MODIFIED (user adds/changes email)\n- **Invalid/expired code** → REJECTED\n\n**Status values:**\n- `REJECTED` - Invalid code, expired code, or blocked\n- `REGISTERED` - New account created or anonymous completed registration\n- `LOGGED_IN` - Existing user logged in\n- `MERGED` - Anonymous user merged into existing account\n- `MODIFIED` - Authenticated user added/changed email\n\n\n**Permissions:** `DenyEnrollOnly`",
+        "description": "Verify email and authenticate/register.\n\n**Authentication Flows:**\n- **Unauthenticated user + new email** → REGISTERED (new account created)\n- **Unauthenticated user + existing email** → LOGGED_IN (login to existing account)\n- **Anonymous user + new email** → REGISTERED (anonymous completes registration)\n- **Anonymous user + existing email** → MERGED (anonymous merged into existing account)\n- **Authenticated user + FIRST email** → MODIFIED (user sets a email the account did not have verified)\n- **Authenticated user + a DIFFERENT email over a verified one** → 403 `error.403.change_requires_current` (use the email change flow: it proves the current email first)\n- **Invalid/expired code** → REJECTED\n\n**Status values:**\n- `REJECTED` - Invalid code, expired code, or blocked\n- `REGISTERED` - New account created or anonymous completed registration\n- `LOGGED_IN` - Existing user logged in\n- `MERGED` - Anonymous user merged into existing account\n- `MODIFIED` - Authenticated user set a email, or re-verified the one already on the account\n\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Email Auth"
         ],
@@ -1109,6 +1119,16 @@
                     },
                     "summary": "Invalid code error"
                   }
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
                 }
               }
             },
@@ -3659,7 +3679,7 @@
     "/auth/api/v1/phone/request/": {
       "post": {
         "operationId": "auth_api_v1_phone_request_create",
-        "description": "Request phone verification code (SMS OTP).\n\n**Notes:**\n- OTP codes expire after 10 minutes\n- Rate limited to 1 request per 30 seconds per phone/device\n- If authenticated non-anonymous user requests OTP for a phone already registered to another account, returns 409 Conflict\n- Admin accounts (staff/superuser) always receive real OTP even in mock mode for security\n\n\n**Permissions:** `DenyEnrollOnly`",
+        "description": "Request phone verification code (SMS OTP).\n\n**Notes:**\n- OTP codes expire after 10 minutes\n- Rate limited to 1 request per 30 seconds per phone/device\n- If authenticated non-anonymous user requests OTP for a phone already registered to another account, returns 409 Conflict\n- If the caller already has a VERIFIED phone, requesting a code for a different one returns 403 `error.403.change_requires_current` — replacing a verified authenticator goes through the phone change flow, which proves the current number first\n- Admin accounts (staff/superuser) always receive real OTP even in mock mode for security\n\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Phone Auth"
         ],
@@ -3727,6 +3747,16 @@
             },
             "description": ""
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          },
           "409": {
             "content": {
               "application/json": {
@@ -3763,7 +3793,7 @@
     "/auth/api/v1/phone/verify/": {
       "post": {
         "operationId": "auth_api_v1_phone_verify_create",
-        "description": "Verify phone number and authenticate/register.\n\n**Authentication Flows:**\n- **Unauthenticated user + new phone** → REGISTERED (new account created)\n- **Unauthenticated user + existing phone** → LOGGED_IN (login to existing account)\n- **Anonymous user + new phone** → REGISTERED (anonymous completes registration)\n- **Anonymous user + existing phone** → MERGED (anonymous merged into existing account)\n- **Authenticated user + own/new phone** → MODIFIED (user adds/changes phone)\n- **Invalid/expired code** → REJECTED\n\n**Status values:**\n- `REJECTED` - Invalid code, expired code, or blocked\n- `REGISTERED` - New account created or anonymous completed registration\n- `LOGGED_IN` - Existing user logged in\n- `MERGED` - Anonymous user merged into existing account\n- `MODIFIED` - Authenticated user added/changed phone\n\n\n**Permissions:** `DenyEnrollOnly`",
+        "description": "Verify phone number and authenticate/register.\n\n**Authentication Flows:**\n- **Unauthenticated user + new phone** → REGISTERED (new account created)\n- **Unauthenticated user + existing phone** → LOGGED_IN (login to existing account)\n- **Anonymous user + new phone** → REGISTERED (anonymous completes registration)\n- **Anonymous user + existing phone** → MERGED (anonymous merged into existing account)\n- **Authenticated user + FIRST phone** → MODIFIED (user sets a phone the account did not have verified)\n- **Authenticated user + a DIFFERENT phone over a verified one** → 403 `error.403.change_requires_current` (use the phone change flow: it proves the current phone first)\n- **Invalid/expired code** → REJECTED\n\n**Status values:**\n- `REJECTED` - Invalid code, expired code, or blocked\n- `REGISTERED` - New account created or anonymous completed registration\n- `LOGGED_IN` - Existing user logged in\n- `MERGED` - Anonymous user merged into existing account\n- `MODIFIED` - Authenticated user set a phone, or re-verified the one already on the account\n\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Phone Auth"
         ],
@@ -3813,6 +3843,16 @@
             "description": ""
           },
           "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
             "content": {
               "application/json": {
                 "schema": {

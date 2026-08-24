@@ -1,6 +1,6 @@
 # Errors — Español
 
-`137` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
+`138` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
 
 | Código | Estado | Parámetros | Acción | Texto |
 |---|---|---|---|---|
@@ -78,6 +78,7 @@
 | `error.401.unauthorized` | 401 | — | `reauthenticate` | Se requiere autenticación |
 | `error.401.user_not_found` | 401 | — | `reauthenticate` | Usuario no encontrado |
 | `error.402.payment_required` | 402 | — | `retry` | Se requiere pago |
+| `error.403.change_requires_current` | 403 | — | `verify` | Para cambiar un correo o un teléfono verificados hace falta un código enviado al actual. Usa el flujo de cambio. |
 | `error.403.forbidden` | 403 | — | `retry` | No tienes permiso para realizar esta acción |
 | `error.403.gdpr.account_closed` | 403 | — | `retry` | Esta cuenta se está eliminando y ya no se puede utilizar. |
 | `error.403.gdpr.erasure_forbidden` | 403 | — | `contact_support` | No tienes permiso para solicitar la eliminación de este elemento. |

@@ -50,6 +50,7 @@
   "error.401.token_invalid": "Token no válido",
   "error.401.token_revoked": "El token ha sido revocado",
   "error.401.user_not_found": "Usuario no encontrado",
+  "error.403.change_requires_current": "Para cambiar un correo o un teléfono verificados hace falta un código enviado al actual. Usa el flujo de cambio.",
   "error.403.mfa_enrollment_required": "Es necesario registrar la autenticación de dos factores antes de poder usar esta cuenta. Configura primero una aplicación de autenticación o una llave de acceso.",
   "error.403.mock_otp_admin": "La autenticación por OTP está deshabilitada para cuentas de administrador en modo mock.",
   "error.403.password_change_required": "Es necesario cambiar la contraseña antes de que esta cuenta pueda iniciar sesión. Completa primero el cambio de contraseña obligatorio.",

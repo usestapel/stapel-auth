@@ -410,9 +410,9 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         serializer = TOTPDelayedInitiateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        ip = request.headers.get("x-forwarded-for", request.META.get("REMOTE_ADDR", ""))
-        if ip and "," in ip:
-            ip = ip.split(",")[0].strip()
+        from stapel_core.netintel import client_ip
+
+        ip = client_ip(request)
 
         svc = AuthenticatorChangeService()
         result = svc.initiate_delayed_totp(

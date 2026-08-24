@@ -27,6 +27,10 @@
     "hash": "4f17f46f49a99052",
     "text": "Inicio de sesión con espacio de nombres no válido. Usa 'org_slug/username' con exactamente una '/' y caracteres válidos a ambos lados."
   },
+  "error.403.change_requires_current": {
+    "hash": "7f2fa8c16dd48c8f",
+    "text": "Para cambiar un correo o un teléfono verificados hace falta un código enviado al actual. Usa el flujo de cambio."
+  },
   "error.403.mfa_enrollment_required": {
     "hash": "d5b6b7dd53071c1c",
     "text": "Es necesario registrar la autenticación de dos factores antes de poder usar esta cuenta. Configura primero una aplicación de autenticación o una llave de acceso."
