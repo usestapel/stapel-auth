@@ -519,7 +519,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 - **Unauthenticated user + existing email** → LOGGED_IN (login to existing account)
 - **Anonymous user + new email** → REGISTERED (anonymous completes registration)
 - **Anonymous user + existing email** → MERGED (anonymous merged into existing account)
-- **Authenticated user + FIRST email** → MODIFIED (user sets a email the account did not have verified)
+- **Authenticated user + FIRST email** → MODIFIED (user sets an email the account did not have verified)
 - **Authenticated user + a DIFFERENT email over a verified one** → 403 `error.403.change_requires_current` (use the email change flow: it proves the current email first)
 - **Invalid/expired code** → REJECTED
 
@@ -528,7 +528,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 - `REGISTERED` - New account created or anonymous completed registration
 - `LOGGED_IN` - Existing user logged in
 - `MERGED` - Anonymous user merged into existing account
-- `MODIFIED` - Authenticated user set a email, or re-verified the one already on the account
+- `MODIFIED` - Authenticated user set an email, or re-verified the one already on the account
 """,
         request=EmailAuthVerifySerializer,
         responses={
@@ -592,7 +592,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         - REGISTERED: New account created (or anonymous completed registration)
         - LOGGED_IN: Existing user logged in
         - MERGED: Anonymous user merged into existing account
-        - MODIFIED: Authenticated user set a email (replacing a VERIFIED one
+        - MODIFIED: Authenticated user set an email (replacing a VERIFIED one
           needs the change flow — 403 error.403.change_requires_current)
         """
         from stapel_auth.security.services import LockoutService
