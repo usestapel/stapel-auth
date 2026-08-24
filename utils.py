@@ -3,6 +3,8 @@ Utility functions for the authentication service.
 """
 import re
 
+from stapel_core.django.api.views import SerializerSeamMixin
+
 
 # ── Namespaced org logins (workspaces-org-program §C1) ───────────────────────
 #
@@ -41,7 +43,23 @@ def validate_local_username(local: str) -> bool:
     return bool(isinstance(local, str) and _LOCAL_USERNAME_RE.match(local))
 
 
-class SerializerSeamsMixin:
+# Base: stapel_core.django.api.views.SerializerSeamMixin — the fleet's one copy
+# of the two-name seam (``request_serializer_class`` / ``response_serializer_class``
+# and their getters), which is no longer redefined below. What the subclass adds
+# is the part core deliberately leaves to the view: core documents the
+# purpose-prefixed convention (``list_response_serializer_class`` ↔
+# ``get_list_response_serializer_class()``) and expects each getter to be spelled
+# out, while this module declares 83 such attributes across 11 viewsets. 83
+# hand-written one-line getters is a copy of a seam, not a seam, so they are
+# derived instead.
+#
+# NB: this docstring is load-bearing for the CONTRACT, not just for readers.
+# Several viewsets (PasskeyViewSet among them) carry no docstring of their own,
+# so drf-spectacular walks the MRO and renders THIS text as the OpenAPI
+# description of their operations. Editing it rewrites docs/schema.json for
+# endpoints that did not change — keep it byte-stable unless that churn is the
+# point of the release.
+class SerializerSeamsMixin(SerializerSeamMixin):
     """Overridable serializer seams for stapel-auth API views.
 
     Views declare ``<purpose>_serializer_class`` class attributes following the

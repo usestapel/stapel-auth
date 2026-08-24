@@ -1,8 +1,8 @@
-# stapel-auth 0.27.1
+# stapel-auth 0.28.0
 
 User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.
 
-Contract: axes 29 · surface 18 · extension points 6 · operations 120 · error codes 138 · flows 4.
+Contract: axes 29 · surface 18 · extension points 6 · operations 121 · error codes 138 · flows 4.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -39,7 +39,7 @@ Settings keys; `default` is what you get by saying nothing. Turning an axis off 
   gates 7 operation(s); kept mounted by AUTH_OAUTH_LOGIN
 - AUTH_PASSKEY_LOGIN [bool, default true] — Sign-in with passkeys
   Users sign in with platform passkeys (Face ID, fingerprint, hardware security keys) via WebAuthn; also usable as a second factor.
-  gates 7 operation(s); kept mounted by AUTH_TOTP
+  gates 8 operation(s); kept mounted by AUTH_TOTP
 - AUTH_PASSKEY_PLACEMENT [enum, default "bottom"] — Where passkey sign-in appears
   Controls whether passkey sign-in renders inline in the primary sign-in tabs, behind the "more" menu, or in the bottom button row. Purely presentational.
 - AUTH_PASSWORD_DEANONYMIZES [bool, default false] — A password counts as signing up (90s-style accounts)
@@ -160,7 +160,7 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - stapel-gdpr (optional) — default REREGISTRATION_MODEL target (lazy dotted path); co-mounted under /auth/api/ in the contract harness
 - stapel-notifications (optional) — delivers the OTP / magic-link / security emails and SMS this module requests via notification.requested
 
-## HTTP operations (120) — call by operationId, never by a typed path
+## HTTP operations (121) — call by operationId, never by a typed path
 Paths are relative to `/auth/api/v1/`.
 ### API Keys
 - POST /service-keys — auth_api_v1_service_keys_create
@@ -222,6 +222,7 @@ Paths are relative to `/auth/api/v1/`.
 - POST /passkey/authenticate/begin/ — auth_api_v1_passkey_authenticate_begin_create
 - POST /passkey/authenticate/complete/ — auth_api_v1_passkey_authenticate_complete_create
 - DELETE /passkey/{id}/ — auth_api_v1_passkey_destroy
+- PATCH /passkey/{id}/ — auth_api_v1_passkey_partial_update
 - POST /passkey/register/begin/ — auth_api_v1_passkey_register_begin_create
 - POST /passkey/register/complete/ — auth_api_v1_passkey_register_complete_create
 - GET /passkey/ — auth_api_v1_passkey_retrieve

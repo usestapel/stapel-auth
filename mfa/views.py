@@ -29,7 +29,9 @@ from stapel_auth.errors import (
 from stapel_auth.mfa.serializers import (
     MfaEnrollExchangeSerializer,
     MfaEnrollSessionResponseSerializer,
+    PasskeyItemSerializer,
     PasskeyRegisterCompleteResponseSerializer,
+    PasskeyRenameSerializer,
     TOTPChallengeVerifySerializer,
     TOTPDelayedInitiateSerializer,
     TOTPDisableSerializer,
@@ -491,6 +493,8 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
     auth_begin_response_serializer_class = _PasskeyAuthOptionsSerializer
     auth_complete_request_serializer_class = _PasskeyAuthCompleteBodySerializer
     auth_response_serializer_class = AuthResponseSerializer
+    rename_request_serializer_class = PasskeyRenameSerializer
+    rename_response_serializer_class = PasskeyItemSerializer
 
     _anon_actions = frozenset({"auth_begin", "auth_complete"})
 
@@ -516,13 +520,70 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
             self.get_list_response_serializer_class()({"passkeys": data})
         )
 
+    def _own_credential(self, request, pk):
+        """The requester's own active credential *pk*, or ``None``.
+
+        The single ownership predicate for every per-credential route. It is a
+        *lookup* filter, not a post-hoc check, so a credential belonging to
+        somebody else can only ever leave this method as ``None`` — the caller
+        then answers 404, indistinguishable from an id that never existed.
+        That is deliberate: 403 would confirm to a stranger that a given
+        credential id is real and whose it is not, and a passkey id is a
+        stable handle to a person's authenticator. There is nothing to gain
+        from the distinction and an enumeration oracle to lose.
+
+        Both ``destroy`` and ``rename`` go through here so the two cannot
+        drift apart — a scoping bug would have to be written twice.
+        """
+        from stapel_auth.models import PasskeyCredential
+
+        return PasskeyCredential.objects.filter(
+            id=pk, user=request.user, is_active=True
+        ).first()
+
+    @extend_schema(
+        summary="Rename a passkey",
+        description=(
+            "Change the human-readable label of one of the *caller's own* "
+            "credentials. Scoped by ownership at lookup time: a credential "
+            "belonging to another user answers 404, exactly as an unknown id "
+            "does. Only `device_name` is writable — the attested identity "
+            "(`aaguid`, `transports`) and the observed history (`created_at`, "
+            "`last_used_at`) are server-owned."
+        ),
+        request=PasskeyRenameSerializer,
+        responses={200: PasskeyItemSerializer, 404: StapelErrorSerializer},
+    )
+    def rename(self, request, pk=None):
+        pc = self._own_credential(request, pk)
+        if pc is None:
+            return StapelErrorResponse(404, ERR_404_PASSKEY_NOT_FOUND)
+
+        ser = self.get_rename_request_serializer_class()(data=request.data)
+        ser.is_valid(raise_exception=True)
+        previous_name = pc.device_name
+        pc.device_name = ser.validated_data["device_name"]
+        pc.save(update_fields=["device_name"])
+
+        from stapel_auth.sessions.services import AuditService
+
+        AuditService.log(
+            "passkey_renamed",
+            user=request.user,
+            request=request,
+            device_name=pc.device_name,
+            previous_device_name=previous_name,
+        )
+        return StapelResponse(
+            self.get_rename_response_serializer_class()(_pc_to_dict(pc))
+        )
+
     @extend_schema(summary="Remove a passkey", responses={204: None})
     def destroy(self, request, pk=None):
         from stapel_auth.models import PasskeyCredential
 
-        try:
-            pc = PasskeyCredential.objects.get(id=pk, user=request.user, is_active=True)
-        except PasskeyCredential.DoesNotExist:
+        pc = self._own_credential(request, pk)
+        if pc is None:
             return StapelErrorResponse(404, ERR_404_PASSKEY_NOT_FOUND)
 
         from stapel_auth.mfa.services import TOTPService

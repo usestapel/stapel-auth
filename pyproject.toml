@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-auth"
-version = "0.27.1"
+version = "0.28.0"
 description = "Full-featured authentication Django app for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -27,7 +27,13 @@ classifiers = [
 
 # Core auth — always installed
 dependencies = [
-    # Floor: 0.42.0 ships the OAuth audience seam (OAuthClientConfig,
+    # Floor: 0.45.0 ships the canonical serializer seam
+    # (stapel_core.django.api.views.SerializerSeamMixin / StapelAPIView).
+    # stapel_auth.utils.SerializerSeamsMixin no longer carries its own copy of
+    # the two-name seam — it subclasses core's — so an older core would leave
+    # every view in this module without get_request_serializer_class().
+    #
+    # Earlier floor: 0.42.0 ships the OAuth audience seam (OAuthClientConfig,
     # OAuthProvider.verify_audience, check_audience, fetch_user_data) that
     # oauth/services.py runs on every caller-supplied access token. Without
     # it POST /oauth/login/ has no way to tell a token minted for THIS
@@ -37,7 +43,7 @@ dependencies = [
     # Earlier floor: 0.35.0 ships stapel_core.gdpr.register_gdpr_owner — the erasure
     # protocol (erase + receipt + owner probe) this module registers with in
     # apps.ready() instead of hand-writing a fifth copy of it.
-    "stapel-core>=0.42.0,<1.0",
+    "stapel-core>=0.45.0,<1.0",
     "pyotp>=2.10",
     "webauthn>=2.8",
     "phonenumbers>=8.13",

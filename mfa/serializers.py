@@ -114,6 +114,25 @@ class PasskeyItemSerializer(serializers.Serializer):
     last_used_at = serializers.DateTimeField(allow_null=True)
 
 
+class PasskeyRenameSerializer(serializers.Serializer):
+    """Body of ``PATCH /passkey/{id}/`` — the label, and nothing else.
+
+    ``device_name`` was writable exactly once, at register-complete, so a user
+    who accepted the browser's default (or mistyped) was stuck with it. Only
+    the label is writable here: the credential's identity (``id``,
+    ``credential_id``, ``aaguid``, ``transports``) is what the authenticator
+    attested, and its history (``created_at``, ``last_used_at``,
+    ``sign_count``) is what the server observed — neither is the client's to
+    edit, so neither is in this serializer.
+    """
+
+    device_name = serializers.CharField(
+        max_length=100,  # PasskeyCredential.device_name
+        allow_blank=False,
+        help_text='Human-readable label for this credential, e.g. "Work laptop".',
+    )
+
+
 class _TokenPairSerializer(StapelDataclassSerializer):
     """Local TokenPairResponse serializer (sessions.serializers would be a
     circular import — it imports this module for the login union)."""

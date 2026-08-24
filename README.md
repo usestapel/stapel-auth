@@ -24,9 +24,9 @@ pip install stapel-auth
 
 | Fact | Value |
 |---|---|
-| Version | `0.27.1` |
+| Version | `0.28.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
-| HTTP operations | 120 |
+| HTTP operations | 121 |
 | Config axes | 29 |
 | Usage surface | 18 |
 | Extension points | 6 |

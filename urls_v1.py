@@ -237,7 +237,12 @@ def get_mfa_urls(enabled=None):
         path('passkey/register/complete/', PasskeyViewSet.as_view({'post': 'register_complete'}), name='passkey_register_complete'),
         path('passkey/authenticate/begin/', PasskeyViewSet.as_view({'post': 'auth_begin'}), name='passkey_auth_begin'),
         path('passkey/authenticate/complete/', PasskeyViewSet.as_view({'post': 'auth_complete'}), name='passkey_auth_complete'),
-        path('passkey/<str:pk>/', PasskeyViewSet.as_view({'delete': 'destroy'}), name='passkey_destroy'),
+        # One path, two verbs: PATCH renames the credential's label, DELETE
+        # retires it. Both are scoped by PasskeyViewSet._own_credential.
+        # The route name stays `passkey_destroy` even though it now serves
+        # both — a URL name is something host projects reverse(), so renaming
+        # it to match the widened surface would break them for cosmetics.
+        path('passkey/<str:pk>/', PasskeyViewSet.as_view({'patch': 'rename', 'delete': 'destroy'}), name='passkey_destroy'),
     ]) + _gated('mfa.enroll', enabled, ('AUTH_TOTP', 'AUTH_PASSKEY_LOGIN'), [
         # First-login mfa_enroll exchange (org-program §C2). No conf flag of
         # its own — the flow is driven by the USER flag

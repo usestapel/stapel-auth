@@ -362,6 +362,30 @@ class EnrollSessionTests(APITestCase):
                 denied.data["localizable_error"], ERR_403_MFA_ENROLLMENT_REQUIRED, name
             )
 
+        # Denied likewise: renaming an existing credential is management, not
+        # enrollment. register_complete is the ONLY passkey action the cut-down
+        # surface allows, and PATCH must not have widened it by riding the same
+        # path as DELETE.
+        from stapel_auth.models import PasskeyCredential
+
+        pc = PasskeyCredential.objects.create(
+            user=user,
+            credential_id=uuid.uuid4().bytes,
+            public_key=b"fakepublickeybytes",
+            device_name="Enrolled key",
+        )
+        rename = self.client.patch(
+            reverse("passkey_destroy", kwargs={"pk": str(pc.id)}),
+            {"device_name": "renamed from an enroll session"},
+            format="json",
+        )
+        self.assertEqual(rename.status_code, 403)
+        self.assertEqual(
+            rename.data["localizable_error"], ERR_403_MFA_ENROLLMENT_REQUIRED
+        )
+        pc.refresh_from_db()
+        self.assertEqual(pc.device_name, "Enrolled key")
+
         # Allowed: TOTP setup within the enroll session.
         setup = self.client.post(reverse("totp_setup"), {}, format="json")
         self.assertEqual(setup.status_code, 200)

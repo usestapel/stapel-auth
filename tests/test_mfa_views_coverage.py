@@ -296,6 +296,164 @@ class PasskeyListTests(_AuthedMixin, APITestCase):
         self.assertEqual(resp.data["passkeys"][0]["id"], str(pc.id))
 
 
+class PasskeyItemFieldsTests(_AuthedMixin, APITestCase):
+    """The three facts a settings row needs about a credential.
+
+    A passkey row has to say what the credential lives in, when it arrived and
+    whether it has ever been used — otherwise the UI has nothing to render but
+    a name and a delete button. All three are carried by PasskeyItemSerializer;
+    this pins them so a future serializer trim cannot quietly take them away.
+    """
+
+    def test_list_row_carries_transports_created_and_last_used(self):
+        import datetime
+
+        used = datetime.datetime(2026, 8, 1, 12, 0, tzinfo=datetime.timezone.utc)
+        _make_passkey(
+            self.user, transports=["internal", "hybrid"], last_used_at=used
+        )
+        row = self.client.get(reverse("passkey_list")).data["passkeys"][0]
+        self.assertEqual(row["transports"], ["internal", "hybrid"])
+        self.assertIsNotNone(row["created_at"])
+        self.assertIsNotNone(row["last_used_at"])
+
+    def test_never_used_credential_reports_null_last_used(self):
+        _make_passkey(self.user, last_used_at=None)
+        row = self.client.get(reverse("passkey_list")).data["passkeys"][0]
+        self.assertIsNone(row["last_used_at"])
+
+
+class PasskeyRenameTests(_AuthedMixin, APITestCase):
+    """PATCH /passkey/{id}/ — the label, only the owner's, only the label."""
+
+    def _url(self, pc):
+        return reverse("passkey_destroy", kwargs={"pk": str(pc.id)})
+
+    def test_rename_updates_label_and_returns_the_row(self):
+        pc = _make_passkey(self.user, device_name="Unnamed key")
+        resp = self.client.patch(
+            self._url(pc), {"device_name": "Work laptop"}, format="json"
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["device_name"], "Work laptop")
+        self.assertEqual(resp.data["id"], str(pc.id))
+        # The row the caller gets back is renderable without a re-fetch.
+        self.assertIn("transports", resp.data)
+        self.assertIn("created_at", resp.data)
+        self.assertIn("last_used_at", resp.data)
+        pc.refresh_from_db()
+        self.assertEqual(pc.device_name, "Work laptop")
+
+    def test_another_users_credential_is_404_and_is_not_modified(self):
+        """The cross-user refusal, which is the whole point of the scoping.
+
+        The victim's credential must come back as 404 (not 403: a 403 would
+        confirm the id is real and simply not the caller's), and — the part a
+        status-code-only assertion would miss — the row must be untouched in
+        the database afterwards.
+        """
+        victim = _make_user()
+        pc = _make_passkey(victim, device_name="Victim's YubiKey")
+
+        resp = self.client.patch(
+            self._url(pc), {"device_name": "pwned"}, format="json"
+        )
+
+        self.assertEqual(resp.status_code, 404)
+        pc.refresh_from_db()
+        self.assertEqual(pc.device_name, "Victim's YubiKey")
+
+    def test_another_users_credential_is_indistinguishable_from_an_unknown_id(self):
+        """No enumeration oracle: same status, same error body, either way."""
+        victim_pc = _make_passkey(_make_user())
+        unknown_url = reverse("passkey_destroy", kwargs={"pk": str(uuid.uuid4())})
+
+        foreign = self.client.patch(
+            self._url(victim_pc), {"device_name": "x"}, format="json"
+        )
+        unknown = self.client.patch(unknown_url, {"device_name": "x"}, format="json")
+
+        self.assertEqual(foreign.status_code, unknown.status_code)
+        self.assertEqual(
+            foreign.data["localizable_error"], unknown.data["localizable_error"]
+        )
+
+    def test_deactivated_credential_is_404(self):
+        pc = _make_passkey(self.user, is_active=False)
+        resp = self.client.patch(self._url(pc), {"device_name": "x"}, format="json")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_ownership_is_checked_before_the_body_is_validated(self):
+        """A stranger must not learn field-level validation from this route."""
+        pc = _make_passkey(_make_user())
+        resp = self.client.patch(self._url(pc), {}, format="json")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_blank_name_is_rejected(self):
+        pc = _make_passkey(self.user, device_name="Keep me")
+        resp = self.client.patch(self._url(pc), {"device_name": "   "}, format="json")
+        self.assertEqual(resp.status_code, 400)
+        pc.refresh_from_db()
+        self.assertEqual(pc.device_name, "Keep me")
+
+    def test_name_longer_than_the_column_is_rejected(self):
+        pc = _make_passkey(self.user)
+        resp = self.client.patch(
+            self._url(pc), {"device_name": "n" * 101}, format="json"
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_missing_name_is_rejected(self):
+        pc = _make_passkey(self.user, device_name="Keep me")
+        resp = self.client.patch(self._url(pc), {}, format="json")
+        self.assertEqual(resp.status_code, 400)
+        pc.refresh_from_db()
+        self.assertEqual(pc.device_name, "Keep me")
+
+    def test_server_owned_fields_are_not_writable(self):
+        pc = _make_passkey(self.user, aaguid="1" * 36, transports=["usb"])
+        resp = self.client.patch(
+            self._url(pc),
+            {
+                "device_name": "Renamed",
+                "aaguid": "9" * 36,
+                "transports": ["internal"],
+                "sign_count": 9999,
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        pc.refresh_from_db()
+        self.assertEqual(pc.device_name, "Renamed")
+        self.assertEqual(pc.aaguid, "1" * 36)
+        self.assertEqual(pc.transports, ["usb"])
+        self.assertEqual(pc.sign_count, 0)
+
+    def test_anonymous_caller_is_refused(self):
+        pc = _make_passkey(self.user)
+        self.client.credentials()  # drop the bearer token
+        resp = self.client.patch(self._url(pc), {"device_name": "x"}, format="json")
+        self.assertIn(resp.status_code, (401, 403))
+        pc.refresh_from_db()
+        self.assertEqual(pc.device_name, "Test Key")
+
+    def test_rename_is_audited_with_both_names(self):
+        pc = _make_passkey(self.user, device_name="Old name")
+        resp = self.client.patch(
+            self._url(pc), {"device_name": "New name"}, format="json"
+        )
+        self.assertEqual(resp.status_code, 200)
+
+        from stapel_auth.models import AuthAuditLog
+
+        entry = AuthAuditLog.objects.filter(
+            user=self.user, event_type="passkey_renamed"
+        ).first()
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry.metadata["device_name"], "New name")
+        self.assertEqual(entry.metadata["previous_device_name"], "Old name")
+
+
 class PasskeyDestroyTests(_AuthedMixin, APITestCase):
     def test_destroy_success_when_password_present(self):
         # Fresh user was created with a usable password → not the last method.

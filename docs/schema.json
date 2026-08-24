@@ -2350,6 +2350,70 @@
       }
     },
     "/auth/api/v1/passkey/{id}/": {
+      "patch": {
+        "operationId": "auth_api_v1_passkey_partial_update",
+        "description": "Change the human-readable label of one of the *caller's own* credentials. Scoped by ownership at lookup time: a credential belonging to another user answers 404, exactly as an unknown id does. Only `device_name` is writable — the attested identity (`aaguid`, `transports`) and the observed history (`created_at`, `last_used_at`) are server-owned.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
+        "summary": "Rename a passkey",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Passkeys"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedPasskeyRename"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedPasskeyRename"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedPasskeyRename"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyItem"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
       "delete": {
         "operationId": "auth_api_v1_passkey_destroy",
         "description": "Overridable serializer seams for stapel-auth API views.\n\nViews declare ``<purpose>_serializer_class`` class attributes following the\n``*_request_serializer_class`` / ``*_response_serializer_class`` naming\nconvention (e.g. ``request_serializer_class`` or, when a view uses several\nserializers, purpose-prefixed names such as ``login_request_serializer_class``\nor ``auth_response_serializer_class``). For every such attribute this mixin\nsupplies the matching ``get_<purpose>_serializer_class()`` getter, so hosts\ncan swap a serializer by subclassing the view and overriding either the\nattribute or the getter::\n\n    class MyMagicLinkViewSet(MagicLinkViewSet):\n        response_serializer_class = MyResponseSerializer\n\nHandler bodies instantiate serializers exclusively through the getters, so\nan override is picked up everywhere the serializer is used.\n\n**Permissions:** `IsServiceRequest, IsSuperUser`",
@@ -8511,6 +8575,17 @@
           },
           "user_id": {
             "type": "string"
+          }
+        }
+      },
+      "PatchedPasskeyRename": {
+        "type": "object",
+        "description": "Body of ``PATCH /passkey/{id}/`` — the label, and nothing else.\n\n``device_name`` was writable exactly once, at register-complete, so a user\nwho accepted the browser's default (or mistyped) was stuck with it. Only\nthe label is writable here: the credential's identity (``id``,\n``credential_id``, ``aaguid``, ``transports``) is what the authenticator\nattested, and its history (``created_at``, ``last_used_at``,\n``sign_count``) is what the server observed — neither is the client's to\nedit, so neither is in this serializer.",
+        "properties": {
+          "device_name": {
+            "type": "string",
+            "description": "Human-readable label for this credential, e.g. \"Work laptop\".",
+            "maxLength": 100
           }
         }
       },

@@ -2,6 +2,78 @@
 
 ## [Unreleased]
 
+## [0.28.0] — 2026-08-24
+
+**Requires stapel-core >= 0.45.0** (the canonical serializer seam).
+
+### Added — `PATCH /passkey/{id}/`: a passkey could be named once and never renamed
+
+`device_name` was writable at exactly one moment — the `device_name` field of
+`POST /passkey/register/complete/` — and never again. Whatever the browser
+suggested at enrollment, or whatever was mistyped into that box, was the label
+the credential carried for the rest of its life. There was no endpoint to
+change it, so a settings UI could not offer a rename however obviously it
+belonged there.
+
+```
+PATCH /auth/api/v1/passkey/{id}/   {"device_name": "Work laptop"}
+→ 200  the updated passkey row
+```
+
+**Authorization.** Ownership is a *lookup* predicate, not a check performed
+after the row is read: `PasskeyViewSet._own_credential` filters on
+`(id, user=request.user, is_active=True)`, so another user's credential can
+only leave it as `None`, and the view answers **404** — byte-identical to the
+answer an id that never existed gets. A 403 would have confirmed to a stranger
+that a given credential id is real and simply not theirs, and a passkey id is a
+stable handle to a specific person's authenticator; there is nothing to gain
+from the distinction and an enumeration oracle to lose. Ownership is resolved
+*before* the body is validated, so the route does not leak field-level
+validation to a caller who does not own the row either.
+
+`DELETE` now goes through the same `_own_credential` — the two per-credential
+routes share one scoping predicate, so a bug in it would have to be written
+twice to reach production.
+
+Enroll-only sessions (first-login `mfa_enroll`) are refused: `rename` is not in
+`ENROLL_ONLY_ALLOWED_ACTIONS`, so `DenyEnrollOnly`'s default-deny answers the
+structured 403. Registering a passkey is enrollment; renaming one is
+management, and riding the same path as `DELETE` must not have widened that
+surface.
+
+Only the label is writable. The credential's attested identity (`aaguid`,
+`transports`, `credential_id`) and its observed history (`created_at`,
+`last_used_at`, `sign_count`) are not the client's to edit and are absent from
+`PasskeyRenameSerializer`; a body that names them is ignored, which is pinned
+by a test.
+
+The route name stays `passkey_destroy` even though the path now serves two
+verbs — a URL name is something host projects `reverse()`, and renaming it to
+match the widened surface would break them for cosmetics.
+
+`passkey_renamed` joins `AuthEventType` (migration `0021`, an `AlterField` over
+choices — no column changes), carrying both the new and the previous label.
+
+### Unchanged, and worth stating — the passkey row already carried its three facts
+
+The settings row that prompted this needed to show what a credential lives in,
+when it arrived, and whether it has ever been used. All three were already in
+the contract (`transports[]`, `created_at`, `last_used_at` on
+`PasskeyItemSerializer`); **no read field was added**. They now have tests of
+their own so a future serializer trim cannot quietly take them back.
+
+### Changed — `SerializerSeamsMixin` stops being a copy of the core seam
+
+`stapel_auth.utils.SerializerSeamsMixin` now subclasses
+`stapel_core.django.api.views.SerializerSeamMixin` instead of redefining the
+two-name seam next to it. What stays local is only the part core deliberately
+leaves to the view: core documents the purpose-prefixed convention
+(`list_response_serializer_class` ↔ `get_list_response_serializer_class()`) and
+expects each getter to be spelled out, while this module declares 83 such
+attributes across 11 viewsets — 83 hand-written one-line getters would be a
+copy of a seam, not a seam, so they are still derived. Behaviour is unchanged
+for every existing view.
+
 ## [0.27.1] — 2026-08-24
 
 ### Fixed — the monolith-identity gate was failing on the harness, not the surface
