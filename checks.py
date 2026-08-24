@@ -353,3 +353,138 @@ __all__ += [
     "check_proxy_trust_declared",
     "check_trusted_proxy_header_is_overwritten",
 ]
+
+
+W007_OAUTH_AUDIENCES_NOT_DECLARED = "stapel_auth.W007"
+E008_OAUTH_NOTHING_TO_PIN = "stapel_auth.E008"
+W009_OAUTH_PROVIDER_CANNOT_VERIFY = "stapel_auth.W009"
+W010_OAUTH_AUDIENCES_NOT_HONOURED = "stapel_auth.W010"
+
+_TOKEN_BODY_DOC = (
+    "`POST /oauth/login/` accepts an access token straight from the request "
+    "body. A token is a bearer credential for the OAuth client it was minted "
+    "for, so one minted for somebody else's app against a user's provider "
+    "account would otherwise resolve to that user here."
+)
+
+
+def _configured_oauth_providers():
+    """Registered providers this deployment has actually set up."""
+    from stapel_core.oauth import get_all_providers
+
+    from .conf import auth_settings
+
+    configured = set(auth_settings.OAUTH_PROVIDERS or {})
+    declared = set(auth_settings.OAUTH_ACCEPTED_AUDIENCES or {})
+    return [p for p in get_all_providers() if p.id in configured or p.id in declared]
+
+
+@checks.register("stapel_auth")
+def check_oauth_audience_pinning(app_configs=None, **kwargs):
+    """W007 / E008 / W009 / W010 — is the token-body login door pinned?
+
+    Only fires while ``AUTH_OAUTH_LOGIN`` is on, because that flag is what
+    mounts the door. The authorization-code flow is never at issue: its
+    token comes from this deployment's own ``client_secret`` exchange.
+
+    * **W009** — the provider has no way to prove which client minted a
+      token (Zoom publishes no introspection endpoint at all; Apple,
+      Twitter, Yandex, VK and Sber have no profile call either). The
+      token-body endpoint refuses it. Redirect login still works.
+    * **E008** — the provider CAN verify, but nothing is configured to
+      compare against, so every token is refused. This is an outage, not a
+      hardening: say what the audiences are.
+    * **W007** — audiences were inherited from the provider's own
+      ``client_id`` rather than declared. Correct for a single-client
+      deployment; silently wrong the moment a second client exists, which
+      for Google is any native app (it issues separate Web / iOS / Android
+      client IDs, and a native token carries the native ``aud``).
+    * **W010** — audiences are declared that this provider cannot check.
+      GitHub's endpoint authenticates AS the app whose secret we hold, so it
+      answers only "is this token mine"; extra client IDs would need their
+      own secrets and are refused rather than silently honoured.
+    """
+    from .conf import auth_settings
+
+    if not auth_settings.AUTH_OAUTH_LOGIN:
+        return []
+
+    from .oauth_providers import accepted_audiences, audiences_are_declared
+
+    issues = []
+    for provider in _configured_oauth_providers():
+        pid = provider.id
+        if not getattr(provider, "verifies_audience", False):
+            issues.append(checks.Warning(
+                f"OAuth provider {pid!r} cannot prove which client an access "
+                f"token was minted for, so POST /oauth/login/ refuses it. "
+                f"{_TOKEN_BODY_DOC} The authorization-code flow "
+                f"(/oauth/{pid}/authorize/ -> /callback/) is unaffected and "
+                f"remains the supported way to sign in with {pid}.",
+                hint="Move this provider's sign-in to the redirect flow, or "
+                     "drop it from OAUTH_PROVIDERS if unused. Silence with "
+                     "SILENCED_SYSTEM_CHECKS once the frontend no longer "
+                     "posts tokens for it.",
+                id=W009_OAUTH_PROVIDER_CANNOT_VERIFY,
+            ))
+            continue
+
+        audiences = accepted_audiences(pid)
+        if not audiences:
+            issues.append(checks.Error(
+                f"OAuth provider {pid!r} has no accepted audiences and no "
+                f"client_id to fall back on, so POST /oauth/login/ refuses "
+                f"every token for it.",
+                hint=f"Set STAPEL_AUTH['OAUTH_ACCEPTED_AUDIENCES']['{pid}'] "
+                     f"to the OAuth client IDs your apps sign in with (a "
+                     f"list — one per platform where the provider issues "
+                     f"several), or give the provider a client_id in "
+                     f"OAUTH_PROVIDERS.",
+                id=E008_OAUTH_NOTHING_TO_PIN,
+            ))
+            continue
+
+        if not audiences_are_declared(pid):
+            issues.append(checks.Warning(
+                f"OAuth provider {pid!r} accepts exactly one audience — its "
+                f"own client_id — because OAUTH_ACCEPTED_AUDIENCES does not "
+                f"name it. {_TOKEN_BODY_DOC} That is right for a "
+                f"single-client deployment and wrong the moment a second "
+                f"client exists: Google, for one, issues a SEPARATE client "
+                f"ID per platform, so a native app's token carries a "
+                f"different audience and would be refused.",
+                hint=f"Declare it explicitly: "
+                     f"STAPEL_AUTH['OAUTH_ACCEPTED_AUDIENCES'] = "
+                     f"{{'{pid}': ['<web client id>', '<ios client id>', "
+                     f"...]}}. List every client your own apps use, and "
+                     f"nothing else.",
+                id=W007_OAUTH_AUDIENCES_NOT_DECLARED,
+            ))
+
+        if getattr(provider, "verifies_only_own_client", False):
+            config = (auth_settings.OAUTH_PROVIDERS or {}).get(pid)
+            own = str(getattr(config, "client_id", "") or "")
+            unhonoured = [a for a in audiences if a != own]
+            if unhonoured:
+                issues.append(checks.Warning(
+                    f"OAuth provider {pid!r} can only verify tokens minted "
+                    f"for its OWN client ({own!r}) — its check authenticates "
+                    f"as that app. The other declared audiences "
+                    f"({', '.join(repr(a) for a in unhonoured)}) cannot be "
+                    f"checked without their own client secrets, so tokens "
+                    f"carrying them are REFUSED, not accepted.",
+                    hint="Remove the audiences this provider cannot verify, "
+                         "or register those apps as separate providers with "
+                         "their own credentials.",
+                    id=W010_OAUTH_AUDIENCES_NOT_HONOURED,
+                ))
+    return issues
+
+
+__all__ += [
+    "E008_OAUTH_NOTHING_TO_PIN",
+    "W007_OAUTH_AUDIENCES_NOT_DECLARED",
+    "W009_OAUTH_PROVIDER_CANNOT_VERIFY",
+    "W010_OAUTH_AUDIENCES_NOT_HONOURED",
+    "check_oauth_audience_pinning",
+]

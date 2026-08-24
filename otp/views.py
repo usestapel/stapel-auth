@@ -1325,7 +1325,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 
         ocore = OAuthService()
-        user_data = ocore.get_user_data(provider, access_token)
+        # The ONLY caller allowed to skip the audience check: this token came
+        # out of the exchange three lines up, signed with our own
+        # client_secret, so its audience is ours by construction.
+        user_data = ocore.get_user_data(provider, access_token, token_is_ours=True)
         if not user_data:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 

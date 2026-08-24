@@ -147,6 +147,31 @@ DEFAULTS = {
     # OAuth provider credentials (parsed into dict[str, OAuthProviderConfig])
     'OAUTH_PROVIDERS': {},
 
+    # Which OAuth client IDs a CALLER-SUPPLIED access token may have been
+    # issued to, per provider: {'google': ['<web>.apps.googleusercontent.com',
+    # '<ios>.apps.googleusercontent.com']}.
+    #
+    # `POST /oauth/login/` takes an access token straight from the request
+    # body and issues our session for whoever it resolves to. A token is a
+    # bearer credential for the client it was minted for — so without this
+    # pin, a token minted for SOMEBODY ELSE'S OAuth app against the victim's
+    # provider account is accepted here as proof of identity. That is a login
+    # takeover, and it is why the token-body endpoint is only safe once the
+    # audiences are pinned (audit F-OAUTH).
+    #
+    # Unset for a provider = its own `client_id` from OAUTH_PROVIDERS, which
+    # is the only audience we can infer. Declare the list explicitly whenever
+    # the same account is reached through more than one client — Google issues
+    # SEPARATE client IDs per platform (Web / iOS / Android) for one project,
+    # so a mobile app's token legitimately carries a different `aud`.
+    # `stapel_auth.W007` says so at boot; `stapel_auth.E008` fires when there
+    # is nothing to pin to at all.
+    #
+    # The authorization-code flow (`/oauth/{provider}/authorize/` →
+    # `/callback/`) is unaffected: that token comes from our own
+    # client_secret exchange, so its audience is ours by construction.
+    'OAUTH_ACCEPTED_AUDIENCES': {},
+
     # Path of the OAuth callback this service SENDS as `redirect_uri`,
     # relative to the host root ('{provider}' is substituted; the default
     # keeps the module's canonical v1 route).
@@ -231,6 +256,21 @@ DEFAULTS = {
     # Login method gates
     'AUTH_PHONE_LOGIN':      True,
     'AUTH_EMAIL_LOGIN':      True,
+    # Gates BOTH OAuth login doors, which are not equally safe by
+    # construction:
+    #   * `/oauth/{provider}/authorize/` -> `/callback/` — the authorization
+    #     code flow. The access token is minted by OUR client_secret
+    #     exchange, so it is ours by construction; nothing to pin.
+    #   * `POST /oauth/login/` — the token-body endpoint: the CALLER hands us
+    #     an access token. A token is a bearer credential for the OAuth
+    #     client it was issued to, so one minted for somebody else's app
+    #     against the victim's provider account would log us in as the
+    #     victim. **This door is only safe once OAUTH_ACCEPTED_AUDIENCES
+    #     pins which client IDs may vouch for an identity** — unpinned or
+    #     unverifiable, it refuses (see checks W007/E008 and the audience
+    #     notes on OAUTH_ACCEPTED_AUDIENCES above).
+    # Turn this off entirely if you only ever use the redirect flow and want
+    # the token-body route gone rather than merely pinned.
     'AUTH_OAUTH_LOGIN':      True,
     'AUTH_SSO_LOGIN':        True,
     'AUTH_PASSWORD_LOGIN':   False,
@@ -295,7 +335,8 @@ DEFAULTS = {
 # Keys that must never fall back to an environment variable (AppSettings
 # ``no_env``). Classification rule, following stapel-core conventions
 # (netintel/gateway/access conf):
-#   * secrets and trust anchors (INTERNAL_SERVICE_KEY, OAUTH_PROVIDERS) — a
+#   * secrets and trust anchors (INTERNAL_SERVICE_KEY, OAUTH_PROVIDERS,
+#     OAUTH_ACCEPTED_AUDIENCES) — a
 #     stray same-named env var must never become a trust decision silently;
 #   * dotted-path seams (OAUTH_PROVIDER_CLASSES, REREGISTRATION_MODEL) and
 #     scope lists — they decide what code runs / what grants are written;
@@ -309,6 +350,10 @@ _NO_ENV = tuple(
 ) + (
     'INTERNAL_SERVICE_KEY',
     'OAUTH_PROVIDERS',
+    # The audience pin IS the trust anchor of the token-body login endpoint:
+    # a stray env var must not be able to widen (or, as a string, mangle)
+    # which OAuth clients may vouch for an identity.
+    'OAUTH_ACCEPTED_AUDIENCES',
     'OAUTH_PROVIDER_CLASSES',
     'REREGISTRATION_MODEL',
     'MOCK_OTP_CODE',

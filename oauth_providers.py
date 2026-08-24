@@ -15,6 +15,9 @@ from stapel_core.oauth import OAuthProvider, OAuthUserData
 
 logger = logging.getLogger(__name__)
 
+#: Dated REST API version GitHub wants on the token-check endpoint.
+GITHUB_API_VERSION = "2026-03-10"
+
 
 # Expose the global registry dict — tests can inspect/mutate it
 from stapel_core.oauth import _registry as PROVIDER_REGISTRY  # noqa: F401
@@ -29,7 +32,34 @@ class GoogleProvider(OAuthProvider):
     scope = "openid email profile"
     extra_params = {"access_type": "offline"}
 
-    def get_user_data(self, access_token: str) -> OAuthUserData | None:
+    #: Google reports a token's owning client for ANY valid access token, so
+    #: an accepted-audiences LIST is fully honoured here.
+    verifies_audience = True
+    tokeninfo_url = "https://oauth2.googleapis.com/tokeninfo"
+
+    def verify_audience(self, access_token, config) -> bool:
+        """`aud` from Google's tokeninfo must be one of the accepted clients.
+
+        `aud` is documented as "the OAuth client that this token is for" —
+        the field to compare. (`azp`, "the client that requested it", can
+        legitimately differ under Google's cross-client identity within one
+        project; the token is still *for* `aud`.)
+
+        Google publishes distinct client IDs per platform, so a project with
+        a web app and a native app has several legitimate audiences — which
+        is exactly why the pin is a list.
+        """
+        response = requests.get(
+            self.tokeninfo_url, params={"access_token": access_token}, timeout=10
+        )
+        if response.status_code != 200:
+            # 400 for an invalid/expired token; anything else is an outage.
+            # Both are "not proven", and not proven means refuse.
+            return False
+        audience = str((response.json() or {}).get("aud") or "")
+        return bool(audience) and audience in config.accepted_audiences
+
+    def get_user_data(self, access_token: str, config=None) -> OAuthUserData | None:
         response = requests.get(
             "https://www.googleapis.com/oauth2/v2/userinfo",
             headers={"Authorization": f"Bearer {access_token}"},
@@ -56,7 +86,38 @@ class GitHubProvider(OAuthProvider):
     scope = "read:user user:email"
     extra_params = {}
 
-    def get_user_data(self, access_token: str) -> OAuthUserData | None:
+    verifies_audience = True
+    #: GitHub answers "is this token for the app whose secret I hold", never
+    #: "which app is this token for" — the check authenticates AS the app.
+    #: So only the configured `client_id` can be verified; any OTHER accepted
+    #: audience would need that app's own secret, which the deployment has
+    #: not given us. `checks.W010` says so rather than letting the extra
+    #: entries look honoured.
+    verifies_only_own_client = True
+
+    def verify_audience(self, access_token, config) -> bool:
+        if not config.client_id or not config.client_secret:
+            return False
+        if config.client_id not in config.accepted_audiences:
+            # We can only ask about our own app, and our own app is not on
+            # the accept list — nothing here can produce a proof.
+            return False
+        response = requests.post(
+            f"https://api.github.com/applications/{config.client_id}/token",
+            auth=(config.client_id, config.client_secret),
+            json={"access_token": access_token},
+            headers={
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": GITHUB_API_VERSION,
+            },
+            timeout=10,
+        )
+        # 200 = this token belongs to this app. 404 = it does not (GitHub
+        # collapses "unknown token" and "not yours" into one answer, which
+        # is all we need).
+        return response.status_code == 200
+
+    def get_user_data(self, access_token: str, config=None) -> OAuthUserData | None:
         headers = {"Authorization": f"token {access_token}"}
         response = requests.get("https://api.github.com/user", headers=headers, timeout=10)
         if response.status_code != 200:
@@ -105,7 +166,21 @@ class ZoomProvider(OAuthProvider):
     scope = "user:read:user"
     extra_params = {}
 
-    def get_user_data(self, access_token: str) -> OAuthUserData | None:
+    # Zoom publishes NO token-introspection endpoint (checked 2026-08-24:
+    # /oauth/token and /oauth/revoke answer 400 to an empty request, i.e.
+    # they route; /oauth/introspect answers 404, i.e. it does not exist).
+    # Zoom access tokens are JWT-shaped but Zoom publishes no verification
+    # keys or claim schema for third parties, and calling /v2/users/me with
+    # a token proves the token is live, never which client minted it.
+    #
+    # So a caller-supplied Zoom token cannot be attributed, and this stays
+    # False: `POST /oauth/login/` refuses Zoom rather than pretending. The
+    # authorization-code flow (/authorize/ -> /callback/) is unaffected —
+    # that token comes from our own exchange. `checks.W009` tells the
+    # deployment which door closed.
+    verifies_audience = False
+
+    def get_user_data(self, access_token: str, config=None) -> OAuthUserData | None:
         response = requests.get(
             "https://api.zoom.us/v2/users/me",
             headers={"Authorization": f"Bearer {access_token}"},
@@ -133,7 +208,40 @@ class FacebookProvider(OAuthProvider):
     scope = "email,public_profile"
     extra_params = {}
 
-    def get_user_data(self, access_token: str) -> OAuthUserData | None:
+    #: debug_token names the owning app for any token, so a LIST is honoured.
+    verifies_audience = True
+    debug_token_url = "https://graph.facebook.com/debug_token"
+
+    def verify_audience(self, access_token, config) -> bool:
+        """`data.app_id` from debug_token must be one of the accepted clients.
+
+        `data.is_valid` alone is NOT the check: debug_token happily reports
+        `is_valid: true` with somebody else's `app_id` for a token that is
+        perfectly valid and simply not ours. The app id is the audience.
+
+        The inspecting credential is an app access token, which Meta
+        documents as the literal `{app-id}|{app-secret}` pair — server-side
+        only, which is where this runs.
+        """
+        if not config.client_id or not config.client_secret:
+            return False
+        response = requests.get(
+            self.debug_token_url,
+            params={
+                "input_token": access_token,
+                "access_token": f"{config.client_id}|{config.client_secret}",
+            },
+            timeout=10,
+        )
+        if response.status_code != 200:
+            return False
+        data = ((response.json() or {}).get("data")) or {}
+        if not data.get("is_valid"):
+            return False
+        app_id = str(data.get("app_id") or "")
+        return bool(app_id) and app_id in config.accepted_audiences
+
+    def get_user_data(self, access_token: str, config=None) -> OAuthUserData | None:
         response = requests.get(
             f"https://graph.facebook.com/me?fields=id,email,name,picture&access_token={access_token}",
             timeout=10,
@@ -158,7 +266,13 @@ class AppleProvider(OAuthProvider):
     scope = "name email"
     extra_params = {"response_mode": "form_post"}
 
-    def get_user_data(self, access_token: str) -> OAuthUserData | None:
+    # No profile call and therefore no audience mechanism: this provider
+    # cannot log anyone in through either door. `verifies_audience` stays
+    # False so the token-body endpoint refuses it explicitly rather than
+    # reaching an unimplemented profile fetch.
+    verifies_audience = False
+
+    def get_user_data(self, access_token: str, config=None) -> OAuthUserData | None:
         raise NotImplementedError("Apple provider is not yet implemented")
 
 
@@ -170,7 +284,13 @@ class TwitterProvider(OAuthProvider):
     scope = "tweet.read users.read offline.access"
     extra_params = {"code_challenge_method": "S256"}
 
-    def get_user_data(self, access_token: str) -> OAuthUserData | None:
+    # No profile call and therefore no audience mechanism: this provider
+    # cannot log anyone in through either door. `verifies_audience` stays
+    # False so the token-body endpoint refuses it explicitly rather than
+    # reaching an unimplemented profile fetch.
+    verifies_audience = False
+
+    def get_user_data(self, access_token: str, config=None) -> OAuthUserData | None:
         raise NotImplementedError("Twitter provider is not yet implemented")
 
 
@@ -182,7 +302,13 @@ class YandexProvider(OAuthProvider):
     scope = "login:email login:info login:avatar"
     extra_params = {}
 
-    def get_user_data(self, access_token: str) -> OAuthUserData | None:
+    # No profile call and therefore no audience mechanism: this provider
+    # cannot log anyone in through either door. `verifies_audience` stays
+    # False so the token-body endpoint refuses it explicitly rather than
+    # reaching an unimplemented profile fetch.
+    verifies_audience = False
+
+    def get_user_data(self, access_token: str, config=None) -> OAuthUserData | None:
         raise NotImplementedError("Yandex provider is not yet implemented")
 
 
@@ -194,7 +320,13 @@ class VKProvider(OAuthProvider):
     scope = "email"
     extra_params = {}
 
-    def get_user_data(self, access_token: str) -> OAuthUserData | None:
+    # No profile call and therefore no audience mechanism: this provider
+    # cannot log anyone in through either door. `verifies_audience` stays
+    # False so the token-body endpoint refuses it explicitly rather than
+    # reaching an unimplemented profile fetch.
+    verifies_audience = False
+
+    def get_user_data(self, access_token: str, config=None) -> OAuthUserData | None:
         raise NotImplementedError("VK provider is not yet implemented")
 
 
@@ -206,7 +338,13 @@ class SberProvider(OAuthProvider):
     scope = "openid"
     extra_params = {}
 
-    def get_user_data(self, access_token: str) -> OAuthUserData | None:
+    # No profile call and therefore no audience mechanism: this provider
+    # cannot log anyone in through either door. `verifies_audience` stays
+    # False so the token-body endpoint refuses it explicitly rather than
+    # reaching an unimplemented profile fetch.
+    verifies_audience = False
+
+    def get_user_data(self, access_token: str, config=None) -> OAuthUserData | None:
         raise NotImplementedError("Sber provider is not yet implemented")
 
 
@@ -229,6 +367,11 @@ class TestProvider(OAuthProvider):
     scope = "openid email"
     extra_params = {}
 
+    #: Deterministic stand-in for a real introspection endpoint: the fixed
+    #: token below is "minted for" AUDIENCE, and nothing else is.
+    verifies_audience = True
+    AUDIENCE = "test-client-id"
+
     TOKEN_OK = "test-token-ok"
     FIXED_USER = OAuthUserData(
         id="test-oauth-user-1",
@@ -243,10 +386,41 @@ class TestProvider(OAuthProvider):
             return self.TOKEN_OK
         return None
 
-    def get_user_data(self, access_token: str) -> OAuthUserData | None:
+    def verify_audience(self, access_token, config) -> bool:
+        return (
+            access_token == self.TOKEN_OK
+            and self.AUDIENCE in config.accepted_audiences
+        )
+
+    def get_user_data(self, access_token: str, config=None) -> OAuthUserData | None:
         if access_token == self.TOKEN_OK:
             return self.FIXED_USER
         return None
+
+
+def accepted_audiences(provider_id: str) -> tuple:
+    """OAuth client IDs a caller-supplied token for *provider_id* may carry.
+
+    ``STAPEL_AUTH['OAUTH_ACCEPTED_AUDIENCES'][provider_id]`` when declared;
+    otherwise the provider's own ``client_id``, which is the only audience
+    that can be inferred. Empty when neither is configured — nothing to pin
+    to, so the token-body login path refuses (see ``checks.E008``).
+    """
+    from .conf import auth_settings
+
+    declared = (auth_settings.OAUTH_ACCEPTED_AUDIENCES or {}).get(provider_id)
+    if declared:
+        return tuple(str(a) for a in declared if a)
+    config = (auth_settings.OAUTH_PROVIDERS or {}).get(provider_id)
+    client_id = str(getattr(config, "client_id", "") or "")
+    return (client_id,) if client_id else ()
+
+
+def audiences_are_declared(provider_id: str) -> bool:
+    """Whether the deployment PINNED the audiences rather than inheriting one."""
+    from .conf import auth_settings
+
+    return bool((auth_settings.OAUTH_ACCEPTED_AUDIENCES or {}).get(provider_id))
 
 
 def get_enabled_providers() -> list[OAuthProvider]:

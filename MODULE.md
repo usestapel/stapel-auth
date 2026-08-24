@@ -60,7 +60,9 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 | `AUTH_PHONE_REGISTRATION` / `AUTH_EMAIL_REGISTRATION` / `AUTH_OAUTH_REGISTRATION` / `AUTH_SSO_REGISTRATION` | `True` | Registration method gates — enforced at the **account-creation site**, not at the request-a-code step, so login keeps working with registration off (see "Closing registration" below) |
 | `AUTH_PASSWORD_REGISTRATION` | `False` | Password registration gate |
 | `AUTH_REGISTRATION_CLOSED_BEHAVIOR` | `'silent'` | What a stranger sees on the OTP surfaces when their method's registration axis is off: `silent` (identical answer for everyone, the stranger's code is simply never delivered — no existence oracle), `request` (403 `error.403.registration_closed` at `*/request/`), `verify` (code sent, 403 at `*/verify/`). Unknown values degrade to `silent`. `no_env` |
-| `AUTH_PHONE_LOGIN` / `AUTH_EMAIL_LOGIN` / `AUTH_OAUTH_LOGIN` / `AUTH_SSO_LOGIN` / `AUTH_QR_LOGIN` / `AUTH_PASSKEY_LOGIN` / `AUTH_MAGIC_LINK_LOGIN` | `True` | Login method gates |
+| `AUTH_PHONE_LOGIN` / `AUTH_EMAIL_LOGIN` / `AUTH_SSO_LOGIN` / `AUTH_QR_LOGIN` / `AUTH_PASSKEY_LOGIN` / `AUTH_MAGIC_LINK_LOGIN` | `True` | Login method gates |
+| `AUTH_OAUTH_LOGIN` | `True` | Gates both OAuth doors. The redirect flow (`/oauth/{provider}/authorize/` → `/callback/`) is safe by construction. **`POST /oauth/login/` — the token-body endpoint — is only safe once `OAUTH_ACCEPTED_AUDIENCES` pins which client IDs may vouch for an identity**; unpinned or unverifiable it refuses. See "The token-body OAuth endpoint" below |
+| `OAUTH_ACCEPTED_AUDIENCES` | `{}` | `{provider_id: [client_id, ...]}` — the OAuth client IDs a caller-supplied access token may have been issued to. A **list**, because one project legitimately has separate client IDs per platform (Google issues distinct Web / iOS / Android IDs). Unset for a provider = its own `client_id` from `OAUTH_PROVIDERS`. `no_env` — it is the trust anchor of the token-body endpoint |
 | `AUTH_PASSWORD_LOGIN` | `False` | Password login gate |
 | `AUTH_LEGACY_TOKEN_LOGIN` | `False` | The deprecated `POST /token/` alias of `/password/login/`. Off: the route answers 403 (and is not mounted at all by `get_sessions_urls()`). When on it also requires `AUTH_PASSWORD_LOGIN`, and applies the same lockout and the same `PASSWORD_LOGIN_STEP_UP` challenge as the dedicated path |
 | `OAUTH_STEP_UP` | `False` | TOTP challenge after OAuth login |
@@ -73,6 +75,53 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 The `AUTH_*` gates also drive the URL factories in `urls.py`: `include('stapel_auth.urls')` mounts everything (per-request 403 gating), or compose your own URLconf from `get_*_urls()` factories so disabled features 404.
 
 The boolean gates above are this module's **config axes** (capability-config.md §1 in the stapel workspace root): machine-readable metadata over `STAPEL_AUTH`, published as the fourth contract artifact `docs/capabilities.json` (see below). Each factory declares its gating flags and contributed URL patterns in `urls.py: GATE_REGISTRY` via the `_gated()` helper — the declaration lives where the gating executes, so the artifact cannot drift from the code.
+
+### The token-body OAuth endpoint — `OAUTH_ACCEPTED_AUDIENCES`
+
+There are two OAuth login doors and they are not equally safe by construction:
+
+| Door | Where the access token comes from | Audience |
+|---|---|---|
+| `/oauth/{provider}/authorize/` → `/callback/` | our own `client_secret` code exchange | ours by construction — nothing to check |
+| `POST /oauth/login/` | **the request body** | whatever the caller's token was minted for |
+
+An OAuth access token is a bearer credential scoped to the OAuth **client** it was issued to. It is not a statement about who the holder is *to us*. So the second door, left unpinned, accepts a token minted for **somebody else's app** against a victim's provider account and issues our session for the victim — a login takeover, reachable by anyone (audit F-OAUTH).
+
+Pin the audiences, per provider, as a **list**:
+
+```python
+STAPEL_AUTH = {
+    "OAUTH_PROVIDERS": {"google": {"client_id": "<web>", "client_secret": "..."}},
+    "OAUTH_ACCEPTED_AUDIENCES": {
+        "google": [
+            "<web>.apps.googleusercontent.com",
+            "<ios>.apps.googleusercontent.com",      # Google issues one client ID PER PLATFORM
+            "<android>.apps.googleusercontent.com",
+        ],
+    },
+}
+```
+
+A list, not a value, because one project legitimately owns several clients — a single-value check would refuse every native sign-in. Unset for a provider = its own `client_id`, the only audience that can be inferred.
+
+**Which providers can actually prove it** (`OAuthProvider.verifies_audience`):
+
+| Provider | Mechanism | Honours a multi-ID list? |
+|---|---|---|
+| `google` | `GET oauth2.googleapis.com/tokeninfo` → `aud` | yes — reports the owning client for any token |
+| `facebook` | `GET graph.facebook.com/debug_token` → `data.app_id` (inspected with the `{app-id}\|{app-secret}` app token) | yes |
+| `github` | `POST api.github.com/applications/{client_id}/token`, HTTP Basic as the app | **no** — the check authenticates *as* the app, so it only answers "is this token mine". Extra audiences need their own secrets and are refused, never silently honoured (`W010`) |
+| `zoom` | none — Zoom publishes no introspection endpoint (verified 2026-08-24: `/oauth/token` and `/oauth/revoke` route, `/oauth/introspect` 404s), no third-party token verification keys, and `/users/me` proves liveness, not provenance | refuses the token-body door; redirect flow unaffected |
+| `apple`, `twitter`, `yandex`, `vk`, `sber` | none — no profile call either (`get_user_data` raises `NotImplementedError`) | refuse both doors, as before |
+
+`stapel_core.oauth.check_audience` is the gate and **every** non-proof is a refusal: no mechanism, nothing pinned, a mismatch, or an exception inside the verifier. A verification step that fails open is not a verification step.
+
+**Boot checks** (`checks.py`), all gated on `AUTH_OAUTH_LOGIN`:
+
+- **`W009`** — the provider cannot verify at all, so the token-body endpoint refuses it. Its redirect flow still works.
+- **`E008`** — the provider *can* verify but nothing is configured to compare against, so every token is refused. An outage, and named as one.
+- **`W007`** — audiences were inherited from `client_id` rather than declared. Right for one client, silently wrong the moment a second exists.
+- **`W010`** — audiences are declared that this provider cannot check (the GitHub case).
 
 ### Deployment requirement — the client IP behind a proxy (`STAPEL_NETINTEL['TRUSTED_PROXY_HEADER']`)
 
@@ -643,6 +692,7 @@ billing / workspaces — copy this module, 4 steps):
 - **Don't consume `PROVIDER_REGISTRY` mutation as an API.** It is exposed for tests; the supported mutation path is `register_provider` / settings.
 - **Don't reference the concrete user class.** Always `get_user_model()` / `settings.AUTH_USER_MODEL` (the module itself follows this rule everywhere).
 - **Don't read the client IP from `request.META` / `request.headers`.** `X-Forwarded-For` and friends are caller-supplied unless a trusted edge overwrites them, and this module keys rate limits, lockouts and audit rows on that value. Go through `stapel_core.netintel.client_ip`; a deployment declares its proxy once via `STAPEL_NETINTEL['TRUSTED_PROXY_HEADER']` (see above).
+- **Don't resolve an identity from a token you did not mint without pinning its audience.** `OAuthService.get_user_data` runs the check; only the authorization-code callback may pass `token_is_ours=True`, and only because it exchanged the token itself. A new provider that cannot introspect keeps `verifies_audience = False` — looking verified while not being verified is worse than plainly refusing.
 - **Don't let a code sent to a new address overwrite a verified one.** Setting a first email/phone is one step; replacing a verified one goes through the change flow that proves the current authenticator. A new-address OTP is not authority over the old address (see above).
 
 ## App-layer override vs upstream contribution — rule of thumb

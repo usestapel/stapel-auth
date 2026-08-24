@@ -910,7 +910,14 @@ class EmailVerificationServiceTests(TestCase):
 
 
 class OAuthServiceTests(TestCase):
-    """Tests for OAuthService"""
+    """Tests for OAuthService — the PROFILE leg.
+
+    ``token_is_ours=True`` throughout: these exercise the profile fetch and
+    its parsing, which is what the authorization-code callback does with a
+    token it exchanged itself. A caller-supplied token takes the audience
+    check first — see tests/test_oauth_audience.py, and the last test here
+    for the boundary itself.
+    """
 
     def setUp(self):
         from stapel_auth.oauth.services import OAuthService
@@ -927,7 +934,9 @@ class OAuthServiceTests(TestCase):
             "picture": "https://example.com/photo.jpg",
         }
 
-        result = self.service.get_user_data("google", "fake-token")
+        result = self.service.get_user_data(
+            "google", "fake-token", token_is_ours=True
+        )
 
         self.assertEqual(result.id, "google123")
         self.assertEqual(result.email, "user@gmail.com")
@@ -938,7 +947,9 @@ class OAuthServiceTests(TestCase):
         """Should return None on Google API failure"""
         mock_get.return_value.status_code = 401
 
-        result = self.service.get_user_data("google", "invalid-token")
+        result = self.service.get_user_data(
+            "google", "invalid-token", token_is_ours=True
+        )
         self.assertIsNone(result)
 
     @patch("stapel_auth.oauth_providers.requests.get")
@@ -952,7 +963,9 @@ class OAuthServiceTests(TestCase):
             "picture": {"data": {"url": "https://example.com/photo.jpg"}},
         }
 
-        result = self.service.get_user_data("facebook", "fake-token")
+        result = self.service.get_user_data(
+            "facebook", "fake-token", token_is_ours=True
+        )
 
         self.assertEqual(result.id, "fb123")
         self.assertEqual(result.username, "john_doe")
@@ -968,7 +981,9 @@ class OAuthServiceTests(TestCase):
             "avatar_url": "https://example.com/photo.jpg",
         }
 
-        result = self.service.get_user_data("github", "fake-token")
+        result = self.service.get_user_data(
+            "github", "fake-token", token_is_ours=True
+        )
 
         self.assertEqual(result.id, "12345")
         self.assertEqual(result.username, "githubuser")
@@ -977,6 +992,20 @@ class OAuthServiceTests(TestCase):
         """Should return None for unsupported provider"""
         result = self.service.get_user_data("twitter", "fake-token")
         self.assertIsNone(result)
+
+    @patch("stapel_auth.oauth_providers.requests.get")
+    def test_a_caller_supplied_token_does_not_get_the_profile_leg(self, mock_get):
+        """The same call without `token_is_ours` is refused before the fetch.
+
+        Nothing is pinned in this settings layer, so there is no audience to
+        verify against — and unpinned means refuse, not "skip the check"
+        (audit F-OAUTH).
+        """
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {"id": "google123"}
+
+        self.assertIsNone(self.service.get_user_data("google", "fake-token"))
+        mock_get.assert_not_called()
 
 
 class TokenServiceTests(TestCase):

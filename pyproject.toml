@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-auth"
-version = "0.26.0"
+version = "0.27.0"
 description = "Full-featured authentication Django app for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -27,10 +27,17 @@ classifiers = [
 
 # Core auth — always installed
 dependencies = [
-    # Floor: 0.35.0 ships stapel_core.gdpr.register_gdpr_owner — the erasure
+    # Floor: 0.42.0 ships the OAuth audience seam (OAuthClientConfig,
+    # OAuthProvider.verify_audience, check_audience, fetch_user_data) that
+    # oauth/services.py runs on every caller-supplied access token. Without
+    # it POST /oauth/login/ has no way to tell a token minted for THIS
+    # deployment's OAuth client from one minted for somebody else's app —
+    # which is a login takeover, not a missing nicety.
+    #
+    # Earlier floor: 0.35.0 ships stapel_core.gdpr.register_gdpr_owner — the erasure
     # protocol (erase + receipt + owner probe) this module registers with in
     # apps.ready() instead of hand-writing a fifth copy of it.
-    "stapel-core>=0.35.0,<1.0",
+    "stapel-core>=0.42.0,<1.0",
     "pyotp>=2.10",
     "webauthn>=2.8",
     "phonenumbers>=8.13",

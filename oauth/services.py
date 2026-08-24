@@ -78,15 +78,60 @@ def _method_info(method_id: str, enabled: bool, *, mock: bool = False, can_regis
 class OAuthService:
     """Service for OAuth authentication — routes through provider registry."""
 
-    def get_user_data(self, provider, access_token):
-        """Fetch user data from the given OAuth provider."""
-        from stapel_core.oauth import get_provider
+    def client_config(self, provider_id):
+        """This deployment's OAuth client for *provider_id*, plus its audience pin."""
+        from stapel_core.oauth import OAuthClientConfig
+
+        from stapel_auth.conf import auth_settings
+        from stapel_auth.oauth_providers import accepted_audiences
+
+        config = (auth_settings.OAUTH_PROVIDERS or {}).get(provider_id)
+        return OAuthClientConfig(
+            client_id=str(getattr(config, 'client_id', '') or ''),
+            client_secret=str(getattr(config, 'client_secret', '') or ''),
+            accepted_audiences=accepted_audiences(provider_id),
+        )
+
+    def get_user_data(self, provider, access_token, *, token_is_ours=False):
+        """Resolve the identity behind *access_token*, or None.
+
+        This is the ONE boundary every caller-supplied OAuth token crosses
+        (`POST /oauth/login/` and `POST /oauth/links/`), so it is where the
+        token's audience is checked. An access token is a bearer credential
+        scoped to the OAuth client it was minted for: without the check, a
+        token issued to somebody ELSE'S app against the victim's provider
+        account resolves to the victim here, and we hand out our session for
+        it — a login takeover (audit F-OAUTH).
+
+        ``token_is_ours=True`` skips the check, and exactly one caller may
+        pass it: the authorization-code callback, whose token came out of our
+        own ``client_secret`` exchange and is therefore ours by construction.
+
+        Refusals are logged with the reason and the configured audiences —
+        the endpoint answers a flat 400, and `manage.py check` (W007/E008/
+        W009/W010) is where a misconfiguration is supposed to be caught.
+        """
+        from stapel_core.oauth import check_audience, fetch_user_data, get_provider
         p = get_provider(provider)
         if not p:
             logger.error(f"Unsupported OAuth provider: {provider}")
             return None
+        config = self.client_config(provider)
+        if not token_is_ours:
+            reason = check_audience(p, access_token, config)
+            if reason:
+                logger.error(
+                    "Refusing a caller-supplied %s access token: %s. Accepted "
+                    "audiences: %s. The token-body endpoint only accepts a "
+                    "token minted for one of this deployment's own OAuth "
+                    "clients; see STAPEL_AUTH['OAUTH_ACCEPTED_AUDIENCES'].",
+                    provider,
+                    reason,
+                    list(config.accepted_audiences) or 'none configured',
+                )
+                return None
         try:
-            return p.get_user_data(access_token)
+            return fetch_user_data(p, access_token, config)
         except Exception as e:
             logger.error(f"Failed to get user data from {provider}: {e}")
             return None

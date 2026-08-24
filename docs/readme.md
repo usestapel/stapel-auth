@@ -56,6 +56,26 @@ no header is, `stapel_auth.W006` when the named header is one proxies usually
 *append* to (`X-Forwarded-For`), where the first element is whatever the caller
 wrote.
 
+If your frontend posts provider access tokens to `POST /oauth/login/` rather
+than using the redirect flow, pin which OAuth clients may vouch for an
+identity — a token is a bearer credential for the app it was minted for, so an
+unpinned endpoint accepts one minted for somebody else's app:
+
+```python
+STAPEL_AUTH = {
+    "OAUTH_ACCEPTED_AUDIENCES": {
+        # a LIST — Google issues one client ID per platform
+        "google": ["<web>.apps.googleusercontent.com",
+                   "<ios>.apps.googleusercontent.com"],
+    },
+}
+```
+
+Google, Facebook and GitHub can prove a token's audience; Zoom and the
+not-yet-implemented providers cannot, so they refuse that endpoint and keep
+working through the redirect flow. `W007`/`E008`/`W009`/`W010` report which
+case each configured provider is in.
+
 Every configuration axis, its default and the operations it gates are listed
 in [`docs/capabilities.json`](https://github.com/usestapel/stapel-auth/blob/main/docs/capabilities.json) — the same document the
 table above is generated from, and the one an agent reads before writing code

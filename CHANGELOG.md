@@ -2,6 +2,102 @@
 
 ## [Unreleased]
 
+## [0.27.0] — 2026-08-24
+
+**Requires stapel-core >= 0.42.0** (the OAuth audience seam).
+
+### Security — `POST /oauth/login/` accepted a token minted for anyone's app
+
+The endpoint is unauthenticated, mounted by default (`AUTH_OAUTH_LOGIN`), and
+took an access token straight from the request body:
+
+```
+POST /oauth/login/  {"provider": "google", "access_token": "ya29..."}
+```
+
+It asked the provider "who owns this token?" and issued **our** session for
+whoever came back. But an OAuth access token is a bearer credential scoped to
+the OAuth **client** it was minted for — it is not a statement about who the
+holder is to us. A token minted for *somebody else's* app against a victim's
+Google account therefore resolved to the victim here, and any app that victim
+had ever signed into could mint one. That is a login takeover, and the door was
+open in production.
+
+An earlier pass filed this as identity-provenance corruption on the strength of
+"the only caller is the authenticated link endpoint". That was wrong: the
+unauthenticated `oauth_login` view (`urls_v1.py`) is the other caller.
+
+**A caller-supplied token is now accepted only when the provider can PROVE it
+was minted for one of this deployment's own OAuth clients.** The check lives at
+`OAuthService.get_user_data`, the one boundary both caller-supplied-token paths
+cross (`POST /oauth/login/` and `POST /oauth/links/`). Every non-proof refuses:
+no mechanism, nothing pinned, a mismatch, or an exception inside the verifier.
+
+The authorization-code flow (`/oauth/{provider}/authorize/` → `/callback/`) is
+untouched. Its token comes from our own `client_secret` exchange, so it is ours
+by construction; that call site — and only that one — passes `token_is_ours=True`.
+
+#### Pin the audiences (new setting, required for token-body login)
+
+```python
+STAPEL_AUTH = {
+    "OAUTH_ACCEPTED_AUDIENCES": {
+        "google": [
+            "<web>.apps.googleusercontent.com",
+            "<ios>.apps.googleusercontent.com",
+            "<android>.apps.googleusercontent.com",
+        ],
+    },
+}
+```
+
+A **list**, because Google (and others) issue a separate client ID per
+platform: a single-value check would refuse every native sign-in. Unset for a
+provider = its own `client_id` from `OAUTH_PROVIDERS`, the only audience that
+can be inferred. `no_env` — it is the trust anchor of this endpoint.
+
+#### Which providers can prove it, and which now refuse
+
+| Provider | Mechanism | Multi-ID list? |
+|---|---|---|
+| `google` | `GET oauth2.googleapis.com/tokeninfo` → `aud` | yes |
+| `facebook` | `GET graph.facebook.com/debug_token` → `data.app_id` | yes |
+| `github` | `POST api.github.com/applications/{client_id}/token` (HTTP Basic as the app) | **no** — it can only answer "is this token mine"; other audiences need their own secrets and are refused, not silently honoured (`W010`) |
+| `zoom` | **none** — Zoom publishes no introspection endpoint (verified 2026-08-24: `/oauth/token` and `/oauth/revoke` route, `/oauth/introspect` 404s), no third-party verification keys, and `/users/me` proves liveness, not provenance | token-body door refuses; **redirect flow unaffected** |
+| `apple`, `twitter`, `yandex`, `vk`, `sber` | none — no profile call either | refuse both doors, as before |
+
+`data.is_valid` is deliberately not the Facebook check: `debug_token` reports
+`is_valid: true` with somebody else's `app_id` for a token that is perfectly
+valid and simply not ours. The app id is the audience.
+
+### Added
+
+- `STAPEL_AUTH['OAUTH_ACCEPTED_AUDIENCES']` — `{provider_id: [client_id, ...]}`.
+- `oauth_providers.accepted_audiences()` / `audiences_are_declared()`.
+- `OAuthService.client_config()`; `OAuthService.get_user_data(..., token_is_ours=False)`.
+- `verify_audience` on Google / GitHub / Facebook / TestProvider; explicit
+  `verifies_audience = False` on every provider that cannot.
+- Boot checks, all gated on `AUTH_OAUTH_LOGIN`: **`W009`** (provider cannot
+  verify — token-body refuses it), **`E008`** (can verify, nothing pinned —
+  every token refused), **`W007`** (audiences inherited from `client_id`, not
+  declared), **`W010`** (declared audiences this provider cannot check).
+- `tests/test_oauth_audience.py` — 32 tests.
+
+### Upgrading
+
+1. Bump the floor: `stapel-core>=0.42.0`.
+2. If your frontend posts provider access tokens to `POST /oauth/login/`,
+   declare `OAUTH_ACCEPTED_AUDIENCES` for each provider it uses — including
+   every per-platform client ID. `manage.py check` names what is missing.
+3. Zoom (and Apple/Twitter/Yandex/VK/Sber) can no longer be used with the
+   token-body endpoint. Move those buttons to the redirect flow, which is
+   unchanged.
+4. Providers registered by your own app keep working: `get_user_data` gained an
+   optional `config` parameter and stapel-core calls one-argument
+   implementations with one argument. Such a provider cannot verify an
+   audience, so it refuses the token-body endpoint until it implements
+   `verify_audience` and sets `verifies_audience`.
+
 ## [0.26.0] — 2026-08-24
 
 ### Security — a live session was authority over the recovery address
