@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.29.0] — 2026-08-28
 
 ### Fixed — `device_id` was a bearer token for somebody else's guest session
 
