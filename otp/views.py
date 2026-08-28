@@ -216,6 +216,49 @@ def _notify_user_registered(user, request=None, language=None, display_name=None
         logger.exception("Failed to emit user.registered for user %s", user.id)
 
 
+def _merge_anonymous_into(guest_id, survivor, verified_flag: str):
+    """Fold a guest account into the existing account it just proved it owns.
+
+    The guest row is deleted, so every record other modules own through it
+    (``stapel_listings.Favorite``, ``stapel_chat.ConversationParticipant`` and
+    ``Message``, …) would cascade away with it. ``user.merged`` is what buys
+    those rows a second life: consumers reassign them onto the survivor.
+    See ``stapel_auth.events.UserMergedPayload`` for the consumer contract,
+    and ``otp.services.promote_anonymous_session`` for the other, same-row
+    half of guest sign-in where carry-over is free.
+
+    Returns the surviving user.
+    """
+    from django.db import transaction
+
+    from stapel_core.comm import emit
+
+    from stapel_auth.events import EVENT_USER_MERGED
+
+    # Atomic on purpose: the announcement and the deletion commit together, so
+    # a crash can never drop the guest row without telling anyone.
+    with transaction.atomic():
+        setattr(survivor, verified_flag, True)
+        # Save BEFORE the emit: any projection event the observer raises for
+        # the survivor lands in the outbox first, so a consumer learns of this
+        # account before being told to reassign rows onto it.
+        survivor.save()
+        emit(  # emit-check: ok — this block IS the atomic that performs the deletion below
+            EVENT_USER_MERGED,
+            {
+                "from_user_id": str(guest_id),
+                "into_user_id": str(survivor.id),
+                "reason": "anonymous_promotion",
+            },
+            key=str(survivor.id),
+            service="auth",
+        )
+        # Emit BEFORE the delete commits — same transaction, so the two are
+        # inseparable.
+        User.objects.filter(id=guest_id).delete()
+    return survivor
+
+
 def _rewrites_a_verified_authenticator(user, field, verified_flag, new_value) -> bool:
     """Whether applying *new_value* would overwrite a PROVEN authenticator.
 
@@ -687,14 +730,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             elif request_user and request_user.is_anonymous:
                 # CASE: Anonymous user
                 if existing_user:
-                    # MERGED: Email already exists - merge anonymous into existing account
-                    # Transfer any data from anonymous user if needed
-                    old_anonymous_id = request_user.id
-                    user = existing_user
-                    user.is_email_verified = True
-                    user.save()
-                    # Delete anonymous user
-                    User.objects.filter(id=old_anonymous_id).delete()
+                    # MERGED: Email already exists - fold the guest into it.
+                    user = _merge_anonymous_into(
+                        request_user.id, existing_user, "is_email_verified"
+                    )
                     auth_status = AuthStatus.MERGED
                 else:
                     # REGISTERED: Convert anonymous to registered user.
@@ -1017,14 +1056,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             elif request_user and request_user.is_anonymous:
                 # CASE: Anonymous user
                 if existing_user:
-                    # MERGED: Phone already exists - merge anonymous into existing account
-                    # Transfer any data from anonymous user if needed
-                    old_anonymous_id = request_user.id
-                    user = existing_user
-                    user.is_phone_verified = True
-                    user.save()
-                    # Delete anonymous user
-                    User.objects.filter(id=old_anonymous_id).delete()
+                    # MERGED: Phone already exists - fold the guest into it.
+                    user = _merge_anonymous_into(
+                        request_user.id, existing_user, "is_phone_verified"
+                    )
                     auth_status = AuthStatus.MERGED
                 else:
                     # REGISTERED: Convert anonymous to registered user —
@@ -1076,8 +1111,11 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         description=(
             "Create anonymous user. Minting a NEW guest is capped per client "
             "per hour (`ANONYMOUS_RATE_LIMIT_PER_HOUR`) — reusing an existing "
-            "guest session, by `device_id` or by presenting the anonymous "
-            "session itself, is free."
+            "guest session, by `device_id` from the SAME client address or by "
+            "presenting the anonymous session itself, is free. `device_id` is "
+            "a dedup key, not a credential: its 60-second slot is scoped to "
+            "the caller's address, and a value short enough to guess is "
+            "refused (`error.400.device_id_weak`)."
         ),
         request=AnonymousAuthSerializer,
         responses={
@@ -1105,13 +1143,21 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             ):
                 user = request.user
             else:
-                # Dedup by device_id: reuse recent anonymous user for same device
+                # Dedup by device_id: reuse a recent guest for the same device
+                # AND the same caller address. The device_id is caller-supplied
+                # and proves nothing, so on its own the slot was a bearer token
+                # under a name anyone could send — and handing back a guest's
+                # session now hands over its rows too (user.merged reassigns
+                # them on sign-in). The address is what a claimer cannot pick.
+                # A client that changes address inside the 60s window simply
+                # mints a second guest: the cheap direction to fail in.
                 device_id = serializer.validated_data.get("device_id")
+                client_ip = self.get_client_ip(request)
+                cache_key = f'anon_device:{client_ip or "unknown"}:{device_id}'
                 user = None
                 if device_id:
                     from django.core.cache import cache
 
-                    cache_key = f"anon_device:{device_id}"
                     existing_user_id = cache.get(cache_key)
                     if existing_user_id:
                         try:
@@ -1124,16 +1170,14 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 if user is None:
                     # Minting a NEW guest is the only branch that costs a
                     # User row, so it is the only branch that spends budget.
-                    retry_after = _anonymous_mint_budget_spent(
-                        self.get_client_ip(request)
-                    )
+                    retry_after = _anonymous_mint_budget_spent(client_ip)
                     if retry_after:
                         return error_429_rate_limit(retry_after)
                     user = User.create_anonymous_user()
                 if device_id:
                     from django.core.cache import cache
 
-                    cache.set(f"anon_device:{device_id}", str(user.id), timeout=60)
+                    cache.set(cache_key, str(user.id), timeout=60)
 
             self.log_login_attempt(str(user.id), "success", request)
             access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.ANONYMOUS)

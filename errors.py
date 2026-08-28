@@ -37,6 +37,8 @@ ERR_400_PHONE_TOO_LONG = 'error.400.phone_too_long'
 ERR_400_PASSWORDS_DONT_MATCH = 'error.400.passwords_dont_match'
 ERR_400_EMAIL_OR_PHONE_REQUIRED = 'error.400.email_or_phone_required'
 ERR_400_EMAIL_OR_PHONE_NOT_BOTH = 'error.400.email_or_phone_not_both'
+# A device_id short enough to guess (POST /anonymous/ dedup)
+ERR_400_DEVICE_ID_WEAK = 'error.400.device_id_weak'
 # Password
 ERR_400_WRONG_PASSWORD = 'error.400.wrong_password'
 ERR_400_PASSWORD_ALREADY_SET = 'error.400.password_already_set'
@@ -142,6 +144,7 @@ AUTH_ERRORS = {
     ERR_400_PASSWORDS_DONT_MATCH: "Password fields didn't match",
     ERR_400_EMAIL_OR_PHONE_REQUIRED: 'Either email or phone is required',
     ERR_400_EMAIL_OR_PHONE_NOT_BOTH: 'Provide either email or phone, not both',
+    ERR_400_DEVICE_ID_WEAK: 'device_id must be an opaque random token of at least 16 characters (letters, digits and - . _ ~ : + / =) — send a UUID or a random hex/base64 value generated once per install, never a readable name.',
     # Password
     ERR_400_WRONG_PASSWORD: 'Wrong password.',
     ERR_400_PASSWORD_ALREADY_SET: 'Password is already set. Use the change password flow.',
@@ -267,6 +270,8 @@ AUTH_REMEDIATION = {
     ERR_400_PASSWORDS_DONT_MATCH: 'fix_input',
     ERR_400_EMAIL_OR_PHONE_REQUIRED: 'fix_input',
     ERR_400_EMAIL_OR_PHONE_NOT_BOTH: 'fix_input',
+    # The client generates the device_id, so the fix is a better value
+    ERR_400_DEVICE_ID_WEAK: 'fix_input',
     # Password management
     ERR_400_PASSWORD_ALREADY_SET: 'fix_input',
     ERR_400_NO_PASSWORD: 'fix_input',

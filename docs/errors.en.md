@@ -1,6 +1,6 @@
 # Errors — English
 
-`138` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
+`139` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
 
 | Code | Status | Params | Remediation | Text |
 |---|---|---|---|---|
@@ -10,6 +10,7 @@
 | `error.400.code_expired` | 400 | — | `retry` | The wait for your code expired. Please sign in again. |
 | `error.400.code_required` | 400 | — | `fix_input` | A verification code is required. |
 | `error.400.credentials_required` | 400 | — | `fix_input` | Username/email and password are required |
+| `error.400.device_id_weak` | 400 | — | `fix_input` | device_id must be an opaque random token of at least 16 characters (letters, digits and - . _ ~ : + / =) — send a UUID or a random hex/base64 value generated once per install, never a readable name. |
 | `error.400.email_or_phone_not_both` | 400 | — | `fix_input` | Provide either email or phone, not both |
 | `error.400.email_or_phone_required` | 400 | — | `fix_input` | Either email or phone is required |
 | `error.400.email_required` | 400 | — | `fix_input` | Email is required. |

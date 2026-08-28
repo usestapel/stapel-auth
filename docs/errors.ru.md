@@ -1,6 +1,6 @@
 # Errors — Русский
 
-`138` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
+`139` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
 
 | Код | Статус | Параметры | Действие | Текст |
 |---|---|---|---|---|
@@ -10,6 +10,7 @@
 | `error.400.code_expired` | 400 | — | `retry` | Время ожидания кода истекло. Пожалуйста, войдите снова. |
 | `error.400.code_required` | 400 | — | `fix_input` | Требуется код подтверждения. |
 | `error.400.credentials_required` | 400 | — | `fix_input` | Необходимо указать имя пользователя или адрес электронной почты и пароль |
+| `error.400.device_id_weak` | 400 | — | `fix_input` | device_id должен быть непрозрачным случайным токеном длиной не менее 16 символов (латинские буквы, цифры и - . _ ~ : + / =) — отправьте UUID или случайное шестнадцатеричное/base64-значение, созданное один раз при установке, а не читаемое имя. |
 | `error.400.email_or_phone_not_both` | 400 | — | `fix_input` | Укажите либо адрес электронной почты, либо номер телефона, но не оба |
 | `error.400.email_or_phone_required` | 400 | — | `fix_input` | Необходимо указать адрес электронной почты или номер телефона |
 | `error.400.email_required` | 400 | — | `fix_input` | Необходимо указать адрес электронной почты. |

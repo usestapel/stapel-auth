@@ -2,6 +2,7 @@
   "error.400.code_expired": "La espera de tu código ha caducado. Vuelve a iniciar sesión.",
   "error.400.code_required": "Se requiere un código de verificación.",
   "error.400.credentials_required": "Se requieren nombre de usuario/correo electrónico y contraseña",
+  "error.400.device_id_weak": "device_id debe ser un token aleatorio opaco de al menos 16 caracteres (letras, dígitos y - . _ ~ : + / =): envía un UUID o un valor hexadecimal/base64 aleatorio generado una sola vez por instalación, nunca un nombre legible.",
   "error.400.email_or_phone_not_both": "Proporciona un correo electrónico o un teléfono, no ambos",
   "error.400.email_or_phone_required": "Se requiere un correo electrónico o un número de teléfono",
   "error.400.email_required": "El correo electrónico es obligatorio.",

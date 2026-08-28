@@ -52,6 +52,15 @@ def promote_anonymous_session(user, *, auth_type: str) -> None:
     behavior of the inline branches this factors out; if the caller uses
     ``update_fields``, remember to include ``is_anonymous``, ``auth_type``
     and ``username``).
+
+    This is the SAME-ROW half of guest sign-in: the anchor was free, so the
+    guest's user id survives and every row other modules own through it
+    (favourites, chat participation) carries over by identity — no event, no
+    reassignment. The other half is when the anchor is already held by an
+    existing account: there the guest row is deleted and carry-over happens
+    through the ``user.merged`` event instead (see
+    ``otp.views._merge_anonymous_into`` and
+    ``stapel_auth.events.UserMergedPayload``).
     """
     user.is_anonymous = False
     user.auth_type = auth_type

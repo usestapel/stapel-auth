@@ -18,6 +18,10 @@ from rest_framework.test import APITestCase
 
 User = get_user_model()
 
+#: A well-formed device id — the dedup slot is unguessable by contract now
+#: (see tests/test_anonymous_device_binding.py), so a readable one is refused.
+DEVICE_ID = "b4d1c0ffee5eaf0d9a2b7c3e1f604857"
+
 
 @override_settings(URL_PREFIX="", STAPEL_AUTH={"ANONYMOUS_RATE_LIMIT_PER_HOUR": 3})
 class AnonymousMintingIsCappedTests(APITestCase):
@@ -76,10 +80,10 @@ class AnonymousMintingIsCappedTests(APITestCase):
         Cookie-less on purpose: the device_id dedup is the path a client that
         cannot keep cookies takes, and it must not spend budget either.
         """
-        first = self._mint(device_id="device-abc")
+        first = self._mint(device_id=DEVICE_ID)
         self.assertEqual(first.status_code, 201)
         for _ in range(10):
-            again = self._mint(device_id="device-abc")
+            again = self._mint(device_id=DEVICE_ID)
             self.assertEqual(again.status_code, 201, again.content)
         self.assertEqual(
             User.objects.filter(is_anonymous=True).count(),

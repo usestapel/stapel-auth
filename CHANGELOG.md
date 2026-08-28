@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### Fixed — `device_id` was a bearer token for somebody else's guest session
+
+`POST /anonymous/` parked the minted guest under `anon_device:<device_id>` for
+60 seconds and issued that guest's JWTs to anyone who sent the same string.
+`device_id` is caller-supplied, carries no proof of ownership and had no
+entropy floor, so `device_id: "device1"` was a guessable slot. Since guests are
+minted silently by storefronts and `user.merged` reassigns a guest's favourites
+and chat threads onto whatever account it signs into, riding a slot moved from
+"an unattached session" to theft of the victim's rows.
+
+Two changes, both needed:
+
+* the slot is keyed by the caller's address as well as the id —
+  `anon_device:<client_ip>:<device_id>`, with the address read through
+  `stapel_core.netintel.client_ip`, the same helper the mint budget uses. A
+  client that changes address inside the 60s window just mints a second guest;
+* a `device_id` shorter than 16 characters, or outside `[A-Za-z0-9-._~:+/=]`,
+  is refused with `error.400.device_id_weak` (new key). A UUID or a random
+  hex/base64 token passes; `"device1"` does not. Omitting `device_id` still
+  mints normally — the floor applies only to a value that was sent.
+
 ## [0.28.1] — 2026-08-24
 
 ### Fixed — the step-up test expired a challenge in a cache core had stopped using

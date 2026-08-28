@@ -1,6 +1,6 @@
 # Errors — Español
 
-`138` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
+`139` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
 
 | Código | Estado | Parámetros | Acción | Texto |
 |---|---|---|---|---|
@@ -10,6 +10,7 @@
 | `error.400.code_expired` | 400 | — | `retry` | La espera de tu código ha caducado. Vuelve a iniciar sesión. |
 | `error.400.code_required` | 400 | — | `fix_input` | Se requiere un código de verificación. |
 | `error.400.credentials_required` | 400 | — | `fix_input` | Se requieren nombre de usuario/correo electrónico y contraseña |
+| `error.400.device_id_weak` | 400 | — | `fix_input` | device_id debe ser un token aleatorio opaco de al menos 16 caracteres (letras, dígitos y - . _ ~ : + / =): envía un UUID o un valor hexadecimal/base64 aleatorio generado una sola vez por instalación, nunca un nombre legible. |
 | `error.400.email_or_phone_not_both` | 400 | — | `fix_input` | Proporciona un correo electrónico o un teléfono, no ambos |
 | `error.400.email_or_phone_required` | 400 | — | `fix_input` | Se requiere un correo electrónico o un número de teléfono |
 | `error.400.email_required` | 400 | — | `fix_input` | El correo electrónico es obligatorio. |

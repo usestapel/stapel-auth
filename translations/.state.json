@@ -12,6 +12,10 @@
       "hash": "f8b1a35df6cd6724",
       "origin": "seed:stapel-builtin"
     },
+    "error.400.device_id_weak": {
+      "hash": "a4b909a67510ae18",
+      "origin": "llm"
+    },
     "error.400.email_or_phone_not_both": {
       "hash": "38204528cdb3fa94",
       "origin": "seed:stapel-builtin"
@@ -337,6 +341,10 @@
     "error.400.credentials_required": {
       "hash": "f8b1a35df6cd6724",
       "origin": "seed:stapel-builtin"
+    },
+    "error.400.device_id_weak": {
+      "hash": "a4b909a67510ae18",
+      "origin": "llm"
     },
     "error.400.email_or_phone_not_both": {
       "hash": "38204528cdb3fa94",

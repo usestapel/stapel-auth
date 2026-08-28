@@ -20,6 +20,7 @@ EVENT_USER_MFA_ENABLED = "user.mfa_enabled"
 EVENT_USER_MFA_DISABLED = "user.mfa_disabled"
 EVENT_USER_DEACTIVATED = "user.deactivated"
 EVENT_USER_REACTIVATED = "user.reactivated"
+EVENT_USER_MERGED = "user.merged"
 
 
 @dataclass
@@ -242,6 +243,49 @@ class UserReactivatedPayload:
     actor_id: str | None = None
 
 
+@dataclass
+class UserMergedPayload:
+    """Payload for the user.merged event (schemas/emits/user.merged.json).
+
+    Two accounts became one: ``from_user_id`` no longer exists, and every
+    record that pointed at it now belongs to ``into_user_id``. Auth emits it
+    when a guest verifies an authenticator that an existing account already
+    holds — the guest row is deleted, the existing account survives.
+
+    **What a consumer MUST do.** Reassign every row your module owns from
+    ``from_user_id`` to ``into_user_id`` — a bare ``filter(user_id=from).
+    update(user_id=into)`` for each table, plus whatever de-duplication your
+    own uniqueness constraints demand (the same listing favourited by both
+    accounts, both accounts in one conversation). Doing nothing is not a
+    no-op: your foreign keys are ``on_delete=CASCADE``, so the rows are gone
+    the moment auth commits, and the user watches their saved listings and
+    their chat history disappear at sign-in.
+
+    Two properties shape how that work must be written:
+
+    - Delivery is **at-least-once** (outbox relay retries), so the reassign
+      must be idempotent — a second delivery of the same merge has to be a
+      no-op, not a second migration or a constraint violation.
+    - ``from_user_id`` is **already gone** from auth's user table by the time
+      this is read. Do not resolve it against auth, and do not treat its
+      absence as a reason to skip: the id is a key for rows you still hold,
+      nothing more. ``into_user_id`` is the account that exists, and its own
+      projection event (``user.created`` / ``user.updated``) precedes this
+      one, so a shadow user table has a row to reassign onto.
+
+    Fields:
+        from_user_id: UUID of the account that ceased to exist (the guest).
+        into_user_id: UUID of the surviving account.
+        reason: Why the merge happened. ``"anonymous_promotion"`` — a guest
+            signed in as an account that already existed — is the only
+            reason auth emits today; the field exists so a consumer can tell
+            it apart from a future admin-initiated merge without guessing.
+    """
+    from_user_id: str
+    into_user_id: str
+    reason: str = "anonymous_promotion"
+
+
 # Canonical event registry — keyed by the action name actually emitted.
 EVENT_REGISTRY = {
     EVENT_USER_REGISTERED: UserRegisteredPayload,
@@ -255,4 +299,5 @@ EVENT_REGISTRY = {
     EVENT_USER_MFA_DISABLED: UserMfaDisabledPayload,
     EVENT_USER_DEACTIVATED: UserDeactivatedPayload,
     EVENT_USER_REACTIVATED: UserReactivatedPayload,
+    EVENT_USER_MERGED: UserMergedPayload,
 }

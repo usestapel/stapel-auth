@@ -1809,7 +1809,7 @@ class CookieAuthenticationTests(APITestCase):
     def test_anonymous_auth_sets_cookies(self):
         """Anonymous auth should set JWT cookies"""
         response = self.client.post(
-            reverse("anonymous"), {"device_id": "test-device-123"}
+            reverse("anonymous"), {"device_id": "7c1f9a20b6d34e58a0e9f3c17d24b6e8"}
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)

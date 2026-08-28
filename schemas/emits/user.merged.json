@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "user.merged",
+  "description": "Two accounts became one: from_user_id ceased to exist and every record that pointed at it now belongs to into_user_id. Emitted when a guest verifies an authenticator an existing account already holds. Consumers MUST reassign every row they own from from_user_id to into_user_id, idempotently — delivery is at-least-once, and from_user_id is already gone from auth's user table (module FKs cascade, so doing nothing loses the data). into_user_id was announced by its own projection event (user.created/user.updated) ahead of this one.",
+  "type": "object",
+  "required": ["from_user_id", "into_user_id"],
+  "properties": {
+    "from_user_id": { "type": "string", "format": "uuid", "description": "The account that ceased to exist (the anonymous guest); no longer resolvable in auth." },
+    "into_user_id": { "type": "string", "format": "uuid", "description": "The surviving account rows must be reassigned onto." },
+    "reason":       { "type": "string", "description": "Why the merge happened; \"anonymous_promotion\" is the only reason auth emits today." }
+  },
+  "additionalProperties": false
+}

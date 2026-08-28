@@ -40,7 +40,7 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 | `SESSION_TTL_DAYS` | `30` | `UserSession` expiry |
 | `ALLOW_UNTRACKED_REFRESH` | `False` | Whether `POST /token/refresh/` accepts a validly signed refresh token that no `UserSession` row tracks. Off: such a token is refused, so a refresh can only ever rotate a session the server knows about. On, it is a **migration aid only** — a deployment holding tokens minted before session tracking existed keeps them working until they expire, at the price of accepting any token whose jti the session table has never seen. |
 | `ANONYMOUS_USER_LIFETIME_DAYS` | `30` | Anonymous account lifetime |
-| `ANONYMOUS_RATE_LIMIT_PER_HOUR` | `20` | New guests one client may mint per hour at `POST /anonymous/` (`429` beyond it, `0` disables). Reusing a guest session — same `device_id`, or the anonymous JWT already held — costs nothing |
+| `ANONYMOUS_RATE_LIMIT_PER_HOUR` | `20` | New guests one client may mint per hour at `POST /anonymous/` (`429` beyond it, `0` disables). Reusing a guest session — same `device_id` from the same client address, or the anonymous JWT already held — costs nothing |
 | `AUTH_ANONYMOUS` | `True` | Anonymous (guest) auth axis: gates `POST /anonymous/` (own URL factory `get_anonymous_urls`, independent of the email/phone gates) and the `anonymous` capability |
 | `AUTH_TOTP` | `True` | TOTP axis: gates the `/totp/*` endpoints in `get_mfa_urls` (passkey-style) and the `mfa.totp` capability. Step-up rides `/totp/challenge/verify/` — keep it on where step-up is on |
 | `JWT_COOKIE_DOMAIN` | `None` (env) | JWT cookie domain override |

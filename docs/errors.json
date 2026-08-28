@@ -48,6 +48,14 @@
     "owner": "stapel_auth"
   },
   {
+    "code": "error.400.device_id_weak",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "device_id must be an opaque random token of at least 16 characters (letters, digits and - . _ ~ : + / =) — send a UUID or a random hex/base64 value generated once per install, never a readable name.",
+    "owner": "stapel_auth"
+  },
+  {
     "code": "error.400.email_or_phone_not_both",
     "status": 400,
     "params": [],

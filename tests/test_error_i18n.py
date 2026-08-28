@@ -105,6 +105,11 @@ _MACHINE_RU = {
     "error.403.change_requires_current":
         "Чтобы изменить подтверждённые эл. почту или телефон, нужен код, "
         "отправленный на текущие. Воспользуйтесь процедурой смены.",
+    "error.400.device_id_weak":
+        "device_id должен быть непрозрачным случайным токеном длиной не "
+        "менее 16 символов (латинские буквы, цифры и - . _ ~ : + / =) — "
+        "отправьте UUID или случайное шестнадцатеричное/base64-значение, "
+        "созданное один раз при установке, а не читаемое имя.",
 }
 
 _MACHINE_ES = {
@@ -153,6 +158,11 @@ _MACHINE_ES = {
     "error.403.change_requires_current":
         "Para cambiar un correo o un teléfono verificados hace falta un "
         "código enviado al actual. Usa el flujo de cambio.",
+    "error.400.device_id_weak":
+        "device_id debe ser un token aleatorio opaco de al menos 16 "
+        "caracteres (letras, dígitos y - . _ ~ : + / =): envía un UUID o un "
+        "valor hexadecimal/base64 aleatorio generado una sola vez por "
+        "instalación, nunca un nombre legible.",
 }
 
 #: language -> machine-translation table, consulted for the keys the

@@ -2,6 +2,8 @@
 Serializers for OTP authentication flows and authenticator change flows.
 """
 
+import re
+
 import phonenumbers
 from rest_framework import serializers
 from stapel_core.django.api.errors import StapelValidationError
@@ -9,6 +11,7 @@ from stapel_core.django.api.serializers import StapelDataclassSerializer
 from stapel_core.django.captcha import CaptchaMixin
 
 from stapel_auth.errors import (
+    ERR_400_DEVICE_ID_WEAK,
     ERR_400_EMAIL_OR_PHONE_NOT_BOTH,
     ERR_400_EMAIL_OR_PHONE_REQUIRED,
     ERR_400_INVALID_PHONE,
@@ -85,10 +88,41 @@ class PhoneAuthVerifySerializer(serializers.Serializer):
         return normalize_phone(value)
 
 
+#: Minimum length of a `device_id` sent to POST /anonymous/. That value keys
+#: the 60-second dedup slot that hands a guest SESSION back, so it has to be
+#: as unguessable as the session it stands for: 16 characters of the alphabet
+#: below is 64+ bits for a randomly generated id (a UUID, a hex or a base64
+#: token all clear it by a wide margin) and rejects every hand-written
+#: placeholder — "device1", "test", "1".
+DEVICE_ID_MIN_LENGTH = 16
+#: Opaque-token alphabet: URL-safe base64 plus the punctuation UUIDs and
+#: standard base64 use, so no real generator's output is turned away.
+DEVICE_ID_CHARS = re.compile(r"^[A-Za-z0-9\-._~:+/=]+$")
+
+
 class AnonymousAuthSerializer(serializers.Serializer):
     """Serializer for anonymous authentication"""
 
-    device_id = serializers.CharField(max_length=255, required=False)
+    device_id = serializers.CharField(
+        max_length=255,
+        required=False,
+        help_text=(
+            "Optional opaque random token identifying this install, used to "
+            "deduplicate guest mints for 60 seconds. At least "
+            f"{DEVICE_ID_MIN_LENGTH} characters of [A-Za-z0-9-._~:+/=] — a "
+            "UUID or a random hex/base64 value, not a readable name. The "
+            "dedup slot is scoped to the caller's IP, so this is not a "
+            "credential and cannot resume another client's session. Omit it "
+            "to mint a fresh guest every time."
+        ),
+    )
+
+    def validate_device_id(self, value):
+        if not value:
+            return value
+        if len(value) < DEVICE_ID_MIN_LENGTH or not DEVICE_ID_CHARS.match(value):
+            raise StapelValidationError(ERR_400_DEVICE_ID_WEAK)
+        return value
 
 
 class OtpSentResponseSerializer(StapelDataclassSerializer):

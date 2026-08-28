@@ -314,6 +314,12 @@ def _tokens(user):
 # =============================================================================
 
 
+#: Well-formed device ids — a readable one is refused as guessable now
+#: (see tests/test_anonymous_device_binding.py).
+_DEVICE_ID = "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+_DEVICE_ID_GONE = "0f9e8d7c6b5a49382716f5e4d3c2b1a0"
+
+
 class AnonymousAuthBranchTests(APITestCase):
     def setUp(self):
         self.client = APIClient()
@@ -328,17 +334,21 @@ class AnonymousAuthBranchTests(APITestCase):
 
     def test_device_id_reuses_cached_anonymous_user(self):
         anon = User.create_anonymous_user()
-        cache.set("anon_device:dev-abc", str(anon.id), timeout=60)
+        # The slot is keyed by caller address + device_id; the test client
+        # calls from 127.0.0.1.
+        cache.set(f"anon_device:127.0.0.1:{_DEVICE_ID}", str(anon.id), timeout=60)
         resp = self.client.post(
-            reverse("anonymous"), {"device_id": "dev-abc"}
+            reverse("anonymous"), {"device_id": _DEVICE_ID}
         )
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(str(resp.data["user"]["id"]), str(anon.id))
 
     def test_device_id_cached_missing_user_creates_new(self):
-        cache.set("anon_device:dev-gone", str(uuid.uuid4()), timeout=60)
+        cache.set(
+            f"anon_device:127.0.0.1:{_DEVICE_ID_GONE}", str(uuid.uuid4()), timeout=60
+        )
         resp = self.client.post(
-            reverse("anonymous"), {"device_id": "dev-gone"}
+            reverse("anonymous"), {"device_id": _DEVICE_ID_GONE}
         )
         self.assertEqual(resp.status_code, 201)
 
