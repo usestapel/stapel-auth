@@ -59,12 +59,62 @@ def promote_anonymous_session(user, *, auth_type: str) -> None:
     reassignment. The other half is when the anchor is already held by an
     existing account: there the guest row is deleted and carry-over happens
     through the ``user.merged`` event instead (see
-    ``otp.views._merge_anonymous_into`` and
-    ``stapel_auth.events.UserMergedPayload``).
+    :func:`merge_anonymous_into` and ``stapel_auth.events.UserMergedPayload``).
     """
     user.is_anonymous = False
     user.auth_type = auth_type
     user.upgrade_username_from_anonymous()
+
+
+def merge_anonymous_into(guest_id, survivor, verified_flag: str | None = None):
+    """Fold a guest account into the existing account it just proved it owns.
+
+    The guest row is deleted, so every record other modules own through it
+    (``stapel_listings.Favorite``, ``stapel_chat.ConversationParticipant``,
+    ``stapel_recordings.Recording``, ...) would lose its owner with it.
+    ``user.merged`` is what buys those rows a second life: consumers reassign
+    them onto the survivor. See ``stapel_auth.events.UserMergedPayload`` for
+    the consumer contract, and :func:`promote_anonymous_session` for the
+    other, same-row half of guest sign-in where carry-over is free.
+
+    *verified_flag* names the anchor the caller just proved (e.g.
+    ``"is_email_verified"``). ``None`` means the proof was not an anchor this
+    account should now assert — an OAuth ``(provider, oauth_id)`` match
+    identifies the survivor without saying anything about their email.
+
+    Returns the surviving user.
+    """
+    from django.db import transaction
+
+    from stapel_core.comm import emit
+
+    from stapel_auth.events import EVENT_USER_MERGED
+
+    # Atomic on purpose: the announcement and the deletion commit together, so
+    # a crash can never drop the guest row without telling anyone.
+    with transaction.atomic():
+        if verified_flag:
+            setattr(survivor, verified_flag, True)
+        # Save BEFORE the emit: any projection event the observer raises for
+        # the survivor lands in the outbox first, so a consumer learns of this
+        # account before being told to reassign rows onto it.
+        survivor.save()
+        emit(  # emit-check: ok — this block IS the atomic that performs the deletion below
+            EVENT_USER_MERGED,
+            {
+                "from_user_id": str(guest_id),
+                "into_user_id": str(survivor.id),
+                "reason": "anonymous_promotion",
+            },
+            key=str(survivor.id),
+            service="auth",
+        )
+        # Emit BEFORE the delete commits — same transaction, so the two are
+        # inseparable.
+        from django.contrib.auth import get_user_model
+
+        get_user_model().objects.filter(id=guest_id).delete()
+    return survivor
 
 
 def _generate_numeric_code(length: int) -> str:

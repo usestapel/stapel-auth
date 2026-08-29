@@ -420,16 +420,114 @@ class OAuthAuthorizeCallbackBranchTests(APITestCase):
         PROVIDER_REGISTRY.setdefault("test", TestProvider())
         auth_settings.reload()
 
-    def _store_state(self, provider="test", state="st-1", redirect_after=""):
+    def _store_state(
+        self, provider="test", state="st-1", redirect_after="", user_id=None
+    ):
         cache.set(
             f"oauth_state:{state}",
             {
                 "provider": provider,
                 "redirect_uri": "http://localhost:8000/api/v1/oauth/test/callback",
                 "redirect_after": redirect_after,
+                "user_id": user_id,
             },
             timeout=600,
         )
+
+    # ── The outcome the SPA reads off the redirect ────────────────────────
+
+    def test_callback_redirect_names_the_outcome_and_the_provider(self):
+        """A registration and a login are the same button and the same
+        landing URL; without this the client cannot tell them apart at all."""
+        self._store_state(state="st-outcome", redirect_after="/app/oauth/callback")
+        resp = self.client.get(
+            reverse("oauth_callback", kwargs={"provider": "test"}),
+            {"code": "valid-code", "state": "st-outcome"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("auth_status=REGISTERED", resp["Location"])
+        self.assertIn("provider=test", resp["Location"])
+
+    def test_callback_outcome_merges_into_an_existing_query(self):
+        self._store_state(
+            state="st-outcome2", redirect_after="/app/oauth/callback?keep=1"
+        )
+        resp = self.client.get(
+            reverse("oauth_callback", kwargs={"provider": "test"}),
+            {"code": "valid-code", "state": "st-outcome2"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("keep=1", resp["Location"])
+        self.assertIn("auth_status=", resp["Location"])
+
+    def test_callback_reports_logged_in_for_a_returning_identity(self):
+        User.objects.create(
+            email="returning-oauth@example.com",
+            oauth_provider="test",
+            oauth_id="test-oauth-user-1",
+            is_email_verified=True,
+        )
+        self._store_state(state="st-outcome3", redirect_after="/app/oauth/callback")
+        resp = self.client.get(
+            reverse("oauth_callback", kwargs={"provider": "test"}),
+            {"code": "valid-code", "state": "st-outcome3"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("auth_status=LOGGED_IN", resp["Location"])
+
+    # ── The pin on the session that STARTED the flow ──────────────────────
+
+    def test_authorize_pins_the_session_that_started_the_flow(self):
+        guest = User.create_anonymous_user()
+        self.client.force_authenticate(user=guest)
+        resp = self.client.get(reverse("oauth_authorize", kwargs={"provider": "test"}))
+        self.assertEqual(resp.status_code, 302)
+        from urllib.parse import parse_qs, urlparse
+
+        state = parse_qs(urlparse(resp["Location"]).query)["state"][0]
+        self.assertEqual(cache.get(f"oauth_state:{state}")["user_id"], str(guest.id))
+
+    def test_authorize_pins_nothing_for_an_anonymous_caller(self):
+        resp = self.client.get(reverse("oauth_authorize", kwargs={"provider": "test"}))
+        self.assertEqual(resp.status_code, 302)
+        from urllib.parse import parse_qs, urlparse
+
+        state = parse_qs(urlparse(resp["Location"]).query)["state"][0]
+        self.assertIsNone(cache.get(f"oauth_state:{state}")["user_id"])
+
+    def test_callback_ignores_a_session_that_changed_mid_flow(self):
+        """A guest that did not open this flow must not be upgraded by it.
+
+        The live cookie still governs (a pin alone would make login-CSRF into
+        account takeover); the pin only rules OUT a session that swapped
+        underneath the redirect.
+        """
+        started = User.create_anonymous_user()
+        swapped = User.create_anonymous_user()
+        self._store_state(state="st-pin", user_id=str(started.id))
+        self.client.force_authenticate(user=swapped)
+        resp = self.client.get(
+            reverse("oauth_callback", kwargs={"provider": "test"}),
+            {"code": "valid-code", "state": "st-pin"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        swapped.refresh_from_db()
+        self.assertTrue(swapped.is_anonymous)  # untouched by a flow it never opened
+        started.refresh_from_db()
+        self.assertTrue(started.is_anonymous)  # and no cookie, so not upgraded either
+
+    def test_callback_upgrades_the_guest_that_did_open_the_flow(self):
+        guest = User.create_anonymous_user()
+        self._store_state(state="st-pin-ok", user_id=str(guest.id))
+        self.client.force_authenticate(user=guest)
+        resp = self.client.get(
+            reverse("oauth_callback", kwargs={"provider": "test"}),
+            {"code": "valid-code", "state": "st-pin-ok"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        guest.refresh_from_db()
+        self.assertFalse(guest.is_anonymous)
+        self.assertEqual(guest.oauth_provider, "test")
 
     @override_settings(STAPEL_AUTH=_OAUTH_DISABLED)
     def test_authorize_disabled_returns_403(self):
@@ -519,6 +617,7 @@ class OAuthAuthorizeCallbackBranchTests(APITestCase):
 class ResolveOAuthUserAndCallbackUriTests(TestCase):
     def test_resolve_creates_user_when_no_email(self):
         from stapel_auth.otp.views import AuthViewSet
+        from stapel_auth.sessions.dto import AuthStatus
 
         class _Data:
             id = "no-email-oid"
@@ -527,8 +626,9 @@ class ResolveOAuthUserAndCallbackUriTests(TestCase):
             email_verified = False
 
         view = AuthViewSet()
-        user = view._resolve_oauth_user("test", _Data())
+        user, outcome = view._resolve_oauth_user("test", _Data())
         self.assertEqual(user.oauth_id, "no-email-oid")
+        self.assertEqual(outcome, AuthStatus.REGISTERED)
 
     @override_settings(OAUTH_CALLBACK_BASE_URL="https://api.example.com", URL_PREFIX="")
     def test_build_callback_uri_uses_configured_base(self):

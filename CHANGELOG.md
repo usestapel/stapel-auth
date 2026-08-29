@@ -1,5 +1,61 @@
 # Changelog
 
+## [0.30.0] — 2026-08-30
+
+### Fixed — an OAuth sign-in threw the guest's work away without saying so
+
+The OTP verifiers have always had two answers for a guest who signs in: when
+the anchor is free the guest row is promoted in place (same id, nothing to
+move), and when the anchor already belongs to an account the guest is folded
+into it and `user.merged` tells every other service to reassign its rows.
+
+`_resolve_oauth_user` only ever had the first. Its cases 1 and 2 — a returning
+`(provider, oauth_id)`, or an existing account on the same provider-verified
+email — returned the survivor and walked away from the guest, whose row was
+left behind unreferenced until the 30-day sweep. No event, so nothing could
+carry the recordings, favourites or chat threads across; the person saw a
+successful sign-in and an empty account. It now takes the same path the OTP
+side takes: `merge_anonymous_into`, `user.merged`, status `MERGED`.
+
+An unverified provider email matching an existing account still refuses
+(`OAuthEmailNotVerified`) and the guest keeps everything — a merge on an
+address nobody proved is account takeover.
+
+`_merge_anonymous_into` moved from `otp/views.py` to
+`stapel_auth.otp.services.merge_anonymous_into`, next to
+`promote_anonymous_session`, which is the other half of the same decision, and
+its `verified_flag` is now optional: a `(provider, oauth_id)` match identifies
+the survivor without asserting anything about their email.
+
+### Added — the OAuth redirect names its outcome
+
+`GET /oauth/{provider}/callback/` now appends `auth_status=REGISTERED |
+LOGGED_IN | MERGED` and `provider=<name>` to `redirect_after` (and to the
+`/totp-challenge` parameters, so the step-up path carries it through). A
+browser OAuth round-trip lands on one URL whichever happened, so a client had
+no way to tell a registration from a login — the answer exists only on the
+server, and a conversion fired on the click counts every returning user as a
+new one. It is deliberately NOT on `/me`: "created" is a fact about this
+event, not a property of the account.
+
+`POST /oauth/login/` reports the same outcome in `AuthResponse.status`, which
+previously said `LOGGED_IN` even when the call had just created the account.
+
+### Fixed — the OAuth flow was not bound to the session that opened it
+
+`oauth_authorize` now records the caller's user id in the `oauth_state` entry,
+and `oauth_callback` drops `request_user` from the resolution when the live
+cookie names a different session than the one that started the flow. The
+cookie still governs — honouring a pinned id without it would turn login-CSRF
+into account takeover — so this only rules out the other direction: a session
+that swapped underneath the redirect (a second tab signing out, a new guest
+minted) can no longer be silently upgraded by a flow it never opened.
+
+### Breaking
+
+`AuthViewSet._resolve_oauth_user` returns `(user, AuthStatus)` rather than
+`user`. Hosts that override or call it must unpack.
+
 ## [0.29.0] — 2026-08-28
 
 ### Fixed — `device_id` was a bearer token for somebody else's guest session

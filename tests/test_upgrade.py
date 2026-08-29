@@ -773,7 +773,7 @@ class UserRegisteredEventTests(APITestCase):
 
         view = AuthViewSet()
         with patch('stapel_core.comm.emit') as m_emit:
-            user = view._resolve_oauth_user('test', _Data())
+            user, _outcome = view._resolve_oauth_user('test', _Data())
 
         self.assertEqual(user.avatar, _Data.avatar)
         # Birth also announces the identity row itself (user.created, the

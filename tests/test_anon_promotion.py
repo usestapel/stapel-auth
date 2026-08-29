@@ -239,12 +239,15 @@ class OAuthAnonPromoteTests(APITestCase):
         self.assertEqual(anon.email, "oauthguest@example.com")
 
     @patch("stapel_auth.oauth.services.OAuthService.get_user_data")
-    def test_collision_with_existing_account_ignores_anon_request_user(
+    def test_collision_by_email_merges_the_guest_into_the_existing_account(
         self, mock_get_user_data
     ):
-        """Pre-existing collision handling is left exactly as it was — the
-        anon guest row is simply not touched (a genuine merge is a
-        follow-up, not built here)."""
+        """The guest's rows follow it into the account it just proved it owns.
+
+        Leaving the guest row alone (the previous behaviour) was not
+        neutral: the guest is never signed into again, so everything other
+        services own through its id becomes unreachable with no announcement.
+        """
         existing = User.objects.create_user(
             username="existingoauth", email="claimed@example.com", password="x"
         )
@@ -263,8 +266,88 @@ class OAuthAnonPromoteTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["user"]["id"], str(existing.id))
+        self.assertEqual(response.data["status"], "MERGED")
+        self.assertFalse(User.objects.filter(pk=anon.pk).exists())
+
+    @patch("stapel_auth.oauth.services.OAuthService.get_user_data")
+    def test_collision_by_provider_identity_merges_the_guest_too(
+        self, mock_get_user_data
+    ):
+        """A returning OAuth identity is the same collision by another key."""
+        existing = User.objects.create_user(
+            username="returning", email="returning@example.com", password="x"
+        )
+        existing.oauth_provider = "google"
+        existing.oauth_id = "provider-uid-3"
+        existing.save()
+        anon = User.create_anonymous_user()
+        client = _bearer_client_for(anon)
+        mock_get_user_data.return_value = OAuthUserData(
+            id="provider-uid-3",
+            email="returning@example.com",
+            username="returning",
+            avatar=None,
+            email_verified=True,
+        )
+        response = client.post(
+            reverse("oauth_login"),
+            {"provider": "google", "access_token": "tok"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["user"]["id"], str(existing.id))
+        self.assertEqual(response.data["status"], "MERGED")
+        self.assertFalse(User.objects.filter(pk=anon.pk).exists())
+
+    @patch("stapel_auth.oauth.services.OAuthService.get_user_data")
+    def test_unverified_collision_refuses_and_leaves_the_guest_whole(
+        self, mock_get_user_data
+    ):
+        """No merge on an address the provider did not verify — and no loss."""
+        User.objects.create_user(
+            username="victim", email="victim@example.com", password="x"
+        )
+        anon = User.create_anonymous_user()
+        client = _bearer_client_for(anon)
+        mock_get_user_data.return_value = OAuthUserData(
+            id="provider-uid-4",
+            email="victim@example.com",
+            username="victim",
+            avatar=None,
+            email_verified=False,
+        )
+        response = client.post(
+            reverse("oauth_login"),
+            {"provider": "google", "access_token": "tok"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         anon.refresh_from_db()
-        self.assertTrue(anon.is_anonymous)  # untouched, not deleted
+        self.assertTrue(anon.is_anonymous)
+
+    @patch("stapel_auth.oauth.services.OAuthService.get_user_data")
+    def test_signed_in_account_is_not_treated_as_a_guest(self, mock_get_user_data):
+        """Only an ANONYMOUS caller is folded away. A real account signing in
+        with someone else's provider identity must not be deleted."""
+        existing = User.objects.create_user(
+            username="target", email="target@example.com", password="x"
+        )
+        other = User.objects.create_user(
+            username="other", email="other@example.com", password="x"
+        )
+        client = _bearer_client_for(other)
+        mock_get_user_data.return_value = OAuthUserData(
+            id="provider-uid-5",
+            email="target@example.com",
+            username="target",
+            avatar=None,
+            email_verified=True,
+        )
+        response = client.post(
+            reverse("oauth_login"),
+            {"provider": "google", "access_token": "tok"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["user"]["id"], str(existing.id))
+        self.assertTrue(User.objects.filter(pk=other.pk).exists())
 
 
 # ── SSO orphan fix (bug b) ────────────────────────────────────────────────────

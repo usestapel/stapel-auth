@@ -66,6 +66,7 @@ from stapel_auth.otp.services import (
     AuthenticatorChangeService,
     EmailVerificationService,
     PhoneVerificationService,
+    merge_anonymous_into,
     promote_anonymous_session,
 )
 from stapel_auth.registration import (
@@ -154,6 +155,25 @@ def _sanitize_redirect_after(value: str) -> str:
     return ""
 
 
+def _with_oauth_outcome(url: str, auth_status, provider: str) -> str:
+    """Append the outcome of an OAuth round-trip to a sanitized redirect target.
+
+    `auth_status` is the only way the SPA can tell a registration from a login
+    — same button, same redirect, and the answer exists only on the server.
+    `provider` rides along because the landing page otherwise has no idea
+    which button started the flow. Neither is a credential.
+
+    Merged into the existing query rather than concatenated: the callback
+    route is free to carry parameters of its own.
+    """
+    from urllib.parse import urlencode, urlparse, urlunparse
+
+    parts = urlparse(url)
+    extra = urlencode({"auth_status": auth_status.value, "provider": provider})
+    query = f"{parts.query}&{extra}" if parts.query else extra
+    return urlunparse(parts._replace(query=query))
+
+
 User = get_user_model()
 
 
@@ -214,49 +234,6 @@ def _notify_user_registered(user, request=None, language=None, display_name=None
             )
     except Exception:
         logger.exception("Failed to emit user.registered for user %s", user.id)
-
-
-def _merge_anonymous_into(guest_id, survivor, verified_flag: str):
-    """Fold a guest account into the existing account it just proved it owns.
-
-    The guest row is deleted, so every record other modules own through it
-    (``stapel_listings.Favorite``, ``stapel_chat.ConversationParticipant`` and
-    ``Message``, …) would cascade away with it. ``user.merged`` is what buys
-    those rows a second life: consumers reassign them onto the survivor.
-    See ``stapel_auth.events.UserMergedPayload`` for the consumer contract,
-    and ``otp.services.promote_anonymous_session`` for the other, same-row
-    half of guest sign-in where carry-over is free.
-
-    Returns the surviving user.
-    """
-    from django.db import transaction
-
-    from stapel_core.comm import emit
-
-    from stapel_auth.events import EVENT_USER_MERGED
-
-    # Atomic on purpose: the announcement and the deletion commit together, so
-    # a crash can never drop the guest row without telling anyone.
-    with transaction.atomic():
-        setattr(survivor, verified_flag, True)
-        # Save BEFORE the emit: any projection event the observer raises for
-        # the survivor lands in the outbox first, so a consumer learns of this
-        # account before being told to reassign rows onto it.
-        survivor.save()
-        emit(  # emit-check: ok — this block IS the atomic that performs the deletion below
-            EVENT_USER_MERGED,
-            {
-                "from_user_id": str(guest_id),
-                "into_user_id": str(survivor.id),
-                "reason": "anonymous_promotion",
-            },
-            key=str(survivor.id),
-            service="auth",
-        )
-        # Emit BEFORE the delete commits — same transaction, so the two are
-        # inseparable.
-        User.objects.filter(id=guest_id).delete()
-    return survivor
 
 
 def _rewrites_a_verified_authenticator(user, field, verified_flag, new_value) -> bool:
@@ -731,7 +708,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 # CASE: Anonymous user
                 if existing_user:
                     # MERGED: Email already exists - fold the guest into it.
-                    user = _merge_anonymous_into(
+                    user = merge_anonymous_into(
                         request_user.id, existing_user, "is_email_verified"
                     )
                     auth_status = AuthStatus.MERGED
@@ -1057,7 +1034,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 # CASE: Anonymous user
                 if existing_user:
                     # MERGED: Phone already exists - fold the guest into it.
-                    user = _merge_anonymous_into(
+                    user = merge_anonymous_into(
                         request_user.id, existing_user, "is_phone_verified"
                     )
                     auth_status = AuthStatus.MERGED
@@ -1235,7 +1212,9 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
         request_user = request.user if request.user.is_authenticated else None
         try:
-            user = self._resolve_oauth_user(provider, user_data, request_user=request_user)
+            user, auth_status = self._resolve_oauth_user(
+                provider, user_data, request_user=request_user
+            )
         except OAuthEmailNotVerified:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
         except RegistrationClosed:
@@ -1260,9 +1239,9 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
         access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.OAUTH_LOGIN)
         tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
-        auth_dto = AuthResponse(
-            status=AuthStatus.LOGGED_IN, user=user, tokens=tokens_dto
-        )
+        # The resolver's own verdict: REGISTERED when this call created the
+        # account, MERGED when a guest was folded into an existing one.
+        auth_dto = AuthResponse(status=auth_status, user=user, tokens=tokens_dto)
         response = Response(
             self.get_auth_response_serializer_class()(auth_dto).data,
             status=status.HTTP_200_OK,
@@ -1311,12 +1290,23 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         state = secrets.token_urlsafe(32)
         redirect_uri = self._build_callback_uri(request, provider)
 
+        # `user_id` pins the flow to the session that STARTED it. The live
+        # cookie at the callback still decides (see oauth_callback): honouring
+        # a pinned id WITHOUT it would turn login-CSRF into account takeover.
+        # The pin closes the other direction — a cookie that changed
+        # mid-flight (another tab signed out, a second guest minted) must not
+        # silently upgrade a session that never opened this flow.
         cache.set(
             f"oauth_state:{state}",
             {
                 "provider": provider,
                 "redirect_uri": redirect_uri,
                 "redirect_after": request.query_params.get("redirect_uri", ""),
+                "user_id": (
+                    str(request.user.id)
+                    if request.user and request.user.is_authenticated
+                    else None
+                ),
             },
             timeout=600,
         )
@@ -1377,8 +1367,25 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 
         request_user = request.user if request.user.is_authenticated else None
+        pinned = state_data.get("user_id")
+        if (
+            request_user is not None
+            and pinned is not None
+            and pinned != str(request_user.id)
+        ):
+            # The session changed between authorize and callback. The provider
+            # login is still legitimate; the session in the browser now is not
+            # the one that asked, so it takes no part in the resolution.
+            logger.warning(
+                "oauth callback session changed mid-flow (pinned %s, present %s)",
+                pinned,
+                request_user.id,
+            )
+            request_user = None
         try:
-            user = self._resolve_oauth_user(provider, user_data, request_user=request_user)
+            user, auth_status = self._resolve_oauth_user(
+                provider, user_data, request_user=request_user
+            )
         except OAuthEmailNotVerified:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
         except RegistrationClosed:
@@ -1395,7 +1402,11 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 redirect_after = _sanitize_redirect_after(state_data.get("redirect_after", ""))
                 # Encode redirect_after inside the TOTP challenge URL so the
                 # frontend can resume the OAuth redirect flow after TOTP verify.
-                params = {"token": challenge_token}
+                params = {
+                    "token": challenge_token,
+                    "auth_status": auth_status.value,
+                    "provider": provider,
+                }
                 if redirect_after:
                     params["redirect_after"] = redirect_after
                 # /totp-challenge is a FRONTEND route: anchor it to FRONTEND_URL
@@ -1428,19 +1439,24 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if redirect_after:
             # Tokens travel as httponly cookies, never in the URL — query
             # strings end up in proxy logs, browser history and referrers.
+            # `auth_status` is not a credential: it is the outcome name, and
+            # it is the only way the SPA can tell a registration from a login
+            # (same button, same redirect; the answer exists only here). It is
+            # NOT put on /me — "created" is a fact about this event, not a
+            # property of the account.
             from stapel_core.django.jwt.utils import set_jwt_cookies
 
             from stapel_auth.hint_cookie import set_auth_hint_cookie
 
-            response = redirect(redirect_after)
+            response = redirect(
+                _with_oauth_outcome(redirect_after, auth_status, provider)
+            )
             set_jwt_cookies(response, access_token, refresh_token)
             set_auth_hint_cookie(response)
             return response
 
         tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
-        auth_dto = AuthResponse(
-            status=AuthStatus.LOGGED_IN, user=user, tokens=tokens_dto
-        )
+        auth_dto = AuthResponse(status=auth_status, user=user, tokens=tokens_dto)
         response = Response(
             self.get_auth_response_serializer_class()(auth_dto).data,
             status=status.HTTP_200_OK,
@@ -1454,12 +1470,17 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         return response
 
     def _resolve_oauth_user(self, provider, user_data, request_user=None):
-        """Find or create a user for an OAuth login, merging by email when possible.
+        """Find or create a user for an OAuth sign-in.
+
+        Returns ``(user, AuthStatus)`` — the caller reports the outcome, which
+        is the only place a client can tell registration from login (both are
+        the same button, and the answer exists only here).
 
         Priority:
         1. Exact match by (oauth_provider, oauth_id) — returning user.
-        2. Existing account with the same verified email — authenticate as that
-           user without overwriting their auth_type or existing OAuth link.
+        2. Existing account with the same verified email — authenticate as
+           that user without overwriting their auth_type or existing OAuth
+           link.
         3. *request_user* is an anonymous guest session and neither of the
            above found a pre-existing account for this provider identity —
            attach the OAuth anchor to the SAME guest row (promote) instead
@@ -1468,35 +1489,58 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
         *request_user* is ``request.user`` from the caller (may be ``None``
         for an unauthenticated caller, or a non-anonymous authenticated user
-        — in either case this falls through to case 4 exactly as before).
-        Cases 1-2 are pre-existing-account collisions and intentionally
-        ignore *request_user* — merging a guest session into a DIFFERENT
-        existing account is a separate (not-yet-built) merge flow; see
-        otp/views.py's email_verify/phone_verify AuthStatus.MERGED case for
-        the equivalent OTP-side handling.
+        — in either case this falls through to case 4).
+
+        WHEN CASES 1-2 HIT AND THE CALLER IS A GUEST, the guest is folded into
+        the account it just proved it owns (:func:`merge_anonymous_into`,
+        status ``MERGED``) — the same answer the OTP verifiers have always
+        given. Returning the survivor and walking away, which is what this did
+        before, left the guest's recordings under a user id nothing would ever
+        look up again.
         """
         oauth_id = str(user_data.id)
         email = user_data.email
+        guest = (
+            request_user
+            if request_user is not None
+            and request_user.is_authenticated
+            and request_user.is_anonymous
+            else None
+        )
 
-        # 1. Exact provider match
+        def claim(survivor, verified_flag):
+            """Hand *survivor* back, taking the guest's rows along if there is one."""
+            if guest is None or str(guest.id) == str(survivor.id):
+                return survivor, AuthStatus.LOGGED_IN
+            return (
+                merge_anonymous_into(guest.id, survivor, verified_flag),
+                AuthStatus.MERGED,
+            )
+
+        # 1. Exact provider match. The (provider, oauth_id) pair identifies
+        # the survivor on its own, so no anchor flag is asserted here — the
+        # provider said nothing about this account's email.
         try:
-            return User.objects.get(oauth_provider=provider, oauth_id=oauth_id)
+            return claim(
+                User.objects.get(oauth_provider=provider, oauth_id=oauth_id), None
+            )
         except User.DoesNotExist:
             pass
 
-        # 2. Same email → merge into existing account, but ONLY when the
-        # provider asserts the email is verified. Merging on an unverified
-        # address lets an attacker set a victim's email on their own OAuth
-        # account and log in as the victim.
+        # 2. Same email → the existing account, but ONLY when the provider
+        # asserts the email is verified. Merging on an unverified address lets
+        # an attacker set a victim's email on their own OAuth account and log
+        # in as the victim.
         email_verified = bool(getattr(user_data, "email_verified", False))
         if email:
             existing = User.objects.filter(email=email).first()
             if existing is not None:
                 if email_verified:
-                    return existing
+                    return claim(existing, "is_email_verified")
                 # Unverified email matching an existing account: neither
                 # merge nor duplicate — the user must sign in with the
-                # account's original method.
+                # account's original method. The guest stays a guest and
+                # keeps everything.
                 raise OAuthEmailNotVerified(email)
 
         # Avatar is untrusted external data; a pathologically long provider URL
@@ -1507,19 +1551,19 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
         # 3. Fresh anchor + an anonymous guest session already in progress —
         # attach to that row instead of creating (and thereby orphaning) a
-        # second one.
-        if request_user is not None and request_user.is_authenticated and request_user.is_anonymous:
+        # second one. Nothing to reassign: the user id does not change.
+        if guest is not None:
             # Promoting the guest row creates a real account just as surely
             # as case 4 does — same gate (#86).
             require_registration_open("oauth")
-            request_user.email = email
-            request_user.oauth_provider = provider
-            request_user.oauth_id = oauth_id
-            request_user.avatar = avatar
-            request_user.is_email_verified = email_verified
-            promote_anonymous_session(request_user, auth_type="oauth")
-            request_user.save()
-            return request_user
+            guest.email = email
+            guest.oauth_provider = provider
+            guest.oauth_id = oauth_id
+            guest.avatar = avatar
+            guest.is_email_verified = email_verified
+            promote_anonymous_session(guest, auth_type="oauth")
+            guest.save()
+            return guest, AuthStatus.REGISTERED
 
         # 4. Brand-new user — the OAuth creation site (#86). No oracle to
         # protect here: the caller had to hold a valid provider token for
@@ -1534,7 +1578,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             is_email_verified=email_verified,
         )
         self._publish_user_registered(user)
-        return user
+        return user, AuthStatus.REGISTERED
 
     def _publish_user_registered(self, user, request=None) -> None:
         _notify_user_registered(user, request=request)
