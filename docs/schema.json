@@ -4756,6 +4756,23 @@
         }
       }
     },
+    "/auth/api/v1/site/": {
+      "get": {
+        "operationId": "auth_api_v1_site_retrieve",
+        "description": "``GET /<auth-prefix>/api/v1/site/`` — host → brand, for the storefront.\n\n**Permissions:** `AllowAny`",
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
     "/auth/api/v1/sso/{slug}/login/": {
       "get": {
         "operationId": "auth_api_v1_sso_login_retrieve",

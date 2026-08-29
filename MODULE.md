@@ -25,7 +25,7 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 
 | Key | Default | What it customizes |
 |---|---|---|
-| `FRONTEND_URL` | `None` (env `FRONTEND_URL`) | Redirect base for SSO / magic link / QR login and the OAuth step-up `/totp-challenge` redirect; OAuth `redirect_after` validation. Unset ⇒ same-origin-relative redirects |
+| `FRONTEND_URL` | `None` (env `FRONTEND_URL`) | The **primary** site's SPA base. Redirect base for SSO / magic link / QR login and the OAuth step-up `/totp-challenge` redirect; one of the `redirect_after` allowlist origins. Unset ⇒ same-origin-relative redirects. With a site registry (`STAPEL_SITES`) it is the fallback, not the answer — see *Per-host links and redirects* below |
 | `BACKEND_URL` | `None` (env `BACKEND_URL`) | Absolute backend URL for SAML/OIDC endpoints and revoke-suspicious links |
 | `USE_MOCK_SMS_OTP` / `USE_MOCK_EMAIL_OTP` | `False` | Mock OTP delivery (dev/test) |
 | `MOCK_OTP_CODE` | `'0000'` | The accepted code in mock mode — and, on a mocked channel, the width the capabilities contract reports (see `OTP_LENGTH`) |
@@ -123,6 +123,27 @@ A list, not a value, because one project legitimately owns several clients — a
 - **`E008`** — the provider *can* verify but nothing is configured to compare against, so every token is refused. An outage, and named as one.
 - **`W007`** — audiences were inherited from `client_id` rather than declared. Right for one client, silently wrong the moment a second exists.
 - **`W010`** — audiences are declared that this provider cannot check (the GitHub case).
+
+### Per-host links and redirects — `stapel_auth.hosts` (0.31.0)
+
+One image, N hosts. When the deployment declares a site registry (`STAPEL_SITES` / `STAPEL_SITES_FILE`, `stapel_core.sites`), `FRONTEND_URL` stops being the answer to "where does this link go?" — it becomes the primary site's base and the fallback. Two functions are the whole vocabulary, and they are the seam to override if a host wants different behaviour:
+
+| Helper | Answers | Used by |
+|---|---|---|
+| `stapel_auth.hosts.frontend_url_for(request)` | `https://<site host>` when the request arrived on a registered host or alias, otherwise `FRONTEND_URL` | every link/redirect minted **while holding a request** |
+| `stapel_auth.hosts.allowed_return_origins()` | `frozenset` of exact origins: `FRONTEND_URL`'s own origin ∪ `registry.origins()` | `redirect_after` / `return_to` validation |
+
+Rules this module holds itself to, and that an extension must too:
+
+- **Holding a request ⇒ `frontend_url_for(request)`.** Reading `FRONTEND_URL` there mails a person of the second brand a link to the first brand's domain — a host whose cookie jar their session does not live in.
+- **No request ⇒ `FRONTEND_URL`, and say so.** Celery tasks, beat jobs and signal handlers have no `Host` header; the primary site is the deployment's default face by design. Where a task mints a *user-visible* link, resolve the base **in the view** and pass it as a task argument — `LoginNotificationService.check_and_notify(user, session, request=…)` → `evaluate_login_notification(..., frontend_url=…)` is the pattern.
+- **An unmatched host keeps `FRONTEND_URL`, it is not promoted to the primary.** `site_for_request` falls back to the primary because a page needs a brand; a *link* does not, and minting one for a host the registry does not recognise is how a probe's `Host:` header ends up in an email.
+- **Allowlists compare parsed origins, never prefixes.** `https://<registered>.attacker.test/` starts with a registered host and is somebody else's site. `https` only, with exactly one exception: `FRONTEND_URL`'s own scheme, so `http://localhost:3000` keeps working in development without opening `http://<registered host>/`.
+- **Fleet-wide values stay fleet-wide.** `JWT_ISSUER`, `JWT_SECRET_KEY` and the session table are one per deployment, not one per brand — one account signs in on every host. The SAML/OIDC SP base (`BACKEND_URL`) is an identifier registered with the IdP and must not vary with `Host`. WebAuthn RP ID / origin still follow `FRONTEND_URL` (a per-host RP is a separate step).
+
+`GET /<auth-prefix>/api/v1/site/` is mounted here (`get_site_bootstrap_urls`, always on, `AllowAny`, `Cache-Control: public, max-age=300`) from `stapel_core.django.sites.urls.get_site_urls()` — auth owns the mount, core owns the view, and the address is identical in every fleet so a storefront can hardcode one relative URL.
+
+`stapel_core.sites.W001` fires when `FRONTEND_URL`'s host is not one of the registered hosts: the fallback would then point at a domain the deployment does not serve.
 
 ### Deployment requirement — the client IP behind a proxy (`STAPEL_NETINTEL['TRUSTED_PROXY_HEADER']`)
 

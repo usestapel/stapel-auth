@@ -43,7 +43,7 @@ __all__ = [
     'get_sso_urls', 'get_mfa_urls', 'get_qr_urls', 'get_magic_link_urls',
     'get_login_grant_urls', 'get_sessions_urls', 'get_admin_api_urls',
     'get_security_urls', 'get_openid_urls', 'get_verification_urls',
-    'urlpatterns',
+    'get_site_bootstrap_urls', 'urlpatterns',
 ]
 
 
@@ -336,6 +336,24 @@ def get_error_keys_urls(enabled=None):
     ])
 
 
+def get_site_bootstrap_urls(enabled=None):
+    """``GET /auth/api/v1/site/`` — host → brand. Always on, public.
+
+    The route comes from ``stapel_core.django.sites`` rather than from a view
+    of our own: the registry it answers from is core's, and the storefront
+    needs ONE address that is the same in every deployment. Auth is where it
+    is mounted because auth is the one module every fleet installs and the
+    only one already public at ``/api/v1/`` before a session exists.
+
+    Deliberately ungated: a storefront asks who it is before its first paint,
+    with no cookie and no account, and a feature flag that could hide the
+    answer would leave a page with no brand at all.
+    """
+    from stapel_core.django.sites.urls import get_site_urls
+
+    return _gated('site', enabled, (), list(get_site_urls()))
+
+
 def get_admin_api_urls(enabled=None):
     """Service keys, capabilities, admin user broker, admin audit. Always on."""
     router = DefaultRouter(trailing_slash=False)
@@ -379,4 +397,5 @@ urlpatterns = (
     + get_openid_urls(enabled=True)
     + get_verification_urls(enabled=True)
     + get_error_keys_urls(enabled=True)
+    + get_site_bootstrap_urls(enabled=True)
 )

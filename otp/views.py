@@ -26,6 +26,7 @@ from stapel_core.django.openapi import (
 )
 
 from stapel_auth.errors import *
+from stapel_auth.hosts import frontend_url_for
 from stapel_auth.mfa.dto import TOTPChallengeResponse, TOTPChallengeStatus
 from stapel_auth.mfa.serializers import (
     TOTPChallengeResponseSerializer,
@@ -132,24 +133,40 @@ def _registration_closed_verify_response():
 
 
 def _sanitize_redirect_after(value: str) -> str:
-    """Allow only same-site relative paths or URLs on the FRONTEND_URL origin.
+    """Allow a relative path, or an absolute URL on a host this deployment serves.
 
     An unvalidated value here is an open redirect, and (worse) the OAuth
     callback used to append session tokens to it — full token exfiltration
     to an attacker-chosen host.
+
+    The allowlist is ``stapel_auth.hosts.allowed_return_origins()``:
+    ``FRONTEND_URL``'s own origin plus every origin in the site registry, so a
+    deployment serving two brands can finish a flow on either. Membership is
+    tested on the **parsed** ``scheme://netloc`` and by equality — a prefix
+    test would accept ``https://example.com.attacker.test/``, which is
+    somebody else's site whose name happens to start with ours.
+
+    ``https`` only, with one exception kept deliberately: ``FRONTEND_URL``'s
+    own scheme, which is how ``http://localhost:3000`` stays usable in local
+    development without opening the door to ``http://<registered host>/``.
     """
     if not value:
         return ""
     if value.startswith("/") and not value.startswith("//") and not value.startswith("/\\"):
         return value
-    from urllib.parse import urlparse
+    from urllib.parse import urlsplit
 
     from stapel_auth.conf import auth_settings
+    from stapel_auth.hosts import allowed_return_origins, origin_of
 
     frontend = getattr(auth_settings, "FRONTEND_URL", "") or ""
-    if frontend:
-        f, v = urlparse(frontend), urlparse(value)
-        if v.scheme == f.scheme and v.netloc and v.netloc == f.netloc:
+    try:
+        scheme = urlsplit(value).scheme.lower()
+    except ValueError:
+        scheme = ""
+    dev_scheme = origin_of(frontend).split(":", 1)[0]
+    if scheme == "https" or (dev_scheme and scheme == dev_scheme):
+        if origin_of(value) in allowed_return_origins():
             return value
     logger.warning("Rejected oauth redirect_after target: %r", value)
     return ""
@@ -1409,11 +1426,12 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 }
                 if redirect_after:
                     params["redirect_after"] = redirect_after
-                # /totp-challenge is a FRONTEND route: anchor it to FRONTEND_URL
-                # so the browser lands on the SPA, not on the (differently
+                # /totp-challenge is a FRONTEND route: anchor it to the SPA of
+                # the host this request arrived on, so the browser lands on the
+                # brand it started the flow on and not on the (differently
                 # mounted) backend origin. Empty base preserves the historical
                 # same-origin relative redirect when FRONTEND_URL is unset.
-                frontend = auth_settings.FRONTEND_URL or ""
+                frontend = frontend_url_for(request)
                 return redirect(f"{frontend}/totp-challenge?" + urlencode(params))
 
         # Browser navigation (the provider redirected here), so a denial goes
@@ -1428,7 +1446,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             return redirect(
                 denial_redirect_url(
                     denied,
-                    frontend_url=auth_settings.FRONTEND_URL or "",
+                    frontend_url=frontend_url_for(request),
                     next_url=_sanitize_redirect_after(
                         state_data.get("redirect_after", "")
                     ),

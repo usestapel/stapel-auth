@@ -235,7 +235,9 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                             session=_session,
                         )
                         if _session:
-                            LoginNotificationService.check_and_notify(_user, _session)
+                            LoginNotificationService.check_and_notify(
+                                _user, _session, request=request
+                            )
                 except Exception:
                     # The caller still gets the tokens it waited for — the
                     # grant is real and was minted by `confirm`. But the
@@ -334,12 +336,12 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                         owner, request, path=SessionPath.QR_SESSION_SHARE
                     )
                 except SessionIssuanceDenied as denied:
-                    from stapel_auth.conf import auth_settings as _as
+                    from stapel_auth.hosts import frontend_url_for
 
                     return HttpResponseRedirect(
                         denial_redirect_url(
                             denied,
-                            frontend_url=_as.FRONTEND_URL or "",
+                            frontend_url=frontend_url_for(request),
                             next_url=redirect_url,
                         )
                     )
@@ -355,9 +357,9 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
             # Different user — mark QR rejected, let the generator know, redirect scanner to conflict
             QRAuthService.reject(key)
-            from stapel_auth.conf import auth_settings
+            from stapel_auth.hosts import frontend_url_for
 
-            _frontend = auth_settings.FRONTEND_URL or ""
+            _frontend = frontend_url_for(request)
             from urllib.parse import urlencode as _ue
 
             return HttpResponseRedirect(

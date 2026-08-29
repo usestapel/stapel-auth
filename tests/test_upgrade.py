@@ -530,6 +530,10 @@ _EXPECTED_URLS = {
     # declared (AuthErrorKeysView) but mounted nowhere until 2026-07-26, so the
     # collector's whole endpoint class did not exist in any service.
     'error-keys': 'error-keys/',
+    # Host → brand, for a storefront serving N hosts from one image. The view
+    # is stapel_core.django.sites'; auth owns the mount so the address is the
+    # same in every fleet (0.31.0).
+    'site-bootstrap': 'site/',
 }
 
 
@@ -575,6 +579,7 @@ class URLFactoryEquivalenceTests(TestCase):
             auth_urls.get_openid_urls,
             auth_urls.get_verification_urls,
             auth_urls.get_error_keys_urls,
+            auth_urls.get_site_bootstrap_urls,
         ):
             part = self._collect(factory(enabled=True))
             overlap = set(part) & set(combined)

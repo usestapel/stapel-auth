@@ -19,6 +19,14 @@ _SAML_NS = {
 
 
 def _get_base_url() -> str:
+    """The SP's own base URL — deliberately NOT per-host.
+
+    Everything built on this is a SAML/OIDC *identifier* registered with the
+    IdP: the SP entity ID, the ACS URL, the redirect URI. They must be the one
+    string both sides agreed on, so a value that varied with the ``Host``
+    header would fail the assertion audience check on every host but one.
+    A per-brand SP is a per-brand SSOConfig, not a per-request URL.
+    """
     from .conf import auth_settings
     return auth_settings.BACKEND_URL or auth_settings.FRONTEND_URL or ''
 
@@ -557,8 +565,8 @@ class SSOUserService:
         )
         from .sessions.views import _add_login_hints, _issue_session_tokens
 
-        from .conf import auth_settings
-        frontend_url = auth_settings.FRONTEND_URL or ''
+        from .hosts import frontend_url_for
+        frontend_url = frontend_url_for(request)
 
         try:
             access_token, refresh_token = _issue_session_tokens(

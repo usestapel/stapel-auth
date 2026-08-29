@@ -579,7 +579,12 @@ class LoginNotificationServiceTests(TestCase):
         session = _make_session(self.user)
         with patch("stapel_auth.tasks.evaluate_login_notification.delay") as delay:
             svc.LoginNotificationService.check_and_notify(self.user, session)
-        delay.assert_called_once_with(str(self.user.id), str(session.id))
+        # No request in hand: the base url falls back to FRONTEND_URL, and it
+        # still travels as an argument rather than being read in the worker.
+        delay.assert_called_once_with(
+            str(self.user.id), str(session.id),
+            frontend_url="http://localhost:3000",
+        )
 
     def test_is_new_device_true_when_unique(self):
         # A prior login is required: without one this is a first-ever

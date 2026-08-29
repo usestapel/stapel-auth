@@ -268,9 +268,9 @@ class RevokeSuspiciousView(APIView):
         try:
             value = signer.unsign(token, max_age=7 * 24 * 3600)
         except (BadSignature, SignatureExpired):
-            from stapel_auth.conf import auth_settings
+            from stapel_auth.hosts import frontend_url_for
 
-            frontend_url = auth_settings.FRONTEND_URL or ""
+            frontend_url = frontend_url_for(request)
             from django.shortcuts import redirect
 
             return redirect(f"{frontend_url}/login?error=invalid_link")
@@ -307,9 +307,9 @@ class RevokeSuspiciousView(APIView):
             except Exception:
                 logger.exception("Failed to send all_sessions_revoked notification")
 
-        from stapel_auth.conf import auth_settings
+        from stapel_auth.hosts import frontend_url_for
 
-        frontend_url = auth_settings.FRONTEND_URL or ""
+        frontend_url = frontend_url_for(request)
         from django.shortcuts import redirect
 
         return redirect(f"{frontend_url}/login?notice=sessions_revoked")

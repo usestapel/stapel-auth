@@ -54,10 +54,16 @@ class SSODomainLookupResponseSerializer(StapelDataclassSerializer):
         dataclass = SSODomainLookupResponse
 
 
-def _frontend_url():
-    from .conf import auth_settings
+def _frontend_url(request):
+    """The SPA base for the host the IdP redirected the browser back to.
 
-    return auth_settings.FRONTEND_URL or ""
+    Every use below builds a ``…/login?error=…`` landing page, and the person
+    is standing on one specific brand's domain — sending them to the other
+    one's login screen is where a two-brand deployment loses them.
+    """
+    from .hosts import frontend_url_for
+
+    return frontend_url_for(request)
 
 
 def _get_org(slug: str):
@@ -209,12 +215,12 @@ class SAMLACSView(APIView):
         org = _get_org(slug)
         if not org:
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=sso_org_not_found"
+                f"{_frontend_url(request)}/login?error=sso_org_not_found"
             )
         cfg = _get_active_config(org)
         if not cfg or cfg.protocol != SSOConfig.PROTOCOL_SAML:
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=sso_not_configured"
+                f"{_frontend_url(request)}/login?error=sso_not_configured"
             )
 
         saml_response = request.data.get("SAMLResponse") or request.POST.get(
@@ -222,7 +228,7 @@ class SAMLACSView(APIView):
         )
         if not saml_response:
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=sso_invalid_response"
+                f"{_frontend_url(request)}/login?error=sso_invalid_response"
             )
 
         try:
@@ -230,7 +236,7 @@ class SAMLACSView(APIView):
         except Exception as e:
             logger.warning(f"SAML ACS parse error [{slug}]: {e}")
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=sso_invalid_response"
+                f"{_frontend_url(request)}/login?error=sso_invalid_response"
             )
 
         try:
@@ -239,7 +245,7 @@ class SAMLACSView(APIView):
         except ValueError as e:
             logger.warning(f"SAML JIT provisioning failed [{slug}]: {e}")
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=sso_invalid_response"
+                f"{_frontend_url(request)}/login?error=sso_invalid_response"
             )
         except RegistrationClosed:
             # The IdP vouches for an employee who has no account here and
@@ -248,12 +254,12 @@ class SAMLACSView(APIView):
             # screen with a reason, not on a JSON body in the address bar.
             logger.warning(f"SAML JIT provisioning refused (registration closed) [{slug}]")
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=registration_closed"
+                f"{_frontend_url(request)}/login?error=registration_closed"
             )
 
         if not user.is_active:
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=account_disabled"
+                f"{_frontend_url(request)}/login?error=account_disabled"
             )
 
         return SSOUserService.issue_session_and_redirect(user, org, request)
@@ -276,32 +282,32 @@ class OIDCCallbackView(APIView):
         org = _get_org(slug)
         if not org:
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=sso_org_not_found"
+                f"{_frontend_url(request)}/login?error=sso_org_not_found"
             )
         cfg = _get_active_config(org)
         if not cfg or cfg.protocol != SSOConfig.PROTOCOL_OIDC:
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=sso_not_configured"
+                f"{_frontend_url(request)}/login?error=sso_not_configured"
             )
 
         error = request.query_params.get("error")
         if error:
             logger.warning(f"OIDC callback error [{slug}]: {error}")
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=sso_invalid_response"
+                f"{_frontend_url(request)}/login?error=sso_invalid_response"
             )
 
         code = request.query_params.get("code", "")
         state = request.query_params.get("state", "")
         if not code or not state:
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=sso_invalid_response"
+                f"{_frontend_url(request)}/login?error=sso_invalid_response"
             )
 
         state_raw = cache.get(f"oidc_state:{state}")
         if not state_raw:
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=sso_invalid_response"
+                f"{_frontend_url(request)}/login?error=sso_invalid_response"
             )
         cache.delete(f"oidc_state:{state}")
         state_data = json.loads(state_raw)
@@ -311,7 +317,7 @@ class OIDCCallbackView(APIView):
         except Exception as e:
             logger.warning(f"OIDC exchange error [{slug}]: {e}")
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=sso_invalid_response"
+                f"{_frontend_url(request)}/login?error=sso_invalid_response"
             )
 
         try:
@@ -320,7 +326,7 @@ class OIDCCallbackView(APIView):
         except ValueError as e:
             logger.warning(f"OIDC JIT provisioning failed [{slug}]: {e}")
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=sso_invalid_response"
+                f"{_frontend_url(request)}/login?error=sso_invalid_response"
             )
         except RegistrationClosed:
             # The IdP vouches for an employee who has no account here and
@@ -329,12 +335,12 @@ class OIDCCallbackView(APIView):
             # screen with a reason, not on a JSON body in the address bar.
             logger.warning(f"OIDC JIT provisioning refused (registration closed) [{slug}]")
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=registration_closed"
+                f"{_frontend_url(request)}/login?error=registration_closed"
             )
 
         if not user.is_active:
             return HttpResponseRedirect(
-                f"{_frontend_url()}/login?error=account_disabled"
+                f"{_frontend_url(request)}/login?error=account_disabled"
             )
 
         return SSOUserService.issue_session_and_redirect(user, org, request)

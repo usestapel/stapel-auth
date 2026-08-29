@@ -1,5 +1,84 @@
 # Changelog
 
+## [0.31.0] — 2026-08-30
+
+### Added — links and redirects follow the host the user is actually on
+
+One build, one backend, one user table, N hosts. A product put a second brand
+on a second domain — same catalogue, same accounts, same containers, a
+different name — and `FRONTEND_URL` stopped being an answer. It is one string,
+chosen at deploy time, and every link this module mints was reading it: a
+password reset requested on the second domain arrived carrying the first
+brand's host. The person clicked through to a site they had never visited, on
+a domain whose cookie jar their session does not live in, and the link simply
+did not work. Nothing logged an error, because nothing was wrong with the
+link — it was a perfectly good link to the wrong site.
+
+The registry that knows better is `stapel_core.sites` (core 0.51.0, now the
+floor). This release is the auth half of it:
+
+- **`GET /<auth-prefix>/api/v1/site/`** is mounted here
+  (`urls_v1.get_site_bootstrap_urls`, always on, `AllowAny`,
+  `Cache-Control: public, max-age=300`). The view is core's; auth owns the
+  mount because auth is the module every fleet installs and the only one
+  already public at `/api/v1/` before a session exists. The address is
+  therefore identical in every deployment, which is what lets a storefront
+  hardcode one relative URL and ask "which brand am I?" before its first
+  paint — instead of baking the brand into the image at build time.
+- **`stapel_auth.hosts`** — two functions, and the whole per-host vocabulary
+  is in them. `frontend_url_for(request)` is `https://<host>` for a request
+  that arrived on a registered host or alias, and `FRONTEND_URL` otherwise.
+  `allowed_return_origins()` is the exact origins a redirect target may name:
+  `FRONTEND_URL`'s own origin ∪ `registry.origins()`.
+
+Switched to `frontend_url_for(request)`: the magic-link mail and every branch
+of its verify redirect, the OAuth callback's `/totp-challenge` step-up and its
+session-denial redirect, the SAML ACS and OIDC callback error landings
+(17 call sites behind `sso_views._frontend_url`), the SSO success redirect,
+the QR session-share denial and account-conflict redirects, and the
+revoke-suspicious link's two landings.
+
+Left on `FRONTEND_URL`, deliberately: the login-alert email's own fallback,
+because a Celery worker has no `Host` header and the primary site is the
+deployment's default face by design. Where such a task mints a *user-visible*
+link the base is now resolved **in the view** and carried as a task argument —
+`LoginNotificationService.check_and_notify(user, session, request=…)` →
+`evaluate_login_notification(..., frontend_url=…)`. A worker cannot guess a
+host, and the honest fix is to tell it rather than to let it read a setting
+that is right for one brand out of two.
+
+Also unchanged, and for reasons: `JWT_ISSUER` and the session table are
+fleet-wide — one account signs in on every host, and a per-host issuer would
+split that in half. `BACKEND_URL` (the SAML SP entity ID, the ACS URL, the
+OIDC redirect URI) is an identifier registered with an IdP, so a value that
+varied with `Host` would fail the audience check on every host but one. The
+WebAuthn RP ID and origin still follow `FRONTEND_URL`; a per-host RP is a
+step of its own, not a line in this one.
+
+`stapel_core.sites.W001` fires when `FRONTEND_URL`'s host is not in the
+registry — the no-request fallback would then point at a domain this
+deployment does not serve.
+
+### Changed — `redirect_after` is validated against parsed origins, not a prefix
+
+`_sanitize_redirect_after` used to compare the target's scheme and netloc with
+`FRONTEND_URL`'s. That was right for one host and has no answer for two, so
+the allowlist is now `allowed_return_origins()` — and the comparison is worth
+spelling out, because this is the check standing between an OAuth callback and
+an open redirect that once carried session tokens with it.
+
+The value is **parsed** (`urlsplit`) and its `scheme://netloc` compared by
+equality. Never `startswith`: `https://example.com.attacker.test/` begins with
+a registered host and is somebody else's site, and
+`https://attacker.test/?u=example.com` merely mentions one. `https` only, with
+exactly one exception kept on purpose — `FRONTEND_URL`'s own scheme, which is
+what keeps `http://localhost:3000` usable in development while
+`http://<registered host>/` stays refused. Relative `/path` is accepted as
+before, and `//host` / `/\host` are still not paths.
+
+A deployment with no registry is unchanged: the allowlist is `FRONTEND_URL`'s
+origin alone, which is what it was.
+
 ## [0.30.0] — 2026-08-30
 
 ### Fixed — an OAuth sign-in threw the guest's work away without saying so

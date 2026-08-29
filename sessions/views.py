@@ -473,7 +473,7 @@ def _issue_session_tokens(
     stamp_last_login(user)
     AuditService.log(audit_event, user=user, request=request, session=session)
     if session:
-        LoginNotificationService.check_and_notify(user, session)
+        LoginNotificationService.check_and_notify(user, session, request=request)
     return access_token, refresh_token
 
 

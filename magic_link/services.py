@@ -75,8 +75,14 @@ class MagicLinkService:
         from stapel_core.notifications import request_notification
         # Link goes directly to the backend verify endpoint — sets cookies and redirects.
         # Backend URL is proxied at the same origin as the frontend under /auth/api/v1/.
-        from stapel_auth.conf import auth_settings
-        base_url = auth_settings.FRONTEND_URL or ''
+        #
+        # Minted for the host the person asked from: the cookie this link ends
+        # up setting is host-only, so a link to the other brand's domain lands
+        # them signed in on a site they did not ask for and signed out on the
+        # one they did. No request (a service call) means no host to follow —
+        # FRONTEND_URL, the primary site, is then the honest default.
+        from stapel_auth.hosts import frontend_url_for
+        base_url = frontend_url_for(request)
         link = f'{base_url}/auth/api/v1/magic/verify/?token={token}'
         request_notification(
             notification_type='magic_link_login',

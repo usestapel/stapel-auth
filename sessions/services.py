@@ -560,10 +560,21 @@ class LoginNotificationService:
     """
 
     @staticmethod
-    def check_and_notify(user, session):
-        """Fire async task to evaluate and optionally send notification."""
+    def check_and_notify(user, session, request=None):
+        """Fire async task to evaluate and optionally send notification.
+
+        The base URL for the alert's "secure your account" link is resolved
+        HERE, while the request is still in hand, and travels to the worker as
+        a task argument. A worker has no ``Host`` header, so a task that read
+        ``FRONTEND_URL`` itself would mail every brand's users a link to the
+        primary brand's domain — the one place they are not signed in.
+        """
+        from stapel_auth.hosts import frontend_url_for
         from stapel_auth.tasks import evaluate_login_notification
-        evaluate_login_notification.delay(str(user.id), str(session.id))
+        evaluate_login_notification.delay(
+            str(user.id), str(session.id),
+            frontend_url=frontend_url_for(request),
+        )
 
     @staticmethod
     def _has_login_history(user, session) -> bool:

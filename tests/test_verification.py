@@ -702,6 +702,10 @@ LEGACY_FLOW_ALLOWLIST = (
     "/grant/",
     "/sso/",
     "/.well-known/",
+    # The site bootstrap (stapel_core.django.sites): a storefront asking which
+    # brand it is before its first paint. Infrastructure the page reads, like
+    # /capabilities/ — there is no user journey to attach it to.
+    "/site/",
 )
 
 

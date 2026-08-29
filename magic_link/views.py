@@ -75,10 +75,12 @@ class MagicLinkViewSet(SerializerSeamsMixin, ViewSet):
         from django.shortcuts import redirect
         from stapel_core.django.jwt.utils import set_jwt_cookies
 
-        from stapel_auth.conf import auth_settings
         from stapel_auth.hint_cookie import set_auth_hint_cookie
+        from stapel_auth.hosts import frontend_url_for
 
-        frontend_url = auth_settings.FRONTEND_URL or ""
+        # The person followed this link on one specific host; every branch
+        # below sends them back to the SPA, and it has to be that host's SPA.
+        frontend_url = frontend_url_for(request)
 
         token = request.query_params.get("token", "").strip()
         if not token:

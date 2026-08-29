@@ -1,8 +1,8 @@
-# stapel-auth 0.30.0
+# stapel-auth 0.31.0
 
 User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.
 
-Contract: axes 29 · surface 18 · extension points 6 · operations 121 · error codes 139 · flows 4.
+Contract: axes 29 · surface 18 · extension points 6 · operations 122 · error codes 139 · flows 4.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -160,7 +160,7 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - stapel-gdpr (optional) — default REREGISTRATION_MODEL target (lazy dotted path); co-mounted under /auth/api/ in the contract harness
 - stapel-notifications (optional) — delivers the OTP / magic-link / security emails and SMS this module requests via notification.requested
 
-## HTTP operations (121) — call by operationId, never by a typed path
+## HTTP operations (122) — call by operationId, never by a typed path
 Paths are relative to `/auth/api/v1/`.
 ### API Keys
 - POST /service-keys — auth_api_v1_service_keys_create
@@ -293,6 +293,7 @@ Paths are relative to `/auth/api/v1/`.
 - GET /gdpr/schema/ — auth_api_v1_gdpr_schema_retrieve
 - POST /password/register/ — auth_api_v1_password_register_create
 - POST /qr/{key}/reject/ — auth_api_v1_qr_reject_create
+- GET /site/ — auth_api_v1_site_retrieve
 - POST /totp/challenge/verify/ — auth_api_v1_totp_challenge_verify_create
 - POST /totp/change/delayed/cancel/ — auth_api_v1_totp_change_delayed_cancel_create
 - POST /totp/change/delayed/initiate/ — auth_api_v1_totp_change_delayed_initiate_create

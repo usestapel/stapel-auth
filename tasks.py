@@ -265,8 +265,14 @@ def cleanup_expired_requests():
 # =============================================================================
 
 @shared_task
-def evaluate_login_notification(user_id: str, session_id: str):
-    """Check if login is from new/suspicious device and send appropriate email."""
+def evaluate_login_notification(user_id: str, session_id: str, frontend_url: str = ""):
+    """Check if login is from new/suspicious device and send appropriate email.
+
+    ``frontend_url`` is the base of the host the login actually happened on,
+    resolved by the view (``LoginNotificationService.check_and_notify``) and
+    carried here as an argument. Empty means the caller had no request, and
+    the primary site (``FRONTEND_URL``) is then the only honest answer.
+    """
     from django.contrib.auth import get_user_model
     from .models import UserSession, AuthEventType
     from .sessions.services import LoginNotificationService, AuditService
@@ -288,10 +294,10 @@ def evaluate_login_notification(user_id: str, session_id: str):
         AuditService.log(AuthEventType.SUSPICIOUS_LOGIN, user=user, session=session)
 
     if is_new or is_suspicious:
-        _send_login_alert_email(user, session, is_suspicious)
+        _send_login_alert_email(user, session, is_suspicious, frontend_url=frontend_url)
 
 
-def _send_login_alert_email(user, session, is_suspicious: bool):
+def _send_login_alert_email(user, session, is_suspicious: bool, frontend_url: str = ""):
     from stapel_core.notifications import request_notification
     from django.core.signing import TimestampSigner
 
@@ -312,7 +318,10 @@ def _send_login_alert_email(user, session, is_suspicious: bool):
         )
         return
 
-    frontend_url = auth_settings.FRONTEND_URL or ''
+    # A worker has no Host header. The host the login happened on rides in as
+    # an argument (see the task's docstring); with none, FRONTEND_URL — the
+    # primary site — is the deployment's default face, by design.
+    frontend_url = frontend_url or auth_settings.FRONTEND_URL or ''
     secure_url = f'{frontend_url}/security/sessions'
 
     notification_type = 'suspicious_login' if is_suspicious else 'new_device_login'

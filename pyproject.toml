@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-auth"
-version = "0.30.0"
+version = "0.31.0"
 description = "Full-featured authentication Django app for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -27,7 +27,13 @@ classifiers = [
 
 # Core auth — always installed
 dependencies = [
-    # Floor: 0.45.0 ships the canonical serializer seam
+    # Floor: 0.51.0 ships stapel_core.sites — the site registry this module
+    # mounts (GET .../v1/site/) and derives both frontend_url_for() and the
+    # return_to allowlist from. On an older core there is no registry, so a
+    # two-brand deployment silently mails every user the primary brand's
+    # links and rejects every return_to on the second host.
+    #
+    # Earlier floor: 0.45.0 ships the canonical serializer seam
     # (stapel_core.django.api.views.SerializerSeamMixin / StapelAPIView).
     # stapel_auth.utils.SerializerSeamsMixin no longer carries its own copy of
     # the two-name seam — it subclasses core's — so an older core would leave
@@ -43,7 +49,7 @@ dependencies = [
     # Earlier floor: 0.35.0 ships stapel_core.gdpr.register_gdpr_owner — the erasure
     # protocol (erase + receipt + owner probe) this module registers with in
     # apps.ready() instead of hand-writing a fifth copy of it.
-    "stapel-core>=0.45.0,<1.0",
+    "stapel-core>=0.51.0,<1.0",
     "pyotp>=2.10",
     "webauthn>=2.8",
     "phonenumbers>=8.13",
