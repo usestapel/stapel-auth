@@ -61,6 +61,12 @@ class StapelAuthConfig(AppConfig):
         from .erasure import OWNER, SUBJECT_TYPES, erase_subject
         register_gdpr_owner(OWNER, SUBJECT_TYPES, erase_subject)
 
+        # The other half of the account life cycle: a stated no-op for
+        # user.merged, which this module emits rather than consumes
+        # (actions.py explains why, stapel_core.lifecycle.E001 requires the
+        # position to be stated rather than left silent).
+        from . import actions as _actions  # noqa: F401
+
         # Account activation observer (#92): announces the real is_active
         # True<->False transition as user.deactivated / user.reactivated,
         # whoever flipped the flag (service call, admin checkbox, shell).

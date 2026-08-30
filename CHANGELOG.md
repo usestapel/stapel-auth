@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.31.1] — 2026-08-30
+
+### Auth states its own position on `user.merged`
+
+stapel-core 0.52.1 added `stapel_core.lifecycle.E001`: an app that handles
+`user.deleted` and not `user.merged` is a system-check error, because a merge
+re-parents rows and an app that only knows deletion strands them. Auth handles
+`user.deleted` through its gdpr-owner registration, so it was reported.
+
+The answer is an explicit no-op (`stapel_auth.actions.handle_user_merged`).
+Auth is the event's author, not its consumer: `merge_anonymous_into` saves the
+survivor, emits the announcement and deletes the guest row in one transaction,
+and everything auth owns through that row goes with it by cascade. Answering
+our own announcement would be a second implementation of the merge racing the
+first — in-process, inside the emitting transaction, against a row that block
+is about to delete.
+
+Nothing changes at runtime. What changes is that the position is now written
+down instead of being an absence a reader has to prove.
+
 ## [0.31.0] — 2026-08-30
 
 ### Added — links and redirects follow the host the user is actually on
