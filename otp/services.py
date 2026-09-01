@@ -66,7 +66,9 @@ def promote_anonymous_session(user, *, auth_type: str) -> None:
     user.upgrade_username_from_anonymous()
 
 
-def merge_anonymous_into(guest_id, survivor, verified_flag: str | None = None):
+def merge_anonymous_into(
+    guest_id, survivor, verified_flag: str | None = None, *, source: str | None = None
+):
     """Fold a guest account into the existing account it just proved it owns.
 
     The guest row is deleted, so every record other modules own through it
@@ -82,16 +84,34 @@ def merge_anonymous_into(guest_id, survivor, verified_flag: str | None = None):
     account should now assert — an OAuth ``(provider, oauth_id)`` match
     identifies the survivor without saying anything about their email.
 
+    *source* is a :class:`~stapel_auth.models.MergeSource` value naming WHICH
+    proof this was. It is recorded in the ledger and nowhere else: the event's
+    ``reason`` is ``"anonymous_promotion"`` on every path, which is true and
+    distinguishes nothing. An OAuth identity match and an emailed six-digit
+    code are very different claims to have to defend later.
+
     Returns the surviving user.
+
+    **The ledger.** A :class:`~stapel_auth.models.UserMerge` row is written in
+    THIS transaction. The event is the instruction; the row is the record. A
+    stream has retention, a consumer deployed after the merge never saw the
+    event, and a consumer whose handler was broken for a week has no way to
+    ask what it missed — while the guest row, the only other place the mapping
+    existed, is deleted three lines below. Same transaction as the emit and
+    the delete, so the three can never disagree.
     """
     from django.db import transaction
 
     from stapel_core.comm import emit
 
     from stapel_auth.events import EVENT_USER_MERGED
+    from stapel_auth.models import MergeSource, UserMerge
 
-    # Atomic on purpose: the announcement and the deletion commit together, so
-    # a crash can never drop the guest row without telling anyone.
+    # Atomic on purpose: the announcement, the ledger row and the deletion
+    # commit together, so a crash can never drop the guest row without
+    # telling anyone — and never leave a record of a merge that did not
+    # happen, which would be worse than no record because it would be
+    # trusted.
     with transaction.atomic():
         if verified_flag:
             setattr(survivor, verified_flag, True)
@@ -108,6 +128,17 @@ def merge_anonymous_into(guest_id, survivor, verified_flag: str | None = None):
             },
             key=str(survivor.id),
             service="auth",
+        )
+        # The durable half. `update_or_create` and not `create`: `merged_id`
+        # is unique because an id can only be absorbed once, and a retry that
+        # reached here twice should find the row it already wrote rather than
+        # raise an IntegrityError over agreeing with itself.
+        UserMerge.objects.update_or_create(
+            merged_id=guest_id,
+            defaults={
+                "survivor_id": survivor.id,
+                "source": source or MergeSource.UNKNOWN,
+            },
         )
         # Emit BEFORE the delete commits — same transaction, so the two are
         # inseparable.

@@ -31,7 +31,7 @@ from stapel_auth.mfa.dto import TOTPChallengeResponse, TOTPChallengeStatus
 from stapel_auth.mfa.serializers import (
     TOTPChallengeResponseSerializer,
 )
-from stapel_auth.models import LoginAttempt
+from stapel_auth.models import LoginAttempt, MergeSource
 from stapel_auth.oauth.serializers import OAuthSerializer
 from stapel_auth.oauth.services import OAuthService
 from stapel_auth.otp.dto import (
@@ -726,7 +726,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 if existing_user:
                     # MERGED: Email already exists - fold the guest into it.
                     user = merge_anonymous_into(
-                        request_user.id, existing_user, "is_email_verified"
+                        request_user.id,
+                        existing_user,
+                        "is_email_verified",
+                        source=MergeSource.EMAIL_OTP,
                     )
                     auth_status = AuthStatus.MERGED
                 else:
@@ -1052,7 +1055,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 if existing_user:
                     # MERGED: Phone already exists - fold the guest into it.
                     user = merge_anonymous_into(
-                        request_user.id, existing_user, "is_phone_verified"
+                        request_user.id,
+                        existing_user,
+                        "is_phone_verified",
+                        source=MergeSource.PHONE_OTP,
                     )
                     auth_status = AuthStatus.MERGED
                 else:
@@ -1526,12 +1532,14 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             else None
         )
 
-        def claim(survivor, verified_flag):
+        def claim(survivor, verified_flag, source):
             """Hand *survivor* back, taking the guest's rows along if there is one."""
             if guest is None or str(guest.id) == str(survivor.id):
                 return survivor, AuthStatus.LOGGED_IN
             return (
-                merge_anonymous_into(guest.id, survivor, verified_flag),
+                merge_anonymous_into(
+                    guest.id, survivor, verified_flag, source=source
+                ),
                 AuthStatus.MERGED,
             )
 
@@ -1540,7 +1548,9 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         # provider said nothing about this account's email.
         try:
             return claim(
-                User.objects.get(oauth_provider=provider, oauth_id=oauth_id), None
+                User.objects.get(oauth_provider=provider, oauth_id=oauth_id),
+                None,
+                MergeSource.OAUTH_IDENTITY,
             )
         except User.DoesNotExist:
             pass
@@ -1554,7 +1564,9 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             existing = User.objects.filter(email=email).first()
             if existing is not None:
                 if email_verified:
-                    return claim(existing, "is_email_verified")
+                    return claim(
+                        existing, "is_email_verified", MergeSource.OAUTH_EMAIL
+                    )
                 # Unverified email matching an existing account: neither
                 # merge nor duplicate — the user must sign in with the
                 # account's original method. The guest stays a guest and

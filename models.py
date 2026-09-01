@@ -524,3 +524,145 @@ class VerificationPreference(models.Model):
 
     def __str__(self):
         return f'{self.user_id}:{self.scope} = {"on" if self.enabled else "off"}'
+
+
+# =============================================================================
+# Account merges — the ledger behind ``user.merged``
+# =============================================================================
+
+class MergeSource(models.TextChoices):
+    """Which proof identified the survivor.
+
+    ``user.merged`` carries ``reason="anonymous_promotion"`` for every path,
+    which is true and tells an operator nothing. This is the distinction that
+    matters when a merge is questioned later: an OAuth identity match is a
+    much stronger claim than an email that a provider says it verified.
+    """
+
+    EMAIL_OTP = 'email_otp', 'Email OTP'
+    PHONE_OTP = 'phone_otp', 'Phone OTP'
+    OAUTH_IDENTITY = 'oauth_identity', 'OAuth provider identity'
+    OAUTH_EMAIL = 'oauth_email', 'OAuth verified email'
+    UNKNOWN = 'unknown', 'Unknown'
+
+
+@access.ops  # merge ledger (admin-suite AS-5)
+class UserMerge(models.Model):
+    """One guest account folded into one surviving account.
+
+    **Why a table and not just the event.** ``user.merged`` is emitted in the
+    merge's own transaction and is the instruction consumers act on. But an
+    event is a delivery, not a record: a stream has retention, a consumer
+    deployed after the merge never saw it, a consumer whose handler was
+    broken for a week cannot ask what it missed, and a support question six
+    months later ("why does this survivor own that guest's listing?") has
+    nothing to read. The guest row itself is deleted by then, so the mapping
+    exists nowhere else in this service.
+
+    So the mapping is written in the SAME transaction as the merge and the
+    emit. Either all three commit or none does — a ledger that could
+    disagree with the event would be worse than no ledger, because it would
+    be trusted.
+
+    **Not foreign keys, deliberately.** ``merged_id`` names a row that is
+    deleted microseconds later, so an FK is impossible; ``survivor_id`` names
+    a row that may be erased on a GDPR request, and an FK would either block
+    that erasure or null the mapping out. The whole point of this table is to
+    outlive both. Ids are plain UUIDs, as they are for every cross-service
+    reference in the fleet.
+
+    **Idempotent by construction.** ``merged_id`` is unique: an id can be
+    absorbed once, because it stops existing. A redelivered or retried merge
+    hits the constraint and updates nothing rather than writing a second,
+    contradictory row.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    merged_id = models.UUIDField(
+        unique=True,
+        db_index=True,
+        help_text='The guest account that was absorbed and then deleted.',
+    )
+    survivor_id = models.UUIDField(
+        db_index=True,
+        help_text='The account that survived and now owns the guest\'s rows.',
+    )
+    merged_at = models.DateTimeField(default=timezone.now, db_index=True)
+    source = models.CharField(
+        max_length=32,
+        choices=MergeSource,
+        default=MergeSource.UNKNOWN,
+        help_text='Which proof identified the survivor.',
+    )
+
+    class Meta:
+        db_table = 'auth_user_merge'
+        ordering = ['-merged_at']
+        indexes = [
+            models.Index(fields=['survivor_id', 'merged_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.merged_id} → {self.survivor_id} ({self.source})'
+
+    # The depth cap is not a guess about how long chains get — a chain of
+    # more than a handful is already a bug — it is a refusal to spin forever
+    # on a cycle that a bad backfill could write. Reached, it returns the
+    # last id it walked to, which is the best answer available.
+    RESOLVE_MAX_DEPTH = 16
+
+    @classmethod
+    def resolve(cls, user_id):
+        """Follow the merge chain: the account *user_id* is reachable as today.
+
+        A guest may be merged into an account that is itself later merged
+        into a third. A consumer reconciling after downtime asks about the id
+        it holds and needs the END of that chain, not one hop — one hop hands
+        it an id that also no longer signs in, and it would have to know to
+        ask again.
+
+        Returns *user_id* unchanged when it was never merged, which makes
+        this safe to call on every id rather than only on ones known to be
+        stale.
+        """
+        seen = {str(user_id)}
+        current = user_id
+        for _ in range(cls.RESOLVE_MAX_DEPTH):
+            row = cls.objects.filter(merged_id=current).values_list(
+                'survivor_id', flat=True
+            ).first()
+            if row is None:
+                return current
+            if str(row) in seen:  # a cycle; stop rather than spin
+                return current
+            seen.add(str(row))
+            current = row
+        return current
+
+    @classmethod
+    def absorbed_by(cls, survivor_id):
+        """Every id that resolves to *survivor_id*, including through chains.
+
+        The reconciliation direction: "which old ids do rows I still hold
+        point at?" Walks the tree of merges rooted at the survivor, so a
+        guest absorbed two hops back is included.
+        """
+        found = []
+        frontier = [survivor_id]
+        seen = {str(survivor_id)}
+        for _ in range(cls.RESOLVE_MAX_DEPTH):
+            if not frontier:
+                break
+            rows = list(
+                cls.objects.filter(survivor_id__in=frontier).values_list(
+                    'merged_id', flat=True
+                )
+            )
+            frontier = []
+            for merged_id in rows:
+                if str(merged_id) in seen:
+                    continue
+                seen.add(str(merged_id))
+                found.append(merged_id)
+                frontier.append(merged_id)
+        return found

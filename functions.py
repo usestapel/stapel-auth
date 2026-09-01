@@ -15,6 +15,22 @@ from stapel_core.comm import function
 
 logger = logging.getLogger(__name__)
 
+RESOLVE_MERGED_USER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "user_id": {
+            "type": "string",
+            "description": (
+                "A user id a consumer still holds. May or may not have been "
+                "merged away."
+            ),
+        },
+    },
+    "required": ["user_id"],
+    "additionalProperties": False,
+}
+
+
 VERIFICATION_POLICY_SCHEMA = {
     "type": "object",
     "properties": {
@@ -588,3 +604,51 @@ def verification_policy(payload: dict) -> dict:
     for scope, is_enabled in rows:
         (enabled if is_enabled else disabled).append(scope)
     return {"disabled_scopes": sorted(disabled), "enabled_scopes": sorted(enabled)}
+
+
+@function("auth.resolve_merged_user", schema=RESOLVE_MERGED_USER_SCHEMA)
+def resolve_merged_user(payload: dict) -> dict:
+    """Where did this user id go? — the reconciliation read of the merge ledger.
+
+    Payload: ``{"user_id": "<id a consumer still holds>"}``. Returns
+    ``{"user_id": <the id that signs in today>, "merged": <bool>,
+    "merged_at": <ISO or null>, "source": <str or null>}``.
+
+    ``user.merged`` is the instruction and this is the record. A consumer
+    that was deployed after the merge, or whose handler was broken while the
+    event aged out of the stream, has no other way to learn that a row it
+    owns points at an account that no longer exists — the guest row was
+    deleted in the merge's own transaction, so the mapping lives here and
+    nowhere else in this service.
+
+    Follows the whole chain, not one hop: a guest merged into an account that
+    was itself later merged returns the END of that chain. One hop would hand
+    the caller another dead id and expect it to know to ask again.
+
+    An id that was never merged comes back unchanged with ``merged: false``,
+    so a reconciliation job can call this on every id it holds rather than
+    only on ones it already suspects.
+    """
+    from .models import UserMerge
+
+    user_id = payload["user_id"]
+    resolved = UserMerge.resolve(user_id)
+    if str(resolved) == str(user_id):
+        return {
+            "user_id": str(user_id),
+            "merged": False,
+            "merged_at": None,
+            "source": None,
+        }
+    # The last hop is the one that explains the current owner.
+    last = (
+        UserMerge.objects.filter(survivor_id=resolved)
+        .order_by("-merged_at")
+        .first()
+    )
+    return {
+        "user_id": str(resolved),
+        "merged": True,
+        "merged_at": last.merged_at.isoformat() if last else None,
+        "source": last.source if last else None,
+    }

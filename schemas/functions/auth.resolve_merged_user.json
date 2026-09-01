@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "auth.resolve_merged_user",
+  "description": "Where did this user id go? Reads the merge ledger and returns the account the id is reachable as today, following the whole chain rather than one hop. Returns {user_id, merged, merged_at, source}; an id that was never merged comes back unchanged with merged=false, so this is safe to call on every id a consumer holds.",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "A user id a consumer still holds. May or may not have been merged away."
+    }
+  },
+  "required": ["user_id"],
+  "additionalProperties": false
+}

@@ -1,5 +1,76 @@
 # Changelog
 
+## [0.32.0] — 2026-09-02
+
+Minor (pre-1.0: minor = breaking, patch = compatible). One new table, one
+migration, one new comm Function.
+
+### The guest→survivor mapping lived only in an event
+
+`user.merged` is emitted in the merge's own transaction and is the
+instruction consumers act on. It is a delivery, and a delivery is not a
+record:
+
+- a stream has retention;
+- a service deployed the week after a merge never saw the event;
+- a consumer whose handler raised for a week has no way to ask what it
+  missed;
+- and the guest row — the only other place in this service where the mapping
+  existed — is deleted three lines after the emit.
+
+So "why does this survivor own that guest's listing?" had no answer six
+months later, and a consumer that fell behind had no way to catch up. 0.31.1
+made auth state its position on `user.merged`; this makes auth able to answer
+questions about one.
+
+### `UserMerge` — the ledger
+
+`{merged_id, survivor_id, merged_at, source}`, table `auth_user_merge`,
+migration `0022_usermerge`. Written in the **same transaction** as the emit
+and the delete: either all three commit or none does. A ledger that could
+disagree with the event would be worse than no ledger, because it would be
+trusted — `test_a_failed_merge_leaves_no_ledger_row` is that assertion.
+
+- **Not foreign keys, deliberately.** `merged_id` names a row deleted
+  microseconds later, so an FK is impossible; `survivor_id` names a row that
+  may be erased on a GDPR request, and an FK would either block that erasure
+  or null the mapping out. The table exists to outlive both.
+- **Idempotent by construction.** `merged_id` is unique — an id can be
+  absorbed once, because it stops existing — and the write is
+  `update_or_create`, so a retry that reached it twice finds the row it
+  already wrote instead of raising over agreeing with itself.
+
+### `source` — the distinction the event cannot make
+
+Every merge path emits `reason: "anonymous_promotion"`. True, and useless: an
+OAuth `(provider, oauth_id)` match is the provider saying "this is the same
+account you saw before", while an email match is the provider asserting an
+address is verified — a much weaker claim, and the one an attacker would
+attack. `MergeSource` records which: `email_otp`, `phone_otp`,
+`oauth_identity`, `oauth_email`, `unknown`. `merge_anonymous_into` takes
+`source=` and all four call sites pass it.
+
+### `auth.resolve_merged_user` — the reconciliation read
+
+`{user_id}` → `{user_id, merged, merged_at, source}`.
+
+Follows the **whole chain**, not one hop: a guest merged into an account that
+was itself later merged returns the end of the chain. One hop would hand the
+caller another dead id and expect it to know to ask again. An id that was
+never merged comes back unchanged with `merged: false`, so a reconciliation
+job can call it on every id it holds rather than only on ones it already
+suspects. `UserMerge.resolve()` and `UserMerge.absorbed_by()` are the two
+directions in Python; both cap their walk rather than spin on a cycle a bad
+backfill could write.
+
+### Tests
+
+`tests/test_user_merge_ledger.py` — 21 cases across the write, the
+atomicity, the resolve/absorbed_by walks, the Function, and the real HTTP
+walks for all four sources including **both OAuth merge paths** (identity
+match and verified-email match) plus the two that must write nothing: a
+refused unverified-email collision, and a signed-in user who is not a guest.
+
 ## [0.31.1] — 2026-08-30
 
 ### Auth states its own position on `user.merged`
