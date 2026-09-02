@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.32.1] — 2026-09-02
+
+Patch. `stapel-core>=0.54.1` — a floor that has to exclude, not just include.
+
+stapel-core 0.51.0 through 0.53.0 shipped wheels missing
+`stapel_core.django.sites`: the subpackage was never added to the explicit
+`[tool.setuptools] packages` list, so it was tracked in git, importable from a
+checkout, present in an editable install — and absent from the artifact on
+PyPI. `stapel_core.django.apps.ready()` imports it unconditionally, so **any**
+Django app resolving one of those three releases dies at `django.setup()`.
+
+This repo's floor said `>=0.51.0`, so CI resolved the newest matching release
+(0.53.0) and 0.32.0's publish went red at collection with
+`ModuleNotFoundError: No module named 'stapel_core.django.sites'` — the
+library was fine, the core it was handed was not. Core 0.54.1 restores the
+line; this floor makes sure nothing here can resolve the three that are
+broken.
+
 ## [0.32.0] — 2026-09-02
 
 Minor (pre-1.0: minor = breaking, patch = compatible). One new table, one
