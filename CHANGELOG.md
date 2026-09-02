@@ -1,22 +1,33 @@
 # Changelog
 
+## [0.32.2] — 2026-09-02
+
+Patch. Reverts 0.32.1's floor, and corrects what 0.32.1 said.
+
+**0.32.1's changelog was wrong.** It claimed stapel-core 0.51.0–0.53.0 shipped
+wheels missing `stapel_core.django.sites` and raised the floor to `>=0.54.1`
+to exclude them. The published wheels were checked afterwards and all four —
+0.51.0, 0.52.1, 0.53.0, 0.54.1 — contain the module. Nothing on PyPI was ever
+broken, and this floor had no reason to move. It moves back to `>=0.51.0`,
+which is the version that actually introduced what this library uses
+(`stapel_core.sites`, since 0.31.0).
+
+What really happened: **this repo's CI installs stapel-core from git main**
+(`pip install git+…/stapel-core.git`), not from PyPI. Core's main briefly
+carried a `pyproject.toml` whose `[tool.setuptools] packages` list had lost
+the `stapel_core.django.sites` line to a rebase conflict resolution — tagged
+as core 0.54.0, caught by core's own CI, never published, fixed in 0.54.1.
+For the window it was on main, every sibling whose CI builds core from source
+failed at `django.setup()`. 0.32.0's publish was one of them.
+
+The diagnosis jumped from "a wheel is missing a module" to "the published
+wheels are missing a module" without checking a published wheel. The check
+takes one `pip download`.
+
 ## [0.32.1] — 2026-09-02
 
-Patch. `stapel-core>=0.54.1` — a floor that has to exclude, not just include.
-
-stapel-core 0.51.0 through 0.53.0 shipped wheels missing
-`stapel_core.django.sites`: the subpackage was never added to the explicit
-`[tool.setuptools] packages` list, so it was tracked in git, importable from a
-checkout, present in an editable install — and absent from the artifact on
-PyPI. `stapel_core.django.apps.ready()` imports it unconditionally, so **any**
-Django app resolving one of those three releases dies at `django.setup()`.
-
-This repo's floor said `>=0.51.0`, so CI resolved the newest matching release
-(0.53.0) and 0.32.0's publish went red at collection with
-`ModuleNotFoundError: No module named 'stapel_core.django.sites'` — the
-library was fine, the core it was handed was not. Core 0.54.1 restores the
-line; this floor makes sure nothing here can resolve the three that are
-broken.
+Patch. Raised `stapel-core` to `>=0.54.1`. **Superseded by 0.32.2 — its
+stated reason was incorrect; see that entry.**
 
 ## [0.32.0] — 2026-09-02
 

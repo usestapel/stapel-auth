@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-auth"
-version = "0.32.1"
+version = "0.32.2"
 description = "Full-featured authentication Django app for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -49,7 +49,7 @@ dependencies = [
     # Earlier floor: 0.35.0 ships stapel_core.gdpr.register_gdpr_owner — the erasure
     # protocol (erase + receipt + owner probe) this module registers with in
     # apps.ready() instead of hand-writing a fifth copy of it.
-    "stapel-core>=0.54.1,<1.0",
+    "stapel-core>=0.51.0,<1.0",
     "pyotp>=2.10",
     "webauthn>=2.8",
     "phonenumbers>=8.13",
