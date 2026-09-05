@@ -211,6 +211,19 @@ MFA_STATUS_SCHEMA = {
 }
 
 
+USER_PROJECTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "user_id": {
+            "type": "string",
+            "description": "Primary key of the user whose projection is read.",
+        },
+    },
+    "required": ["user_id"],
+    "additionalProperties": False,
+}
+
+
 def _resolve_first_login_policies(payload: dict) -> list[str] | None:
     """The policy set a provisioning payload asks for, or ``None`` if invalid.
 
@@ -704,3 +717,57 @@ def signup_attribution(payload: dict) -> dict | None:
     except (ValidationError, ValueError):
         return None
     return attribution_as_dict(row)
+
+
+@function("auth.user_projection", schema=USER_PROJECTION_SCHEMA)
+def user_projection(payload: dict) -> dict:
+    """Answer a user's projection by id — the pull half of the projection pair.
+
+    Payload: ``{"user_id"}``. Returns ``{"found": bool, "user"?: {...}}`` —
+    when ``found`` is true, ``user`` is exactly
+    ``stapel_auth.user_projection.projection_payload(user)``, i.e.
+    ``serialize_user_to_jwt_data(user)`` verbatim: the same claim payload
+    ``user.created``/``user.updated`` carry, applied on the consuming side
+    through ``stapel_core.django.jwt.utils.get_or_create_user_from_jwt`` —
+    the very function a token materialises a shadow row with.
+
+    **Why this exists next to the push side.** ``user.created`` covers a
+    consumer that is already subscribed when an account is born. A flow
+    that *names* a second user a service has never met — an assignee, a
+    participant, a recipient — has no event to wait for: the account may
+    predate the consumer, or the consumer's handler may have been down
+    while the fact aged out of the stream. This Function is the on-demand
+    read such a first-contact path uses to mirror the row synchronously,
+    through the same materialiser the event and the token already share
+    (filed by stapel-video, MODULE.md §4e).
+
+    ``found: false`` names both an id nobody ever issued and one that named
+    somebody once but no longer does — ``erase_subject`` deletes the row on
+    GDPR erasure, so an erased account and an unheard-of one are, correctly,
+    indistinguishable from here: there is nothing left to project either
+    way. A **deactivated** account is not erased — administrative
+    deactivation (``is_active=False``) is reversible and leaves the row in
+    place — so it comes back ``found: true`` with ``is_active: false`` in
+    the payload, exactly as a token's own claim would carry it. This
+    function never applies that flag itself; it reports it and leaves the
+    admission decision to the caller's own gate, the same division of
+    labour ``get_or_create_user_from_jwt`` already holds for a token's
+    ``is_active`` claim.
+
+    Never raises on a malformed id — unparseable is just another way of
+    naming nobody, so it answers ``{"found": False}`` rather than turning an
+    ordinary "no such user" lookup into a 500 for the caller.
+    """
+    from django.contrib.auth import get_user_model
+    from django.core.exceptions import ValidationError
+
+    from .user_projection import projection_payload
+
+    User = get_user_model()
+    try:
+        user = User.objects.filter(pk=payload["user_id"]).first()
+    except (ValidationError, ValueError):
+        user = None
+    if user is None:
+        return {"found": False}
+    return {"found": True, "user": projection_payload(user)}

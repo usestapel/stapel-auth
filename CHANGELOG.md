@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.34.2] — 2026-09-06
+
+Patch. No migration, no schema change. One new comm Function.
+
+### A consumer can now ask for a user it has never met
+
+Every service that keeps a shadow `users` table fills it from one place:
+`JWT_CREATE_USERS_FROM_TOKEN`, which materialises a row for the subject of
+the token currently being verified — exactly one user per request, the one
+holding the token. A flow that *names* a second user the service has never
+seen — an assignee, a recipient, a participant a buyer has never opened chat
+with — has nothing to hang a foreign key on. `user.created` covers a
+consumer that is already subscribed when the account is born; it does
+nothing for one that starts consuming late, or whose handler missed the
+fact while it aged out of the stream, or that simply needs the row *now*,
+synchronously, on first contact (filed by stapel-video 0.11.2, MODULE.md
+§4e).
+
+`auth.user_projection` is the pull half of the pair `user.created` /
+`user.updated` already are the push half of: `{user_id}` →
+`{found: bool, user?: {...}}`. `user`, when present, is exactly
+`projection_payload(user)` — `serialize_user_to_jwt_data` verbatim, the same
+claim payload the events carry and `get_or_create_user_from_jwt` already
+materialises a shadow row from, so a row built from the pull call and one
+built from the push event are the same row by construction.
+
+`found: false` names both an id nobody ever issued and one an erasure has
+since deleted — the row is gone either way, so the two are rightly
+indistinguishable from here — and any malformed id, without raising. A
+**deactivated** account is not erased: the row stays, and the answer is
+`found: true` with `is_active: false` in the payload, exactly as a token's
+own claim would carry it. This Function does not act on that flag; it
+reports it and leaves the admission decision to the caller's own gate, the
+same division `get_or_create_user_from_jwt` already holds for a token.
+
 ## [0.34.1] — 2026-09-05
 
 Patch. No migration, no schema change.

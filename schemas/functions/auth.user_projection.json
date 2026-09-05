@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "auth.user_projection",
+  "description": "Pull half of the user projection: answers a user's projection by id so a consumer can mirror the row on first contact through get_or_create_user_from_jwt. Returns {found: bool, user?: {...}} — user, when present, is exactly serialize_user_to_jwt_data(user), the same claim payload user.created/user.updated carry. found=false for an unknown id, an id an erasure has since deleted, or a malformed id (never raises). A deactivated account still has a row and comes back found=true with is_active=false in the payload — the caller's own gate decides what that means.",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "Primary key of the user whose projection is read."
+    }
+  },
+  "required": ["user_id"],
+  "additionalProperties": false
+}

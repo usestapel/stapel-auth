@@ -395,3 +395,85 @@ class ProjectedFieldsTests(TestCase):
     def test_every_projected_field_is_real_on_the_stapel_user(self):
         concrete = {f.attname for f in User._meta.concrete_fields}
         self.assertEqual(set(PROJECTED_FIELDS) - concrete, set())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# auth.user_projection — the pull half. Same payload as the push side
+# (projection_payload verbatim), read on demand rather than waited for.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _function_schema(name):
+    import stapel_auth
+
+    path = Path(stapel_auth.__file__).parent / "schemas" / "functions" / name
+    return json.loads(path.read_text())
+
+
+@override_settings(STAPEL_COMM={"VALIDATE_SCHEMAS": True})
+class UserProjectionFunctionTests(TestCase):
+    def _call(self, payload):
+        from stapel_core.comm import call
+
+        return call("auth.user_projection", payload)
+
+    def test_a_known_user_is_found_with_the_projection_payload(self):
+        user = _make_user()
+
+        result = self._call({"user_id": str(user.pk)})
+
+        self.assertEqual(result, {"found": True, "user": projection_payload(user)})
+        self.assertEqual(result["user"], serialize_user_to_jwt_data(user))
+
+    def test_an_unknown_id_answers_not_found(self):
+        result = self._call({"user_id": str(uuid.uuid4())})
+
+        self.assertEqual(result, {"found": False})
+
+    def test_a_malformed_id_answers_not_found_rather_than_raising(self):
+        for bad in ("not-a-uuid", "", "1; drop table users"):
+            result = self._call({"user_id": bad})
+            self.assertEqual(result, {"found": False}, msg=bad)
+
+    def test_a_deactivated_user_is_found_with_is_active_false(self):
+        user = _make_user()
+        user.is_active = False
+        user.save(update_fields=["is_active"])
+
+        result = self._call({"user_id": str(user.pk)})
+
+        self.assertTrue(result["found"])
+        self.assertFalse(result["user"]["is_active"])
+
+    def test_it_is_registered_as_a_comm_function(self):
+        from stapel_core.comm.registry import function_registry
+
+        self.assertIn("auth.user_projection", function_registry._providers)
+
+    def test_the_committed_schema_file_matches_the_registered_one(self):
+        from stapel_auth.functions import USER_PROJECTION_SCHEMA
+
+        committed = _function_schema("auth.user_projection.json")
+        for key in ("type", "properties", "required", "additionalProperties"):
+            self.assertEqual(committed[key], USER_PROJECTION_SCHEMA[key], key)
+
+    def test_a_missing_user_id_is_refused_by_schema_validation(self):
+        import jsonschema
+
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.validate({}, _function_schema("auth.user_projection.json"))
+
+    def test_the_schema_rejects_unknown_keys(self):
+        import jsonschema
+
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.validate(
+                {"user_id": "x", "extra": 1},
+                _function_schema("auth.user_projection.json"),
+            )
+
+    def test_call_validates_the_payload_against_the_registered_schema(self):
+        from stapel_core.comm.exceptions import SchemaValidationError
+
+        with self.assertRaises(SchemaValidationError):
+            self._call({})
