@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.33.0] — 2026-09-05
+
+Minor (pre-1.0: minor = breaking, patch = compatible). One migration
+(expand-only, two nullable columns), one new setting, no schema change.
+
+### A reload racing a refresh logged the user out for good
+
+Measured on a fleet (D413): a refresh rotates the session row's `jti`, and a
+page that booted while that rotation was in flight presents the superseded
+jti two to twelve seconds later — `rotate()` reads it as a replay, the view
+answers `error.401.refresh_revoked`, and the session is dead for good. It
+reproduced on one full-page reload in four, with no attacker anywhere in the
+walk.
+
+Reuse detection keeps its teeth and gains a window.
+`STAPEL_AUTH['REFRESH_ROTATION_GRACE_SECONDS']` (default `10`, `0` restores
+the old behaviour) makes the session's **immediately previous** jti
+answerable for that many seconds after the rotation. Inside the window the
+answer is the pair the winning rotation produced — the access token is
+re-minted, the session is neither rotated again nor revoked, and the racing
+tab converges on the winner's refresh token instead of walking away with a
+doomed one. The window is measured from the rotation and never from the
+reuse, so replaying a token cannot walk it forward, and exactly one previous
+jti is covered: a jti two rotations back, the previous one after the window,
+a revoked session and a blacklisted token are all still
+`error.401.refresh_revoked`. Each grace answer logs `refresh_grace_reuse` at
+INFO.
+
+`UserSession` gains `previous_jti` and `rotated_at`
+(`0023_session_refresh_rotation_grace`, both nullable so N-1 code can keep
+INSERTing session rows through the migrate→swap window). The pair a rotation
+produced is kept in the cache, keyed by the jti it replaced, for exactly the
+grace window and nowhere else — the session row stores jtis, never tokens.
+The window therefore needs a cache shared by every process serving
+`/token/refresh/`; without one it degrades to the old revocation and says so
+at WARNING.
+
+The OpenAPI schema, the flow docs and the error registry are unchanged: this
+is a status change on an existing response, not a new shape.
+
 ## [0.32.2] — 2026-09-02
 
 Patch. Reverts 0.32.1's floor, and corrects what 0.32.1 said.

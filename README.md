@@ -24,7 +24,7 @@ pip install stapel-auth
 
 | Fact | Value |
 |---|---|
-| Version | `0.32.2` |
+| Version | `0.33.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | HTTP operations | 122 |
 | Config axes | 29 |

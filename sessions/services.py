@@ -432,15 +432,111 @@ class SessionService:
                 return False
             if session.is_revoked:
                 return None
-            update_fields = ['jti', 'expires_at', 'last_used_at']
+            update_fields = [
+                'jti', 'previous_jti', 'rotated_at', 'expires_at', 'last_used_at',
+            ]
+            now = timezone.now()
+            session.previous_jti = old_jti
+            session.rotated_at = now
             session.jti = new_jti
             session.expires_at = new_expires_at
-            session.last_used_at = timezone.now()
+            session.last_used_at = now
             if new_access_jti:
                 session.access_jti = new_access_jti
                 update_fields.append('access_jti')
             session.save(update_fields=update_fields)
             return True
+
+    # -- refresh-rotation grace (D413) -------------------------------------
+    #
+    # Rotation is a compare-and-swap, so the loser of a race is a replay and
+    # a replay revokes. A browser produces that race without any attacker:
+    # a full-page reload that boots while a refresh is in flight presents
+    # the jti it booted with, seconds later, and the user is logged out for
+    # good. The window below answers exactly one superseded jti — the
+    # session's immediately previous one — with the pair the winning
+    # rotation produced, and only for `grace` seconds measured from that
+    # rotation. It does not weaken reuse detection anywhere else: an older
+    # jti, a revoked session, a blacklisted token and the previous jti after
+    # the window all still land on `refresh_revoked`.
+
+    _GRACE_CACHE_PREFIX = 'stapel_auth:refresh_grace:'
+
+    @staticmethod
+    def _grace_seconds() -> int:
+        from stapel_auth.conf import auth_settings
+
+        try:
+            return max(0, int(auth_settings.REFRESH_ROTATION_GRACE_SECONDS or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    @classmethod
+    def remember_rotated_refresh(cls, old_jti: str, new_refresh_token: str) -> None:
+        """Keep the freshly minted refresh token reachable by the jti it replaced.
+
+        The session row stores jtis, never tokens — that is what makes a
+        database dump useless for taking a session over — so the grace answer
+        needs the token itself from somewhere with a TTL. It lives in the
+        cache for `grace` seconds and nowhere else; with the window off,
+        nothing is written at all.
+
+        A racing client must receive the pair the winner received: handing it
+        back the superseded token instead would only move the logout to that
+        token's next refresh, and (with cookie transport) would overwrite the
+        winner's good cookie with a doomed one.
+        """
+        grace = cls._grace_seconds()
+        if grace <= 0 or not old_jti or not new_refresh_token:
+            return
+        from django.core.cache import cache
+
+        cache.set(f'{cls._GRACE_CACHE_PREFIX}{old_jti}', new_refresh_token, grace)
+
+    @classmethod
+    def graced_session(cls, presented_jti: str, user_id=None):
+        """The session for which ``presented_jti`` is the previous jti, in window.
+
+        Returns the ``UserSession`` when the presented jti is that session's
+        immediately previous one and the rotation happened no more than
+        `grace` seconds ago; ``None`` otherwise — which includes a jti two
+        rotations back, a revoked session, and the window being off.
+        """
+        grace = cls._grace_seconds()
+        if grace <= 0 or not presented_jti:
+            return None
+
+        from stapel_auth.models import UserSession
+
+        qs = UserSession.objects.filter(
+            previous_jti=presented_jti, is_revoked=False
+        )
+        if user_id:
+            qs = qs.filter(user_id=user_id)
+        session = qs.first()
+        if session is None or session.rotated_at is None:
+            return None
+        if (timezone.now() - session.rotated_at).total_seconds() > grace:
+            return None
+        return session
+
+    @classmethod
+    def current_refresh_for(cls, presented_jti: str):
+        """The refresh token that superseded ``presented_jti``, while cached."""
+        if cls._grace_seconds() <= 0 or not presented_jti:
+            return None
+        from django.core.cache import cache
+
+        return cache.get(f'{cls._GRACE_CACHE_PREFIX}{presented_jti}')
+
+    @staticmethod
+    def stamp_access_jti(session, access_jti: str) -> None:
+        """Record the access jti minted for a session without rotating it."""
+        if not access_jti or session.access_jti == access_jti:
+            return
+        session.access_jti = access_jti
+        session.last_used_at = timezone.now()
+        session.save(update_fields=['access_jti', 'last_used_at'])
 
     @staticmethod
     def revoke_by_jti(jti: str) -> bool:

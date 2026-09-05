@@ -79,6 +79,17 @@ DEFAULTS = {
     # Turn it on only as a temporary migration aid for a deployment that
     # still has such tokens in the wild; those users otherwise re-login once.
     'ALLOW_UNTRACKED_REFRESH': False,
+    # Refresh-rotation grace, seconds. Rotation is a compare-and-swap: the
+    # first refresh wins and every later presentation of the superseded jti
+    # is a replay, which revokes the session. That is right for a stolen
+    # token and wrong for a browser: a full-page reload that starts while a
+    # refresh is in flight sends the jti it booted with a second or two
+    # later and logs a legitimate user out for good. Inside this window the
+    # session's IMMEDIATELY previous jti is answered with the pair the
+    # winning rotation produced — no second rotation, no revocation. Older
+    # jtis, and the previous one after the window, still revoke. 0 restores
+    # the pre-0.33 behaviour (every replay revokes).
+    'REFRESH_ROTATION_GRACE_SECONDS': 10,
 
     # Anonymous users
     'ANONYMOUS_USER_LIFETIME_DAYS': 30,

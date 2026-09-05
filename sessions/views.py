@@ -300,12 +300,23 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
             return StapelErrorResponse(401, ERR_401_REFRESH_REVOKED)
 
         # Session-level check: reject revoked sessions
+        session = None
         if old_jti:
             from stapel_auth.models import UserSession
 
             session = UserSession.objects.filter(jti=old_jti).first()
             if session and session.is_revoked:
                 return StapelErrorResponse(401, ERR_401_REFRESH_REVOKED)
+
+        def token_pair_response(access_token: str, refresh_token: str):
+            tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
+            response = Response(
+                self.get_response_serializer_class()(tokens_dto).data,
+                status=status.HTTP_200_OK,
+            )
+            set_jwt_cookies(response, access_token, refresh_token)
+            set_auth_hint_cookie(response)
+            return response
 
         def load_user_data(user_id: str):
             try:
@@ -318,6 +329,54 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
                 return serialize_user_to_jwt_data(user)
             except User.DoesNotExist:
                 return None
+
+        # Refresh-rotation grace (D413). A page that boots while a refresh is
+        # in flight presents the jti it booted with a couple of seconds after
+        # the rotation. That is the same shape as a replay, and treating it as
+        # one logs a legitimate user out for good. Inside the window the
+        # session's *immediately previous* jti is answered with the pair the
+        # winning rotation produced — the session is neither rotated again nor
+        # revoked, and the window is measured from the rotation, so reuse
+        # cannot walk it forward. Everything else (an older jti, a revoked
+        # session, the previous jti after the window) falls through to the
+        # rotation below and is refused exactly as before.
+        # Only a jti that no session holds as its CURRENT one can be graced,
+        # so the extra lookup costs nothing on the normal path.
+        graced = (
+            SessionService.graced_session(old_jti, user_id=_uid)
+            if old_jti and session is None
+            else None
+        )
+        if graced is not None:
+            current_refresh = SessionService.current_refresh_for(old_jti)
+            if current_refresh:
+                grace_access = jwt_provider.refresh_access_token(
+                    current_refresh, load_user_data
+                )
+                if not grace_access:
+                    return StapelErrorResponse(401, ERR_401_REFRESH_INVALID)
+                at_payload = (
+                    jwt_provider.handler.decode_token(grace_access, verify=False) or {}
+                )
+                SessionService.stamp_access_jti(graced, at_payload.get("jti", ""))
+                logger.info(
+                    "refresh_grace_reuse: session %s answered a superseded refresh "
+                    "jti presented inside the rotation grace window (user %s)",
+                    graced.pk,
+                    _uid,
+                )
+                return token_pair_response(grace_access, current_refresh)
+            # In window, but the pair the winner got is not reachable (no
+            # shared cache between the processes serving refresh, or the entry
+            # aged out). Nothing can be answered with, so the rotation below
+            # decides — and refuses. Loud, because a deployment that hits this
+            # has the window configured and not working.
+            logger.warning(
+                "refresh_grace_reuse: session %s is inside the grace window but the "
+                "rotated pair is not in the cache — the window needs a cache shared "
+                "by every process serving refresh; falling back to revocation",
+                graced.pk,
+            )
 
         # Issue new access token; jwt_provider also issues a new refresh token
         if old_jti:
@@ -377,19 +436,14 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
                     )
                 else:
                     return StapelErrorResponse(401, ERR_401_REFRESH_REVOKED)
+            else:
+                # The pair this rotation produced is what a client racing it
+                # must be handed back inside the grace window.
+                SessionService.remember_rotated_refresh(old_jti, new_refresh_token)
         else:
             new_refresh_token = refresh_token
 
-        tokens_dto = TokenPairResponse(
-            refresh=new_refresh_token, access=new_access_token
-        )
-        response = Response(
-            self.get_response_serializer_class()(tokens_dto).data,
-            status=status.HTTP_200_OK,
-        )
-        set_jwt_cookies(response, new_access_token, new_refresh_token)
-        set_auth_hint_cookie(response)
-        return response
+        return token_pair_response(new_access_token, new_refresh_token)
 
 
 _CH_HINTS = "Sec-CH-UA-Platform-Version, Sec-CH-UA-Model"

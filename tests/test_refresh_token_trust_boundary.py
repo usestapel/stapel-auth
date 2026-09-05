@@ -168,7 +168,17 @@ class RefreshTrustBoundaryTests(APITestCase):
         )
         self.assertEqual(self._post(crossed).status_code, 401)
 
+    @override_settings(
+        URL_PREFIX="", STAPEL_AUTH={"REFRESH_ROTATION_GRACE_SECONDS": 0}
+    )
     def test_a_replayed_refresh_token_is_refused_after_rotation(self):
+        """Reuse detection itself: a rotated-away jti buys nothing.
+
+        Pinned to a zero grace window so this asserts the detection and not
+        the window's default. The window — one previous jti, for a few
+        seconds after the rotation, and everything outside it still refused
+        — is asserted in ``test_refresh_rotation_grace.py``.
+        """
         _, refresh = _issue_session_tokens(
             self.victim, None, path=SessionPath.PASSWORD
         )

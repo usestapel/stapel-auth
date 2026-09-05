@@ -74,6 +74,17 @@ class UserSession(models.Model):
     # jti (JWT ID) of the current valid refresh token for this session.
     # Updated on every rotation; storing jti (not raw token) is safe if DB is compromised.
     jti = models.CharField(max_length=64, unique=True, db_index=True)
+    # The jti this session held immediately before the last rotation, and when
+    # that rotation happened. Together they define the refresh-rotation grace
+    # window (STAPEL_AUTH['REFRESH_ROTATION_GRACE_SECONDS']): exactly one
+    # superseded jti is answerable, and only for `grace` seconds measured from
+    # the rotation — never from the reuse, so replaying cannot walk the window
+    # forward. Not unique: it names a jti no row holds as `jti` any more.
+    # Nullable rather than blank-defaulted on purpose: during a migrate→swap
+    # window the N-1 code INSERTs session rows without this column at all
+    # (expand-only, release-management.md §3.2 / MIG004).
+    previous_jti = models.CharField(max_length=64, null=True, blank=True, db_index=True)
+    rotated_at = models.DateTimeField(null=True, blank=True)
     access_jti = models.CharField(max_length=64, blank=True, db_index=True)
     device_name    = models.CharField(max_length=150, blank=True)
     device_type    = models.CharField(max_length=10, choices=DeviceType.choices, default=DeviceType.UNKNOWN, blank=True)
