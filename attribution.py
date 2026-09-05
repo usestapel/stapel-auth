@@ -263,9 +263,16 @@ def attribution_from_query(query_params):
     rides the provider's redirect.
 
     Returns the same mapping shape the body serializer produces, or ``None``
-    when the query carries no click identifier. Malformed values are
-    refused here exactly as they are in a body — see
-    :func:`parse_signup_attribution`.
+    when the query carries no click identifier — and ``None`` for a
+    malformed one too, which is the opposite of what a request BODY gets.
+    The difference is deliberate and it is about who is looking. A body
+    arrives from code that can be fixed and read a 400; this is a browser
+    NAVIGATION, and the response to it is a redirect to a provider's login
+    screen. Refusing here would put a JSON error envelope in the address
+    bar of somebody trying to sign in, and take the whole sign-in down over
+    a marketing tag. So a bad tag is dropped with a warning and the login
+    proceeds — the same rule the module already applies to a denial on the
+    callback side.
     """
     click_id = (query_params.get('click_id') or '').strip()
     if not click_id:
@@ -282,7 +289,14 @@ def attribution_from_query(query_params):
     }
     if utm:
         payload['utm'] = utm
-    return parse_signup_attribution(payload)
+    try:
+        return parse_signup_attribution(payload)
+    except Exception:
+        logger.warning(
+            "stapel-auth: dropping a malformed attribution on an OAuth "
+            "authorize (the sign-in itself is unaffected)"
+        )
+        return None
 
 
 def parse_signup_attribution(payload):

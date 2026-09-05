@@ -228,6 +228,34 @@ class TestOAuthRegistration:
         assert row.click_id_type == "wbraid"
         assert row.utm_source == "google"
 
+    def test_a_malformed_tag_does_not_take_the_sign_in_down(self, client):
+        """A browser NAVIGATION is not a request body.
+
+        The response to /authorize/ is a redirect to the provider's login
+        screen. Answering a JSON 400 would put an error envelope in the
+        address bar of somebody trying to sign in, and lose the whole
+        sign-in over a marketing tag. So a bad tag is dropped and the
+        redirect happens anyway — the opposite of what a body gets, on
+        purpose.
+        """
+        with override_settings(
+            STAPEL_AUTH={
+                "OAUTH_PROVIDERS": {
+                    "google": {"client_id": "cid", "client_secret": "secret"}
+                }
+            }
+        ):
+            authorize = client.get(
+                reverse("oauth_authorize", kwargs={"provider": "google"}),
+                {
+                    "click_id": "EAIaIQobChMI-oauth",
+                    "click_id_type": "not-a-real-type",
+                    "captured_at": NOW.isoformat(),
+                },
+            )
+        assert authorize.status_code == 302
+        assert "accounts.google.com" in authorize.url
+
 
 @pytest.mark.django_db
 class TestCaptureOrdering:

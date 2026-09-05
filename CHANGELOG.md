@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.34.1] — 2026-09-05
+
+Patch. No migration, no schema change.
+
+### A marketing tag could take a sign-in down
+
+0.34.0 read the optional attribution off the OAuth `authorize` query string
+with the same validator the request bodies use, and refused a malformed one
+the same way — with a 400. That is right for a body, which arrives from code
+that can be fixed and can read an error envelope. It is wrong here: the
+response to `GET /oauth/{provider}/authorize/` is a *browser navigation*, a
+redirect to the provider's login screen. Answering it with JSON puts an
+error envelope in the address bar of somebody trying to sign in, and loses
+the entire sign-in over an advertising tag.
+
+A malformed tag on that route is now dropped with a warning and the redirect
+happens anyway — the same rule this module already applies to a denial on
+the callback side. Request bodies keep the 400, where it costs nothing and
+tells the client what to fix.
+
 ## [0.34.0] — 2026-09-05
 
 Minor (pre-1.0: minor = breaking, patch = compatible). One migration
