@@ -395,7 +395,14 @@ class SessionService:
         return session
 
     @staticmethod
-    def rotate(old_jti: str, new_jti: str, new_expires_at, user_id=None, new_access_jti: str = ''):
+    def rotate(
+        old_jti: str,
+        new_jti: str,
+        new_expires_at,
+        user_id=None,
+        new_access_jti: str = '',
+        new_refresh_token: str = '',
+    ):
         """
         Swap jti on a session (normal token rotation).
         Returns True on success, None if the session is revoked or a replay is detected
@@ -412,6 +419,14 @@ class SessionService:
         The session is looked up by ``(jti, user)`` rather than by ``jti``
         alone: a jti from one user's token must never be able to rotate
         another user's session row.
+
+        ``new_refresh_token``, when given, is cached against ``old_jti``
+        (:meth:`remember_rotated_refresh`) from *inside* this same
+        transaction, before it commits and releases the row lock — not
+        afterward by the caller. A racing loser's own ``rotate()`` call is
+        blocked on that same lock and is unblocked the instant it releases,
+        so caching only after the caller regains control left a real gap in
+        which the loser's CAS-lost retry (D413) could find nothing cached.
         """
         from django.db import transaction
 
@@ -445,6 +460,8 @@ class SessionService:
                 session.access_jti = new_access_jti
                 update_fields.append('access_jti')
             session.save(update_fields=update_fields)
+            if new_refresh_token:
+                SessionService.remember_rotated_refresh(old_jti, new_refresh_token)
             return True
 
     # -- refresh-rotation grace (D413) -------------------------------------

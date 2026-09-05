@@ -330,6 +330,47 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
             except User.DoesNotExist:
                 return None
 
+        def _grace_pair_response(graced, *, retry: bool = False):
+            """The response for a presented jti that is ``graced``'s previous
+            jti, built from the pair the winning rotation cached — or
+            ``None`` if that pair isn't (yet) reachable, in which case the
+            caller falls through to the ordinary revoke path.
+
+            ``retry`` covers the CAS-lost caller (below): that loser was
+            unblocked by the winner's row lock releasing, not by the
+            winner's cache write completing, so the two can interleave.
+            Two 50ms tries are enough to cross that gap without holding the
+            loser hostage; the pre-rotate caller never hits this race (the
+            winner has long since committed and cached by the time a later
+            request's non-locking lookup finds the row already rotated), so
+            it does not ask for a retry.
+            """
+            current_refresh = SessionService.current_refresh_for(old_jti)
+            if not current_refresh and retry:
+                import time
+
+                for _ in range(2):
+                    time.sleep(0.05)
+                    current_refresh = SessionService.current_refresh_for(old_jti)
+                    if current_refresh:
+                        break
+            if not current_refresh:
+                return None
+            grace_access = jwt_provider.refresh_access_token(current_refresh, load_user_data)
+            if not grace_access:
+                return StapelErrorResponse(401, ERR_401_REFRESH_INVALID)
+            at_payload = (
+                jwt_provider.handler.decode_token(grace_access, verify=False) or {}
+            )
+            SessionService.stamp_access_jti(graced, at_payload.get("jti", ""))
+            logger.info(
+                "refresh_grace_reuse: session %s answered a superseded refresh "
+                "jti presented inside the rotation grace window (user %s)",
+                graced.pk,
+                _uid,
+            )
+            return token_pair_response(grace_access, current_refresh)
+
         # Refresh-rotation grace (D413). A page that boots while a refresh is
         # in flight presents the jti it booted with a couple of seconds after
         # the rotation. That is the same shape as a replay, and treating it as
@@ -348,24 +389,9 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
             else None
         )
         if graced is not None:
-            current_refresh = SessionService.current_refresh_for(old_jti)
-            if current_refresh:
-                grace_access = jwt_provider.refresh_access_token(
-                    current_refresh, load_user_data
-                )
-                if not grace_access:
-                    return StapelErrorResponse(401, ERR_401_REFRESH_INVALID)
-                at_payload = (
-                    jwt_provider.handler.decode_token(grace_access, verify=False) or {}
-                )
-                SessionService.stamp_access_jti(graced, at_payload.get("jti", ""))
-                logger.info(
-                    "refresh_grace_reuse: session %s answered a superseded refresh "
-                    "jti presented inside the rotation grace window (user %s)",
-                    graced.pk,
-                    _uid,
-                )
-                return token_pair_response(grace_access, current_refresh)
+            response = _grace_pair_response(graced)
+            if response is not None:
+                return response
             # In window, but the pair the winner got is not reachable (no
             # shared cache between the processes serving refresh, or the entry
             # aged out). Nothing can be answered with, so the rotation below
@@ -422,8 +448,35 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
                 expires_at,
                 user_id=_uid,
                 new_access_jti=at_payload.get("jti", ""),
+                # Cached by rotate() itself, before it releases the row lock,
+                # so a racing loser (below) can find it the instant it's
+                # unblocked — see remember_rotated_refresh.
+                new_refresh_token=new_refresh_token,
             )
             if rotated is not True:
+                if rotated is None:
+                    # CAS lost (D413 continued): both requests' initial,
+                    # non-locking lookup (above) still saw the pre-rotation
+                    # row, so neither took the pre-rotate graced branch —
+                    # this request only discovers it lost the race here, in
+                    # rotate()'s locked read. That is the loser of the reload
+                    # race, not necessarily a replay: re-check whether the
+                    # row's *current* previous_jti is what we presented and
+                    # we're still inside the grace window before refusing.
+                    graced_after_cas = SessionService.graced_session(
+                        old_jti, user_id=_uid
+                    )
+                    if graced_after_cas is not None:
+                        response = _grace_pair_response(graced_after_cas, retry=True)
+                        if response is not None:
+                            return response
+                        logger.warning(
+                            "refresh_grace_reuse: session %s lost the rotation "
+                            "race and is inside the grace window, but the "
+                            "winner's pair never showed up in the cache — "
+                            "falling back to revocation",
+                            graced_after_cas.pk,
+                        )
                 # `False` means "no tracked session row for this jti". That
                 # used to be accepted as a pre-session-tracking legacy token;
                 # it is also exactly the state a forged jti lands in, so the
@@ -436,10 +489,6 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
                     )
                 else:
                     return StapelErrorResponse(401, ERR_401_REFRESH_REVOKED)
-            else:
-                # The pair this rotation produced is what a client racing it
-                # must be handed back inside the grace window.
-                SessionService.remember_rotated_refresh(old_jti, new_refresh_token)
         else:
             new_refresh_token = refresh_token
 

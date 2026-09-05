@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.33.1] — 2026-09-05
+
+Patch. No migration, no schema change.
+
+### The grace window (D413) didn't cover its own race
+
+Two genuinely simultaneous `/token/refresh/` calls presenting the same
+superseded jti both passed the view's initial, non-locking session lookup
+before either had rotated — so neither took the pre-rotate grace check, and
+the loser only discovered it lost when `rotate()`'s locked compare-and-swap
+found the jti already gone and returned `None`. The view answered
+`error.401.refresh_revoked` without ever re-consulting the grace window,
+which is exactly the reload-race 0.33.0 was written to survive, just caught
+one step later. Losing that CAS now re-checks whether the presented jti is
+the session's current `previous_jti` inside the grace window and, if so,
+answers with the winning rotation's pair — read from the same cache the
+pre-rotate path uses, with two short (50ms) retries covering the gap between
+the winner's row-lock release and its cache write. That write now happens
+from inside `rotate()`'s own transaction, before the lock releases, so the
+retry is a safety margin rather than the only thing standing between the
+loser and a spurious logout.
+
 ## [0.33.0] — 2026-09-05
 
 Minor (pre-1.0: minor = breaking, patch = compatible). One migration

@@ -18,6 +18,7 @@ detection exists to prevent.
 """
 import uuid
 from datetime import timedelta
+from unittest import mock
 
 from django.core.cache import cache
 from django.test import override_settings
@@ -27,6 +28,7 @@ from rest_framework.test import APITestCase
 
 from stapel_auth.models import UserSession
 from stapel_auth.sessions.guard import SessionPath
+from stapel_auth.sessions.services import SessionService
 from stapel_auth.sessions.views import _issue_session_tokens
 from stapel_core.django.jwt.provider import jwt_provider
 
@@ -44,6 +46,30 @@ def _make_user():
         username=uuid.uuid4().hex[:12],
         password="testpass123",
     )
+
+
+def _lose_the_second_cas():
+    """Patch ``SessionService.rotate`` so the first call runs for real and
+    every call after it returns ``None`` — the CAS-lost branch of the D413
+    race, where both requests' initial non-locking lookup in the view still
+    sees the pre-rotation row (so neither takes the pre-rotate graced
+    branch) and only rotate()'s locked compare-and-swap discovers which one
+    lost. Sqlite's ``select_for_update`` is a no-op, so real thread
+    concurrency can't be trusted to reproduce the race here — this fakes
+    the observable outcome (the loser's ``rotate()`` returning ``None``
+    against an already-rotated row) directly, exactly as the incident
+    describes it.
+    """
+    real_rotate = SessionService.rotate
+    calls = []
+
+    def fake_rotate(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            return real_rotate(*args, **kwargs)
+        return None
+
+    return mock.patch.object(SessionService, "rotate", side_effect=fake_rotate)
 
 
 @override_settings(URL_PREFIX="", STAPEL_AUTH=GRACE_ON)
@@ -83,6 +109,32 @@ class RefreshRotationGraceTests(APITestCase):
         self.assertEqual(self.session.jti, self._jti(current_refresh))
         self.assertEqual(self.session.previous_jti, self._jti(self.refresh))
         # The access token just minted is the session's access token now.
+        self.assertEqual(self.session.access_jti, self._jti(raced.data["access"]))
+
+    def test_a_lost_rotation_cas_gets_the_winners_pair_not_a_401(self):
+        """The loser of the D413 race, caught at the CAS instead of the
+        pre-rotate lookup, still gets the winner's pair.
+
+        This is the incident as observed on a stand: both requests' initial,
+        non-locking lookup finds the row still holding the presented jti (it
+        hasn't rotated yet), so neither takes the pre-rotate graced branch —
+        the loser only discovers it lost when its own ``rotate()`` runs the
+        locked compare-and-swap against an already-rotated row and gets
+        ``None`` back. Before the fix that fell straight to
+        ``refresh_revoked`` without ever re-consulting the grace window.
+        """
+        with _lose_the_second_cas():
+            won = self._post(self.refresh)
+            self.assertEqual(won.status_code, 200)
+            raced = self._post(self.refresh)
+
+        self.assertEqual(raced.status_code, 200)
+        self.assertEqual(raced.data["refresh"], won.data["refresh"])
+        self.assertNotEqual(raced.data["access"], won.data["access"])
+
+        self.session.refresh_from_db()
+        self.assertFalse(self.session.is_revoked)
+        self.assertEqual(self.session.previous_jti, self._jti(self.refresh))
         self.assertEqual(self.session.access_jti, self._jti(raced.data["access"]))
 
     def test_the_session_survives_and_the_current_pair_keeps_working(self):
@@ -184,6 +236,17 @@ class GraceDisabledTests(APITestCase):
         response = self._post(self.refresh)
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.data["localizable_error"], "error.401.refresh_revoked")
+
+    def test_a_lost_rotation_cas_is_still_revoked_with_the_window_off(self):
+        """Same CAS-lost shape as the incident, but with the window off
+        nothing catches it — the pre-0.33 answer, unchanged."""
+        with _lose_the_second_cas():
+            won = self._post(self.refresh)
+            self.assertEqual(won.status_code, 200)
+            raced = self._post(self.refresh)
+
+        self.assertEqual(raced.status_code, 401)
+        self.assertEqual(raced.data["localizable_error"], "error.401.refresh_revoked")
 
     def test_nothing_is_written_to_the_cache(self):
         from stapel_auth.sessions.services import SessionService
