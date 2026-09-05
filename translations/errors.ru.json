@@ -1,4 +1,5 @@
 {
+  "error.400.attribution_invalid": "Объект attribution имеет неверный формат. Ожидается {click_id, click_id_type: gclid|gbraid|wbraid, captured_at} и необязательный объект utm.",
   "error.400.code_expired": "Время ожидания кода истекло. Пожалуйста, войдите снова.",
   "error.400.code_required": "Требуется код подтверждения.",
   "error.400.credentials_required": "Необходимо указать имя пользователя или адрес электронной почты и пароль",

@@ -7003,6 +7003,15 @@
         "type": "string",
         "description": "* `email` - Email\n* `phone` - Phone\n* `oauth` - OAuth\n* `sso` - SSO\n* `anonymous` - Anonymous\n* `login` - Login"
       },
+      "ClickIdTypeEnum": {
+        "enum": [
+          "gclid",
+          "gbraid",
+          "wbraid"
+        ],
+        "type": "string",
+        "description": "* `gclid` - gclid\n* `gbraid` - gbraid\n* `wbraid` - wbraid"
+      },
       "ClosureStatusDTO": {
         "type": "object",
         "description": "Status of an account closure request.",
@@ -7337,6 +7346,15 @@
           "code": {
             "type": "string",
             "maxLength": 8
+          },
+          "attribution": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SignupAttribution"
+              }
+            ],
+            "nullable": true,
+            "description": "Optional advertising attribution captured by the client on the landing page: {click_id, click_id_type: gclid|gbraid|wbraid, captured_at, utm?}. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored, a malformed object is refused with error.400.attribution_invalid."
           }
         },
         "required": [
@@ -8139,6 +8157,15 @@
           "access_token": {
             "type": "string",
             "maxLength": 500
+          },
+          "attribution": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SignupAttribution"
+              }
+            ],
+            "nullable": true,
+            "description": "Optional advertising attribution captured by the client on the landing page: {click_id, click_id_type: gclid|gbraid|wbraid, captured_at, utm?}. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored, a malformed object is refused with error.400.attribution_invalid."
           }
         },
         "required": [
@@ -8795,6 +8822,15 @@
           "code": {
             "type": "string",
             "maxLength": 8
+          },
+          "attribution": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SignupAttribution"
+              }
+            ],
+            "nullable": true,
+            "description": "Optional advertising attribution captured by the client on the landing page: {click_id, click_id_type: gclid|gbraid|wbraid, captured_at, utm?}. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored, a malformed object is refused with error.400.attribution_invalid."
           }
         },
         "required": [
@@ -9302,6 +9338,70 @@
           "is_suspicious",
           "last_used_at"
         ]
+      },
+      "SignupAttribution": {
+        "type": "object",
+        "description": "The optional ``attribution`` object a registration request may carry.\n\nUnknown keys are ignored — DRF's default, and the right one here: the\nclient-side capture library is versioned independently of this service,\nand a tag it learns to collect next month must not start refusing\nsign-ups. Anything *malformed* is a different matter and is refused with\na single fleet error key rather than a per-field report: the object is\nwritten by our own capture code, so a shape error is a bug to fix, not a\nform for the user to correct, and the per-field detail would be the only\npart of a registration 400 that names an internal field name.",
+        "properties": {
+          "click_id": {
+            "type": "string",
+            "description": "The advertising click identifier captured from the landing URL (gclid/gbraid/wbraid).",
+            "maxLength": 512
+          },
+          "click_id_type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ClickIdTypeEnum"
+              }
+            ],
+            "description": "Which of the three identifiers click_id is. The offline conversion upload names the field explicitly and does not guess: gbraid/wbraid arrive instead of a gclid when the visitor declined app tracking.\n\n* `gclid` - gclid\n* `gbraid` - gbraid\n* `wbraid` - wbraid"
+          },
+          "captured_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the client captured the identifier (ISO 8601). Required: an offline conversion upload has to state the click time, and it is also how a stale replay is told from a fresher click."
+          },
+          "utm": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SignupUtm"
+              }
+            ],
+            "nullable": true,
+            "description": "Standard campaign tags read off the same landing URL."
+          }
+        },
+        "required": [
+          "captured_at",
+          "click_id",
+          "click_id_type"
+        ]
+      },
+      "SignupUtm": {
+        "type": "object",
+        "description": "The five standard campaign tags. Every one optional, all blankable.",
+        "properties": {
+          "source": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "medium": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "campaign": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "term": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 255
+          }
+        }
       },
       "SimpleStatusResponse": {
         "type": "object",

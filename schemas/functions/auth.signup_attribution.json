@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "auth.signup_attribution",
+  "description": "The advertising click an account was born from, or null. Returns {\"user_id\", \"click_id\", \"click_id_type\": gclid|gbraid|wbraid, \"captured_at\", \"utm\": {source, medium, campaign, term, content}, \"created_at\", \"updated_at\"} for an account whose registration request carried an attribution object, and null for every other account — which is the ordinary answer, not an error. The read side of stapel_auth.attribution: it is a Function and not an endpoint because the caller is a service (billing, a subscription job) that has to report an offline conversion weeks after the browser that produced the click is gone; a front end has no use for the identifier and every reason not to hold it. An unparseable user_id answers null for the same reason a missing one does.",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "Primary key of the account whose signup attribution is read."
+    }
+  },
+  "required": ["user_id"],
+  "additionalProperties": false
+}

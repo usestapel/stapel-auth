@@ -677,3 +677,68 @@ class UserMerge(models.Model):
                 found.append(merged_id)
                 frontier.append(merged_id)
         return found
+
+
+# =============================================================================
+# Signup attribution — the ad click that produced the account
+# =============================================================================
+
+class ClickIdType(models.TextChoices):
+    """Which advertising click identifier a stored value is.
+
+    Not interchangeable: the offline conversion upload names the field, and
+    a gbraid presented as a gclid is rejected rather than coerced. gbraid and
+    wbraid arrive instead of a gclid when the visitor declined app tracking.
+    """
+
+    GCLID  = 'gclid',  'gclid'
+    GBRAID = 'gbraid', 'gbraid'
+    WBRAID = 'wbraid', 'wbraid'
+
+
+@access.ops  # marketing attribution record (admin-suite AS-5)
+class SignupAttribution(models.Model):
+    """The ad click an account was born from — one row per user, at most.
+
+    Why this is a table and not a column on the user: it is written once, by
+    one flow, read by a completely different one (an offline conversion
+    upload, possibly weeks later), and erased on its own terms. A nullable
+    quintet of marketing columns on the user row would be read by everything
+    that touches a user and owned by nothing.
+
+    The whole rationale — why the server has to hold a click id at all, and
+    why an older capture never overwrites a newer one — is in
+    ``stapel_auth.attribution``.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='signup_attribution',
+    )
+    click_id = models.CharField(max_length=512)
+    click_id_type = models.CharField(max_length=16, choices=ClickIdType.choices)
+    #: When the CLIENT captured the identifier — not when this row was
+    #: written. The upload has to state the click time, and arrival order is
+    #: no guide to it (retries and second tabs reorder arrival, not clocks).
+    captured_at = models.DateTimeField()
+
+    utm_source = models.CharField(max_length=255, blank=True)
+    utm_medium = models.CharField(max_length=255, blank=True)
+    utm_campaign = models.CharField(max_length=255, blank=True)
+    utm_term = models.CharField(max_length=255, blank=True)
+    utm_content = models.CharField(max_length=255, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'auth_signup_attribution'
+        verbose_name = 'Signup Attribution'
+        verbose_name_plural = 'Signup Attributions'
+        indexes = [
+            models.Index(fields=['click_id'], name='signup_attr_click_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.user_id}: {self.click_id_type}'

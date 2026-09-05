@@ -25,6 +25,13 @@ from stapel_core.django.openapi import (
     StapelErrorSerializer,
 )
 
+from stapel_auth.attribution import (
+    attribution_from_query,
+    from_state as attribution_from_state,
+    parse_signup_attribution,
+    record_signup_attribution,
+    to_state as attribution_to_state,
+)
 from stapel_auth.errors import *
 from stapel_auth.hosts import frontend_url_for
 from stapel_auth.mfa.dto import TOTPChallengeResponse, TOTPChallengeStatus
@@ -638,6 +645,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if serializer.is_valid(raise_exception=True):
             email = serializer.validated_data["email"]
             code = serializer.validated_data["code"]
+            attribution = serializer.validated_data.get("attribution")
 
             # Progressive lockout across verification records (same pattern
             # as password login) — blocks unbounded OTP guessing via
@@ -744,6 +752,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     request_user.save()
                     user = request_user
                     auth_status = AuthStatus.REGISTERED
+                    record_signup_attribution(user, attribution)
 
             else:
                 # CASE: Unauthenticated user
@@ -763,6 +772,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     )
                     self._publish_user_registered(user, request=request)
                     auth_status = AuthStatus.REGISTERED
+                    record_signup_attribution(user, attribution)
 
             self.log_login_attempt(email, "success", request)
             access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.OTP_EMAIL)
@@ -967,6 +977,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if serializer.is_valid(raise_exception=True):
             phone = serializer.validated_data["phone"]
             code = serializer.validated_data["code"]
+            attribution = serializer.validated_data.get("attribution")
 
             # Progressive lockout across verification records (same pattern
             # as password login) — blocks unbounded OTP guessing via
@@ -1072,6 +1083,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     request_user.save()
                     user = request_user
                     auth_status = AuthStatus.REGISTERED
+                    record_signup_attribution(user, attribution)
 
             else:
                 # CASE: Unauthenticated user
@@ -1090,6 +1102,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                         phone=phone, auth_type="phone", is_phone_verified=True
                     )
                     auth_status = AuthStatus.REGISTERED
+                    record_signup_attribution(user, attribution)
 
             self.log_login_attempt(phone, "success", request)
             access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.OTP_PHONE)
@@ -1227,6 +1240,15 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if not provider or not access_token:
             return StapelErrorResponse(400, ERR_400_OAUTH_FIELDS_REQUIRED)
 
+        # The body is read field-by-field above rather than through the
+        # serializer, so the optional attribution object is validated on its
+        # own — malformed input is refused here (400 error.400.attribution_
+        # invalid) instead of being quietly dropped.
+        raw_attribution = request.data.get("attribution")
+        attribution = (
+            parse_signup_attribution(raw_attribution) if raw_attribution else None
+        )
+
         ocore = OAuthService()
         user_data = ocore.get_user_data(provider, access_token)
 
@@ -1242,6 +1264,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
         except RegistrationClosed:
             return StapelErrorResponse(403, ERR_403_REGISTRATION_CLOSED)
+        if auth_status == AuthStatus.REGISTERED:
+            record_signup_attribution(user, attribution)
         self.log_login_attempt(str(user.id), "success", request)
 
         # No forced TOTP: the OAuth provider already authenticated the user.
@@ -1313,6 +1337,14 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         state = secrets.token_urlsafe(32)
         redirect_uri = self._build_callback_uri(request, provider)
 
+        # The redirect flow has no request body: the browser leaves for the
+        # provider and comes back on a URL only the provider controls. So an
+        # attribution captured on the landing page rides in as query
+        # parameters HERE and is parked server-side with the rest of the flow
+        # state — it never travels through the provider, and the callback
+        # does not have to trust anything the browser re-presents.
+        attribution = attribution_from_query(request.query_params)
+
         # `user_id` pins the flow to the session that STARTED it. The live
         # cookie at the callback still decides (see oauth_callback): honouring
         # a pinned id WITHOUT it would turn login-CSRF into account takeover.
@@ -1330,6 +1362,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     if request.user and request.user.is_authenticated
                     else None
                 ),
+                "attribution": attribution_to_state(attribution),
             },
             timeout=600,
         )
@@ -1413,6 +1446,14 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
         except RegistrationClosed:
             return StapelErrorResponse(403, ERR_403_REGISTRATION_CLOSED)
+        if auth_status == AuthStatus.REGISTERED:
+            # Recorded before the TOTP branch below: a step-up challenge
+            # interrupts the RESPONSE, not the registration — the account
+            # already exists, and the attribution that produced it must not
+            # depend on whether the person finishes a second factor.
+            record_signup_attribution(
+                user, attribution_from_state(state_data.get("attribution"))
+            )
         self.log_login_attempt(str(user.id), "success", request)
 
         # No forced TOTP: the OAuth provider already authenticated the user.

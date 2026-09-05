@@ -198,6 +198,10 @@ _EXPECTED_AXES = {
     "AUTH_PHONE_REGISTRATION", "AUTH_EMAIL_REGISTRATION", "AUTH_OAUTH_REGISTRATION",
     "AUTH_SSO_REGISTRATION", "AUTH_PASSWORD_REGISTRATION", "AUTH_PASSWORD_DEANONYMIZES",
     "AUTH_REGISTRATION_CLOSED_BEHAVIOR",
+    # Whether a registration may store the advertising click that produced
+    # the account (attribution.py) — a registration-policy axis with no
+    # *_REGISTRATION suffix to ride.
+    "AUTH_SIGNUP_ATTRIBUTION",
     # auth.login
     "AUTH_PHONE_LOGIN", "AUTH_EMAIL_LOGIN", "AUTH_OAUTH_LOGIN", "AUTH_SSO_LOGIN",
     "AUTH_PASSWORD_LOGIN", "AUTH_QR_LOGIN", "AUTH_PASSKEY_LOGIN",
@@ -231,7 +235,7 @@ def test_capabilities_axes_inventory():
     password-deanonymizes and closed-registration-behavior policy, all grouped."""
     doc = _capabilities()
     assert {a["key"] for a in doc["axes"]} == _EXPECTED_AXES
-    assert len(doc["axes"]) == 29
+    assert len(doc["axes"]) == 30
     for axis in doc["axes"]:
         expected_kind = "enum" if axis["key"] in _ENUM_AXES else "bool"
         assert axis["kind"] == expected_kind, axis["key"]
@@ -309,8 +313,11 @@ def test_capabilities_envelope():
 
 def test_capabilities_meta_out_of_sync_fails_loudly():
     """A curated-layer gap must be an emission ERROR, never a silent skip."""
-    from stapel_tools.capabilities import axis_group_rules, build_capabilities
+    from stapel_tools.capabilities import build_capabilities
 
+    # The emitter's OWN rules, not a copy of them: a second copy meant a new
+    # axis could pass the emitter and fail the test meant to be checking it.
+    from stapel_auth._capabilities import AXIS_GROUP, IS_AXIS
     from stapel_auth.conf import DEFAULTS
     from stapel_auth.urls import GATE_REGISTRY
 
@@ -325,22 +332,8 @@ def test_capabilities_meta_out_of_sync_fails_loudly():
             registry=GATE_REGISTRY,
             schema=schema,
             meta=broken_meta,
-            is_axis=lambda k: k.startswith("AUTH_") or k.endswith("_STEP_UP"),
-            axis_group=axis_group_rules(
-                exact={
-                    "AUTH_ANONYMOUS": "auth.anonymous",
-                    "AUTH_TOTP": "auth.mfa",
-                    "AUTH_PASSWORD_DEANONYMIZES": "auth.registration",
-                    "AUTH_REGISTRATION_CLOSED_BEHAVIOR": "auth.registration",
-                    "AUTH_LOGIN_GRANT": "auth.login",
-                },
-                suffix={
-                    "_REGISTRATION": "auth.registration",
-                    "_LOGIN": "auth.login",
-                    "_STEP_UP": "auth.stepup",
-                    "_PLACEMENT": "auth.placement",
-                },
-            ),
+            is_axis=IS_AXIS,
+            axis_group=AXIS_GROUP,
             canonical_prefix="/auth/api",
         )
 

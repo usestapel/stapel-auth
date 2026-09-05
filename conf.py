@@ -250,6 +250,18 @@ DEFAULTS = {
     # no_env for the same reason the boolean gates are.
     'AUTH_REGISTRATION_CLOSED_BEHAVIOR': 'silent',
 
+    # Whether a registration request may hand the server the advertising click
+    # identifier it arrived on, to be stored against the new account
+    # (attribution.py, models.SignupAttribution). ON by default, and that is
+    # not the usual "privacy switch ships closed" trade being broken: nothing
+    # here is collected server-side. A row exists only if the deployment's own
+    # frontend explicitly sends an `attribution` object on the registration
+    # call, which the shipped capture code does only after the visitor
+    # answered a consent banner. Switching this off makes the field a no-op
+    # (ignored, not refused) so an already-deployed frontend keeps registering
+    # people while the rows stop being written.
+    'AUTH_SIGNUP_ATTRIBUTION': True,
+
     # THE IDENTITY MODEL knob (owner directive 2026-07-20). By default a
     # password is a CREDENTIAL, not an identity: setting one on an anonymous
     # guest session only makes that SAME account portable (loginable from
@@ -375,6 +387,10 @@ _NO_ENV = tuple(
     # Same class: a stray env var must not be able to turn a closed
     # registration into an account-existence oracle.
     'AUTH_REGISTRATION_CLOSED_BEHAVIOR',
+    # Same class again: whether a click identifier may be stored
+    # against an account is a deployment's privacy decision, not
+    # something a variable in the pod may flip.
+    'AUTH_SIGNUP_ATTRIBUTION',
 )
 
 # NB: OAUTH_PROVIDER_CLASSES / REREGISTRATION_MODEL are intentionally NOT in

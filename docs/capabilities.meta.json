@@ -79,6 +79,10 @@
       "business_label": "What a stranger sees when sign-up is closed",
       "summary": "How the sign-in-by-code screens answer somebody whose address has no account while sign-up is off. 'silent' (default) answers everyone identically and simply never sends the stranger a code — nobody can probe the endpoint to learn who works here, at the price that a mistyped address waits for a letter that will not come. 'request' says 'sign-up is closed' immediately, which is the friendliest message and also lets anyone enumerate your member list. 'verify' still sends the code and refuses at the last step — enumerable AND it mails strangers."
     },
+    "AUTH_SIGNUP_ATTRIBUTION": {
+      "business_label": "Remember which ad a new account came from",
+      "summary": "When a sign-up request carries the advertising click identifier the visitor arrived on, store it against the new account. Nothing is collected here on its own: a row exists only if your own front end sends it, which the shipped capture code does only after the visitor accepted analytics. It is what later lets you report a real conversion — the account that started paying weeks after it registered — back to the ad platform, which is impossible from the browser alone. Switch it off and the field is ignored rather than refused, so an already-deployed front end keeps registering people."
+    },
     "AUTH_PHONE_LOGIN": {
       "business_label": "Sign-in with a phone number",
       "summary": "Existing users sign in by receiving a one-time SMS code."

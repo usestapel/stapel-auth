@@ -1,8 +1,8 @@
-# stapel-auth 0.33.1
+# stapel-auth 0.34.0
 
 User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.
 
-Contract: axes 29 · surface 18 · extension points 6 · operations 122 · error codes 139 · flows 4.
+Contract: axes 30 · surface 18 · extension points 6 · operations 122 · error codes 140 · flows 4.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -67,6 +67,8 @@ Settings keys; `default` is what you get by saying nothing. Turning an axis off 
   Controls whether QR hand-off sign-in renders inline in the primary sign-in tabs, behind the "more" menu, or in the bottom button row. Purely presentational.
 - AUTH_REGISTRATION_CLOSED_BEHAVIOR [enum, default "silent"] — What a stranger sees when sign-up is closed
   How the sign-in-by-code screens answer somebody whose address has no account while sign-up is off. 'silent' (default) answers everyone identically and simply never sends the stranger a code — nobody can probe the endpoint to learn who works here, at the price that a mistyped address waits for a letter that will not come. 'request' says 'sign-up is closed' immediately, which is the friendliest message and also lets anyone enumerate your member list. 'verify' still sends the code and refuses at the last step — enumerable AND it mails strangers.
+- AUTH_SIGNUP_ATTRIBUTION [bool, default true] — Remember which ad a new account came from
+  When a sign-up request carries the advertising click identifier the visitor arrived on, store it against the new account. Nothing is collected here on its own: a row exists only if your own front end sends it, which the shipped capture code does only after the visitor accepted analytics. It is what later lets you report a real conversion — the account that started paying weeks after it registered — back to the ad platform, which is impossible from the browser alone. Switch it off and the field is ignored rather than refused, so an already-deployed front end keeps registering people.
 - AUTH_SSO_LOGIN [bool, default true] — Corporate single sign-on
   Users of onboarded organizations sign in through their company identity provider (SAML/OIDC), configured per organization in the database.
   gates 12 operation(s); kept mounted by AUTH_SSO_REGISTRATION
@@ -308,8 +310,9 @@ Paths are relative to `/auth/api/v1/`.
 - PUT /verification/preferences/ — auth_api_v1_verification_preferences_update
 - GET /verification/{challenge_id}/ — auth_api_v1_verification_retrieve
 
-## Error codes (139) — the StapelError envelope
+## Error codes (140) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
+- error.400.attribution_invalid [400] fix_input
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
 - error.400.captcha_required [400] retry

@@ -1,4 +1,8 @@
 {
+  "error.400.attribution_invalid": {
+    "hash": "743f76d13851e11d",
+    "text": "El objeto attribution tiene un formato incorrecto. Se espera {click_id, click_id_type: gclid|gbraid|wbraid, captured_at} y un objeto utm opcional."
+  },
   "error.400.device_id_weak": {
     "hash": "a4b909a67510ae18",
     "text": "device_id debe ser un token aleatorio opaco de al menos 16 caracteres (letras, dígitos y - . _ ~ : + / =): envía un UUID o un valor hexadecimal/base64 aleatorio generado una sola vez por instalación, nunca un nombre legible."

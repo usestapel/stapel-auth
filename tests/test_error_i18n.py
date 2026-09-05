@@ -110,6 +110,10 @@ _MACHINE_RU = {
         "менее 16 символов (латинские буквы, цифры и - . _ ~ : + / =) — "
         "отправьте UUID или случайное шестнадцатеричное/base64-значение, "
         "созданное один раз при установке, а не читаемое имя.",
+    "error.400.attribution_invalid":
+        "Объект attribution имеет неверный формат. Ожидается {click_id, "
+        "click_id_type: gclid|gbraid|wbraid, captured_at} и необязательный "
+        "объект utm.",
 }
 
 _MACHINE_ES = {
@@ -163,6 +167,10 @@ _MACHINE_ES = {
         "caracteres (letras, dígitos y - . _ ~ : + / =): envía un UUID o un "
         "valor hexadecimal/base64 aleatorio generado una sola vez por "
         "instalación, nunca un nombre legible.",
+    "error.400.attribution_invalid":
+        "El objeto attribution tiene un formato incorrecto. Se espera "
+        "{click_id, click_id_type: gclid|gbraid|wbraid, captured_at} y un "
+        "objeto utm opcional.",
 }
 
 #: language -> machine-translation table, consulted for the keys the

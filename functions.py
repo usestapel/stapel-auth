@@ -31,6 +31,21 @@ RESOLVE_MERGED_USER_SCHEMA = {
 }
 
 
+SIGNUP_ATTRIBUTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "user_id": {
+            "type": "string",
+            "description": (
+                "Primary key of the account whose signup attribution is read."
+            ),
+        },
+    },
+    "required": ["user_id"],
+    "additionalProperties": False,
+}
+
+
 VERIFICATION_POLICY_SCHEMA = {
     "type": "object",
     "properties": {
@@ -652,3 +667,40 @@ def resolve_merged_user(payload: dict) -> dict:
         "merged_at": last.merged_at.isoformat() if last else None,
         "source": last.source if last else None,
     }
+
+
+@function("auth.signup_attribution", schema=SIGNUP_ATTRIBUTION_SCHEMA)
+def signup_attribution(payload: dict) -> dict | None:
+    """The ad click an account was born from — or ``None``.
+
+    Payload: ``{"user_id"}``. Answer: ``{"user_id", "click_id",
+    "click_id_type", "captured_at", "utm": {...}, "created_at",
+    "updated_at"}`` or ``None``.
+
+    This is the read side of ``stapel_auth.attribution``. It is a Function
+    rather than an endpoint because the caller is a *service*, not a
+    browser: whatever knows that an account became a paying one — billing,
+    a subscription service, a nightly job — needs the click identifier to
+    report that conversion offline, weeks after the browser that produced
+    it is gone. Exposing the same over HTTP would hand the identifier to
+    the front end, which has no use for it and every reason not to hold it.
+
+    ``None`` is the ordinary answer, not an error: most accounts have no
+    attribution, either because they arrived without an ad click or because
+    the deployment never enabled the field. Callers must treat "no row" as
+    "nothing to upload", never as "look it up somewhere else".
+
+    An unparseable ``user_id`` answers ``None`` for the same reason a
+    missing one does — there is no row, and a raised exception would make
+    an unknown id look like an outage.
+    """
+    from django.core.exceptions import ValidationError
+
+    from .attribution import attribution_as_dict
+    from .models import SignupAttribution
+
+    try:
+        row = SignupAttribution.objects.filter(user_id=payload["user_id"]).first()
+    except (ValidationError, ValueError):
+        return None
+    return attribution_as_dict(row)

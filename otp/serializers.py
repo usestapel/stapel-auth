@@ -10,6 +10,7 @@ from stapel_core.django.api.errors import StapelValidationError
 from stapel_core.django.api.serializers import StapelDataclassSerializer
 from stapel_core.django.captcha import CaptchaMixin
 
+from stapel_auth.attribution import ATTRIBUTION_HELP, SignupAttributionSerializer
 from stapel_auth.errors import (
     ERR_400_DEVICE_ID_WEAK,
     ERR_400_EMAIL_OR_PHONE_NOT_BOTH,
@@ -61,6 +62,9 @@ class EmailAuthVerifySerializer(serializers.Serializer):
 
     email = serializers.EmailField()
     code = serializers.CharField(max_length=OTP_CODE_LENGTH)
+    attribution = SignupAttributionSerializer(
+        required=False, allow_null=True, help_text=ATTRIBUTION_HELP
+    )
 
 
 class PhoneAuthRequestSerializer(CaptchaMixin, serializers.Serializer):
@@ -83,6 +87,9 @@ class PhoneAuthVerifySerializer(serializers.Serializer):
 
     phone = serializers.CharField()
     code = serializers.CharField(max_length=OTP_CODE_LENGTH)
+    attribution = SignupAttributionSerializer(
+        required=False, allow_null=True, help_text=ATTRIBUTION_HELP
+    )
 
     def validate_phone(self, value):
         return normalize_phone(value)

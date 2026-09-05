@@ -90,7 +90,8 @@ def erase_subject(subject_type: str, subject_key, workspace_id=None) -> dict | N
     from .models import (
         AuthAuditLog, AuthenticatorChangeRequest, LinkedOAuthAccount,
         LoginAttempt, OrgMembership, PasskeyCredential, RefreshTokenTracker,
-        StaffRoleAssignment, TOTPDevice, UserSession, VerificationPreference,
+        SignupAttribution, StaffRoleAssignment, TOTPDevice, UserSession,
+        VerificationPreference,
     )
 
     # Before anything is destroyed: the identifiers the login-attempt rows
@@ -128,6 +129,12 @@ def erase_subject(subject_type: str, subject_key, workspace_id=None) -> dict | N
         'oauth_links':             _deleted(LinkedOAuthAccount, user_id=key),
         'staff_roles':             _deleted(StaffRoleAssignment, user_id=key),
         'verification_preferences': _deleted(VerificationPreference, user_id=key),
+        # The advertising click the account was born from. A CASCADE would
+        # take it only if the user ROW went away, and the default
+        # primary-identity strategy is `anonymize` — the row stays. An
+        # erasure that left this behind would keep the one identifier that
+        # ties the person to the ad they clicked.
+        'signup_attribution':      _deleted(SignupAttribution, user_id=key),
     }
     return counts
 

@@ -121,6 +121,23 @@ admin land in the `auth.first_login` flow: the first password login returns a
 short-lived challenge instead of a session, routing to a forced password change
 and/or MFA enrolment before anything else is reachable.
 
+## Where a signup came from
+
+A registration request may carry an optional `attribution` object — the
+advertising click identifier the visitor arrived on (`gclid`/`gbraid`/`wbraid`),
+when it was captured, and the campaign tags — and it is stored once against
+the new account. Reporting a conversion from the browser only counts while the
+ad platform can still tie the session the event fired in to the session the
+click landed in, and in a sign-up that goes through a webmail tab, an OAuth
+provider, or half an hour of thinking time, that tie is broken on the normal
+path. Holding the identifier server-side is what makes offline conversion
+import possible — including for the conversion the browser never sees, the
+account that starts paying weeks later.
+
+Nothing is collected here on its own: no object sent means no row. Read it
+back with the `auth.signup_attribution` comm Function; switch the whole thing
+off with `AUTH_SIGNUP_ATTRIBUTION`.
+
 ## Bus events
 
 Emitted through `stapel_core.comm` (transactional outbox — the event leaves if

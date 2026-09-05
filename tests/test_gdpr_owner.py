@@ -27,8 +27,8 @@ from stapel_core.gdpr import register_gdpr_owner, registered_gdpr_owners
 from stapel_auth.erasure import OWNER, SUBJECT_TYPES, erase_subject
 from stapel_auth.models import (
     AuthAuditLog, AuthEventType, LinkedOAuthAccount, LoginAttempt,
-    PasskeyCredential, RefreshTokenTracker, StaffRoleAssignment, TOTPDevice,
-    UserSession, VerificationPreference,
+    PasskeyCredential, RefreshTokenTracker, SignupAttribution,
+    StaffRoleAssignment, TOTPDevice, UserSession, VerificationPreference,
 )
 
 #: The registration ``apps.ready()`` made. Same terms means the helper hands
@@ -92,6 +92,13 @@ def _trail(user):
     )
     StaffRoleAssignment.objects.create(user=user, role_name="support")
     VerificationPreference.objects.create(user=user, scope="payments", enabled=True)
+    SignupAttribution.objects.create(
+        user=user,
+        click_id="Cj0KCQ-test",
+        click_id_type="gclid",
+        captured_at=datetime.datetime.now(datetime.timezone.utc),
+        utm_source="google",
+    )
 
 
 @pytest.mark.django_db
@@ -184,11 +191,15 @@ class TestErasure:
             "oauth_links": 1,
             "staff_roles": 1,
             "verification_preferences": 1,
+            "signup_attribution": 1,
         }
         assert not UserSession.objects.filter(user=user).exists()
         assert not LinkedOAuthAccount.objects.filter(user=user).exists()
         assert not StaffRoleAssignment.objects.filter(user=user).exists()
         assert not LoginAttempt.objects.filter(identifier=user.email).exists()
+        # The advertising click id is the one row a CASCADE would not have
+        # taken: the default primary-identity strategy keeps the user row.
+        assert not SignupAttribution.objects.filter(user_id=user.pk).exists()
 
     def test_the_re_registration_hash_outlives_the_account(self):
         """The one thing an erasure leaves behind, and it names nobody."""

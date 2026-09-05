@@ -104,6 +104,11 @@ ERR_403_PRIVILEGED_ACCOUNT = 'error.403.privileged_account'
 ERR_403_REGISTRATION_CLOSED = 'error.403.registration_closed'
 # Authenticator rewrite without proof of the current authenticator (audit F4)
 ERR_403_CHANGE_REQUIRES_CURRENT = 'error.403.change_requires_current'
+# The optional `attribution` object on a registration request is malformed.
+# One key rather than a per-field report: the object is written by the
+# deployment's own capture code, so a shape error is a bug to fix, not a form
+# the person signing up can correct.
+ERR_400_ATTRIBUTION_INVALID = 'error.400.attribution_invalid'
 
 AUTH_ERRORS = {
     ERR_401_INVALID_CREDENTIALS: 'Invalid credentials',
@@ -214,6 +219,7 @@ AUTH_ERRORS = {
     ERR_403_REGISTRATION_CLOSED: 'New accounts are not open for sign-up here. Ask an administrator to create one for you.',
     # Authenticator rewrite without proof of the current authenticator
     ERR_403_CHANGE_REQUIRES_CURRENT: 'Changing a verified email or phone needs a code sent to the current one. Start the change flow instead.',
+    ERR_400_ATTRIBUTION_INVALID: 'The attribution object is malformed. Expected {click_id, click_id_type: gclid|gbraid|wbraid, captured_at} with an optional utm object.',
 }
 
 # Machine-readable recovery hints (remediation) — the canonical "what to do"
@@ -344,6 +350,10 @@ AUTH_REMEDIATION = {
     # The fix is a code sent to the address already on the account — i.e. the
     # change flow's request-old/verify-old pair, which is a verification step.
     ERR_403_CHANGE_REQUIRES_CURRENT: 'verify',
+    # A malformed attribution object is the client's own bug: the registration
+    # can be retried the moment the capture code is fixed, and there is
+    # nothing the person signing up can type differently.
+    ERR_400_ATTRIBUTION_INVALID: 'fix_input',
 }
 
 register_service_errors(AUTH_ERRORS, remediation=AUTH_REMEDIATION)

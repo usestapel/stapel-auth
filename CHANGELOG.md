@@ -1,5 +1,90 @@
 # Changelog
 
+## [0.34.0] — 2026-09-05
+
+Minor (pre-1.0: minor = breaking, patch = compatible). One migration
+(expand-only, one new table), one new setting, one new error key, one new
+comm Function, three request schemas gain an optional field.
+
+### A registration can now say which ad click produced it
+
+A conversion reported from the browser counts only while the ad platform can
+still tie the *session* the event fired in to the session the ad click landed
+in. In a product where signing up means reading a code from a webmail tab, or
+returning through an OAuth provider, or coming back to the tab half an hour
+later, or arriving with no answered consent banner — that tie is broken on
+the normal path, not on an edge case. It fails silently: the reports look
+healthy and the campaign is credited with nothing.
+
+Offline conversion import is the one channel that needs no cookie at the
+moment of conversion, and the only one that can report a conversion the
+browser never witnessed — the account that started paying three weeks after
+it registered, which is the goal actually worth bidding on. It needs one
+thing the browser cannot supply later: the click identifier, held
+server-side from the moment the account was born.
+
+So every door that answers `REGISTERED` now accepts an optional
+`attribution` object:
+
+```json
+{"click_id": "EAIaIQobChMI...", "click_id_type": "gclid",
+ "captured_at": "2026-09-05T10:11:12.000Z",
+ "utm": {"source": "google", "medium": "cpc", "campaign": "brand"}}
+```
+
+* `POST /email/verify/` and `POST /phone/verify/` take it in the body;
+* `POST /oauth/login/` takes it in the body;
+* `GET /oauth/{provider}/authorize/` takes it as flat query parameters
+  (`click_id`, `click_id_type`, `captured_at`, `utm_*`) and parks it in the
+  server-side flow state the callback already reads. The redirect flow has no
+  body of its own, and the identifier never travels through the provider.
+
+It is stored **only when the call registers the account**. A login carries no
+new attribution: a returning user's browser still holds the cookie from
+whatever ad brought them the first time, and re-dating the account's origin
+on every sign-in would report the same person as a fresh conversion. An older
+`captured_at` never overwrites a newer one — last click wins, and "last" is
+the clock, not the arrival order, because retries and second tabs reorder
+arrival and nothing reorders a timestamp.
+
+`click_id_type` is one of `gclid` / `gbraid` / `wbraid`. The last two arrive
+instead of a `gclid` when the visitor declined app tracking, the upload names
+the field explicitly, and a `gbraid` presented as a `gclid` is rejected
+rather than coerced — so the caller has to say which of the three it holds.
+
+Unknown keys are ignored (a capture library that learns a new tag next month
+must not start refusing sign-ups); a malformed object is refused with
+`error.400.attribution_invalid` rather than dropped, because an attribution
+silently thrown away is a campaign silently reported as worthless.
+
+**Reading it back:** `auth.signup_attribution` (`{user_id}` → the row, or
+`null`). A Function and not an endpoint, because the caller is a service —
+whatever knows an account started paying — and not a browser, which has no
+use for the identifier and every reason not to hold it. `null` is the
+ordinary answer, not an error.
+
+**What it will not do:** storing attribution cannot refuse an account. Every
+write is wrapped, so an unmigrated host or a database hiccup logs loudly and
+leaves the registration untouched. The opposite trade is not one any
+deployment would choose.
+
+**New setting** `AUTH_SIGNUP_ATTRIBUTION` (default `True`, not readable from
+the environment). On by default is not the usual privacy switch being broken
+open: nothing is collected here on its own — a row exists only if the
+deployment's own frontend sends the object, which the shipped capture code
+does only after the visitor accepted analytics. Off makes the field a no-op
+(ignored, not refused), so switching it does not take an already-deployed
+frontend's sign-up down with it.
+
+**GDPR:** `SignupAttribution` is erased with the rest of the account trail
+and counted on the receipt (`signup_attribution`). A cascade would not have
+covered it — the default primary-identity strategy keeps the user row.
+
+**Also in this release, and not cosmetic:** `tests/test_contract.py` carried
+its own copy of the capability-axis grouping rules, so a new axis could pass
+the emitter and fail the test whose job was to check the emitter. The rules
+now live once, in `_capabilities.py`, and the test imports them.
+
 ## [0.33.1] — 2026-09-05
 
 Patch. No migration, no schema change.

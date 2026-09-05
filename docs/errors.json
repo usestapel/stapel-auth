@@ -1,5 +1,13 @@
 [
   {
+    "code": "error.400.attribution_invalid",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "The attribution object is malformed. Expected {click_id, click_id_type: gclid|gbraid|wbraid, captured_at} with an optional utm object.",
+    "owner": "stapel_auth"
+  },
+  {
     "code": "error.400.bad_request",
     "status": 400,
     "params": [],

@@ -1,5 +1,9 @@
 {
   "errors.es": {
+    "error.400.attribution_invalid": {
+      "hash": "743f76d13851e11d",
+      "origin": "llm"
+    },
     "error.400.code_expired": {
       "hash": "e97cbbbc4a81551f",
       "origin": "seed:stapel-builtin"
@@ -330,6 +334,10 @@
     }
   },
   "errors.ru": {
+    "error.400.attribution_invalid": {
+      "hash": "743f76d13851e11d",
+      "origin": "llm"
+    },
     "error.400.code_expired": {
       "hash": "e97cbbbc4a81551f",
       "origin": "seed:stapel-builtin"
