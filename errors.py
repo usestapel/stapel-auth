@@ -219,7 +219,7 @@ AUTH_ERRORS = {
     ERR_403_REGISTRATION_CLOSED: 'New accounts are not open for sign-up here. Ask an administrator to create one for you.',
     # Authenticator rewrite without proof of the current authenticator
     ERR_403_CHANGE_REQUIRES_CURRENT: 'Changing a verified email or phone needs a code sent to the current one. Start the change flow instead.',
-    ERR_400_ATTRIBUTION_INVALID: 'The attribution object is malformed. Expected {click_id, click_id_type: gclid|gbraid|wbraid, captured_at} with an optional utm object.',
+    ERR_400_ATTRIBUTION_INVALID: 'The attribution object is malformed. Expected {captured_at} plus either a click_id with its click_id_type (gclid|gbraid|wbraid|yclid|fbclid|ttclid) or a utm object naming a source.',
 }
 
 # Machine-readable recovery hints (remediation) — the canonical "what to do"

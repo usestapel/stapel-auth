@@ -1,7 +1,7 @@
 {
   "error.400.attribution_invalid": {
-    "hash": "743f76d13851e11d",
-    "text": "El objeto attribution tiene un formato incorrecto. Se espera {click_id, click_id_type: gclid|gbraid|wbraid, captured_at} y un objeto utm opcional."
+    "hash": "7047abe7c31e9b3a",
+    "text": "El objeto attribution tiene un formato incorrecto. Se espera {captured_at} y, además, un click_id junto con su click_id_type (gclid|gbraid|wbraid|yclid|fbclid|ttclid) o bien un objeto utm que indique un source."
   },
   "error.400.device_id_weak": {
     "hash": "a4b909a67510ae18",

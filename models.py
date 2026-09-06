@@ -686,14 +686,21 @@ class UserMerge(models.Model):
 class ClickIdType(models.TextChoices):
     """Which advertising click identifier a stored value is.
 
-    Not interchangeable: the offline conversion upload names the field, and
-    a gbraid presented as a gclid is rejected rather than coerced. gbraid and
-    wbraid arrive instead of a gclid when the visitor declined app tracking.
+    Not interchangeable: each platform's offline conversion upload names its
+    own field, and a gbraid presented as a gclid is rejected rather than
+    coerced. gbraid and wbraid arrive instead of a gclid when the visitor
+    declined app tracking; yclid is Yandex Direct, fbclid Meta, ttclid
+    TikTok Ads. Blank is the fourth possibility and not one of these: a
+    UTM-only landing carried no identifier at all
+    (``stapel_auth.attribution``).
     """
 
     GCLID  = 'gclid',  'gclid'
     GBRAID = 'gbraid', 'gbraid'
     WBRAID = 'wbraid', 'wbraid'
+    YCLID  = 'yclid',  'yclid'
+    FBCLID = 'fbclid', 'fbclid'
+    TTCLID = 'ttclid', 'ttclid'
 
 
 @access.ops  # marketing attribution record (admin-suite AS-5)
@@ -716,8 +723,14 @@ class SignupAttribution(models.Model):
         on_delete=models.CASCADE,
         related_name='signup_attribution',
     )
-    click_id = models.CharField(max_length=512)
-    click_id_type = models.CharField(max_length=16, choices=ClickIdType.choices)
+    #: Blank when the landing carried only campaign tags — an email or an
+    #: aggregator puts no click id on the URL, and the row still names the
+    #: channel through ``utm_source``. Blank, never null: the pair is
+    #: written together or not at all.
+    click_id = models.CharField(max_length=512, blank=True)
+    click_id_type = models.CharField(
+        max_length=16, choices=ClickIdType.choices, blank=True
+    )
     #: When the CLIENT captured the identifier — not when this row was
     #: written. The upload has to state the click time, and arrival order is
     #: no guide to it (retries and second tabs reorder arrival, not clocks).
@@ -741,4 +754,7 @@ class SignupAttribution(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.user_id}: {self.click_id_type}'
+        # A UTM-only row has no identifier type; naming its source beats an
+        # empty half of a label in an admin list.
+        label = self.click_id_type or f'utm:{self.utm_source or "?"}'
+        return f'{self.user_id}: {label}'

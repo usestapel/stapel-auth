@@ -124,9 +124,13 @@ and/or MFA enrolment before anything else is reachable.
 ## Where a signup came from
 
 A registration request may carry an optional `attribution` object — the
-advertising click identifier the visitor arrived on (`gclid`/`gbraid`/`wbraid`),
-when it was captured, and the campaign tags — and it is stored once against
-the new account. Reporting a conversion from the browser only counts while the
+advertising click identifier the visitor arrived on (`gclid`/`gbraid`/`wbraid`
+for Google Ads, `yclid` for Yandex Direct, `fbclid` for Meta, `ttclid` for
+TikTok Ads), when it was captured, and the campaign tags — and it is stored
+once against the new account. A channel that puts no click id on the landing
+URL at all — an email campaign, a price aggregator — still attributes through
+`utm.source`, which is the difference between reporting those accounts by
+their campaign and reporting them as direct traffic. Reporting a conversion from the browser only counts while the
 ad platform can still tie the session the event fired in to the session the
 click landed in, and in a sign-up that goes through a webmail tab, an OAuth
 provider, or half an hour of thinking time, that tie is broken on the normal

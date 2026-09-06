@@ -4,7 +4,7 @@
 
 | Код | Статус | Параметры | Действие | Текст |
 |---|---|---|---|---|
-| `error.400.attribution_invalid` | 400 | — | `fix_input` | Объект attribution имеет неверный формат. Ожидается {click_id, click_id_type: gclid\|gbraid\|wbraid, captured_at} и необязательный объект utm. |
+| `error.400.attribution_invalid` | 400 | `captured_at` | `fix_input` | Объект attribution имеет неверный формат. Ожидается {captured_at}, а также либо click_id вместе с click_id_type (gclid\|gbraid\|wbraid\|yclid\|fbclid\|ttclid), либо объект utm с заполненным source. |
 | `error.400.bad_request` | 400 | — | `fix_input` | Некорректный запрос |
 | `error.400.captcha_invalid` | 400 | — | `retry` | Проверка капчи не пройдена. Пожалуйста, попробуйте ещё раз. |
 | `error.400.captcha_required` | 400 | — | `retry` | Требуется токен капчи. |

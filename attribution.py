@@ -24,14 +24,23 @@ there is no way to name it.
 
 So one row per account, written at the moment the account is born.
 
-**What is stored, and what is not.** The click identifier
-(``gclid``/``gbraid``/``wbraid`` — the last two arrive instead of a
-``gclid`` from platforms where the user declined tracking, and the platform
-requires the caller to say which of the three it is holding), the time the
-client captured it (the upload requires the click time), and the five
-standard campaign tags. Nothing here is invented server-side: if the client
-sends no ``attribution`` object, no row exists, and that is the honest
-answer to "where did this account come from" rather than a guess.
+**What is stored, and what is not.** The click identifier and which
+platform's identifier it is (see :data:`CLICK_ID_TYPES` — every ad platform
+names its own parameter and none of them are interchangeable, so the caller
+says which one it is holding rather than letting the server guess), the
+time the client captured it (the upload requires the click time), and the
+five standard campaign tags. Nothing here is invented server-side: if the
+client sends no ``attribution`` object, no row exists, and that is the
+honest answer to "where did this account come from" rather than a guess.
+
+**A campaign tag with no click identifier is still an answer.** Not every
+channel puts a click id on the landing URL: an email campaign, a price
+aggregator, a paid placement that only carries ``utm_*`` — each of them
+brings a real visitor that a click-id-only record would report as
+"direct". So ``click_id`` is optional as long as ``utm.source`` names the
+channel; what is refused is a record that says nothing at all, or one that
+carries an identifier without saying which platform issued it (an offline
+upload cannot post that anywhere).
 
 **Never overwrite with an older capture.** A client that replays a stale
 cookie must not demote a fresher click. The last click wins, and "last" is
@@ -57,10 +66,20 @@ from stapel_auth.errors import ERR_400_ATTRIBUTION_INVALID
 
 logger = logging.getLogger(__name__)
 
-#: The three click-identifier flavours Google Ads accepts on an offline
-#: upload. They are not interchangeable: the upload names the field, and a
-#: ``gbraid`` sent as a ``gclid`` is rejected, not silently coerced.
-CLICK_ID_TYPES = ('gclid', 'gbraid', 'wbraid')
+#: The click-identifier flavours an offline conversion upload can name.
+#: They are not interchangeable — each platform's upload names its own
+#: field, and a ``gbraid`` sent as a ``gclid`` is rejected rather than
+#: silently coerced — so the caller states which one it holds:
+#:
+#: * ``gclid``/``gbraid``/``wbraid`` — Google Ads; the last two arrive
+#:   instead of a ``gclid`` when the visitor declined app tracking;
+#: * ``yclid`` — Yandex Direct;
+#: * ``fbclid`` — Meta;
+#: * ``ttclid`` — TikTok Ads.
+#:
+#: The list is deliberately closed: a stored identifier nobody can name a
+#: destination for is a column that never gets uploaded anywhere.
+CLICK_ID_TYPES = ('gclid', 'gbraid', 'wbraid', 'yclid', 'fbclid', 'ttclid')
 
 #: The five campaign tags that have a standard meaning. Anything else in the
 #: ``utm`` object is ignored rather than refused — a client that adds its
@@ -82,10 +101,13 @@ UTM_MAX_LENGTH = 255
 #: account (a login carries no new attribution).
 ATTRIBUTION_HELP = (
     "Optional advertising attribution captured by the client on the landing "
-    "page: {click_id, click_id_type: gclid|gbraid|wbraid, captured_at, utm?}. "
-    "Stored against the account only when this call registers it; ignored on "
-    "a login. Unknown keys are ignored, a malformed object is refused with "
-    "error.400.attribution_invalid."
+    "page: {click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|"
+    "ttclid, captured_at, utm?}. The click identifier may be omitted when "
+    "utm.source names the channel (an email or aggregator landing carries no "
+    "click id); an identifier without its type, and a record carrying "
+    "neither, are refused. Stored against the account only when this call "
+    "registers it; ignored on a login. Unknown keys are ignored, a malformed "
+    "object is refused with error.400.attribution_invalid."
 )
 
 
@@ -120,22 +142,35 @@ class SignupAttributionSerializer(serializers.Serializer):
     written by our own capture code, so a shape error is a bug to fix, not a
     form for the user to correct, and the per-field detail would be the only
     part of a registration 400 that names an internal field name.
+
+    Both halves of the record are individually optional and the object is
+    still not a free-for-all — :meth:`to_internal_value` refuses the three
+    shapes that could not be reported anywhere: a ``click_id`` with no type
+    (no upload field to post it to), a type naming no identifier, and a
+    record that carries neither an identifier nor a ``utm.source``.
     """
 
     click_id = serializers.CharField(
         max_length=CLICK_ID_MAX_LENGTH,
+        required=False,
         help_text=(
-            "The advertising click identifier captured from the landing URL "
-            "(gclid/gbraid/wbraid)."
+            "The advertising click identifier captured from the landing URL. "
+            "Optional: a channel that puts no click id on the URL (email, an "
+            "aggregator, an untagged referral) still attributes through "
+            "utm.source. Sent with it, click_id_type is required."
         ),
     )
     click_id_type = serializers.ChoiceField(
         choices=[(value, value) for value in CLICK_ID_TYPES],
+        required=False,
         help_text=(
-            "Which of the three identifiers click_id is. The offline "
-            "conversion upload names the field explicitly and does not "
-            "guess: gbraid/wbraid arrive instead of a gclid when the visitor "
-            "declined app tracking."
+            "Which platform's identifier click_id is. The offline conversion "
+            "upload names the field explicitly and does not guess, so this "
+            "cannot be inferred from the value: gclid/gbraid/wbraid are "
+            "Google Ads (the last two arrive instead of a gclid when the "
+            "visitor declined app tracking), yclid is Yandex Direct, fbclid "
+            "Meta, ttclid TikTok Ads. Required whenever click_id is sent, "
+            "and meaningless without it."
         ),
     )
     captured_at = serializers.DateTimeField(
@@ -155,13 +190,72 @@ class SignupAttributionSerializer(serializers.Serializer):
         if not isinstance(data, dict):
             raise StapelValidationError(ERR_400_ATTRIBUTION_INVALID)
         try:
-            return super().to_internal_value(data)
+            value = super().to_internal_value(_without_blank_identifier(data))
         except serializers.ValidationError:
             # Collapse the nested report into the one key a client can act
             # on. Raised from here (not from validate()) so the parent
             # serializer records it against the `attribution` field and the
             # fleet error handler recovers the registered key verbatim.
             raise StapelValidationError(ERR_400_ATTRIBUTION_INVALID) from None
+        return _coherent(value)
+
+
+def _without_blank_identifier(data):
+    """``click_id``/``click_id_type`` sent blank mean "absent", not "invalid".
+
+    Done before field validation rather than by declaring the fields
+    ``allow_blank`` on purpose. A blank-tolerant ChoiceField renders in
+    OpenAPI as the enum *or* a separate blank enum, which puts an empty
+    string into every generated client's union for a value that is not a
+    click identifier — the contract would say the wire has seven kinds of
+    identifier, one of which is nothing. Normalising here keeps the emitted
+    enum exactly the platforms we can upload to, while a capture library
+    that writes ``click_id: ""`` for "the landing URL had none" still means
+    what it says: the same thing as omitting the key. This also lets the
+    flat-query and state readers, which build the mapping with blanks for
+    the keys they did not find, hand it straight to the same validator.
+    """
+    trimmed = dict(data)
+    for key in ('click_id', 'click_id_type'):
+        value = trimmed.get(key)
+        if isinstance(value, str) and not value.strip():
+            del trimmed[key]
+    return trimmed
+
+
+def _coherent(value):
+    """Refuse the attribution shapes nothing could ever be reported from.
+
+    Field-level validation cannot see across fields, and each field on its
+    own is now optional, so this is where the record is judged as a whole.
+    Three shapes are refused, all for the same reason — there is no channel
+    that could consume them:
+
+    * a ``click_id`` with no ``click_id_type``: an offline upload names the
+      field it posts to, so an identifier of unknown provenance has no
+      destination and guessing one is how a gbraid gets rejected as a gclid;
+    * a ``click_id_type`` naming no identifier: a platform label with
+      nothing under it;
+    * neither an identifier nor a ``utm.source``: an empty record, which
+      would occupy the account's one attribution row while saying nothing —
+      strictly worse than the honest "no row at all".
+
+    Blank strings are normalised to absent first: a capture library that
+    writes ``click_id: ""`` for "the URL had none" means the same thing as
+    one that omits the key, and the two must not disagree.
+    """
+    click_id = (value.get('click_id') or '').strip()
+    click_id_type = value.get('click_id_type') or ''
+    utm_source = ((value.get('utm') or {}).get('source') or '').strip()
+
+    if bool(click_id) != bool(click_id_type):
+        raise StapelValidationError(ERR_400_ATTRIBUTION_INVALID)
+    if not click_id and not utm_source:
+        raise StapelValidationError(ERR_400_ATTRIBUTION_INVALID)
+
+    value['click_id'] = click_id
+    value['click_id_type'] = click_id_type
+    return value
 
 
 def record_signup_attribution(user, attribution):
@@ -169,8 +263,9 @@ def record_signup_attribution(user, attribution):
 
     ``attribution`` is the validated mapping produced by
     :class:`SignupAttributionSerializer` —
-    ``{"click_id", "click_id_type", "captured_at", "utm"?}`` — or ``None``
-    when the client sent nothing, which is the common case and not an error.
+    ``{"click_id", "click_id_type", "captured_at", "utm"?}``, where the
+    identifier pair is blank on a UTM-only record — or ``None`` when the
+    client sent nothing, which is the common case and not an error.
 
     Returns the stored row, or ``None`` when there was nothing to store,
     when the deployment has the axis switched off, or when the write failed
@@ -207,8 +302,10 @@ def _write(user, attribution):
     captured_at = attribution['captured_at']
     utm = attribution.get('utm') or {}
     fields = {
-        'click_id': attribution['click_id'],
-        'click_id_type': attribution['click_id_type'],
+        # Blank on a UTM-only record, never null: the column says "this
+        # landing carried no click id", which is a fact, not a gap.
+        'click_id': attribution.get('click_id') or '',
+        'click_id_type': attribution.get('click_id_type') or '',
         'captured_at': captured_at,
     }
     for key in UTM_KEYS:
@@ -263,8 +360,9 @@ def attribution_from_query(query_params):
     rides the provider's redirect.
 
     Returns the same mapping shape the body serializer produces, or ``None``
-    when the query carries no click identifier — and ``None`` for a
-    malformed one too, which is the opposite of what a request BODY gets.
+    when the query carries neither a click identifier nor a ``utm_source``
+    — and ``None`` for a malformed one too, which is the opposite of what a
+    request BODY gets.
     The difference is deliberate and it is about who is looking. A body
     arrives from code that can be fixed and read a 400; this is a browser
     NAVIGATION, and the response to it is a redirect to a provider's login
@@ -275,17 +373,21 @@ def attribution_from_query(query_params):
     callback side.
     """
     click_id = (query_params.get('click_id') or '').strip()
-    if not click_id:
+    utm = {
+        key: query_params[f'utm_{key}']
+        for key in UTM_KEYS
+        if query_params.get(f'utm_{key}')
+    }
+    # A sign-in navigation that carries no advertising tag at all is the
+    # ordinary case, and asking the serializer about it would only produce
+    # a warning per login. The same UTM-only record a request body may
+    # carry is read here too — the OAuth door is a registration door.
+    if not click_id and not utm.get('source'):
         return None
     payload = {
         'click_id': click_id,
         'click_id_type': query_params.get('click_id_type') or '',
         'captured_at': query_params.get('captured_at') or '',
-    }
-    utm = {
-        key: query_params[f'utm_{key}']
-        for key in UTM_KEYS
-        if query_params.get(f'utm_{key}')
     }
     if utm:
         payload['utm'] = utm
@@ -331,8 +433,8 @@ def to_state(attribution):
     if not attribution:
         return None
     payload = {
-        'click_id': attribution['click_id'],
-        'click_id_type': attribution['click_id_type'],
+        'click_id': attribution.get('click_id') or '',
+        'click_id_type': attribution.get('click_id_type') or '',
         'captured_at': attribution['captured_at'].isoformat(),
     }
     utm = attribution.get('utm') or {}

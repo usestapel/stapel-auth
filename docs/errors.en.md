@@ -4,7 +4,7 @@
 
 | Code | Status | Params | Remediation | Text |
 |---|---|---|---|---|
-| `error.400.attribution_invalid` | 400 | — | `fix_input` | The attribution object is malformed. Expected {click_id, click_id_type: gclid\|gbraid\|wbraid, captured_at} with an optional utm object. |
+| `error.400.attribution_invalid` | 400 | `captured_at` | `fix_input` | The attribution object is malformed. Expected {captured_at} plus either a click_id with its click_id_type (gclid\|gbraid\|wbraid\|yclid\|fbclid\|ttclid) or a utm object naming a source. |
 | `error.400.bad_request` | 400 | — | `fix_input` | Bad request |
 | `error.400.captcha_invalid` | 400 | — | `retry` | Captcha verification failed. Please try again. |
 | `error.400.captcha_required` | 400 | — | `retry` | Captcha token is required. |

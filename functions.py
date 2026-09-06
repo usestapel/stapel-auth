@@ -688,7 +688,9 @@ def signup_attribution(payload: dict) -> dict | None:
 
     Payload: ``{"user_id"}``. Answer: ``{"user_id", "click_id",
     "click_id_type", "captured_at", "utm": {...}, "created_at",
-    "updated_at"}`` or ``None``.
+    "updated_at"}`` or ``None``. ``click_id``/``click_id_type`` are both
+    blank on a record whose landing carried only campaign tags — there is
+    nothing to upload offline for it, and ``utm`` is the whole answer.
 
     This is the read side of ``stapel_auth.attribution``. It is a Function
     rather than an endpoint because the caller is a *service*, not a

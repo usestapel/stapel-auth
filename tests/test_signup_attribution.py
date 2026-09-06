@@ -16,7 +16,11 @@ shaped:
 * it is not demoted by a stale replay, and is refreshed by a fresher click;
 * a malformed object is refused loudly rather than dropped, because an
   attribution silently thrown away is a campaign silently reported as
-  worthless.
+  worthless;
+* every platform the fleet actually buys traffic on can name its own
+  identifier, and a channel that puts no identifier on the landing URL at
+  all still attributes through ``utm.source`` — an accepted enum that is
+  narrower than the ad accounts in use turns whole channels into "direct".
 """
 import datetime
 import uuid
@@ -127,7 +131,7 @@ class TestOtpRegistration:
             email,
             {
                 "code": "1234",
-                # 'gclid_v2' is not one of the three the upload can name.
+                # 'gclid_v2' is not an identifier any upload can name.
                 "attribution": _attribution() | {"click_id_type": "gclid_v2"},
             },
         )
@@ -135,6 +139,96 @@ class TestOtpRegistration:
         assert response.data["localizable_error"] == "error.400.attribution_invalid"
         # Refused means refused: no half-registered account behind the 400.
         assert not User.objects.filter(email=email).exists()
+
+    @pytest.mark.parametrize(
+        "type_",
+        # The Google three, unchanged, beside the three platforms 0.34.3
+        # added. Parametrised rather than asserted as a set so a type that
+        # passes validation but cannot be *stored* (a column too narrow, a
+        # choice missing from the model) fails here and not in production.
+        ["gclid", "gbraid", "wbraid", "yclid", "fbclid", "ttclid"],
+    )
+    def test_every_accepted_identifier_type_is_stored(self, client, type_):
+        email = f"{uuid.uuid4().hex}@example.com"
+
+        response = _verify(
+            client,
+            email,
+            {"code": "1234", "attribution": _attribution(type_=type_)},
+        )
+        assert response.status_code == 200, response.data
+        row = SignupAttribution.objects.get(user__email=email)
+        assert row.click_id_type == type_
+        assert row.click_id == "EAIaIQobChMI-test"
+
+    def test_campaign_tags_alone_are_stored(self, client):
+        """No click id on the landing URL is not "no attribution".
+
+        An email campaign, a price aggregator, a paid placement that carries
+        only utm_* — each brings a real visitor. Refusing the record because
+        it has no click identifier reports every one of those accounts as
+        direct traffic.
+        """
+        email = f"{uuid.uuid4().hex}@example.com"
+        payload = {
+            "captured_at": NOW.isoformat(),
+            "utm": {"source": "newsletter", "medium": "email"},
+        }
+
+        response = _verify(client, email, {"code": "1234", "attribution": payload})
+        assert response.status_code == 200, response.data
+
+        row = SignupAttribution.objects.get(user__email=email)
+        assert row.utm_source == "newsletter"
+        assert row.utm_medium == "email"
+        # Blank, never null: "this landing carried no click id" is a fact.
+        assert row.click_id == ""
+        assert row.click_id_type == ""
+
+    def test_an_identifier_without_its_type_is_refused(self, client):
+        """An offline upload names the field it posts to; this names none."""
+        email = f"{uuid.uuid4().hex}@example.com"
+        payload = _attribution()
+        del payload["click_id_type"]
+
+        response = _verify(client, email, {"code": "1234", "attribution": payload})
+        assert response.status_code == 400
+        assert response.data["localizable_error"] == "error.400.attribution_invalid"
+        assert not User.objects.filter(email=email).exists()
+
+    def test_a_type_naming_no_identifier_is_refused(self, client):
+        """A platform label with nothing under it is not a record."""
+        email = f"{uuid.uuid4().hex}@example.com"
+        payload = _attribution(type_="yclid") | {"click_id": ""}
+
+        response = _verify(client, email, {"code": "1234", "attribution": payload})
+        assert response.status_code == 400
+        assert response.data["localizable_error"] == "error.400.attribution_invalid"
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {},
+            # A timestamp and nothing to timestamp.
+            {"captured_at": NOW.isoformat()},
+            # utm present but naming no channel: the same emptiness, spelled
+            # longer. utm.source is what makes a tag-only record readable.
+            {"captured_at": NOW.isoformat(), "utm": {"medium": "cpc"}},
+        ],
+    )
+    def test_an_empty_record_is_refused(self, client, payload):
+        """The one attribution row per account must not be spent on nothing.
+
+        An empty row is strictly worse than no row: "no row" is the honest
+        answer to where an account came from, and a row that says nothing
+        occupies the slot a later, real capture would have used.
+        """
+        email = f"{uuid.uuid4().hex}@example.com"
+
+        response = _verify(client, email, {"code": "1234", "attribution": payload})
+        assert response.status_code == 400
+        assert response.data["localizable_error"] == "error.400.attribution_invalid"
+        assert not SignupAttribution.objects.filter(user__email=email).exists()
 
     def test_unknown_keys_are_ignored(self, client):
         """A capture library that learns a new tag must not break sign-up."""
@@ -173,13 +267,13 @@ class TestOAuthRegistration:
 
     EMAIL = "oauth-attr@example.com"
 
-    def _provider_user(self):
+    def _provider_user(self, id="google-42", email=None, username="oauth-attr"):
         from stapel_core.oauth import OAuthUserData
 
         return OAuthUserData(
-            id="google-42",
-            email=self.EMAIL,
-            username="oauth-attr",
+            id=id,
+            email=email or self.EMAIL,
+            username=username,
             avatar=None,
             email_verified=True,
         )
@@ -227,6 +321,62 @@ class TestOAuthRegistration:
         assert row.click_id == "EAIaIQobChMI-oauth"
         assert row.click_id_type == "wbraid"
         assert row.utm_source == "google"
+
+    def test_the_redirect_flow_carries_campaign_tags_with_no_click_id(
+        self, client
+    ):
+        """The OAuth door is a registration door, and gets the same rule.
+
+        A UTM-only landing that then signs in with Google would otherwise be
+        the one shape the body doors accept and this one drops.
+        """
+        email = "oauth-utm-only@example.com"
+        with override_settings(
+            STAPEL_AUTH={
+                "OAUTH_PROVIDERS": {
+                    "google": {"client_id": "cid", "client_secret": "secret"}
+                }
+            }
+        ):
+            authorize = client.get(
+                reverse("oauth_authorize", kwargs={"provider": "google"}),
+                {
+                    "captured_at": NOW.isoformat(),
+                    "utm_source": "newsletter",
+                    "utm_campaign": "autumn",
+                },
+            )
+            assert authorize.status_code == 302
+            state = authorize.url.split("state=")[1].split("&")[0]
+
+            provider_user = self._provider_user(
+                id="google-77", email=email, username="oauth-utm-only"
+            )
+            with patch(
+                "stapel_auth.oauth_providers.GoogleProvider.exchange_code",
+                return_value="tok",
+            ), patch(
+                "stapel_auth.oauth.services.OAuthService.get_user_data",
+                return_value=provider_user,
+            ):
+                callback = client.get(
+                    reverse("oauth_callback", kwargs={"provider": "google"}),
+                    {"code": "authcode", "state": state},
+                )
+        assert callback.status_code in (200, 302), getattr(callback, "data", None)
+
+        row = SignupAttribution.objects.get(user__email=email)
+        assert row.click_id == ""
+        assert row.click_id_type == ""
+        assert row.utm_source == "newsletter"
+        assert row.utm_campaign == "autumn"
+
+    def test_a_navigation_with_no_tag_at_all_parks_nothing(self, client):
+        """The ordinary sign-in: no advertising tag, no state entry, no row."""
+        from stapel_auth.attribution import attribution_from_query
+
+        assert attribution_from_query({}) is None
+        assert attribution_from_query({"utm_medium": "cpc"}) is None
 
     def test_a_malformed_tag_does_not_take_the_sign_in_down(self, client):
         """A browser NAVIGATION is not a request body.
@@ -332,6 +482,31 @@ class TestCommFunction:
         assert answer["captured_at"] == NOW.isoformat()
         assert answer["utm"]["campaign"] == "brand"
         assert answer["utm"]["term"] == ""
+
+    def test_a_tags_only_row_reads_back_with_a_blank_identifier(self):
+        """The uploader has to be able to tell "nothing to upload" apart.
+
+        A blank click_id on a row that exists means the channel is known and
+        there is no offline conversion to post — a different fact from "no
+        row", which means the account's origin was never captured at all.
+        """
+        from stapel_core.comm import call
+
+        user = User.objects.create(
+            email=f"{uuid.uuid4().hex}@example.com", auth_type="email"
+        )
+        SignupAttribution.objects.create(
+            user=user,
+            click_id="",
+            click_id_type="",
+            captured_at=NOW,
+            utm_source="newsletter",
+        )
+
+        answer = call("auth.signup_attribution", {"user_id": str(user.pk)})
+        assert answer["click_id"] == ""
+        assert answer["click_id_type"] == ""
+        assert answer["utm"]["source"] == "newsletter"
 
     def test_no_row_answers_none(self):
         """The ordinary answer, and it must not look like an outage."""

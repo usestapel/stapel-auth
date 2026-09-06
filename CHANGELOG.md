@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.34.3] — 2026-09-06
+
+Patch. One state-only migration (`0025`, no SQL on any backend). Schema
+change: two fields become optional, one enum grows.
+
+### The accepted click identifiers were one ad account wide
+
+`click_id_type` accepted `gclid`, `gbraid` and `wbraid` — Google Ads, and
+only Google Ads — and `click_id` was required. A deployment whose primary ad
+channel is anything else had no shape to send: a landing carrying a `yclid`,
+an `fbclid` or a `ttclid` was refused with `error.400.attribution_invalid`,
+and so was a landing carrying no click identifier at all, which is what an
+email campaign, a price aggregator or an untagged paid placement looks like.
+The client's choice was then between dropping the tag and taking a 400 into
+its registration call, and either way the account's origin was reported as
+direct traffic. An accepted enum narrower than the ad accounts actually
+buying the traffic does not narrow what is *collected*; it narrows what can
+be *explained*.
+
+`click_id_type` now also accepts `yclid` (Yandex Direct), `fbclid` (Meta) and
+`ttclid` (TikTok Ads) beside the three Google identifiers, which are
+unchanged. `click_id` is optional when `utm` carries a `source`: a record
+that names only the channel is stored, with both identifier columns blank —
+blank, never null, because "this landing had no click id" is a fact and not a
+gap. `captured_at` stays required; it is what tells a stale replay from a
+fresher capture, and it is as available on a tag-only landing as on any
+other.
+
+The object still cannot be a free-for-all, and the three shapes that could
+not be reported anywhere are still refused with the same key: a `click_id`
+with no type (an offline upload names the field it posts to, so an identifier
+of unknown provenance has no destination), a type naming no identifier, and a
+record carrying neither an identifier nor a `utm.source` — an empty row is
+strictly worse than no row, since it occupies the account's one attribution
+slot while saying nothing. A `click_id`/`click_id_type` sent as an empty
+string means "absent", not "invalid", so a capture library that fills every
+key it knows about is not punished for it; the emitted enum stays exactly the
+platforms an upload can name.
+
+The flat-query door (`GET /oauth/{provider}/authorize/`) reads the same
+tag-only record, and a navigation carrying no advertising tag at all still
+parks nothing. The stored row, the `auth.signup_attribution` Function and the
+admin carry the new types with no shape change; a reader has to be ready for
+a blank identifier pair, which means "channel known, nothing to upload
+offline" — a different fact from "no row", which means the origin was never
+captured.
+
 ## [0.34.2] — 2026-09-06
 
 Patch. No migration, no schema change. One new comm Function.

@@ -2,9 +2,11 @@
   {
     "code": "error.400.attribution_invalid",
     "status": 400,
-    "params": [],
+    "params": [
+      "captured_at"
+    ],
     "remediation": "fix_input",
-    "en": "The attribution object is malformed. Expected {click_id, click_id_type: gclid|gbraid|wbraid, captured_at} with an optional utm object.",
+    "en": "The attribution object is malformed. Expected {captured_at} plus either a click_id with its click_id_type (gclid|gbraid|wbraid|yclid|fbclid|ttclid) or a utm object naming a source.",
     "owner": "stapel_auth"
   },
   {

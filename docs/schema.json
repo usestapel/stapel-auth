@@ -7007,10 +7007,13 @@
         "enum": [
           "gclid",
           "gbraid",
-          "wbraid"
+          "wbraid",
+          "yclid",
+          "fbclid",
+          "ttclid"
         ],
         "type": "string",
-        "description": "* `gclid` - gclid\n* `gbraid` - gbraid\n* `wbraid` - wbraid"
+        "description": "* `gclid` - gclid\n* `gbraid` - gbraid\n* `wbraid` - wbraid\n* `yclid` - yclid\n* `fbclid` - fbclid\n* `ttclid` - ttclid"
       },
       "ClosureStatusDTO": {
         "type": "object",
@@ -7354,7 +7357,7 @@
               }
             ],
             "nullable": true,
-            "description": "Optional advertising attribution captured by the client on the landing page: {click_id, click_id_type: gclid|gbraid|wbraid, captured_at, utm?}. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored, a malformed object is refused with error.400.attribution_invalid."
+            "description": "Optional advertising attribution captured by the client on the landing page: {click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|ttclid, captured_at, utm?}. The click identifier may be omitted when utm.source names the channel (an email or aggregator landing carries no click id); an identifier without its type, and a record carrying neither, are refused. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored, a malformed object is refused with error.400.attribution_invalid."
           }
         },
         "required": [
@@ -8165,7 +8168,7 @@
               }
             ],
             "nullable": true,
-            "description": "Optional advertising attribution captured by the client on the landing page: {click_id, click_id_type: gclid|gbraid|wbraid, captured_at, utm?}. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored, a malformed object is refused with error.400.attribution_invalid."
+            "description": "Optional advertising attribution captured by the client on the landing page: {click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|ttclid, captured_at, utm?}. The click identifier may be omitted when utm.source names the channel (an email or aggregator landing carries no click id); an identifier without its type, and a record carrying neither, are refused. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored, a malformed object is refused with error.400.attribution_invalid."
           }
         },
         "required": [
@@ -8830,7 +8833,7 @@
               }
             ],
             "nullable": true,
-            "description": "Optional advertising attribution captured by the client on the landing page: {click_id, click_id_type: gclid|gbraid|wbraid, captured_at, utm?}. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored, a malformed object is refused with error.400.attribution_invalid."
+            "description": "Optional advertising attribution captured by the client on the landing page: {click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|ttclid, captured_at, utm?}. The click identifier may be omitted when utm.source names the channel (an email or aggregator landing carries no click id); an identifier without its type, and a record carrying neither, are refused. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored, a malformed object is refused with error.400.attribution_invalid."
           }
         },
         "required": [
@@ -9341,11 +9344,11 @@
       },
       "SignupAttribution": {
         "type": "object",
-        "description": "The optional ``attribution`` object a registration request may carry.\n\nUnknown keys are ignored — DRF's default, and the right one here: the\nclient-side capture library is versioned independently of this service,\nand a tag it learns to collect next month must not start refusing\nsign-ups. Anything *malformed* is a different matter and is refused with\na single fleet error key rather than a per-field report: the object is\nwritten by our own capture code, so a shape error is a bug to fix, not a\nform for the user to correct, and the per-field detail would be the only\npart of a registration 400 that names an internal field name.",
+        "description": "The optional ``attribution`` object a registration request may carry.\n\nUnknown keys are ignored — DRF's default, and the right one here: the\nclient-side capture library is versioned independently of this service,\nand a tag it learns to collect next month must not start refusing\nsign-ups. Anything *malformed* is a different matter and is refused with\na single fleet error key rather than a per-field report: the object is\nwritten by our own capture code, so a shape error is a bug to fix, not a\nform for the user to correct, and the per-field detail would be the only\npart of a registration 400 that names an internal field name.\n\nBoth halves of the record are individually optional and the object is\nstill not a free-for-all — :meth:`to_internal_value` refuses the three\nshapes that could not be reported anywhere: a ``click_id`` with no type\n(no upload field to post it to), a type naming no identifier, and a\nrecord that carries neither an identifier nor a ``utm.source``.",
         "properties": {
           "click_id": {
             "type": "string",
-            "description": "The advertising click identifier captured from the landing URL (gclid/gbraid/wbraid).",
+            "description": "The advertising click identifier captured from the landing URL. Optional: a channel that puts no click id on the URL (email, an aggregator, an untagged referral) still attributes through utm.source. Sent with it, click_id_type is required.",
             "maxLength": 512
           },
           "click_id_type": {
@@ -9354,7 +9357,7 @@
                 "$ref": "#/components/schemas/ClickIdTypeEnum"
               }
             ],
-            "description": "Which of the three identifiers click_id is. The offline conversion upload names the field explicitly and does not guess: gbraid/wbraid arrive instead of a gclid when the visitor declined app tracking.\n\n* `gclid` - gclid\n* `gbraid` - gbraid\n* `wbraid` - wbraid"
+            "description": "Which platform's identifier click_id is. The offline conversion upload names the field explicitly and does not guess, so this cannot be inferred from the value: gclid/gbraid/wbraid are Google Ads (the last two arrive instead of a gclid when the visitor declined app tracking), yclid is Yandex Direct, fbclid Meta, ttclid TikTok Ads. Required whenever click_id is sent, and meaningless without it.\n\n* `gclid` - gclid\n* `gbraid` - gbraid\n* `wbraid` - wbraid\n* `yclid` - yclid\n* `fbclid` - fbclid\n* `ttclid` - ttclid"
           },
           "captured_at": {
             "type": "string",
@@ -9372,9 +9375,7 @@
           }
         },
         "required": [
-          "captured_at",
-          "click_id",
-          "click_id_type"
+          "captured_at"
         ]
       },
       "SignupUtm": {

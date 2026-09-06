@@ -4,7 +4,7 @@
 
 | Código | Estado | Parámetros | Acción | Texto |
 |---|---|---|---|---|
-| `error.400.attribution_invalid` | 400 | — | `fix_input` | El objeto attribution tiene un formato incorrecto. Se espera {click_id, click_id_type: gclid\|gbraid\|wbraid, captured_at} y un objeto utm opcional. |
+| `error.400.attribution_invalid` | 400 | `captured_at` | `fix_input` | El objeto attribution tiene un formato incorrecto. Se espera {captured_at} y, además, un click_id junto con su click_id_type (gclid\|gbraid\|wbraid\|yclid\|fbclid\|ttclid) o bien un objeto utm que indique un source. |
 | `error.400.bad_request` | 400 | — | `fix_input` | Solicitud incorrecta |
 | `error.400.captcha_invalid` | 400 | — | `retry` | La verificación del captcha ha fallado. Inténtalo de nuevo. |
 | `error.400.captcha_required` | 400 | — | `retry` | Se requiere el token del captcha. |

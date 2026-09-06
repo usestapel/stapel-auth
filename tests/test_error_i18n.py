@@ -111,9 +111,10 @@ _MACHINE_RU = {
         "отправьте UUID или случайное шестнадцатеричное/base64-значение, "
         "созданное один раз при установке, а не читаемое имя.",
     "error.400.attribution_invalid":
-        "Объект attribution имеет неверный формат. Ожидается {click_id, "
-        "click_id_type: gclid|gbraid|wbraid, captured_at} и необязательный "
-        "объект utm.",
+        "Объект attribution имеет неверный формат. Ожидается {captured_at}, "
+        "а также либо click_id вместе с click_id_type "
+        "(gclid|gbraid|wbraid|yclid|fbclid|ttclid), либо объект utm с "
+        "заполненным source.",
 }
 
 _MACHINE_ES = {
@@ -169,8 +170,9 @@ _MACHINE_ES = {
         "instalación, nunca un nombre legible.",
     "error.400.attribution_invalid":
         "El objeto attribution tiene un formato incorrecto. Se espera "
-        "{click_id, click_id_type: gclid|gbraid|wbraid, captured_at} y un "
-        "objeto utm opcional.",
+        "{captured_at} y, además, un click_id junto con su click_id_type "
+        "(gclid|gbraid|wbraid|yclid|fbclid|ttclid) o bien un objeto utm que "
+        "indique un source.",
 }
 
 #: language -> machine-translation table, consulted for the keys the

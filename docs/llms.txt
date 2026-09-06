@@ -1,4 +1,4 @@
-# stapel-auth 0.34.2
+# stapel-auth 0.34.3
 
 User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.
 
@@ -312,7 +312,7 @@ Paths are relative to `/auth/api/v1/`.
 
 ## Error codes (140) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
-- error.400.attribution_invalid [400] fix_input
+- error.400.attribution_invalid [400] fix_input {captured_at}
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
 - error.400.captcha_required [400] retry
