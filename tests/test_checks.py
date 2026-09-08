@@ -96,7 +96,7 @@ class FrontendUrlProdguardCheckTests(TestCase):
 
 class TestMockOtpOnAPublicHost:
     """E001 keys off DEBUG=False — which a stand on dev settings never
-    trips. The ironmemo stand therefore served a fixed OTP code for ANY
+    trips. A client stand therefore served a fixed OTP code for ANY
     address on the public internet, months after real providers were wired.
     E004 keys off REACHABILITY instead."""
 

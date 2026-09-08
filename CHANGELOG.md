@@ -1912,7 +1912,7 @@ mfa_enrollment_required=(policy == "mfa_enroll"),
   `'localhost'` survives only for the case where `FRONTEND_URL` is unset
   itself, and an explicit `WEBAUTHN_RP_ID` still wins (that is how you share
   one credential across subdomains: `rp_id='example.com'` for an origin of
-  `https://app.example.com`). Found on a live deployment by meettoday.
+  `https://app.example.com`). Found on a live deployment by a client.
 
   Compatible: where `FRONTEND_URL` is unset or is itself a localhost URL, the
   resolved rpId does not change.
@@ -1960,7 +1960,7 @@ mfa_enrollment_required=(policy == "mfa_enroll"),
   nothing to look the language up from and fell back to a hardcoded `"en"` —
   while Django had already resolved the request's language via
   `LocaleMiddleware`. Both services now pass `language=get_language()`.
-  Found on a live deployment by meettoday, 2026-07-28.
+  Found on a live deployment by a client, 2026-07-28.
 
 ### Known
 - `tests/test_contract.py::test_matches_monolith_auth_slice` is red and was
@@ -2016,7 +2016,7 @@ with the canonical `docs/flows.json` byte for byte.
 ### Added
 - **`stapel_auth.E004` — mock OTP on a host that is not local.** E001 ties
   that hazard to `DEBUG=False`, which is exactly what a stand on dev
-  settings never trips: the ironmemo stand served a fixed OTP code for ANY
+  settings never trips: a client stand served a fixed OTP code for ANY
   address, on the public internet, months after real email/SMS providers
   were wired — "sign in as anyone", with nothing in the system objecting
   (found 2026-07-26). E004 keys off REACHABILITY instead: mock OTP plus an
@@ -2034,7 +2034,7 @@ with the canonical `docs/flows.json` byte for byte.
   GitHub's / Zoom's console, i.e. it is a contract with a third party that
   no deployment can update from code — and moving the module's urlconf onto
   `/v1/` silently re-pointed it, so every live OAuth app started failing
-  with `Error 400: redirect_uri_mismatch` and nothing in our logs (ironmemo
+  with `Error 400: redirect_uri_mismatch` and nothing in our logs (a client
   stand, 2026-07-25). A deployment that cannot re-register right away pins
   the old path here; a future canon change cannot invalidate it again.
 
@@ -2353,7 +2353,7 @@ run these three tasks on some schedule of its own devising.
 
 ## [0.7.6] — 2026-07-19
 
-Consumer-facing fix (real report, meettoday migrators): a `session_share` QR
+Consumer-facing fix (real report, a client fleet's migrators): a `session_share` QR
 scan (`QRAuthViewSet.scan`) — and every other redirect-based login (magic-link
 verify, SSO SAML/OIDC callback, OAuth social callback) — mints fresh httponly
 JWT cookies via a plain HTTP redirect, entirely outside the SPA's own login

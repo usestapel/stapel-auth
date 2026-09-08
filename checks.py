@@ -177,7 +177,7 @@ def check_mock_otp_not_on_a_public_host(app_configs=None, **kwargs):
     a real stand escapes: dev settings keep DEBUG on, so a publicly
     reachable deployment kept accepting a fixed code for ANY address —
     "sign in as anyone" — for as long as the value stayed in its env
-    template (ironmemo stand, found 2026-07-26, months after real email and
+    template (a client stand, found 2026-07-26, months after real email and
     SMS providers were wired).
 
     ``ALLOWED_HOSTS=['*']`` counts as public: a deployment that answers on

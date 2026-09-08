@@ -442,9 +442,9 @@ class PasskeyAuthenticationTests(TestCase):
 class PasskeyRpConfigTests(TestCase):
     """rpId must agree with the origin the browser actually sees.
 
-    Regression for a live meettoday stand: only FRONTEND_URL was configured,
+    Regression for a live client stand: only FRONTEND_URL was configured,
     so the ceremony advertised rpId='localhost' beside
-    origin='https://sandbox.meettoday.app' and every browser aborted the
+    origin='https://sandbox.app.example' and every browser aborted the
     ceremony with a SecurityError.
     """
 
@@ -454,29 +454,29 @@ class PasskeyRpConfigTests(TestCase):
 
     def test_rp_id_defaults_to_frontend_url_host(self):
         with override_settings(STAPEL_AUTH={
-            'FRONTEND_URL': 'https://sandbox.meettoday.app',
+            'FRONTEND_URL': 'https://sandbox.app.example',
         }):
             rp_id, _, origin = PasskeyService._rp_config()
-        self.assertEqual(rp_id, 'sandbox.meettoday.app')
+        self.assertEqual(rp_id, 'sandbox.app.example')
         # ...and the origin it has to agree with is the same host.
-        self.assertEqual(origin, 'https://sandbox.meettoday.app')
+        self.assertEqual(origin, 'https://sandbox.app.example')
 
     def test_rp_id_default_ignores_port_and_path(self):
         with override_settings(STAPEL_AUTH={
-            'FRONTEND_URL': 'https://sandbox.meettoday.app:8443/app/',
+            'FRONTEND_URL': 'https://sandbox.app.example:8443/app/',
         }):
             rp_id, _, _ = PasskeyService._rp_config()
         # rpId is a bare domain — no scheme, no port, no path.
-        self.assertEqual(rp_id, 'sandbox.meettoday.app')
+        self.assertEqual(rp_id, 'sandbox.app.example')
 
     def test_explicit_rp_id_wins_over_frontend_url(self):
         with override_settings(STAPEL_AUTH={
-            'WEBAUTHN_RP_ID': 'meettoday.app',
-            'FRONTEND_URL': 'https://sandbox.meettoday.app',
+            'WEBAUTHN_RP_ID': 'app.example',
+            'FRONTEND_URL': 'https://sandbox.app.example',
         }):
             rp_id, _, _ = PasskeyService._rp_config()
         # The registrable-suffix case: one credential across all subdomains.
-        self.assertEqual(rp_id, 'meettoday.app')
+        self.assertEqual(rp_id, 'app.example')
 
     def test_rp_id_falls_back_to_localhost_without_frontend_url(self):
         with override_settings(STAPEL_AUTH={'FRONTEND_URL': ''}):
@@ -487,7 +487,7 @@ class PasskeyRpConfigTests(TestCase):
     def test_registration_begin_advertises_the_derived_rp_id(self):
         """End-to-end: the derived rpId reaches the options the browser gets."""
         with override_settings(STAPEL_AUTH={
-            'FRONTEND_URL': 'https://sandbox.meettoday.app',
+            'FRONTEND_URL': 'https://sandbox.app.example',
         }):
             options = json.loads(PasskeyService.registration_begin(self.user))
-        self.assertEqual(options['rp']['id'], 'sandbox.meettoday.app')
+        self.assertEqual(options['rp']['id'], 'sandbox.app.example')

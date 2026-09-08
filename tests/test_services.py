@@ -588,7 +588,7 @@ class TestOtpNotificationLanguage:
     from and falls back to hardcoded "en". Django already resolved the
     language for this request (LocaleMiddleware); stapel_auth simply never
     asked. Result: every OTP email and SMS went out in English regardless
-    of the caller's locale (meettoday, 2026-07-28).
+    of the caller's locale (a client, 2026-07-28).
     """
 
     def _captured(self, monkeypatch, send):

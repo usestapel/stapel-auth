@@ -662,7 +662,7 @@ class LoginNotificationService:
     to read as both a new device and a suspicious network. Every new user
     got a "suspicious login detected" email a minute after signing up.
 
-    Incident 2026-08-08 (meettoday): someone followed a meeting invite link
+    Incident 2026-08-08 (a meeting app): someone followed a meeting invite link
     into a private space and logged in for the first time in their life —
     and the first thing the product showed them was a break-in alert.
 

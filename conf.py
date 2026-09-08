@@ -192,7 +192,7 @@ DEFAULTS = {
     # implementation detail. Moving the module's urlconf onto /v1/ silently
     # re-pointed it and every live deployment started sending a redirect_uri
     # its Google/GitHub app had never seen — `Error 400:
-    # redirect_uri_mismatch`, login dead, nothing in our logs (ironmemo
+    # redirect_uri_mismatch`, login dead, nothing in our logs (a client
     # stand, 2026-07-25). Hosts that cannot re-register keep the old URI by
     # pinning it here (and routing that path to the current view).
     'OAUTH_CALLBACK_PATH': '/{url_prefix}api/v1/oauth/{provider}/callback',

@@ -1,6 +1,6 @@
 """A first-ever login can never be "suspicious".
 
-INCIDENT 2026-08-08 (meettoday). Someone was invited by link to a meeting
+INCIDENT 2026-08-08 (a meeting app). Someone was invited by link to a meeting
 in a private space. They logged in for the first time — and a minute later
 got a "SUSPICIOUS LOGIN DETECTED" email with a red "This wasn't me — end
 all sessions" button.
