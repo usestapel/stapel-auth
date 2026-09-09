@@ -1,6 +1,6 @@
 # Errors — Español
 
-`140` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
+`143` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
 
 | Código | Estado | Parámetros | Acción | Texto |
 |---|---|---|---|---|
@@ -70,6 +70,8 @@
 | `error.400.verification_invalid_factor` | 400 | — | `verify` | Este factor de verificación no está disponible |
 | `error.400.wrong_password` | 400 | — | `fix_input` | Contraseña incorrecta. |
 | `error.401.account_disabled` | 401 | — | `contact_support` | La cuenta de usuario está deshabilitada |
+| `error.401.gdpr.closure_token_expired` | 401 | — | `contact_support` | El período de gracia de 30 días ha terminado y esta cuenta ya no se puede restaurar. |
+| `error.401.gdpr.closure_token_invalid` | 401 | — | `reauthenticate` | Este enlace de cierre no es válido. |
 | `error.401.invalid_credentials` | 401 | — | `reauthenticate` | Credenciales no válidas |
 | `error.401.qr_auth_required` | 401 | — | `reauthenticate` | Se requiere autenticación para generar un código QR de session_share. |
 | `error.401.refresh_invalid` | 401 | — | `reauthenticate` | Token de actualización no válido o caducado |
@@ -83,6 +85,7 @@
 | `error.403.change_requires_current` | 403 | — | `verify` | Para cambiar un correo o un teléfono verificados hace falta un código enviado al actual. Usa el flujo de cambio. |
 | `error.403.forbidden` | 403 | — | `retry` | No tienes permiso para realizar esta acción |
 | `error.403.gdpr.account_closed` | 403 | — | `retry` | Esta cuenta se está eliminando y ya no se puede utilizar. |
+| `error.403.gdpr.closure_token_scope` | 403 | — | `reauthenticate` | Este enlace de cierre pertenece a un cierre anterior de esta cuenta. |
 | `error.403.gdpr.erasure_forbidden` | 403 | — | `contact_support` | No tienes permiso para solicitar la eliminación de este elemento. |
 | `error.403.mfa_enrollment_required` | 403 | — | `verify` | Es necesario registrar la autenticación de dos factores antes de poder usar esta cuenta. Configura primero una aplicación de autenticación o una llave de acceso. |
 | `error.403.mock_otp_admin` | 403 | — | `contact_support` | La autenticación por OTP está deshabilitada para cuentas de administrador en modo mock. |

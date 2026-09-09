@@ -24,13 +24,13 @@ pip install stapel-auth
 
 | Fact | Value |
 |---|---|
-| Version | `0.35.0` |
+| Version | `0.35.1` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | HTTP operations | 122 |
 | Config axes | 30 |
 | Usage surface | 18 |
 | Extension points | 6 |
-| Error codes | 140 |
+| Error codes | 143 |
 | Documented flows | 4 |
 | Fleet dependencies | [`stapel-core`](https://github.com/usestapel/stapel-core) · [`stapel-gdpr`](https://github.com/usestapel/stapel-gdpr) (optional) · [`stapel-notifications`](https://github.com/usestapel/stapel-notifications) (optional) |
 

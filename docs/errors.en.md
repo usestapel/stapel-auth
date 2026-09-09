@@ -1,6 +1,6 @@
 # Errors — English
 
-`140` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
+`143` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
 
 | Code | Status | Params | Remediation | Text |
 |---|---|---|---|---|
@@ -70,6 +70,8 @@
 | `error.400.verification_invalid_factor` | 400 | — | `verify` | This verification factor is not available |
 | `error.400.wrong_password` | 400 | — | `fix_input` | Wrong password. |
 | `error.401.account_disabled` | 401 | — | `contact_support` | User account is disabled |
+| `error.401.gdpr.closure_token_expired` | 401 | — | `contact_support` | The 30-day grace period has ended and this account can no longer be restored. |
+| `error.401.gdpr.closure_token_invalid` | 401 | — | `reauthenticate` | This closure link is not valid. |
 | `error.401.invalid_credentials` | 401 | — | `reauthenticate` | Invalid credentials |
 | `error.401.qr_auth_required` | 401 | — | `reauthenticate` | Authentication required to generate a session_share QR code. |
 | `error.401.refresh_invalid` | 401 | — | `reauthenticate` | Invalid or expired refresh token |
@@ -83,6 +85,7 @@
 | `error.403.change_requires_current` | 403 | — | `verify` | Changing a verified email or phone needs a code sent to the current one. Start the change flow instead. |
 | `error.403.forbidden` | 403 | — | `retry` | You do not have permission to perform this action |
 | `error.403.gdpr.account_closed` | 403 | — | `retry` | This account is being erased and can no longer be used. |
+| `error.403.gdpr.closure_token_scope` | 403 | — | `reauthenticate` | This closure link belongs to an earlier closure of this account. |
 | `error.403.gdpr.erasure_forbidden` | 403 | — | `contact_support` | You are not allowed to request erasure of this item. |
 | `error.403.mfa_enrollment_required` | 403 | — | `verify` | Two-factor enrollment is required before this account can be used. Set up an authenticator app or a passkey first. |
 | `error.403.mock_otp_admin` | 403 | — | `contact_support` | OTP-based auth is disabled for admin accounts in mock mode. |

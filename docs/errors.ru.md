@@ -1,6 +1,6 @@
 # Errors — Русский
 
-`140` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
+`143` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
 
 | Код | Статус | Параметры | Действие | Текст |
 |---|---|---|---|---|
@@ -70,6 +70,8 @@
 | `error.400.verification_invalid_factor` | 400 | — | `verify` | Этот способ подтверждения недоступен |
 | `error.400.wrong_password` | 400 | — | `fix_input` | Неверный пароль. |
 | `error.401.account_disabled` | 401 | — | `contact_support` | Учётная запись пользователя отключена |
+| `error.401.gdpr.closure_token_expired` | 401 | — | `contact_support` | 30-дневный льготный период закончился, и эту учётную запись больше нельзя восстановить. |
+| `error.401.gdpr.closure_token_invalid` | 401 | — | `reauthenticate` | Эта ссылка на закрытие учётной записи недействительна. |
 | `error.401.invalid_credentials` | 401 | — | `reauthenticate` | Неверные учётные данные |
 | `error.401.qr_auth_required` | 401 | — | `reauthenticate` | Для создания QR-кода session_share требуется аутентификация. |
 | `error.401.refresh_invalid` | 401 | — | `reauthenticate` | Недействительный или просроченный refresh-токен |
@@ -83,6 +85,7 @@
 | `error.403.change_requires_current` | 403 | — | `verify` | Чтобы изменить подтверждённые эл. почту или телефон, нужен код, отправленный на текущие. Воспользуйтесь процедурой смены. |
 | `error.403.forbidden` | 403 | — | `retry` | У вас нет прав для выполнения этого действия |
 | `error.403.gdpr.account_closed` | 403 | — | `retry` | Эта учётная запись удаляется и больше не может использоваться. |
+| `error.403.gdpr.closure_token_scope` | 403 | — | `reauthenticate` | Эта ссылка относится к более раннему закрытию этой учётной записи. |
 | `error.403.gdpr.erasure_forbidden` | 403 | — | `contact_support` | У вас нет прав запрашивать удаление этого объекта. |
 | `error.403.mfa_enrollment_required` | 403 | — | `verify` | Перед использованием этой учётной записи необходимо настроить двухфакторную аутентификацию. Сначала подключите приложение-аутентификатор или ключ доступа. |
 | `error.403.mock_otp_admin` | 403 | — | `contact_support` | Аутентификация по OTP отключена для учётных записей администраторов в mock-режиме. |

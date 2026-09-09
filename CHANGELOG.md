@@ -1,11 +1,33 @@
 # Changelog
 
-## [0.35.0] — 2026-09-09
+## [0.35.1] — 2026-09-09
 
-No migration, no schema change: `make contract-check` reports
-`docs/schema.json` byte-identical, because every action already declared its
-request serializer to OpenAPI. What changes is what the *server* answers to a
-verb the OpenAPI document never described.
+No migration. `v0.35.0` was tagged and never published: CI was already red on
+`main` over three stale contract artifacts (below), and the publish workflow
+gates on a green CI run for the tagged commit. 0.35.1 is that release plus the
+regeneration.
+
+Nothing this release changes touches `docs/schema.json` on its own — every
+action already declared its request serializer to OpenAPI, so what changes is
+what the *server* answers to a verb the OpenAPI document never described.
+
+### The committed contract artifacts were a dependency wave behind
+
+`docs/schema.json`, `docs/errors.json` and the three `docs/errors.<lang>.md`
+reference pages are emitted from a live `{auth + gdpr + core}` instance, so
+they move when a dependency inside the declared range moves — and CI installs
+the latest of that range while a workspace holds whatever it last resolved.
+They had gone stale against **stapel-gdpr 0.5.8** (three `error.401/403.gdpr.*`
+closure-token keys, the `X-Closure-Token` parameter and its 401/403 responses
+on cancel-closure) and **stapel-core 0.62.0** (the `error_language` field
+description, which that release rewrote). Regenerated with `make contract` and
+`STAPEL_REGEN_ERROR_I18N=1`. Nothing here is a decision; it is the emitter
+catching up, and it is what turns `main` green again.
+
+`tests/test_contract.py::test_matches_monolith_auth_slice` compares this
+module's slice against `stapel-example-monolith`'s committed aggregate. That
+aggregate is stale for the same reason and is a separate repo's regeneration;
+the test is skipped in module CI, where the monolith is not checked out.
 
 ### `OPTIONS` on every route this package mounts answered 500
 
@@ -67,7 +89,8 @@ that endpoint's real request serializer.
 ### Upgrading
 
 * `OPTIONS` bodies are new where there were none — a 500 before, a metadata
-  document now. Nothing else changes shape: `docs/schema.json` is unchanged.
+  document now. Nothing else changes shape: this module's own change leaves
+  `docs/schema.json` alone.
 * A host that worked around this with its own `DEFAULT_METADATA_CLASS` can
   drop it. Note that on a project which imports DRF from inside its settings
   module that key was inert anyway — see stapel-core 0.62.0, which repairs the
