@@ -37,6 +37,7 @@ from stapel_auth.sessions.serializers import (
     SessionResponseSerializer,
     SimpleStatusSerializer,
     TokenPairSerializer,
+    TokenRefreshRequestSerializer,
 )
 from stapel_auth.utils import SerializerSeamsMixin
 
@@ -215,7 +216,8 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
 
     permission_classes = [permissions.AllowAny]
 
-    # Overridable serializer seam (see SerializerSeamsMixin).
+    # Overridable serializer seams (see SerializerSeamsMixin).
+    refresh_post_request_serializer_class = TokenRefreshRequestSerializer
     response_serializer_class = TokenPairSerializer
 
     @extend_schema(

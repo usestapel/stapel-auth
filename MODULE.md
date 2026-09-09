@@ -229,7 +229,15 @@ class MyMagicLinkViewSet(MagicLinkViewSet):
     response_serializer_class = MyResponseSerializer
 ```
 
-Coverage: `otp/views.py` (AuthViewSet, AuthenticatorChangeViewSet), `password/views.py`, `mfa/views.py` (TOTPViewSet, PasskeyViewSet), `sessions/views.py`, `qr/views.py`, `magic_link/views.py`, `verification/views.py`. (Not yet seamed: `security/views.py`, `sso_views.py`, `admin/views.py`, `openid/views.py` — see anti-patterns / upstream.)
+Coverage: `otp/views.py` (AuthViewSet, AuthenticatorChangeViewSet), `password/views.py`, `mfa/views.py` (TOTPViewSet, PasskeyViewSet), `sessions/views.py`, `qr/views.py`, `magic_link/views.py`, `verification/views.py`, `security/views.py`, `admin/views.py`, `openid/views.py`. (Not yet seamed: `sso_views.py` — see anti-patterns / upstream.)
+
+#### The seam is also what answers `OPTIONS`
+
+Every viewset here is a `GenericViewSet` whose serializers are per-action seams, so none of them set `serializer_class` — and `GenericAPIView.get_serializer_class` answers a missing one with `AssertionError`, which is not an `APIException` and so escapes `stapel_exception_handler`. DRF's `SimpleMetadata` builds its `actions` block by instantiating the view's serializer, so until 0.35.0 **`OPTIONS` on every route this package mounts was a 500 with a traceback** — visible on the two pre-auth routes (`anonymous/`, `token/refresh/`, which are also what a cross-origin client's CORS preflight hits before it can sign in) and hidden behind a 401 everywhere else.
+
+`SerializerSeamsMixin.get_serializer_class()` derives the answer from the seams instead of asking each viewset to declare it: the request serializer of the **action being dispatched** (`<action>_request_serializer_class`, then `<action>_serializer_class` for an action already named `…_request`), then the view-wide `request_serializer_class` / `serializer_class`. On an `OPTIONS` request DRF pins `self.action` to the literal `"metadata"`, so the action is read out of the router's `action_map` against the verb the metadata pass is asking about. An action that reads nothing off the body — or a seam holding a `drf_spectacular` proxy, which documents a union of bodies but cannot be instantiated — answers `EmptyRequestSerializer`: "no declared fields", which is true.
+
+`tests/test_options_metadata.py` is the gate, and it is a gate for the class: it walks the mounted URLconf, sends a real `OPTIONS` at every pattern (anonymous **and** as a staff user, because an anonymous sweep never reaches the metadata code on an authenticated route) and fails on any 5xx.
 
 ### Verification factors (step-up)
 

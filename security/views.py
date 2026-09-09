@@ -5,6 +5,8 @@ import logging
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
+
+from stapel_auth.utils import SerializerSeamsMixin
 from rest_framework.views import APIView
 from rest_framework.viewsets import ViewSet
 from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
@@ -34,7 +36,7 @@ def _get_user_model():
 # =============================================================================
 
 
-class SecurityStatusViewSet(viewsets.GenericViewSet):
+class SecurityStatusViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly]
 
     @extend_schema(

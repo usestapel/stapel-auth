@@ -6,6 +6,8 @@ from django.urls import NoReverseMatch, reverse
 from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, serializers, status, viewsets
 from rest_framework.decorators import action
+
+from stapel_auth.utils import SerializerSeamsMixin
 from rest_framework.views import APIView
 from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
 from stapel_core.django.openapi.schemas import StapelErrorSerializer
@@ -70,7 +72,7 @@ class TokenIntrospectResponseSerializer(serializers.Serializer):
     token_type = serializers.CharField(required=False)
 
 
-class JWKSView(viewsets.GenericViewSet):
+class JWKSView(SerializerSeamsMixin, viewsets.GenericViewSet):
     """
     JSON Web Key Set (JWKS) endpoint.
 
@@ -135,7 +137,7 @@ class JWKSView(viewsets.GenericViewSet):
             )
 
 
-class OpenIDConfigurationView(viewsets.GenericViewSet):
+class OpenIDConfigurationView(SerializerSeamsMixin, viewsets.GenericViewSet):
     """
     OpenID Connect Discovery endpoint.
 

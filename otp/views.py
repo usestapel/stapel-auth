@@ -95,6 +95,7 @@ from stapel_auth.sessions.dto import (
 from stapel_auth.sessions.serializers import (
     AuthResponseSerializer,
     LoginResponseSerializer,
+    LogoutRequestSerializer,
     LogoutResponseSerializer,
     TokenVerifyResponseSerializer,
     TokenVerifySerializer,
@@ -372,6 +373,9 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     totp_challenge_response_serializer_class = TOTPChallengeResponseSerializer
     logout_response_serializer_class = LogoutResponseSerializer
     me_response_serializer_class = UserSerializer
+    oauth_login_request_serializer_class = OAuthSerializer
+    logout_request_serializer_class = LogoutRequestSerializer
+    verify_token_request_serializer_class = TokenVerifySerializer
     token_verify_response_serializer_class = TokenVerifyResponseSerializer
 
     def get_client_ip(self, request):
@@ -1931,6 +1935,18 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     instant_verify_new_request_serializer_class = InstantChangeVerifyNewSerializer
     delayed_initiate_request_serializer_class = DelayedChangeInitiateSerializer
     delayed_cancel_request_serializer_class = DelayedChangeCancelSerializer
+    phone_instant_request_old_request_serializer_class = InstantChangeRequestOldSerializer
+    phone_instant_verify_old_request_serializer_class = InstantChangeVerifyOldSerializer
+    phone_instant_request_new_request_serializer_class = InstantChangeRequestNewSerializer
+    phone_instant_verify_new_request_serializer_class = InstantChangeVerifyNewSerializer
+    phone_delayed_initiate_request_serializer_class = DelayedChangeInitiateSerializer
+    phone_delayed_cancel_request_serializer_class = DelayedChangeCancelSerializer
+    email_instant_request_old_request_serializer_class = InstantChangeRequestOldSerializer
+    email_instant_verify_old_request_serializer_class = InstantChangeVerifyOldSerializer
+    email_instant_request_new_request_serializer_class = InstantChangeRequestNewSerializer
+    email_instant_verify_new_request_serializer_class = InstantChangeVerifyNewSerializer
+    email_delayed_initiate_request_serializer_class = DelayedChangeInitiateSerializer
+    email_delayed_cancel_request_serializer_class = DelayedChangeCancelSerializer
     instant_request_old_response_serializer_class = InstantRequestOldResponseSerializer
     instant_verify_old_response_serializer_class = InstantVerifyOldResponseSerializer
     instant_request_new_response_serializer_class = InstantRequestNewResponseSerializer

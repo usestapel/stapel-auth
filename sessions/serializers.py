@@ -62,6 +62,26 @@ class TokenVerifySerializer(serializers.Serializer):
     token = serializers.CharField()
 
 
+class TokenRefreshRequestSerializer(serializers.Serializer):
+    """Body of POST token/refresh/ — the refresh token, when not in a cookie."""
+
+    refresh = serializers.CharField(
+        required=False, help_text="Refresh token (optional if in cookies)"
+    )
+
+
+class LogoutRequestSerializer(serializers.Serializer):
+    """Body of POST logout — the refresh token, when not in a cookie."""
+
+    refresh_token = serializers.CharField(
+        required=False,
+        help_text=(
+            "Refresh token to blacklist (optional, will also use cookie if "
+            "available)"
+        ),
+    )
+
+
 class LogoutResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = LogoutResponse

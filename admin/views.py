@@ -5,6 +5,8 @@ import logging
 from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
+
+from stapel_auth.utils import SerializerSeamsMixin
 from rest_framework.views import APIView
 from stapel_core.django.api.errors import (
     StapelResponse,
@@ -61,7 +63,7 @@ class CapabilitiesView(APIView):
 # ── Admin User Broker ─────────────────────────────────────────────────────────
 
 
-class AdminUserViewSet(viewsets.GenericViewSet):
+class AdminUserViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     """Admin broker for creating users without OTP verification."""
 
     # Staff or service key, declared where the surface is declared. The class
@@ -70,6 +72,9 @@ class AdminUserViewSet(viewsets.GenericViewSet):
     # user-creation endpoint". DenyEnrollOnly joins it for the same reason it
     # rides every other authenticated viewset.
     permission_classes = [IsStaffOrServiceAPIKey, DenyEnrollOnly]
+
+    # Overridable serializer seam (see SerializerSeamsMixin).
+    create_user_request_serializer_class = AdminUserCreateRequestSerializer
 
     @extend_schema(
         tags=["Admin"],

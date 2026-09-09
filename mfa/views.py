@@ -111,6 +111,11 @@ def _pc_to_dict(pc):
 
 class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     # Overridable serializer seams (see SerializerSeamsMixin).
+    setup_request_serializer_class = TOTPSetupRequestSerializer
+    confirm_setup_request_serializer_class = TOTPSetupConfirmSerializer
+    challenge_verify_request_serializer_class = TOTPChallengeVerifySerializer
+    delayed_initiate_request_serializer_class = TOTPDelayedInitiateSerializer
+    delayed_cancel_request_serializer_class = DelayedChangeCancelSerializer
     setup_response_serializer_class = TOTPSetupResponseSerializer
     confirm_setup_response_serializer_class = TOTPSetupConfirmResponseSerializer
     otp_sent_response_serializer_class = OtpSentResponseSerializer

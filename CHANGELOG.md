@@ -1,5 +1,81 @@
 # Changelog
 
+## [0.35.0] — 2026-09-09
+
+No migration, no schema change: `make contract-check` reports
+`docs/schema.json` byte-identical, because every action already declared its
+request serializer to OpenAPI. What changes is what the *server* answers to a
+verb the OpenAPI document never described.
+
+### `OPTIONS` on every route this package mounts answered 500
+
+Measured on a client stand, 2026-09-09: `OPTIONS /auth/api/v1/anonymous/` and
+`OPTIONS /auth/api/v1/token/refresh/` returned 500 with a traceback. DRF's
+`SimpleMetadata` builds the `actions` block by instantiating the view's
+serializer; every viewset here is a `GenericViewSet` whose serializers are
+per-action seams, so none of them set `serializer_class`; and
+`GenericAPIView.get_serializer_class` answers a missing one with
+`AssertionError` — which is not an `APIException`, so
+`stapel_exception_handler` never saw it and the request died as an unhandled
+500.
+
+Those two routes are pre-auth, which is what made them visible: everywhere
+else the permission check refuses first and DRF's metadata quietly skips the
+`actions` block, so the same defect sat behind a 401 on **twelve** viewsets
+and appeared the moment a signed-in client, or a staff tool, sent `OPTIONS`.
+They are also exactly what a cross-origin client's CORS preflight hits before
+it can sign in, which is a browser client that cannot reach the login screen.
+
+The seams already held the answer, so `SerializerSeamsMixin` now derives it
+rather than asking each of eleven viewsets to declare it:
+
+* `get_serializer_class()` resolves the *action being dispatched* —
+  `<action>_request_serializer_class`, then `<action>_serializer_class` for an
+  action already named `…_request`, then the view-wide `request_serializer_class`
+  / `serializer_class`. So `OPTIONS` on `email/request/` describes
+  `EmailAuthRequestSerializer` and `OPTIONS` on `email/verify/` describes
+  `EmailAuthVerifySerializer` — two actions of one viewset, two real bodies,
+  which is the thing a single `serializer_class` could not have said.
+* On an `OPTIONS` request DRF pins `self.action` to the literal `"metadata"`,
+  so the action is read out of the router's own `action_map` against the verb
+  the metadata pass is asking about.
+* An action that genuinely reads nothing off the body answers
+  `EmptyRequestSerializer` — "no declared fields", which is true, rather than
+  raising. A seam holding a `drf_spectacular` proxy (a
+  `PolymorphicProxySerializer` standing for a union of bodies) is treated the
+  same way: it documents an endpoint but cannot be instantiated, and calling
+  it would be the same 500 from the other side.
+* The four viewsets that carried no seams at all — `AdminUserViewSet`,
+  `JWKSView`, `OpenIDConfigurationView`, `SecurityStatusViewSet` — now carry
+  the mixin, so the answer is uniform across the package rather than correct
+  only where someone remembered.
+* Twenty-two actions that declared a request serializer to OpenAPI and not to
+  the seam now declare it to both, so `OPTIONS` describes the real body on
+  every route that has one. That also widens the override seam: a host can
+  now swap those serializers by subclassing, which is what the mixin's
+  docstring already promised.
+
+**The gate is the class, not the two routes.**
+`tests/test_options_metadata.py` walks the mounted URLconf, issues a real
+`OPTIONS` at every pattern — once anonymous, once as a staff user, because an
+anonymous sweep never reaches the metadata code on an authenticated route —
+and fails on any 5xx. A new view that forgets its seam turns it red the day it
+is written. The two named routes are asserted in full: 200, `Allow: …POST…`,
+`Content-Type: application/json`, and an `actions.POST` block whose fields are
+that endpoint's real request serializer.
+
+### Upgrading
+
+* `OPTIONS` bodies are new where there were none — a 500 before, a metadata
+  document now. Nothing else changes shape: `docs/schema.json` is unchanged.
+* A host that worked around this with its own `DEFAULT_METADATA_CLASS` can
+  drop it. Note that on a project which imports DRF from inside its settings
+  module that key was inert anyway — see stapel-core 0.62.0, which repairs the
+  import-order trap that made it so.
+* New public names: `stapel_auth.utils.EmptyRequestSerializer`,
+  `stapel_auth.sessions.serializers.TokenRefreshRequestSerializer` and
+  `LogoutRequestSerializer`.
+
 ## [0.34.3] — 2026-09-06
 
 Patch. One state-only migration (`0025`, no SQL on any backend). Schema

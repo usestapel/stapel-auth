@@ -3,7 +3,35 @@ Utility functions for the authentication service.
 """
 import re
 
+from rest_framework import serializers
+
 from stapel_core.django.api.views import SerializerSeamMixin
+
+
+def _is_serializer_class(candidate) -> bool:
+    """Is *candidate* something DRF can instantiate as a serializer?
+
+    A seam may legitimately hold a ``drf_spectacular`` proxy — a
+    ``PolymorphicProxySerializer`` INSTANCE standing for a union of bodies —
+    which documents an endpoint but cannot be called. Handing that to
+    ``get_serializer()`` is a ``TypeError`` inside OPTIONS, i.e. the same 500
+    from the other side, so a seam that is not a serializer class is treated
+    as "no declaration" rather than trusted.
+    """
+    return isinstance(candidate, type) and issubclass(
+        candidate, serializers.BaseSerializer
+    )
+
+
+class EmptyRequestSerializer(serializers.Serializer):
+    """A request body with no declared fields.
+
+    What :meth:`SerializerSeamsMixin.get_serializer_class` answers for an
+    action that reads nothing off the body — a logout, a refresh that takes
+    its token from a cookie. ``OPTIONS`` then reports an empty ``actions``
+    entry, which is the truth, instead of DRF raising ``AssertionError``
+    behind a 500.
+    """
 
 
 # ── Namespaced org logins (workspaces-org-program §C1) ───────────────────────
@@ -86,6 +114,67 @@ class SerializerSeamsMixin(SerializerSeamMixin):
         raise AttributeError(
             f"{type(self).__name__!r} object has no attribute {name!r}"
         )
+
+    def _serializer_seam_action(self):
+        """Which action's body is being described.
+
+        ``ViewSetMixin.initialize_request`` pins ``self.action`` to the
+        literal ``"metadata"`` for an OPTIONS request, so on the one request
+        that asks this question ``self.action`` names no action at all.
+        ``SimpleMetadata`` then clones the request as POST and puts it on the
+        view, which is what makes the answer derivable anyway: read the verb
+        the metadata pass is asking about out of the same map the router
+        built.
+        """
+        action = getattr(self, "action", None)
+        if action and action != "metadata":
+            return action
+        action_map = getattr(self, "action_map", None) or {}
+        method = getattr(getattr(self, "request", None), "method", "") or ""
+        return action_map.get(method.lower()) or action
+
+    def get_serializer_class(self):
+        """DRF's own answer to "what does this endpoint accept?".
+
+        Every viewset here is a ``GenericViewSet`` whose serializers are
+        per-action seams, so none of them set ``serializer_class`` — and
+        ``GenericAPIView.get_serializer_class`` answers a missing one with
+        ``AssertionError``, which is not an ``APIException`` and so escapes
+        the exception handler. Anything that asks DRF for a serializer
+        generically therefore got a 500 with a traceback rather than an
+        answer. ``OPTIONS`` is exactly that: ``SimpleMetadata`` builds the
+        ``actions`` block by instantiating the view's serializer, so a
+        cross-origin client's CORS preflight against a pre-auth route — the
+        one request it makes before it can sign in — died on it (measured on
+        a client stand, 2026-09-09).
+
+        The seams already hold the answer, so it is derived rather than
+        declared: the request serializer of the action being dispatched,
+        then the view-wide seam, then whatever ``serializer_class`` a
+        subclass set. An action that genuinely takes no body answers
+        :class:`EmptyRequestSerializer` — "no declared fields", which is
+        true, and which keeps ``OPTIONS`` a 200 for every route this package
+        mounts (``tests/test_options_metadata.py`` walks the URLconf and
+        proves it).
+        """
+        action = self._serializer_seam_action()
+        candidates = []
+        if action:
+            candidates = [f"{action}_request_serializer_class"]
+            if action.endswith("_request"):
+                # The seam names a PURPOSE, and for an action already called
+                # `<thing>_request` the purpose is the action name itself:
+                # `email_request` reads `email_request_serializer_class`, not
+                # `email_request_request_serializer_class`. Only the
+                # `_request` suffix is accepted here, so this can never pick
+                # up a response seam.
+                candidates.append(f"{action}_serializer_class")
+        candidates.extend(("request_serializer_class", "serializer_class"))
+        for name in candidates:
+            declared = getattr(self, name, None)
+            if _is_serializer_class(declared):
+                return declared
+        return EmptyRequestSerializer
 
 
 def mask_phone(phone: str) -> str:
