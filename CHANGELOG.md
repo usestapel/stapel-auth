@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.36.1] — 2026-09-10
+
+No migration, no behaviour change. `v0.36.0` was tagged and never published:
+CI was red on `docs/schema.json` (the publish workflow gates on a green CI run
+for the tagged commit), and 0.36.1 is that release plus the regeneration.
+
+### The committed schema was a dependency release behind
+
+`docs/schema.json` is emitted from a live `{auth + gdpr + core}` instance, so
+it moves when a dependency inside the declared range moves — CI installs the
+latest of that range, a workspace holds whatever it last resolved. It had gone
+stale against **stapel-gdpr 0.5.10**, whose erasure views gained the docstrings
+that say guests reach them on purpose; those docstrings are the OpenAPI
+descriptions of three `/auth/api/` paths. Regenerated with `make contract`.
+Nothing here is a decision — it is the emitter catching up.
+
 ## [0.36.0] — 2026-09-10
 
 Requires **stapel-core >= 0.64.0** (the posture `stage` and
