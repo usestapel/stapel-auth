@@ -1,5 +1,5 @@
 """Data Transfer Objects for OAuth and authentication capabilities."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 
@@ -219,6 +219,28 @@ class OtpMeta:
 
 
 @dataclass
+class PostureInfo:
+    """What kind of installation this is, as the deployment declares it.
+
+    The companion of email_mock/phone_mock: those say a channel is stubbed,
+    this says whether that is meant. A stand can be production — public host,
+    real TLS, real data — and not yet advertised, and it declares that as
+    ``stage="prototype"`` on its posture
+    (``stapel_core.django.presets``). Read-only transparency: nothing here
+    gates anything, and a monitor uses it to tell a prototype from prod.
+
+    Attributes:
+        preset: Declared deployment posture, or null when there is none.
+            Example: public_space
+        stage: "live" or "prototype", or null when no posture is declared.
+            A mocked channel is expected in the prototype stage and a
+            defect in the live one. Example: live
+    """
+    preset: Optional[str] = None
+    stage: Optional[str] = None
+
+
+@dataclass
 class AuthCapabilities:
     """Auth method availability for this deployment.
 
@@ -231,9 +253,12 @@ class AuthCapabilities:
             sso, oauth) — the shape the sign-in panel is built from.
         otp: Server-authoritative OTP parameters (code lengths, ttl, resend
             cooldown) — see OtpMeta.
+        posture: The declared deployment posture and its stage (PostureInfo).
+            Says whether a mocked channel here is meant.
     """
     registration: RegistrationCapabilities
     login: LoginCapabilities
     mfa: MFACapabilities
     methods: List["AuthMethodInfo"]
     otp: "OtpMeta"
+    posture: "PostureInfo" = field(default_factory=PostureInfo)

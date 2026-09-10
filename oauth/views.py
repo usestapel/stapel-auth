@@ -10,6 +10,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import permissions
 from rest_framework.viewsets import ViewSet
 from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
+from stapel_core.django.api.permissions import ANONYMOUS_ALLOWED
 
 from stapel_auth.errors import (
     ERR_400_LAST_AUTH_METHOD,
@@ -44,6 +45,12 @@ class OAuthLinkViewSet(SerializerSeamsMixin, ViewSet):
     """Manage OAuth accounts connected to the current user."""
 
     permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly]
+
+    # The caller's own links. Linking mints no login route on its own —
+    # sign-in resolves User.oauth_provider/oauth_id, never these rows —
+    # and unlinking touches only rows filtered by request.user.
+    stapel_anonymous_access = ANONYMOUS_ALLOWED
+
 
     # Overridable serializer seams (see SerializerSeamsMixin).
     list_response_serializer_class = OAuthLinksResponseSerializer

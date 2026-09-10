@@ -1,5 +1,74 @@
 # Changelog
 
+## [0.36.0] — 2026-09-10
+
+Requires **stapel-core >= 0.64.0** (the posture `stage` and
+`stapel_core.django.hosts`). No migration.
+
+### Mock OTP on an unlaunched stand: a stage, not a silenced check
+
+A stand can be run as production — public host, real TLS, real data — while
+nobody has been told about it, and there a mock channel is a decision. Until
+now the only way to keep it was `SILENCED_SYSTEM_CHECKS = ["stapel_auth.E004"]`,
+which erases the finding and records no intent: the next reader cannot tell a
+decision from a leftover, and the id stays silenced on the day the stand IS
+advertised.
+
+`stapel_auth.E001` and `stapel_auth.E004` now pass their finding through
+`stage_finding`:
+
+| declared posture stage | E001 | E004 |
+|---|---|---|
+| `live`, or no posture declared | error, unchanged | error, unchanged |
+| `prototype` | `stapel_auth.W011` | `stapel_auth.W012` |
+
+The warning carries the error's own message and hint plus one sentence:
+*"Declared posture stage is prototype: this is expected until launch. Flip the
+posture to stage="live" before the deployment is advertised; the same finding
+is then an error."* Nothing changes for a deployment that declares no posture,
+which is every deployment that has not adopted one. Both docstrings now name
+the stage as the sanctioned route and no longer document `SILENCED_SYSTEM_CHECKS`
+as the escape.
+
+`_looks_public` moved to `stapel_core.django.hosts.looks_public` — one host
+classifier for every check that has to ask — and is re-exported here under its
+own name, unchanged.
+
+### `GET /capabilities/` reports the posture
+
+`posture.preset` and `posture.stage` (`"live"` / `"prototype"` / `null` when no
+posture is declared) join the `email_mock` / `phone_mock` transparency fields
+they belong with: those say a channel is stubbed, this says whether that is
+meant. Additive — a client that does not read them is unaffected.
+
+### Seven views admitted guests and nothing said so
+
+`stapel_core.adoption.W003` (core 0.63.2) runs the gate instead of reading its
+spelling, and reported seven views of this module. All seven are gated
+`[IsAuthenticated, DenyEnrollOnly]`, and `DenyEnrollOnly` asks about
+enrolment, not identity: a guest session passes it, so the static check saw a
+second permission class and stayed silent while every one of them admitted
+guests.
+
+Each view now states its answer, and the queryset behind each `ALLOWED` was
+checked to be scoped to the caller:
+
+| view | verdict | why |
+|---|---|---|
+| `security.views.AuditLogViewSet` | `ANONYMOUS_ALLOWED` | `filter(user=request.user)` — a guest generates these events and may read them |
+| `security.views.SecurityStatusViewSet` | `ANONYMOUS_ALLOWED` | reads `request.user` and nothing else |
+| `sessions.views.SessionViewSet` | `ANONYMOUS_ALLOWED` | own sessions only; a guest that cannot end its own session cannot sign out of a shared device |
+| `verification.views.VerificationViewSet` | `ANONYMOUS_ALLOWED` | `_get_owned_challenge` refuses a challenge minted for anybody else |
+| `verification.views.VerificationPreferenceViewSet` | `ANONYMOUS_ALLOWED` | `user=request.user` on every read and write |
+| `oauth.views.OAuthLinkViewSet` | `ANONYMOUS_ALLOWED` | own links; linking mints no login route (sign-in resolves `User.oauth_provider`/`oauth_id`, never these rows) |
+| `otp.views.AuthenticatorChangeViewSet` | `ANONYMOUS_DENIED` + `IsNotAnonymousUser` | a change flow proves the CURRENT authenticator first and a guest holds none — setting an address on an anonymous session promotes it, which is the other door and the only sanctioned one. The service already answered `no_current_value` on every guest call; the gate now says why |
+
+`tests/test_anonymous_view_declarations.py` is the permanent probe: it builds
+each view's whole permission stack, calls it once with `AnonymousUser` and once
+with a guest row, and asserts that the number of views that refuse the first,
+admit the second and declare nothing is **zero**. A gate that raises while
+being probed yields no verdict and is skipped rather than guessed at.
+
 ## [0.35.1] — 2026-09-09
 
 No migration. `v0.35.0` was tagged and never published: CI was already red on

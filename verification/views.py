@@ -18,6 +18,7 @@ import logging
 from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, viewsets
 from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
+from stapel_core.django.api.permissions import ANONYMOUS_ALLOWED
 from stapel_core.django.openapi.schemas import StapelErrorSerializer
 from stapel_core.verification import errors as _verification_errors  # noqa: F401 — registers error keys
 from stapel_core.verification import factor_registry
@@ -55,6 +56,11 @@ class VerificationViewSet(SerializerSeamsMixin, viewsets.ViewSet):
     """Challenge-scoped verification endpoints, owner-bound."""
 
     permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly]
+
+    # Step-up on the caller's own challenge: _get_owned_challenge refuses
+    # a challenge minted for anybody else. Guests are challenged too.
+    stapel_anonymous_access = ANONYMOUS_ALLOWED
+
 
     # Overridable serializer seams (see SerializerSeamsMixin).
     info_response_serializer_class = VerificationChallengeInfoResponseSerializer
@@ -240,6 +246,10 @@ class VerificationPreferenceViewSet(SerializerSeamsMixin, viewsets.ViewSet):
     """
 
     permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly]
+
+    # The caller's own preference rows (user=request.user throughout).
+    stapel_anonymous_access = ANONYMOUS_ALLOWED
+
 
     # Overridable serializer seams (see SerializerSeamsMixin).
     preference_request_serializer_class = VerificationPreferenceSerializer

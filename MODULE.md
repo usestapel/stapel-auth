@@ -147,6 +147,29 @@ Rules this module holds itself to, and that an extension must too:
 
 `stapel_core.sites.W001` fires when `FRONTEND_URL`'s host is not one of the registered hosts: the fallback would then point at a domain the deployment does not serve.
 
+### Mock OTP on a real host — the posture stage, not a silenced id (0.36.0)
+
+`USE_MOCK_SMS_OTP` / `USE_MOCK_EMAIL_OTP` accept a fixed code for ANY address, so two checks report them: `stapel_auth.E001` (mock on with `DEBUG=False`) and `stapel_auth.E004` (mock on while `ALLOWED_HOSTS` reaches a host that is not obviously local — the case a stand on dev settings escapes).
+
+A stand can be production — public host, real TLS, real data — and not yet advertised, and there a mock channel is a decision. The way to say so is the deployment posture's **stage**, not `SILENCED_SYSTEM_CHECKS`:
+
+```python
+from stapel_core.django.presets import public_space
+
+_preset = public_space(stage="prototype")   # or private_space(door=..., stage="prototype")
+STAPEL_POSTURE = _preset["STAPEL_POSTURE"]
+STAPEL_AUTH = {**STAPEL_AUTH, **_preset["STAPEL_AUTH"]}
+```
+
+| declared stage | E001 | E004 |
+|---|---|---|
+| `live`, or no posture declared | error, unchanged | error, unchanged |
+| `prototype` | `stapel_auth.W011` | `stapel_auth.W012` |
+
+The warning carries the error's own message plus one sentence: *"Declared posture stage is prototype: this is expected until launch. Flip the posture to stage="live" before the deployment is advertised; the same finding is then an error."* Silencing an id erases the finding and records no intent — it silences the day the stand IS advertised exactly as thoroughly as the day before — so it is no longer the documented escape for either check. The `prototype` spread also leaves the mock keys OUT of the posture, so `stapel_core.presets.E001` has nothing to compare and the deployment sets them itself; `stapel_core.presets.W003` reports a prototype stage nothing prototypical is running under.
+
+`GET /<auth>/api/v1/capabilities/` carries the same fact as `posture.stage` (`"live"` / `"prototype"` / `null`) next to `posture.preset`, so a monitor can tell an unlaunched stand from production without reading its settings.
+
 ### Deployment requirement — the client IP behind a proxy (`STAPEL_NETINTEL['TRUSTED_PROXY_HEADER']`)
 
 Everything this module rate-limits, locks out or writes to an audit row is keyed on the caller's IP: the guest-mint budget (`ANONYMOUS_RATE_LIMIT_PER_HOUR`), the progressive OTP lockout, and the `LoginAttempt` / `AuthAuditLog` / `UserSession` rows the user's own security screen shows. **There is exactly one place that value comes from — `stapel_core.netintel.client_ip`** (`otp/views.py: AuthViewSet.get_client_ip`, `sessions/services.py: _get_client_ip`, `mfa/views.py`, the delayed-change initiators). It trusts `REMOTE_ADDR` and nothing else until the deployment says otherwise:
@@ -729,6 +752,8 @@ billing / workspaces — copy this module, 4 steps):
 - **Don't reference the concrete user class.** Always `get_user_model()` / `settings.AUTH_USER_MODEL` (the module itself follows this rule everywhere).
 - **Don't read the client IP from `request.META` / `request.headers`.** `X-Forwarded-For` and friends are caller-supplied unless a trusted edge overwrites them, and this module keys rate limits, lockouts and audit rows on that value. Go through `stapel_core.netintel.client_ip`; a deployment declares its proxy once via `STAPEL_NETINTEL['TRUSTED_PROXY_HEADER']` (see above).
 - **Don't resolve an identity from a token you did not mint without pinning its audience.** `OAuthService.get_user_data` runs the check; only the authorization-code callback may pass `token_is_ours=True`, and only because it exchanged the token itself. A new provider that cannot introspect keeps `verifies_audience = False` — looking verified while not being verified is worse than plainly refusing.
+- **Don't silence a mock-channel finding.** `SILENCED_SYSTEM_CHECKS = ["stapel_auth.E004"]` on a stand that runs mock OTP on purpose erases the finding and records nothing about when it stops being true. Declare `stage="prototype"` on the posture instead and get the same finding as a warning that names the reason.
+- **Don't leave the guest question open on a new view.** `DenyEnrollOnly` is about enrolment, not identity: a guest session passes it, so `[IsAuthenticated, DenyEnrollOnly]` alone admits guests and says nothing about whether that was meant. Declare `stapel_anonymous_access = ANONYMOUS_ALLOWED` (with the rows scoped to `request.user`) or add `IsNotAnonymousUser` and declare `ANONYMOUS_DENIED`. `tests/test_anonymous_view_declarations.py` runs the whole gate stack against a guest and asserts the undeclared count is zero.
 - **Don't let a code sent to a new address overwrite a verified one.** Setting a first email/phone is one step; replacing a verified one goes through the change flow that proves the current authenticator. A new-address OTP is not authority over the old address (see above).
 
 ## App-layer override vs upstream contribution — rule of thumb

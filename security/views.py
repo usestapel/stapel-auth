@@ -10,6 +10,7 @@ from stapel_auth.utils import SerializerSeamsMixin
 from rest_framework.views import APIView
 from rest_framework.viewsets import ViewSet
 from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
+from stapel_core.django.api.permissions import ANONYMOUS_ALLOWED
 
 from stapel_auth.errors import ERR_404_NOT_FOUND
 from stapel_auth.permissions import DenyEnrollOnly
@@ -38,6 +39,11 @@ def _get_user_model():
 
 class SecurityStatusViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly]
+
+    # A guest holds sessions, devices and a password-less posture of its
+    # own, and this screen reads nothing but the caller's own row.
+    stapel_anonymous_access = ANONYMOUS_ALLOWED
+
 
     @extend_schema(
         description="Return the full security posture for the current user. Used by the frontend to render the security settings screen.",
@@ -116,6 +122,11 @@ class SecurityStatusViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 @extend_schema(tags=["Security"])
 class AuditLogViewSet(ViewSet):
     permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly]
+
+    # The caller's own audit trail — filter(user=request.user). A guest
+    # session generates these events and is entitled to read them.
+    stapel_anonymous_access = ANONYMOUS_ALLOWED
+
 
     @extend_schema(
         summary="List security audit log",

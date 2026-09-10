@@ -14,17 +14,42 @@ mistake ``stapel_core.django.prodguard`` exists to catch for secrets/DB
 passwords — same failure shape, so it gets the same treatment here rather
 than only being caught by the standalone ``deploy/check-env.sh`` text-file
 gate (which does not run inside the app process/CI's ``manage.py check``).
+
+The one sanctioned way to keep a mock channel on a real host
+---------------------------------------------------------------
+A stand can be run as production — public host, real TLS, real data — and not
+yet be advertised, and on such a stand a mock channel is a decision. That
+decision is the deployment posture's **stage**, not
+``SILENCED_SYSTEM_CHECKS``::
+
+    from stapel_core.django.presets import public_space
+
+    _preset = public_space(stage="prototype")
+    STAPEL_POSTURE = _preset["STAPEL_POSTURE"]
+
+E001 and E004 then report as W011/W012 — same message, plus the sentence that
+says the stage expects it and that flipping to ``stage="live"`` makes it an
+error again. Silencing an id erases the finding and records no intent, which
+is why it is no longer the documented escape for either check: it silences
+the day the stand IS advertised just as thoroughly as the day before.
 """
 from __future__ import annotations
 
 from django.core import checks
+from stapel_core.django.hosts import LOCAL_HOSTS, looks_public
+from stapel_core.django.presets import stage_finding
 
 E001_MOCK_OTP_IN_PRODUCTION = "stapel_auth.E001"
+W011_MOCK_OTP_IN_A_PROTOTYPE = "stapel_auth.W011"
 
 
 @checks.register("stapel_auth")
 def check_mock_otp_disabled_in_production(app_configs=None, **kwargs):
-    """E001 — USE_MOCK_SMS_OTP/USE_MOCK_EMAIL_OTP must be off when DEBUG=False."""
+    """E001 — USE_MOCK_SMS_OTP/USE_MOCK_EMAIL_OTP must be off when DEBUG=False.
+
+    W011 instead on a posture declaring ``stage="prototype"``: same finding,
+    reported as the expected state of an unlaunched stand.
+    """
     from django.conf import settings
 
     if getattr(settings, "DEBUG", False):
@@ -55,10 +80,14 @@ def check_mock_otp_disabled_in_production(app_configs=None, **kwargs):
                  "provider before deploying with DEBUG=False.",
             id=E001_MOCK_OTP_IN_PRODUCTION,
         ))
-    return errors
+    return [stage_finding(e, warning_id=W011_MOCK_OTP_IN_A_PROTOTYPE) for e in errors]
 
 
-__all__ = ["E001_MOCK_OTP_IN_PRODUCTION", "check_mock_otp_disabled_in_production"]
+__all__ = [
+    "E001_MOCK_OTP_IN_PRODUCTION",
+    "W011_MOCK_OTP_IN_A_PROTOTYPE",
+    "check_mock_otp_disabled_in_production",
+]
 
 
 E002_OTP_LENGTH_OVER_CAP = "stapel_auth.E002"
@@ -154,19 +183,12 @@ __all__ += [
 
 
 E004_MOCK_OTP_ON_A_PUBLIC_HOST = "stapel_auth.E004"
+W012_MOCK_OTP_ON_A_PROTOTYPE_HOST = "stapel_auth.W012"
 
-LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "0.0.0.0", "testserver", ""}
-
-
-def _looks_public(host: str) -> bool:
-    host = (host or "").strip().lower().rstrip(".")
-    if host in LOCAL_HOSTS:
-        return False
-    if host.endswith(".local") or host.endswith(".localhost"):
-        return False
-    if host.startswith("192.168.") or host.startswith("10.") or host.startswith("172."):
-        return False
-    return True
+# "Is this host reachable from outside?" is one question with one answer, and
+# it belongs to whoever else has to ask it: stapel_core.django.hosts. Kept
+# under this module's own name, which is what callers import.
+_looks_public = looks_public
 
 
 @checks.register("stapel_auth")
@@ -183,11 +205,13 @@ def check_mock_otp_not_on_a_public_host(app_configs=None, **kwargs):
     ``ALLOWED_HOSTS=['*']`` counts as public: a deployment that answers on
     any Host header is not somebody's laptop.
 
-    A stand that deliberately runs on a pin code (a demo sandbox, say)
-    silences this the standard way — ``SILENCED_SYSTEM_CHECKS =
-    ["stapel_auth.E004"]`` in that settings layer. The point is that the
-    intent has to be written down somewhere, instead of being inherited
-    from whatever DEBUG happens to be.
+    A stand that deliberately runs on a pin code — a demo sandbox, or a
+    production deployment nobody has been told about yet — says so in its
+    posture: ``public_space(stage="prototype")``, and this comes back as
+    W012, a warning naming the stage. The point is that the intent has to be
+    written down somewhere, instead of being inherited from whatever DEBUG
+    happens to be — and a stage says which day it stops being true, where a
+    silenced id says nothing at all.
     """
     from django.conf import settings
 
@@ -207,7 +231,7 @@ def check_mock_otp_not_on_a_public_host(app_configs=None, **kwargs):
             ("USE_MOCK_EMAIL_OTP", auth_settings.USE_MOCK_EMAIL_OTP),
         ) if on
     ]
-    return [checks.Error(
+    finding = checks.Error(
         f"{' and '.join(enabled)} enabled while ALLOWED_HOSTS reaches a "
         f"non-local host ({', '.join(public[:3])}). A fixed OTP code is "
         "accepted for ANY address, so anyone who can reach this deployment "
@@ -215,13 +239,18 @@ def check_mock_otp_not_on_a_public_host(app_configs=None, **kwargs):
         hint="Turn mock OTP off for anything reachable beyond a developer "
              "machine (unset USE_MOCK_*_OTP / MOCK_OTP_CODE) and use the "
              "real email/SMS providers. Keep it to settings layers whose "
-             "ALLOWED_HOSTS is local — DEBUG alone does not decide this.",
+             "ALLOWED_HOSTS is local — DEBUG alone does not decide this. A "
+             "production stand that is deliberately not launched yet "
+             "declares stage=\"prototype\" on its posture instead.",
         id=E004_MOCK_OTP_ON_A_PUBLIC_HOST,
-    )]
+    )
+    return [stage_finding(finding, warning_id=W012_MOCK_OTP_ON_A_PROTOTYPE_HOST)]
 
 
 __all__ += [
     "E004_MOCK_OTP_ON_A_PUBLIC_HOST",
+    "LOCAL_HOSTS",
+    "W012_MOCK_OTP_ON_A_PROTOTYPE_HOST",
     "check_mock_otp_not_on_a_public_host",
 ]
 

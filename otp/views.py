@@ -13,6 +13,10 @@ from drf_spectacular.utils import (
 from rest_framework import permissions, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from stapel_core.django.api.permissions import (
+    ANONYMOUS_DENIED,
+    IsNotAnonymousUser,
+)
 from stapel_core.django.errors import (
     ERR_400_BAD_REQUEST,
     ERR_401_UNAUTHORIZED,
@@ -1925,7 +1929,14 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     """ViewSet for authenticator (phone/email) change flows."""
 
-    permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly]
+    permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly, IsNotAnonymousUser]
+
+    # Changing an authenticator starts by proving the CURRENT one, and a
+    # guest holds none: setting an address on an anonymous session promotes
+    # it (otp/services.promote_anonymous_session), which is the other door.
+    # The service already answers no_current_value here; the gate says why.
+    stapel_anonymous_access = ANONYMOUS_DENIED
+
 
     # Overridable serializer seams (see SerializerSeamsMixin); the same
     # serializers back both the phone and the email flavours of each flow.

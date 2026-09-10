@@ -9,6 +9,7 @@ from stapel_auth.oauth.dto import (
     MFACapabilities,
     AuthMethodInfo,
     OtpMeta,
+    PostureInfo,
     AuthCapabilities,
     LinkedOAuthAccountDTO,
     OAuthLinksResponse,
@@ -58,12 +59,18 @@ class OtpMetaSerializer(StapelDataclassSerializer):
         dataclass = OtpMeta
 
 
+class PostureInfoSerializer(StapelDataclassSerializer):
+    class Meta:
+        dataclass = PostureInfo
+
+
 class AuthCapabilitiesSerializer(StapelDataclassSerializer):
     registration = RegistrationCapabilitiesSerializer()
     login = LoginCapabilitiesSerializer()
     mfa = MFACapabilitiesSerializer()
     methods = AuthMethodInfoSerializer(many=True)
     otp = OtpMetaSerializer()
+    posture = PostureInfoSerializer()
 
     class Meta:
         dataclass = AuthCapabilities

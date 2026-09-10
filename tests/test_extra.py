@@ -835,6 +835,24 @@ class CapabilitiesViewTests(APITestCase):
         self.assertTrue(response.data['login']['phone_mock'])
         self.assertTrue(response.data['login']['email_mock'])
 
+    def test_the_declared_posture_and_its_stage_are_reported(self):
+        # The companion of email_mock/phone_mock: those say a channel is
+        # stubbed, this says whether that is meant here. A monitor reads it
+        # to tell an unlaunched stand from production.
+        from stapel_core.django.presets import public_space
+
+        preset = public_space(stage="prototype")
+        with override_settings(STAPEL_POSTURE=preset['STAPEL_POSTURE']):
+            response = self.client.get(reverse('capabilities'))
+        self.assertEqual(response.data['posture']['stage'], 'prototype')
+        self.assertEqual(response.data['posture']['preset'], 'public_space')
+
+    def test_no_posture_declared_reports_neither(self):
+        with override_settings(STAPEL_POSTURE=None):
+            response = self.client.get(reverse('capabilities'))
+        self.assertIsNone(response.data['posture']['stage'])
+        self.assertIsNone(response.data['posture']['preset'])
+
     @override_settings(STAPEL_AUTH={'USE_MOCK_SMS_OTP': False, 'USE_MOCK_EMAIL_OTP': False})
     def test_real_otp_reports_mock_false(self):
         from stapel_auth.conf import auth_settings

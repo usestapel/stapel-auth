@@ -267,12 +267,16 @@ class AuthCapabilitiesService:
             MFACapabilities,
             OAuthProviderInfo,
             OtpMeta,
+            PostureInfo,
             RegistrationCapabilities,
         )
         from stapel_auth.oauth_providers import get_enabled_providers
         from stapel_auth.otp.services import issued_code_length
+        from stapel_core.django.presets import declared_posture, stage
 
         s = auth_settings
+        declared = declared_posture()
+        preset = (declared[0] if declared else None) or None
         # Mock OTP providers do NOT turn a channel off — they change how the
         # code is delivered (to logs instead of a real SMS/email), which is
         # exactly the point of a mock in dev (.env.local ships mocks on by
@@ -342,4 +346,7 @@ class AuthCapabilitiesService:
                 ttl_seconds=s.OTP_TTL,
                 resend_cooldown_seconds=s.OTP_RESEND_COOLDOWN,
             ),
+            # The companion of email_mock/phone_mock: those say a channel is
+            # stubbed, this says whether that is meant here.
+            posture=PostureInfo(preset=preset, stage=stage()),
         )

@@ -513,7 +513,7 @@
     "/auth/api/v1/email/change/delayed/cancel/": {
       "post": {
         "operationId": "auth_api_v1_email_change_delayed_cancel_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly, IsNotAnonymousUser`",
         "tags": [
           "Email Change"
         ],
@@ -577,7 +577,7 @@
     "/auth/api/v1/email/change/delayed/initiate/": {
       "post": {
         "operationId": "auth_api_v1_email_change_delayed_initiate_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly, IsNotAnonymousUser`",
         "tags": [
           "Email Change"
         ],
@@ -643,7 +643,7 @@
     "/auth/api/v1/email/change/delayed/status/": {
       "get": {
         "operationId": "auth_api_v1_email_change_delayed_status_retrieve",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly, IsNotAnonymousUser`",
         "tags": [
           "Email Change"
         ],
@@ -682,7 +682,7 @@
     "/auth/api/v1/email/change/instant/request-new/": {
       "post": {
         "operationId": "auth_api_v1_email_change_instant_request_new_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly, IsNotAnonymousUser`",
         "tags": [
           "Email Change"
         ],
@@ -745,7 +745,7 @@
     "/auth/api/v1/email/change/instant/request-old/": {
       "post": {
         "operationId": "auth_api_v1_email_change_instant_request_old_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly, IsNotAnonymousUser`",
         "tags": [
           "Email Change"
         ],
@@ -798,7 +798,7 @@
     "/auth/api/v1/email/change/instant/verify-new/": {
       "post": {
         "operationId": "auth_api_v1_email_change_instant_verify_new_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly, IsNotAnonymousUser`",
         "tags": [
           "Email Change"
         ],
@@ -854,7 +854,7 @@
     "/auth/api/v1/email/change/instant/verify-old/": {
       "post": {
         "operationId": "auth_api_v1_email_change_instant_verify_old_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly, IsNotAnonymousUser`",
         "tags": [
           "Email Change"
         ],
@@ -3354,7 +3354,7 @@
     "/auth/api/v1/phone/change/delayed/cancel/": {
       "post": {
         "operationId": "auth_api_v1_phone_change_delayed_cancel_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly, IsNotAnonymousUser`",
         "tags": [
           "Phone Change"
         ],
@@ -3418,7 +3418,7 @@
     "/auth/api/v1/phone/change/delayed/initiate/": {
       "post": {
         "operationId": "auth_api_v1_phone_change_delayed_initiate_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly, IsNotAnonymousUser`",
         "tags": [
           "Phone Change"
         ],
@@ -3484,7 +3484,7 @@
     "/auth/api/v1/phone/change/delayed/status/": {
       "get": {
         "operationId": "auth_api_v1_phone_change_delayed_status_retrieve",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly, IsNotAnonymousUser`",
         "tags": [
           "Phone Change"
         ],
@@ -3523,7 +3523,7 @@
     "/auth/api/v1/phone/change/instant/request-new/": {
       "post": {
         "operationId": "auth_api_v1_phone_change_instant_request_new_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly, IsNotAnonymousUser`",
         "tags": [
           "Phone Change"
         ],
@@ -3586,7 +3586,7 @@
     "/auth/api/v1/phone/change/instant/request-old/": {
       "post": {
         "operationId": "auth_api_v1_phone_change_instant_request_old_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly, IsNotAnonymousUser`",
         "tags": [
           "Phone Change"
         ],
@@ -3639,7 +3639,7 @@
     "/auth/api/v1/phone/change/instant/verify-new/": {
       "post": {
         "operationId": "auth_api_v1_phone_change_instant_verify_new_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly, IsNotAnonymousUser`",
         "tags": [
           "Phone Change"
         ],
@@ -3695,7 +3695,7 @@
     "/auth/api/v1/phone/change/instant/verify-old/": {
       "post": {
         "operationId": "auth_api_v1_phone_change_instant_verify_old_create",
-        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly`",
+        "description": "ViewSet for authenticator (phone/email) change flows.\n\n**Permissions:** `IsAuthenticated, DenyEnrollOnly, IsNotAnonymousUser`",
         "tags": [
           "Phone Change"
         ],
@@ -6955,6 +6955,14 @@
               }
             ],
             "description": "Server-authoritative OTP parameters (code lengths, ttl, resend"
+          },
+          "posture": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostureInfo"
+              }
+            ],
+            "description": "The declared deployment posture and its stage (PostureInfo)"
           }
         },
         "required": [
@@ -6962,6 +6970,7 @@
           "methods",
           "mfa",
           "otp",
+          "posture",
           "registration"
         ]
       },
@@ -8937,6 +8946,22 @@
           "code",
           "phone"
         ]
+      },
+      "PostureInfo": {
+        "type": "object",
+        "description": "What kind of installation this is, as the deployment declares it.\n\nThe companion of email_mock/phone_mock: those say a channel is stubbed,\nthis says whether that is meant. A stand can be production — public host,\nreal TLS, real data — and not yet advertised, and it declares that as\n``stage=\"prototype\"`` on its posture\n(``stapel_core.django.presets``). Read-only transparency: nothing here\ngates anything, and a monitor uses it to tell a prototype from prod.",
+        "properties": {
+          "preset": {
+            "type": "string",
+            "nullable": true,
+            "description": "Declared deployment posture, or null when there is none"
+          },
+          "stage": {
+            "type": "string",
+            "nullable": true,
+            "description": "\"live\" or \"prototype\", or null when no posture is declared"
+          }
+        }
       },
       "ProtocolEnum": {
         "enum": [

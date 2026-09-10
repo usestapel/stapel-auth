@@ -132,3 +132,97 @@ class TestMockOtpOnAPublicHost:
         settings.DEBUG = True  # exactly the stand's configuration
         errors = self._run(settings, ["app.example.com"], USE_MOCK_EMAIL_OTP=True)
         assert [e.id for e in errors] == ["stapel_auth.E004"]
+
+
+class TestTheStageOfAnUnlaunchedStand:
+    """The ruling: a stand can be production — public host, real TLS, real
+    data — and not yet advertised. Mock channels are legitimate there, and
+    the way to say so is the posture's stage, never SILENCED_SYSTEM_CHECKS.
+    """
+
+    APPENDED = (
+        "Declared posture stage is prototype: this is expected until launch. "
+        'Flip the posture to stage="live" before the deployment is '
+        "advertised; the same finding is then an error."
+    )
+
+    def _prototype(self, settings):
+        from stapel_core.django.presets import public_space
+
+        preset = public_space(stage="prototype")
+        settings.STAPEL_POSTURE = preset["STAPEL_POSTURE"]
+
+    def _live(self, settings):
+        from stapel_core.django.presets import public_space
+
+        settings.STAPEL_POSTURE = public_space()["STAPEL_POSTURE"]
+
+    def _e001(self, settings, **auth):
+        settings.DEBUG = False
+        settings.STAPEL_AUTH = {**getattr(settings, "STAPEL_AUTH", {}), **auth}
+        from stapel_auth.checks import check_mock_otp_disabled_in_production
+
+        return check_mock_otp_disabled_in_production()
+
+    def _e004(self, settings, hosts, **auth):
+        settings.ALLOWED_HOSTS = hosts
+        settings.STAPEL_AUTH = {**getattr(settings, "STAPEL_AUTH", {}), **auth}
+        from stapel_auth.checks import check_mock_otp_not_on_a_public_host
+
+        return check_mock_otp_not_on_a_public_host()
+
+    def test_e001_is_a_warning_that_says_why_in_the_prototype_stage(self, settings):
+        self._prototype(settings)
+        findings = self._e001(settings, USE_MOCK_EMAIL_OTP=True, USE_MOCK_SMS_OTP=False)
+        assert [f.id for f in findings] == ["stapel_auth.W011"]
+        assert findings[0].level < 40  # a warning, not an error
+        assert "USE_MOCK_EMAIL_OTP is enabled with DEBUG=False." in findings[0].msg
+        assert findings[0].msg.endswith(self.APPENDED)
+
+    def test_e004_is_a_warning_that_says_why_in_the_prototype_stage(self, settings):
+        self._prototype(settings)
+        findings = self._e004(settings, ["stand.example.com"], USE_MOCK_EMAIL_OTP=True)
+        assert [f.id for f in findings] == ["stapel_auth.W012"]
+        assert "sign in as anyone" in findings[0].msg
+        assert findings[0].msg.endswith(self.APPENDED)
+
+    def test_a_live_posture_leaves_both_errors_exactly_as_they_were(self, settings):
+        self._live(settings)
+        assert [
+            f.id for f in self._e001(
+                settings, USE_MOCK_SMS_OTP=True, USE_MOCK_EMAIL_OTP=False,
+            )
+        ] == ["stapel_auth.E001"]
+        assert [
+            f.id for f in self._e004(settings, ["stand.example.com"],
+                                     USE_MOCK_SMS_OTP=True)
+        ] == ["stapel_auth.E004"]
+
+    def test_no_posture_declared_leaves_both_errors_exactly_as_they_were(self, settings):
+        settings.STAPEL_POSTURE = None
+        assert [
+            f.id for f in self._e001(
+                settings, USE_MOCK_SMS_OTP=True, USE_MOCK_EMAIL_OTP=False,
+            )
+        ] == ["stapel_auth.E001"]
+        assert [
+            f.id for f in self._e004(settings, ["stand.example.com"],
+                                     USE_MOCK_SMS_OTP=True)
+        ] == ["stapel_auth.E004"]
+
+    def test_a_prototype_stage_over_real_channels_reports_nothing(self, settings):
+        self._prototype(settings)
+        assert self._e001(
+            settings, USE_MOCK_SMS_OTP=False, USE_MOCK_EMAIL_OTP=False,
+        ) == []
+        assert self._e004(
+            settings, ["stand.example.com"],
+            USE_MOCK_SMS_OTP=False, USE_MOCK_EMAIL_OTP=False,
+        ) == []
+
+    def test_the_host_classifier_is_the_fleet_one(self):
+        from stapel_core.django.hosts import looks_public
+
+        from stapel_auth.checks import _looks_public
+
+        assert _looks_public is looks_public

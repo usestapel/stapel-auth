@@ -12,6 +12,7 @@ from rest_framework import permissions, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from stapel_core.django.api.permissions import ANONYMOUS_ALLOWED
 from stapel_core.django.errors import (
     StapelErrorResponse,
     StapelResponse,
@@ -590,6 +591,11 @@ def _issue_session_tokens(
 )
 class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     permission_classes = [permissions.IsAuthenticated, DenyEnrollOnly]
+
+    # Own sessions only, listed and revoked by request.user. A guest that
+    # cannot end its own session has no way to sign out of a shared device.
+    stapel_anonymous_access = ANONYMOUS_ALLOWED
+
 
     # Overridable serializer seams (see SerializerSeamsMixin).
     list_response_serializer_class = SessionResponseSerializer
