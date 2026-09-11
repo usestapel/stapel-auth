@@ -32,6 +32,12 @@ says the stage expects it and that flipping to ``stage="live"`` makes it an
 error again. Silencing an id erases the finding and records no intent, which
 is why it is no longer the documented escape for either check: it silences
 the day the stand IS advertised just as thoroughly as the day before.
+
+Since 0.38 the stage is also the DEFAULT (``conf.py:
+STAGE_DERIVED_MOCK_KEYS``): under ``prototype`` an unset key resolves to
+``True``, so a fleet cannot hold two answers to one deployment-wide question.
+The third finding in this family, ``W013``, reports the opposite departure —
+a service that pins a mock channel OFF while the stage says prototype.
 """
 from __future__ import annotations
 
@@ -83,10 +89,52 @@ def check_mock_otp_disabled_in_production(app_configs=None, **kwargs):
     return [stage_finding(e, warning_id=W011_MOCK_OTP_IN_A_PROTOTYPE) for e in errors]
 
 
+W013_MOCK_OTP_REFUSED_IN_A_PROTOTYPE = "stapel_auth.W013"
+
+
+@checks.register("stapel_auth")
+def check_mock_otp_not_declined_in_a_prototype(app_configs=None, **kwargs):
+    """W013 — a prototype that switches a mock channel OFF by hand.
+
+    Third member of the W011/W012 family, and the one that reports the
+    opposite departure. Since 0.38 the posture stage IS the default: under
+    ``stage="prototype"`` an unset ``USE_MOCK_SMS_OTP``/``USE_MOCK_EMAIL_OTP``
+    resolves to ``True``, so the fleet cannot disagree with itself about which
+    services mock (``conf.py: STAGE_DERIVED_MOCK_KEYS``).
+
+    A service may still pin one off — a prototype with a real SMS provider on
+    the phone channel is a legitimate half-configured stand. It is allowed and
+    it is reported, for the same reason the other two are: the departure has
+    to be written down as a decision rather than inherited from whichever
+    settings module someone forgot. The finding names the key, so the reader
+    can tell "we wired a real provider" from "this block was copied from a
+    service that had one".
+    """
+    from .conf import STAGE_DERIVED_MOCK_KEYS, auth_settings, prototype_stage_mock_default
+
+    if not prototype_stage_mock_default():
+        return []
+
+    return [checks.Warning(
+        f"STAPEL_AUTH['{key}'] is pinned False while the declared posture "
+        f"stage is prototype, where this module's default is True. The "
+        f"channel therefore issues a real code and needs a real provider "
+        f"behind it; a service that merely inherited this line from another "
+        f"one's settings will silently issue codes nobody receives.",
+        hint=f"Drop '{key}' and let the posture decide, or keep it and make "
+             f"sure this deployment really has a provider wired for that "
+             f"channel.",
+        id=W013_MOCK_OTP_REFUSED_IN_A_PROTOTYPE,
+    ) for key in sorted(STAGE_DERIVED_MOCK_KEYS)
+        if auth_settings.declares(key) and not getattr(auth_settings, key)]
+
+
 __all__ = [
     "E001_MOCK_OTP_IN_PRODUCTION",
     "W011_MOCK_OTP_IN_A_PROTOTYPE",
+    "W013_MOCK_OTP_REFUSED_IN_A_PROTOTYPE",
     "check_mock_otp_disabled_in_production",
+    "check_mock_otp_not_declined_in_a_prototype",
 ]
 
 

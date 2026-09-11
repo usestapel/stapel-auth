@@ -28,7 +28,7 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 |---|---|---|
 | `FRONTEND_URL` | `None` (env `FRONTEND_URL`) | The **primary** site's SPA base. Redirect base for SSO / magic link / QR login and the OAuth step-up `/totp-challenge` redirect; one of the `redirect_after` allowlist origins. Unset ⇒ same-origin-relative redirects. With a site registry (`STAPEL_SITES`) it is the fallback, not the answer — see *Per-host links and redirects* below |
 | `BACKEND_URL` | `None` (env `BACKEND_URL`) | Absolute backend URL for SAML/OIDC endpoints and revoke-suspicious links |
-| `USE_MOCK_SMS_OTP` / `USE_MOCK_EMAIL_OTP` | `False` | Mock OTP delivery (dev/test) |
+| `USE_MOCK_SMS_OTP` / `USE_MOCK_EMAIL_OTP` | **derived** — `True` under a posture declaring `stage="prototype"`, `False` under `live` and with no posture (0.38.0) | Mock OTP delivery. The only keys in this namespace whose default is not a literal: a mock channel is a property of the DEPLOYMENT, not of each service that happens to run this module's OTP services, so the posture owns it. A per-service value still wins and is reported — `stapel_auth.W013` for an explicit `False` under `prototype`, `E001`/`E004` for a `True` under `live` |
 | `MOCK_OTP_CODE` | `'0000'` | The accepted code in mock mode — and, on a mocked channel, the width the capabilities contract reports (see `OTP_LENGTH`) |
 | `OTP_TTL` | `600` | OTP code lifetime, seconds — the single source for both the stored entry's TTL (`otp/services.py` over `stapel_core.verification.codes`) and the `capabilities.otp.ttl_seconds` contract value |
 | `OTP_MAX_ATTEMPTS` | `5` | Wrong-code attempts before block. The budget lives inside the code's own store entry, so a fresh code always arrives with a fresh budget |
@@ -147,7 +147,7 @@ Rules this module holds itself to, and that an extension must too:
 
 `stapel_core.sites.W001` fires when `FRONTEND_URL`'s host is not one of the registered hosts: the fallback would then point at a domain the deployment does not serve.
 
-### Mock OTP on a real host — the posture stage, not a silenced id (0.36.0)
+### Mock OTP on a real host — the posture stage decides, not a per-service line (0.36.0, 0.38.0)
 
 `USE_MOCK_SMS_OTP` / `USE_MOCK_EMAIL_OTP` accept a fixed code for ANY address, so two checks report them: `stapel_auth.E001` (mock on with `DEBUG=False`) and `stapel_auth.E004` (mock on while `ALLOWED_HOSTS` reaches a host that is not obviously local — the case a stand on dev settings escapes).
 
@@ -161,12 +161,14 @@ STAPEL_POSTURE = _preset["STAPEL_POSTURE"]
 STAPEL_AUTH = {**STAPEL_AUTH, **_preset["STAPEL_AUTH"]}
 ```
 
-| declared stage | E001 | E004 |
-|---|---|---|
-| `live`, or no posture declared | error, unchanged | error, unchanged |
-| `prototype` | `stapel_auth.W011` | `stapel_auth.W012` |
+| declared stage | `USE_MOCK_*_OTP` default | E001 | E004 | key pinned `False` |
+|---|---|---|---|---|
+| `live`, or no posture declared | `False` | error, unchanged | error, unchanged | nothing — that IS the default |
+| `prototype` | `True` (0.38.0) | `stapel_auth.W011` | `stapel_auth.W012` | `stapel_auth.W013` |
 
 The warning carries the error's own message plus one sentence: *"Declared posture stage is prototype: this is expected until launch. Flip the posture to stage="live" before the deployment is advertised; the same finding is then an error."* Silencing an id erases the finding and records no intent — it silences the day the stand IS advertised exactly as thoroughly as the day before — so it is no longer the documented escape for either check. The `prototype` spread also leaves the mock keys OUT of the posture, so `stapel_core.presets.E001` has nothing to compare and the deployment sets them itself; `stapel_core.presets.W003` reports a prototype stage nothing prototypical is running under.
+
+**Since 0.38.0 the stage is also the DEFAULT, not only the excuse.** Under `stage="prototype"` a service that has not set `USE_MOCK_SMS_OTP`/`USE_MOCK_EMAIL_OTP` itself resolves both to `True` and accepts `MOCK_OTP_CODE`; `live` and "no posture at all" are unchanged at `False`. The reason is a fleet, not a preference: this module's OTP services run inside every service that verifies a phone or an email, and only the one that MOUNTS the auth module tends to carry a `STAPEL_AUTH` block. On a client fleet the auth service mocked and the profiles service — which runs `PhoneVerificationService` for contact verification — did not, so contact verification issued real codes into an unconfigured SMS provider and no phone could ever be verified. One deployment now has one answer. A service that really does have a provider for one channel still pins it off, and that departure is reported as `stapel_auth.W013` (a Warning: allowed, written down) instead of being inherited silently. The resolution is read at consumption, never captured at import, so a settings module that spreads the preset after this package is first imported still gets the right answer.
 
 `GET /<auth>/api/v1/capabilities/` carries the same fact as `posture.stage` (`"live"` / `"prototype"` / `null`) next to `posture.preset`, so a monitor can tell an unlaunched stand from production without reading its settings.
 
@@ -752,6 +754,7 @@ billing / workspaces — copy this module, 4 steps):
 - **Don't reference the concrete user class.** Always `get_user_model()` / `settings.AUTH_USER_MODEL` (the module itself follows this rule everywhere).
 - **Don't read the client IP from `request.META` / `request.headers`.** `X-Forwarded-For` and friends are caller-supplied unless a trusted edge overwrites them, and this module keys rate limits, lockouts and audit rows on that value. Go through `stapel_core.netintel.client_ip`; a deployment declares its proxy once via `STAPEL_NETINTEL['TRUSTED_PROXY_HEADER']` (see above).
 - **Don't resolve an identity from a token you did not mint without pinning its audience.** `OAuthService.get_user_data` runs the check; only the authorization-code callback may pass `token_is_ours=True`, and only because it exchanged the token itself. A new provider that cannot introspect keeps `verifies_audience = False` — looking verified while not being verified is worse than plainly refusing.
+- **Don't set `USE_MOCK_*_OTP` per service.** Since 0.38.0 the posture's stage is the default, so a prototype gets the mock everywhere this module's OTP services run — including services that only consume them. A block copied into a second service is how one deployment ends up with two answers; pin a key only when that channel really has a provider, and expect `stapel_auth.W013` to say so out loud.
 - **Don't silence a mock-channel finding.** `SILENCED_SYSTEM_CHECKS = ["stapel_auth.E004"]` on a stand that runs mock OTP on purpose erases the finding and records nothing about when it stops being true. Declare `stage="prototype"` on the posture instead and get the same finding as a warning that names the reason.
 - **Don't leave the guest question open on a new view.** `DenyEnrollOnly` is about enrolment, not identity: a guest session passes it, so `[IsAuthenticated, DenyEnrollOnly]` alone admits guests and says nothing about whether that was meant. Declare `stapel_anonymous_access = ANONYMOUS_ALLOWED` (with the rows scoped to `request.user`) or add `IsNotAnonymousUser` and declare `ANONYMOUS_DENIED`. `tests/test_anonymous_view_declarations.py` runs the whole gate stack against a guest and asserts the undeclared count is zero.
 - **Don't let a code sent to a new address overwrite a verified one.** Setting a first email/phone is one step; replacing a verified one goes through the change flow that proves the current authenticator. A new-address OTP is not authority over the old address (see above).

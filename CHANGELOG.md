@@ -1,5 +1,64 @@
 # Changelog
 
+## [0.38.0] — 2026-09-11
+
+No migration. The floor is unchanged (`stapel-core>=0.64.0`): the posture and
+`stage()` ship there already.
+
+### The posture's stage is the mock-OTP default, not just its excuse
+
+0.36.0 made `stage="prototype"` the sanctioned way to KEEP a mock one-time-code
+channel on a real host — E001/E004 come back as W011/W012 instead of erroring.
+Every service still had to switch the channel on by hand in its own
+`STAPEL_AUTH` block, and that is the half that does not survive a fleet.
+
+This module's OTP services do not run only in the service that mounts it.
+`stapel_auth.otp.services.PhoneVerificationService` is the default provider
+stapel-profiles uses to verify a contact phone, inside the profiles process.
+On a client fleet the auth service declared the block and mocked; the
+profiles service declared none, fell back to `False`, and sent a real code to
+an SMS provider that fleet has never configured. Every attempt logged
+`INFO ... Verification code sent to phone` and then
+`WARN ... Invalid code for phone, 4 attempts left`. No phone could be
+verified, and nothing in either service was wrong on its own terms — one
+deployment simply held two answers to one deployment-wide question.
+
+The stage now answers it once:
+
+| declared stage | `USE_MOCK_SMS_OTP` / `USE_MOCK_EMAIL_OTP` unset resolves to |
+|---|---|
+| `prototype` | `True` — the channel accepts `MOCK_OTP_CODE` (`'0000'`) |
+| `live` | `False`, exactly as before |
+| no posture declared | `False`, exactly as before |
+
+* A per-service value still wins. An explicit `True` under `live` is still
+  `stapel_auth.E001` / `E004`; an explicit `False` under `prototype` is the new
+  **`stapel_auth.W013`** — allowed (a stand with a real SMS provider on one
+  channel is a real thing) and reported, so the departure is a decision
+  somebody wrote down rather than a line copied from another service's
+  settings. `AuthSettings.declares()` is what both the resolution and the check
+  ask, so they cannot drift.
+* The environment is not a declaration here and never was: both keys are
+  `no_env` (any non-empty string is truthy, so `USE_MOCK_SMS_OTP=false` in a
+  pod would ENABLE the mock).
+* The derived value is read **where it is consumed**, never captured at import.
+  A settings module spreads the posture while it is still executing, and this
+  package's `conf` is imported by app configs, checks and services alike — a
+  module-level read would pin whatever was true before the preset landed.
+* `AuthCapabilities.phone_mock` / `email_mock` are unchanged code and therefore
+  now report `True` on a prototype that sets nothing, which is what the
+  frontend needs to stop promising a code that never arrives. The contract
+  artifacts do not move: `docs/capabilities.json` describes axes and DTO
+  fields, and the emission harness declares both keys explicitly.
+* `stapel_core.presets.W003` ("prototype declared, nothing prototypical is
+  on") reads the same resolved value, so a prototype no longer reports itself
+  idle merely because no service spelled the keys out.
+
+**Deployments:** a service that sets `USE_MOCK_*_OTP = True` alongside
+`stage="prototype"` can now delete those two lines — the posture says it. A
+service that verifies phones or emails and has no posture at all should adopt
+one; that, not a copied mock block, is what makes its answer the fleet's.
+
 ## [0.37.0] — 2026-09-11
 
 No migration. The floor is unchanged (`stapel-core>=0.64.0`): nothing here

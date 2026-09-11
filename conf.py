@@ -38,8 +38,14 @@ DEFAULTS = {
     'BACKEND_URL': None,            # Required for SAML/OIDC; falls back to env BACKEND_URL
 
     # OTP
+    # These two are the only keys in this namespace whose default is DERIVED
+    # rather than fixed: the literal below is the ``live``/no-posture answer,
+    # and a deployment declaring ``stage="prototype"`` gets ``True`` unless it
+    # sets the key itself. See STAGE_DERIVED_MOCK_KEYS / AuthSettings._raw.
     'USE_MOCK_SMS_OTP': False,
     'USE_MOCK_EMAIL_OTP': False,
+    # The code a mocked channel issues and accepts — the library's documented
+    # constant, and the value the derived prototype default runs on.
     'MOCK_OTP_CODE': '0000',
     # Generated OTP digit count (storage cap is otp.constants.OTP_CODE_LENGTH=8).
     # 6 is the industry default and what this ships with; 4 leaves a 10^4
@@ -411,16 +417,104 @@ _NO_ENV = tuple(
 # stapel-gdpr model is absent. import_strings would import eagerly and raise.
 
 
+#: The keys whose default the deployment POSTURE decides.
+#:
+#: A mock one-time-code channel is not a per-service preference, it is a
+#: property of the deployment: either this stand is an unadvertised prototype
+#: with no SMS/email provider wired, or it is live. That fact is already
+#: written down once, as the posture's ``stage``
+#: (``stapel_core.django.presets.public_space(stage="prototype")``), and the
+#: stage is what turns E001/E004 into W011/W012 here.
+#:
+#: Until 0.38 the stage excused the mock and every service still had to switch
+#: it on by hand in its own ``STAPEL_AUTH`` block. A fleet where one service
+#: mounts the auth module and another merely CONSUMES it — stapel-profiles
+#: runs ``PhoneVerificationService`` for contact verification inside its own
+#: process — then has two answers to one question: the service that remembered
+#: the block mocks, the service that did not sends a real code into an
+#: unconfigured provider and nobody can verify a phone (a client fleet,
+#: 2026-09-11). The posture is the single source, so it owns the default.
+STAGE_DERIVED_MOCK_KEYS = frozenset({'USE_MOCK_SMS_OTP', 'USE_MOCK_EMAIL_OTP'})
+
+_UNSET = object()
+
+
+def prototype_stage_mock_default() -> bool:
+    """The mock-channel default this deployment's posture stage implies.
+
+    ``True`` only under a declared ``stage="prototype"``. ``live`` and "no
+    posture at all" both answer ``False`` — an undeclared deployment must not
+    acquire a fixed code it never asked for.
+
+    Read on every resolution, never at import: the posture is a value in the
+    settings module, and a module-level read here would run while that module
+    is still executing (this package's ``conf`` is imported from app configs,
+    checks and services alike) and pin whatever was true before the preset was
+    spread.
+    """
+    try:
+        from stapel_core.django.presets import stage
+    except Exception:  # a core too old to carry the posture: no stage, no mock
+        return False
+    return stage() == 'prototype'
+
+
 class AuthSettings(AppSettings):
     """STAPEL_AUTH namespace (stapel_core.conf.AppSettings).
 
-    Adds one auth-specific convenience on top of the shared pattern:
-    ``OAUTH_PROVIDERS`` dict values are coerced into ``OAuthProviderConfig``
-    dataclasses on access.
+    Adds two auth-specific behaviours on top of the shared pattern:
+
+    * ``OAUTH_PROVIDERS`` dict values are coerced into ``OAuthProviderConfig``
+      dataclasses on access;
+    * the two :data:`STAGE_DERIVED_MOCK_KEYS` fall back to the deployment's
+      posture stage instead of to a fixed literal.
     """
 
     def __init__(self):
         super().__init__('STAPEL_AUTH', defaults=DEFAULTS, no_env=_NO_ENV)
+
+    def declares(self, key: str) -> bool:
+        """Did this deployment SET *key* itself?
+
+        True for a value in the ``STAPEL_AUTH`` dict or in a flat Django
+        setting of the same name — the two routes ``_raw`` consults before its
+        default. The environment is deliberately not one of them: every
+        boolean gate in this namespace is ``no_env`` (any non-empty string is
+        truthy, so ``USE_MOCK_SMS_OTP=false`` would ENABLE the mock), so an
+        env var is not a declaration this namespace can hear.
+
+        ``checks.py`` asks the same question when it reports an explicit
+        departure from the stage's default, so the check and the resolution
+        cannot drift apart.
+        """
+        from django.conf import settings
+
+        overrides = getattr(settings, self.namespace, None) or {}
+        if key in overrides:
+            return True
+        return getattr(settings, key, _UNSET) is not _UNSET
+
+    def _raw(self, key: str):
+        if key in STAGE_DERIVED_MOCK_KEYS and not self.declares(key):
+            return prototype_stage_mock_default()
+        return super()._raw(key)
+
+    def _connect_reload(self) -> None:
+        super()._connect_reload()
+        try:
+            from django.test.signals import setting_changed
+
+            def _reload_on_posture(*, setting, **kwargs):
+                # Imported here, not above: resolving the name at connect time
+                # would drag the presets module into every import of this one.
+                from stapel_core.django.presets import POSTURE_SETTING
+
+                if setting == POSTURE_SETTING:
+                    self.reload()
+
+            setting_changed.connect(_reload_on_posture, weak=False)
+        except Exception:  # Django not ready — tests call reload()
+            pass
 
     def __getattr__(self, key: str):
         value = super().__getattr__(key)
