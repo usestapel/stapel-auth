@@ -1,6 +1,6 @@
 # Errors — Русский
 
-`143` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
+`144` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
 
 | Код | Статус | Параметры | Действие | Текст |
 |---|---|---|---|---|
@@ -87,6 +87,7 @@
 | `error.403.gdpr.account_closed` | 403 | — | `retry` | Эта учётная запись удаляется и больше не может использоваться. |
 | `error.403.gdpr.closure_token_scope` | 403 | — | `reauthenticate` | Эта ссылка относится к более раннему закрытию этой учётной записи. |
 | `error.403.gdpr.erasure_forbidden` | 403 | — | `contact_support` | У вас нет прав запрашивать удаление этого объекта. |
+| `error.403.grant_existing_account` | 403 | — | `reauthenticate` | У этого адреса уже есть учётная запись. Войдите в неё вместо перехода по этой ссылке. |
 | `error.403.mfa_enrollment_required` | 403 | — | `verify` | Перед использованием этой учётной записи необходимо настроить двухфакторную аутентификацию. Сначала подключите приложение-аутентификатор или ключ доступа. |
 | `error.403.mock_otp_admin` | 403 | — | `contact_support` | Аутентификация по OTP отключена для учётных записей администраторов в mock-режиме. |
 | `error.403.network_blocked` | 403 | — | `contact_support` | Запросы из этой сети не разрешены. |

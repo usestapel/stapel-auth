@@ -349,3 +349,135 @@ class LoginGrantPrivacyTests(APITestCase):
         joined = "\n".join(handler.messages)
         self.assertNotIn(token, joined, "grant token leaked into logs")
         self.assertNotIn(email, joined, "grant email leaked into logs")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTH_LOGIN_GRANT_EXISTING_ACCOUNTS — what a grant may do to an account that
+# already exists (security audit 2026-09-11, M-4 / §7 item 3a).
+#
+# A grant that silently logs an existing address in is a passwordless,
+# MFA-free session into everything that address already owns, minted by
+# whoever may issue grants. The primitive keeps that behaviour, and it stops
+# being the only one available.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class LoginGrantExistingAccountPolicyTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def test_default_policy_logs_an_existing_account_in(self):
+        user = _make_user()
+        token = issue_login_grant(email=user.email)
+        self.assertEqual(LoginGrantService.exchange(token), (user, False))
+
+    def test_refuse_policy_refuses_an_existing_account(self):
+        from stapel_auth.login_grant.services import ExistingAccountRefused
+
+        user = _make_user()
+        token = issue_login_grant(email=user.email)
+        with self.assertRaises(ExistingAccountRefused):
+            LoginGrantService.exchange(token, existing_accounts="refuse")
+
+    def test_refuse_policy_still_provisions_an_address_with_no_account(self):
+        token = issue_login_grant(email="stranger@example.com",
+                                  create_if_missing=True)
+        with mock.patch("stapel_auth.otp.views._notify_user_registered"):
+            user, created = LoginGrantService.exchange(
+                token, existing_accounts="refuse"
+            )
+        self.assertTrue(created)
+        self.assertEqual(user.email, "stranger@example.com")
+
+    def test_step_up_policy_demands_the_second_factor_when_there_is_one(self):
+        from stapel_auth.login_grant.services import ExistingAccountStepUp
+
+        user = _make_user()
+        token = issue_login_grant(email=user.email)
+        with mock.patch(
+            "stapel_auth.mfa.services.TOTPService.is_enabled", return_value=True
+        ):
+            with self.assertRaises(ExistingAccountStepUp) as raised:
+                LoginGrantService.exchange(token, existing_accounts="step_up")
+        self.assertEqual(raised.exception.user, user)
+
+    def test_step_up_policy_logs_in_an_account_with_no_second_factor(self):
+        user = _make_user()
+        token = issue_login_grant(email=user.email)
+        with mock.patch(
+            "stapel_auth.mfa.services.TOTPService.is_enabled", return_value=False
+        ):
+            self.assertEqual(
+                LoginGrantService.exchange(token, existing_accounts="step_up"),
+                (user, False),
+            )
+
+    def test_the_setting_is_the_default_when_no_policy_is_passed(self):
+        from stapel_auth.login_grant.services import ExistingAccountRefused
+
+        user = _make_user()
+        token = issue_login_grant(email=user.email)
+        with override_settings(STAPEL_AUTH={
+            **_GRANT_ON, 'AUTH_LOGIN_GRANT_EXISTING_ACCOUNTS': 'refuse',
+        }):
+            with self.assertRaises(ExistingAccountRefused):
+                LoginGrantService.exchange(token)
+
+    def test_an_unknown_policy_is_a_configuration_error(self):
+        token = issue_login_grant(email="whoever@example.com")
+        with self.assertRaises(ValueError):
+            LoginGrantService.exchange(token, existing_accounts="sometimes")
+
+
+@override_settings(STAPEL_AUTH={
+    **_GRANT_ON, 'AUTH_LOGIN_GRANT_EXISTING_ACCOUNTS': 'refuse',
+})
+class LoginGrantExchangeRefusesExistingAccountsTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.url = reverse("grant_exchange")
+
+    def test_an_existing_account_is_403_with_its_own_key(self):
+        user = _make_user()
+        token = issue_login_grant(email=user.email)
+        response = self.client.post(self.url, {"grant_token": token})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.data["localizable_error"], "error.403.grant_existing_account"
+        )
+        self.assertNotIn("stapel_jwt", response.cookies)
+
+    def test_an_address_with_no_account_is_unaffected(self):
+        token = issue_login_grant(email="nobody@example.com",
+                                  create_if_missing=True)
+        response = self.client.post(self.url, {"grant_token": token})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "REGISTERED")
+
+
+@override_settings(STAPEL_AUTH={
+    **_GRANT_ON, 'AUTH_LOGIN_GRANT_EXISTING_ACCOUNTS': 'step_up',
+})
+class LoginGrantExchangeStepsUpExistingAccountsTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.url = reverse("grant_exchange")
+
+    def test_an_account_with_a_second_factor_gets_a_challenge_not_a_session(self):
+        user = _make_user()
+        token = issue_login_grant(email=user.email)
+        with mock.patch(
+            "stapel_auth.mfa.services.TOTPService.is_enabled", return_value=True
+        ):
+            response = self.client.post(self.url, {"grant_token": token})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "TOTP_REQUIRED")
+        self.assertTrue(response.data["challenge_token"])
+        self.assertNotIn("stapel_jwt", response.cookies)
+
+    def test_an_account_without_one_is_an_ordinary_login(self):
+        user = _make_user()
+        token = issue_login_grant(email=user.email)
+        response = self.client.post(self.url, {"grant_token": token})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "LOGGED_IN")

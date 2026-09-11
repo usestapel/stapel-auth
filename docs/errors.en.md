@@ -1,6 +1,6 @@
 # Errors — English
 
-`143` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
+`144` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
 
 | Code | Status | Params | Remediation | Text |
 |---|---|---|---|---|
@@ -87,6 +87,7 @@
 | `error.403.gdpr.account_closed` | 403 | — | `retry` | This account is being erased and can no longer be used. |
 | `error.403.gdpr.closure_token_scope` | 403 | — | `reauthenticate` | This closure link belongs to an earlier closure of this account. |
 | `error.403.gdpr.erasure_forbidden` | 403 | — | `contact_support` | You are not allowed to request erasure of this item. |
+| `error.403.grant_existing_account` | 403 | — | `reauthenticate` | This address already has an account. Sign in with it instead of using this link. |
 | `error.403.mfa_enrollment_required` | 403 | — | `verify` | Two-factor enrollment is required before this account can be used. Set up an authenticator app or a passkey first. |
 | `error.403.mock_otp_admin` | 403 | — | `contact_support` | OTP-based auth is disabled for admin accounts in mock mode. |
 | `error.403.network_blocked` | 403 | — | `contact_support` | Requests from this network are not allowed |

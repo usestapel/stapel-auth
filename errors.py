@@ -71,6 +71,9 @@ ERR_400_MAGIC_LINK_INVALID = 'error.400.magic_link_invalid'
 ERR_429_MAGIC_LINK_RATE = 'error.429.magic_link_rate'
 # Login grant (workspaces-org-program §B3)
 ERR_400_GRANT_INVALID = 'error.400.grant_invalid'
+# The grant was valid and the ADDRESS already has an account this deployment
+# will not hand over to a grant (AUTH_LOGIN_GRANT_EXISTING_ACCOUNTS='refuse').
+ERR_403_GRANT_EXISTING_ACCOUNT = 'error.403.grant_existing_account'
 # Passkeys
 ERR_400_PASSKEY_INVALID = 'error.400.passkey_invalid'
 ERR_400_PASSKEY_CHALLENGE_EXPIRED = 'error.400.passkey_challenge_expired'
@@ -186,6 +189,7 @@ AUTH_ERRORS = {
     ERR_429_MAGIC_LINK_RATE: 'Too many magic link requests. Please try again later.',
     # Login grant
     ERR_400_GRANT_INVALID: 'Login grant is invalid, already used, or has expired.',
+    ERR_403_GRANT_EXISTING_ACCOUNT: 'This address already has an account. Sign in with it instead of using this link.',
     # Passkeys
     ERR_400_PASSKEY_INVALID: 'Passkey verification failed.',
     ERR_400_PASSKEY_CHALLENGE_EXPIRED: 'Passkey challenge has expired. Please try again.',
@@ -307,6 +311,9 @@ AUTH_REMEDIATION = {
     # Login grant — the grant is single-use/short-TTL; the fix is to restart
     # the issuing flow (e.g. reopen the invite link), i.e. retry, not re-login
     ERR_400_GRANT_INVALID: 'retry',
+    # The account exists and is the point: the holder signs in with it. No
+    # input fix and no retry of the grant changes that.
+    ERR_403_GRANT_EXISTING_ACCOUNT: 'reauthenticate',
     # Passkeys — WebAuthn ceremonies are retryable
     ERR_400_PASSKEY_INVALID: 'retry',
     ERR_400_PASSKEY_CHALLENGE_EXPIRED: 'retry',

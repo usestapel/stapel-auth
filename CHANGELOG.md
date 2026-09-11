@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.37.0] — 2026-09-11
+
+No migration. The floor is unchanged (`stapel-core>=0.64.0`): nothing here
+needs a newer core.
+
+### A login grant is a passwordless session into an account that already exists
+
+Security audit 2026-09-11, M-4 / §7 item 3a. `LoginGrantService.exchange()`
+resolved an address that already had a full account by simply signing it in —
+which is the right primitive for the invitation flow it was written for, and
+is also a 7-day, MFA-free door into every workspace, document and mandate that
+address already owns, openable by anyone who may mint a grant. A forwarded
+letter or a shared mailbox is a full session.
+
+The behaviour is unchanged and no longer the only one available:
+
+```python
+LoginGrantService.exchange(token, existing_accounts="refuse")
+```
+
+| `AUTH_LOGIN_GRANT_EXISTING_ACCOUNTS` | an address that already has an account gets |
+|---|---|
+| `login` (default) | a session — the historical answer |
+| `refuse` | `ExistingAccountRefused` → `403 error.403.grant_existing_account` |
+| `step_up` | `ExistingAccountStepUp` → a TOTP challenge (`status=TOTP_REQUIRED`, `challenge_token` for `POST /totp/challenge/verify/`) when the account has TOTP; an ordinary session when it has none |
+
+* The two non-default answers **raise** rather than returning `None`. `None`
+  from `exchange()` has always meant *the grant* is unusable — unknown, spent,
+  expired — and the caller answers 400. "The grant was fine and the account is
+  the reason" is a different thing to tell the holder and a different line in
+  an audit log.
+* **A guest row is never "an existing account".** A grant is precisely how a
+  guest stops being one, so an anonymous user still takes the `login` path
+  under every policy.
+* `step_up` counts TOTP only. A passkey is not counted: there is no challenge
+  endpoint that trades one for the session this flow mints, and a policy that
+  silently downgraded to a plain login for passkey-only accounts would be the
+  worse failure. An account whose factor state cannot be read is treated as
+  having one.
+* The endpoint's OpenAPI description names all three outcomes;
+  `docs/schema.json` moves by that one description, so the react pair
+  regenerates.
+
+New setting, new error key (`error.403.grant_existing_account`, remediation
+`reauthenticate`, en/ru/es), new axis in `capabilities.json`. Default
+`login` — nothing changes for a deployment that does not set it.
+
+### The refresh cookie's `Path` (§7 item 3c) is in stapel-core
+
+`set_jwt_cookies` lives there, so the switch does too:
+`JWT_REFRESH_COOKIE_PATH` in stapel-core 0.65.0, honoured by the one place
+that writes the cookie and all three that clear it. Nothing to change here.
+
 ## [0.36.1] — 2026-09-10
 
 No migration, no behaviour change. `v0.36.0` was tagged and never published:

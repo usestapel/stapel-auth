@@ -305,6 +305,17 @@ DEFAULTS = {
     # Off by default — only deployments running the workspaces invite flow (or
     # another trusted grant issuer) should expose the exchange endpoint.
     'AUTH_LOGIN_GRANT':      False,
+    # What a grant may do to an address that ALREADY has a full account
+    # (security audit 2026-09-11, M-4). 'login' is the historical answer and
+    # the default: the grant signs that account in — a passwordless, MFA-free
+    # session into everything the address already owns, minted by whoever may
+    # issue grants and living as long as the issuer's link does. 'refuse'
+    # turns the grant down and leaves the account its own sign-in (the issuer
+    # sends the plain link instead — same "sent" bucket, no oracle).
+    # 'step_up' signs it in only after the account's second factor answers,
+    # and is a plain login for an account that has none. A guest row is never
+    # "an existing account" here: a grant is how a guest stops being one.
+    'AUTH_LOGIN_GRANT_EXISTING_ACCOUNTS': 'login',
     # Legacy credential endpoint POST /token/ — the pre-0.4 alias of
     # /password/login/, kept for clients pinned to the TokenPair response
     # shape. Off by default: it is a second door onto password login, and a

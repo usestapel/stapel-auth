@@ -1,6 +1,6 @@
 # Errors — Español
 
-`143` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
+`144` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
 
 | Código | Estado | Parámetros | Acción | Texto |
 |---|---|---|---|---|
@@ -87,6 +87,7 @@
 | `error.403.gdpr.account_closed` | 403 | — | `retry` | Esta cuenta se está eliminando y ya no se puede utilizar. |
 | `error.403.gdpr.closure_token_scope` | 403 | — | `reauthenticate` | Este enlace de cierre pertenece a un cierre anterior de esta cuenta. |
 | `error.403.gdpr.erasure_forbidden` | 403 | — | `contact_support` | No tienes permiso para solicitar la eliminación de este elemento. |
+| `error.403.grant_existing_account` | 403 | — | `reauthenticate` | Esta dirección ya tiene una cuenta. Inicia sesión con ella en lugar de usar este enlace. |
 | `error.403.mfa_enrollment_required` | 403 | — | `verify` | Es necesario registrar la autenticación de dos factores antes de poder usar esta cuenta. Configura primero una aplicación de autenticación o una llave de acceso. |
 | `error.403.mock_otp_admin` | 403 | — | `contact_support` | La autenticación por OTP está deshabilitada para cuentas de administrador en modo mock. |
 | `error.403.network_blocked` | 403 | — | `contact_support` | No se permiten solicitudes desde esta red. |

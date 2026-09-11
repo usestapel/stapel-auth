@@ -216,6 +216,10 @@
       "hash": "7f2fa8c16dd48c8f",
       "origin": "llm"
     },
+    "error.403.grant_existing_account": {
+      "hash": "ca741c6cb12219dd",
+      "origin": "imported"
+    },
     "error.403.mfa_enrollment_required": {
       "hash": "d5b6b7dd53071c1c",
       "origin": "llm"
@@ -549,6 +553,10 @@
     "error.403.change_requires_current": {
       "hash": "7f2fa8c16dd48c8f",
       "origin": "llm"
+    },
+    "error.403.grant_existing_account": {
+      "hash": "ca741c6cb12219dd",
+      "origin": "imported"
     },
     "error.403.mfa_enrollment_required": {
       "hash": "d5b6b7dd53071c1c",

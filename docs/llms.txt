@@ -1,8 +1,8 @@
-# stapel-auth 0.36.1
+# stapel-auth 0.37.0
 
 User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.
 
-Contract: axes 30 · surface 18 · extension points 6 · operations 122 · error codes 143 · flows 4.
+Contract: axes 31 · surface 18 · extension points 6 · operations 122 · error codes 144 · flows 4.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -24,6 +24,8 @@ Settings keys; `default` is what you get by saying nothing. Turning an axis off 
 - AUTH_LOGIN_GRANT [bool, default false] — Sign-in via a service-issued login grant
   Trusted modules (e.g. the workspaces invite flow) mint a short-lived single-use grant token through an internal call; exchanging it signs the user in and can auto-create a verified account. Off by default.
   gates 1 operation(s)
+- AUTH_LOGIN_GRANT_EXISTING_ACCOUNTS [enum, default "login"] — What a login grant may do to an address that already has an account
+  A grant is a passwordless sign-in minted by a trusted module. This decides what happens when its address already owns a full account: sign it in ('login', the default), turn the grant down and let the person use their own sign-in ('refuse'), or sign in only after the account's second factor answers ('step_up').
 - AUTH_MAGIC_LINK_LOGIN [bool, default true] — Sign-in via a one-time email link
   Users sign in by clicking a short-lived link sent to their email — no code entry.
   gates 2 operation(s)
@@ -310,7 +312,7 @@ Paths are relative to `/auth/api/v1/`.
 - PUT /verification/preferences/ — auth_api_v1_verification_preferences_update
 - GET /verification/{challenge_id}/ — auth_api_v1_verification_retrieve
 
-## Error codes (143) — the StapelError envelope
+## Error codes (144) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.attribution_invalid [400] fix_input {captured_at}
 - error.400.bad_request [400] fix_input
@@ -395,6 +397,7 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.403.gdpr.account_closed [403] retry
 - error.403.gdpr.closure_token_scope [403] reauthenticate
 - error.403.gdpr.erasure_forbidden [403] contact_support
+- error.403.grant_existing_account [403] reauthenticate
 - error.403.mfa_enrollment_required [403] verify
 - error.403.mock_otp_admin [403] contact_support
 - error.403.network_blocked [403] contact_support

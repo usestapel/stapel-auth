@@ -1,6 +1,6 @@
 {
   "module": "stapel-auth",
-  "version": "0.36.1",
+  "version": "0.37.0",
   "provides": "User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.",
   "axes": [
     {
@@ -490,6 +490,21 @@
       "curated": {
         "summary": "Trusted modules (e.g. the workspaces invite flow) mint a short-lived single-use grant token through an internal call; exchanging it signs the user in and can auto-create a verified account. Off by default.",
         "business_label": "Sign-in via a service-issued login grant"
+      }
+    },
+    {
+      "key": "AUTH_LOGIN_GRANT_EXISTING_ACCOUNTS",
+      "kind": "enum",
+      "default": "login",
+      "group": "auth.login",
+      "gates": {
+        "operations": [],
+        "co_gates": [],
+        "behavior": "'refuse' answers POST /grant/exchange/ with 403 error.403.grant_existing_account; 'step_up' answers with a TOTP challenge (status=TOTP_REQUIRED) for an account that has TOTP, and an ordinary session for one that does not. A guest (anonymous) account is never treated as 'existing' — a grant is how a guest stops being one."
+      },
+      "curated": {
+        "summary": "A grant is a passwordless sign-in minted by a trusted module. This decides what happens when its address already owns a full account: sign it in ('login', the default), turn the grant down and let the person use their own sign-in ('refuse'), or sign in only after the account's second factor answers ('step_up').",
+        "business_label": "What a login grant may do to an address that already has an account"
       }
     },
     {

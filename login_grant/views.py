@@ -8,9 +8,16 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 from stapel_core.django.errors import StapelErrorResponse, StapelErrorSerializer
 
-from stapel_auth.errors import ERR_400_GRANT_INVALID
+from stapel_auth.errors import ERR_400_GRANT_INVALID, ERR_403_GRANT_EXISTING_ACCOUNT
 from stapel_auth.login_grant.serializers import LoginGrantExchangeBodySerializer
-from stapel_auth.login_grant.services import LoginGrantService
+from stapel_auth.login_grant.services import (
+    ExistingAccountRefused,
+    ExistingAccountStepUp,
+    LoginGrantService,
+)
+from stapel_auth.mfa.dto import TOTPChallengeResponse, TOTPChallengeStatus
+from stapel_auth.mfa.serializers import TOTPChallengeResponseSerializer
+from stapel_auth.mfa.services import TOTPService
 from stapel_auth.sessions.dto import AuthResponse, AuthStatus, TokenPairResponse
 from stapel_auth.sessions.serializers import AuthResponseSerializer
 from stapel_auth.sessions.services import AuditService
@@ -28,6 +35,7 @@ class LoginGrantViewSet(SerializerSeamsMixin, ViewSet):
     # Overridable serializer seams (see SerializerSeamsMixin).
     request_serializer_class = LoginGrantExchangeBodySerializer
     response_serializer_class = AuthResponseSerializer
+    totp_challenge_response_serializer_class = TOTPChallengeResponseSerializer
 
     @extend_schema(
         summary="Exchange a login grant token for a JWT session",
@@ -37,7 +45,13 @@ class LoginGrantViewSet(SerializerSeamsMixin, ViewSet):
             "claim flow) and issues a full JWT session. When the grant was "
             "minted with create_if_missing and no account exists for its "
             "email, a verified email account is created "
-            "(status=REGISTERED instead of LOGGED_IN)."
+            "(status=REGISTERED instead of LOGGED_IN).\n\n"
+            "What an address that ALREADY has a full account gets is the "
+            "deployment's AUTH_LOGIN_GRANT_EXISTING_ACCOUNTS policy: 'login' "
+            "(the default, a session), 'refuse' "
+            "(403 error.403.grant_existing_account) or 'step_up' "
+            "(TOTPChallengeResponse, status=TOTP_REQUIRED — pass "
+            "challenge_token to POST /totp/challenge/verify/)."
         ),
         request=LoginGrantExchangeBodySerializer,
         responses={
@@ -60,7 +74,24 @@ class LoginGrantViewSet(SerializerSeamsMixin, ViewSet):
         ser.is_valid(raise_exception=True)
         token = ser.validated_data["grant_token"].strip()
 
-        result = LoginGrantService.exchange(token)
+        try:
+            result = LoginGrantService.exchange(token)
+        except ExistingAccountRefused:
+            # The grant was fine; the address already has an account this
+            # deployment does not hand to a grant. A different answer from a
+            # spent token on purpose — the holder signs in instead.
+            return StapelErrorResponse(403, ERR_403_GRANT_EXISTING_ACCOUNT)
+        except ExistingAccountStepUp as step_up:
+            challenge_token = TOTPService.create_challenge(str(step_up.user.id))
+            dto = TOTPChallengeResponse(
+                status=TOTPChallengeStatus.TOTP_REQUIRED,
+                challenge_token=challenge_token,
+                expires_in=TOTPService.CHALLENGE_TTL,
+            )
+            return Response(
+                self.get_totp_challenge_response_serializer_class()(dto).data,
+                status=status.HTTP_200_OK,
+            )
         if result is None:
             return StapelErrorResponse(400, ERR_400_GRANT_INVALID)
         user, created = result

@@ -25,6 +25,9 @@ AXIS_GROUP = axis_group_rules(
         # Login-surface axis without the *_LOGIN suffix to ride:
         # gates the grant-exchange endpoint (workspaces §B3).
         "AUTH_LOGIN_GRANT": "auth.login",
+        # Same group, same reason: what a grant may do to an address that
+        # already has a full account (security audit 2026-09-11, M-4).
+        "AUTH_LOGIN_GRANT_EXISTING_ACCOUNTS": "auth.login",
         # Registration-policy axis (no *_REGISTRATION suffix to ride):
         # governs whether a password-only sign-up deanonymizes.
         "AUTH_PASSWORD_DEANONYMIZES": "auth.registration",

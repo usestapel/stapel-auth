@@ -1465,7 +1465,7 @@
     "/auth/api/v1/grant/exchange/": {
       "post": {
         "operationId": "auth_api_v1_grant_exchange_create",
-        "description": "Consumes a single-use login grant (minted service-side via the auth.issue_login_grant comm function — the workspaces invitation claim flow) and issues a full JWT session. When the grant was minted with create_if_missing and no account exists for its email, a verified email account is created (status=REGISTERED instead of LOGGED_IN).\n\n**Permissions:** `AllowAny`",
+        "description": "Consumes a single-use login grant (minted service-side via the auth.issue_login_grant comm function — the workspaces invitation claim flow) and issues a full JWT session. When the grant was minted with create_if_missing and no account exists for its email, a verified email account is created (status=REGISTERED instead of LOGGED_IN).\n\nWhat an address that ALREADY has a full account gets is the deployment's AUTH_LOGIN_GRANT_EXISTING_ACCOUNTS policy: 'login' (the default, a session), 'refuse' (403 error.403.grant_existing_account) or 'step_up' (TOTPChallengeResponse, status=TOTP_REQUIRED — pass challenge_token to POST /totp/challenge/verify/).\n\n**Permissions:** `AllowAny`",
         "summary": "Exchange a login grant token for a JWT session",
         "tags": [
           "Auth"

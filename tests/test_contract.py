@@ -206,6 +206,9 @@ _EXPECTED_AXES = {
     "AUTH_PHONE_LOGIN", "AUTH_EMAIL_LOGIN", "AUTH_OAUTH_LOGIN", "AUTH_SSO_LOGIN",
     "AUTH_PASSWORD_LOGIN", "AUTH_QR_LOGIN", "AUTH_PASSKEY_LOGIN",
     "AUTH_MAGIC_LINK_LOGIN", "AUTH_LOGIN_GRANT",
+    # What a grant may do to an address that already has a full account
+    # (security audit 2026-09-11, M-4): login | refuse | step_up.
+    "AUTH_LOGIN_GRANT_EXISTING_ACCOUNTS",
     # The deprecated POST /token/ alias, off by default (0.21) — a login
     # surface of its own, so it is an axis like every other door.
     "AUTH_LEGACY_TOKEN_LOGIN",
@@ -223,6 +226,7 @@ _EXPECTED_AXES = {
 #: _EXPECTED_AXES is a bool gate.
 _ENUM_AXES = {k for k in _EXPECTED_AXES if k.endswith("_PLACEMENT")} | {
     "AUTH_REGISTRATION_CLOSED_BEHAVIOR",
+    "AUTH_LOGIN_GRANT_EXISTING_ACCOUNTS",
 }
 
 
@@ -232,10 +236,11 @@ def _capabilities() -> dict:
 
 def test_capabilities_axes_inventory():
     """13 method gates + anonymous + totp + 2 step-up + 8 placement +
-    password-deanonymizes and closed-registration-behavior policy, all grouped."""
+    password-deanonymizes, closed-registration-behavior and
+    login-grant-existing-accounts policy, all grouped."""
     doc = _capabilities()
     assert {a["key"] for a in doc["axes"]} == _EXPECTED_AXES
-    assert len(doc["axes"]) == 30
+    assert len(doc["axes"]) == 31
     for axis in doc["axes"]:
         expected_kind = "enum" if axis["key"] in _ENUM_AXES else "bool"
         assert axis["kind"] == expected_kind, axis["key"]
