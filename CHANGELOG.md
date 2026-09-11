@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.38.1] — 2026-09-11
+
+No migration. `v0.38.0` was tagged and never published: CI was red on
+`docs/schema.json` (the publish workflow gates on a green CI run for the tagged
+commit). 0.38.1 is that release plus the regeneration and one finding it
+exposed.
+
+### The drift: stapel-gdpr 0.6.0
+
+`docs/schema.json` was emitted against stapel-gdpr 0.5.x. 0.6.0 gives the
+anonymous DSAR intake a rolling hourly budget per caller
+(`INTAKE_RATE_LIMIT_PER_HOUR`), which changes that endpoint's description and
+adds `429` to three operations. Regenerated against the range CI installs.
+Nothing in this module moved.
+
+### A consumer service could not see this module's settings
+
+`stapel_auth.projection` is installed in services that never mount the auth
+module — a profiles service keeps the shadow user row and verifies a contact
+phone through `stapel_auth.otp.services` over a dotted-path seam resolved at
+request time. Nothing imported `stapel_auth.conf` during `django.setup()`
+there, and `stapel_core.conf.registered_settings()` only lists namespaces whose
+`conf` module has been imported.
+
+So `stapel_core.django.presets`, asking "what will this process actually read
+for `STAPEL_AUTH['USE_MOCK_SMS_OTP']`", fell back to the settings dict — where
+0.38.0 deliberately leaves the key absent, because the posture's stage derives
+it — and reported `stapel_core.presets.W003`: *"the declared posture stage is
+prototype, but nothing prototypical is on: no mock one-time-code channel is
+enabled"*, on a service whose mock channel was enabled. A check that tells an
+operator to flip a stage to `live` while the stub it names is running is worse
+than no check at all.
+
+`UserProjectionConfig.ready()` now imports the namespace. It costs one settings
+object — no models, no views, nothing this app is models-free about — and the
+same answer becomes visible to every walker of that list, including
+`stapel_core.conf_checks`' ignored-env-var warning.
+
 ## [0.38.0] — 2026-09-11
 
 No migration. The floor is unchanged (`stapel-core>=0.64.0`): the posture and
