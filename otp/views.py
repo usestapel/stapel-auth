@@ -257,6 +257,17 @@ def _notify_user_registered(user, request=None, language=None, display_name=None
                     # Dead-reckoning hint like language: only org
                     # provisioning (auth.provision_user, §C1) passes one.
                     "display_name": display_name or None,
+                    # Whether this milestone is a GUEST account's. Always
+                    # present, on every path, so a listener can branch on it
+                    # without `.get(..., False)` — an absent key would make a
+                    # typo read as "not a guest", which is the wrong way for
+                    # a flag whose job is suppressing mail to an account that
+                    # has no address. Not derivable from `auth_type`:
+                    # `promote_anonymous_session` rewrites that field on the
+                    # SAME row when the guest attaches an anchor, so a
+                    # consumer storing "auth_type == anonymous" would be
+                    # holding a fact with an expiry date on it.
+                    "is_anonymous": bool(getattr(user, "is_anonymous", False)),
                 },
                 key=str(user.id),
                 service="auth",
@@ -1156,6 +1167,12 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             return error_403_forbidden()
         serializer = self.get_anonymous_request_serializer_class()(data=request.data)
         if serializer.is_valid(raise_exception=True):
+            # Whether this call CREATED the account, which is not the same
+            # question as whether it answered 201 — reuse answers 201 too.
+            # The registration milestone belongs to the row, not to the
+            # response: fired per call it would bootstrap a second personal
+            # workspace every time a guest's client re-enrolled.
+            minted = False
             # If caller already has a valid anonymous session, reuse it
             if (
                 request.user
@@ -1195,11 +1212,25 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     if retry_after:
                         return error_429_rate_limit(retry_after)
                     user = User.create_anonymous_user()
+                    minted = True
                 if device_id:
                     from django.core.cache import cache
 
                     cache.set(cache_key, str(user.id), timeout=60)
 
+            if minted:
+                # A guest account is an account: it owns rows from its first
+                # second, it is the only key to them, and it keeps its user
+                # id through `promote_anonymous_session` when it signs up.
+                # So it reaches the registration milestone like every other
+                # creation site (OTP, password, OAuth, provision_user) —
+                # which is what gets it a personal workspace from
+                # `stapel_workspaces.consume_auth_events`. Without this,
+                # every workspace-scoped surface in a consuming fleet
+                # answered a guest 403, because a guest belonged to nothing.
+                # Best-effort by contract (see `_notify_user_registered`):
+                # enroll must not fail because a listener is down.
+                _notify_user_registered(user, request=request)
             self.log_login_attempt(str(user.id), "success", request)
             access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.ANONYMOUS)
             tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)

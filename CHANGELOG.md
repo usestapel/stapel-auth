@@ -1,5 +1,59 @@
 # Changelog
 
+## [0.39.0] — 2026-09-12
+
+No migration. The floor is unchanged.
+
+### A guest account reaches the registration milestone
+
+`POST /anonymous/` was the one account-creating path in this module that
+never called `_notify_user_registered`. Every other creation site does — OTP
+email, OTP phone, password register, OAuth, `auth.provision_user` — so
+`user.registered` meant "a real account appeared" everywhere except the one
+place that also creates a real account.
+
+Downstream that silence is not cosmetic. `stapel_workspaces`'
+`consume_auth_events` bootstraps the personal workspace off `user.registered`
+and off nothing else, so a guest belonged to no workspace at all, and every
+workspace-scoped surface in a consuming fleet answered them 403. On one such fleet
+that was half of why the ten-minute anonymous trial could not run: the
+product's ruling is that a guest may create a recording, upload it and read
+its transcript, and a guest with no workspace cannot hold a recording.
+
+The ruling behind the change is that a guest account **is** an account. It
+owns rows from its first second, it is the only key to them, and it keeps its
+user id when it signs up (`promote_anonymous_session` is the same row; the
+other half, `merge_anonymous_into`, already moves memberships through
+`user.merged`, which `stapel_workspaces` consumes). So it gets the milestone,
+and the personal workspace that follows from it, like any other signup.
+
+### `user.registered` carries `is_anonymous`
+
+A listener that must NOT fire for a guest — a welcome email to an account
+with no address, a marketing-consent record — needs to skip deliberately.
+The flag is present on **every** path, not just the guest one: an optional key
+would force `payload.get("is_anonymous", False)` on every consumer and make a
+typo read as "not a guest", which is the wrong direction to fail for a flag
+whose job is suppressing mail.
+
+It is not derivable from `auth_type`. `promote_anonymous_session` rewrites
+`auth_type` on the same row when the guest attaches an anchor, so a consumer
+that stored `auth_type == "anonymous"` would be holding a fact with an expiry
+date on it.
+
+`schemas/emits/user.registered.json` and `events.UserRegisteredPayload` both
+carry the field; the schema keeps `additionalProperties: false`, so a consumer
+validating against it accepts the new key rather than rejecting the event.
+
+### The milestone belongs to the row, not to the response
+
+`POST /anonymous/` answers `201` for a *reused* session too — by `device_id`
+inside its 60-second slot, or by presenting the anonymous JWT. Firing the
+milestone per call would have bootstrapped a fresh personal workspace every
+time a guest's client re-enrolled. It fires only on the branch that actually
+creates the `User` row, which is also the only branch that spends the minting
+budget.
+
 ## [0.38.1] — 2026-09-11
 
 No migration. `v0.38.0` was tagged and never published: CI was red on

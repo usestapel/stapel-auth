@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "user.registered",
-  "description": "A new user account completed registration (email/phone OTP, OAuth, or password).",
+  "description": "A new user account completed registration (email/phone OTP, OAuth, password, or an anonymous guest enroll).",
   "type": "object",
   "required": ["user_id", "auth_type"],
   "properties": {
@@ -10,7 +10,8 @@
     "email":      { "type": ["string", "null"] },
     "avatar_url": { "type": ["string", "null"] },
     "language":   { "type": ["string", "null"] },
-    "display_name": { "type": ["string", "null"] }
+    "display_name": { "type": ["string", "null"] },
+    "is_anonymous": { "type": "boolean" }
   },
   "additionalProperties": false
 }

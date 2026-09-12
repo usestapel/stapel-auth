@@ -45,6 +45,17 @@ class UserRegisteredPayload:
             §C1), None otherwise. Same dead-reckoning contract as language:
             consumers (profiles) decide what to do with it; auth mirrors it
             into ``first_name`` and forgets.
+        is_anonymous: Whether this milestone belongs to a GUEST account
+            (``POST /anonymous/``). A guest is an account — it owns rows, it
+            is the only key to them, and it keeps its user id when it later
+            attaches an anchor — so it reaches this milestone like any other
+            signup and gets a personal workspace from it. The flag is what
+            lets a listener that must NOT fire for a guest (a welcome email
+            to an account with no address, a marketing-consent record) skip
+            deliberately rather than by guessing. Always present, never
+            derived from ``auth_type``: ``promote_anonymous_session``
+            rewrites ``auth_type`` on the same row when the guest signs up,
+            so a stored "auth_type == anonymous" is a fact with an expiry.
     """
     user_id: str
     auth_type: str
@@ -52,6 +63,7 @@ class UserRegisteredPayload:
     avatar_url: str | None = None
     language: str | None = None
     display_name: str | None = None
+    is_anonymous: bool = False
 
 
 @dataclass
