@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.39.1] — 2026-09-12
+
+No migration, no behaviour change. `v0.39.0` was tagged and never published:
+the version bump did not carry a `make contract` regeneration, so
+`docs/capabilities.json` still said `0.38.1` and four contract tests failed —
+the drift gate, the capabilities envelope, and the two README assertions that
+read the version back out of it. The publish workflow gates on a green CI run
+for the tagged commit, so it stopped at `ci-gate` with the release itself
+untouched. Same shape as 0.38.0 → 0.38.1 one day earlier, and the same fix:
+regenerate and re-cut.
+
+`docs/schema.json` is unchanged, which is the useful part of the evidence —
+0.39.0 adds no HTTP surface. What moved is an emitted event payload, and the
+only generated artifacts that mention it are the capabilities envelope's
+version string and the README assembled from it.
+
 ## [0.39.0] — 2026-09-12
 
 No migration. The floor is unchanged.
