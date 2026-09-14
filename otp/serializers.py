@@ -133,8 +133,33 @@ class AnonymousAuthSerializer(serializers.Serializer):
 
 
 class OtpSentResponseSerializer(StapelDataclassSerializer):
+    """The "code sent" body — and the one place `target` is guaranteed masked.
+
+    `target` exists so a client can render "code sent to u***@example.com";
+    the dataclass, the generated `auth.d.ts` and every consumer doc have
+    described it as masked from the start. Six views build this DTO, across
+    four modules, and until 0.39.2 two of them (`POST /email/request/`,
+    `POST /phone/request/`) put the raw address in it — so the response echoed
+    back the full e-mail of whoever asked for a code, on the one screen most
+    likely to be read over a shoulder.
+
+    Masking here rather than only at those two call sites is the difference
+    between fixing the two producers that were wrong and making the promise
+    unbreakable: a subclass, or a seventh view added later, cannot opt out of
+    it by forgetting. The mask is idempotent (`utils.mask_target`), so the
+    four call sites that already masked keep their own rendering.
+    """
+
     class Meta:
         dataclass = OtpSentResponse
+
+    def to_representation(self, instance):
+        from stapel_auth.utils import mask_target
+
+        data = super().to_representation(instance)
+        if data.get("target"):
+            data["target"] = mask_target(data["target"])
+        return data
 
 
 class EmailVerificationSerializer(serializers.Serializer):

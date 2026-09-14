@@ -1,5 +1,87 @@
 # Changelog
 
+## [0.39.2] — 2026-09-14
+
+No migration. The floor is unchanged. Two findings from an external audit of a
+consuming fleet's browser extension against a live deployment, both of the same
+class: the module did one thing and its contract said another.
+
+### `OtpSentResponse.target` now carries the masked contact it always promised
+
+`POST /email/request/` answered production callers with the **full e-mail
+address** they had just typed, and `POST /phone/request/` with the full
+number. Everything that describes the field says otherwise — the dataclass
+docstring (*"Masked email or phone where OTP was sent"*), the component schema
+and its `u***@example.com` example, the generated `auth.d.ts`, and every
+consumer doc written off them. So a client rendering `target` verbatim, as the
+contract invites, put the whole address on the code-entry screen: the one
+screen most likely to be held up in a room, handed over, or screenshotted into
+a support ticket.
+
+Six views across four modules build this DTO and four of them already masked
+(`password/views.py`, `mfa/views.py`). That is the shape of the bug worth
+fixing, not the two call sites: a promise kept by whoever remembered is not a
+promise. The mask moved into `otp.serializers.OtpSentResponseSerializer.
+to_representation`, so whatever a producer puts in the dataclass, what leaves
+over HTTP is masked — a subclass swapping the serializer seam, or a seventh
+view added next year, cannot opt out by forgetting. The two raw call sites are
+fixed as well, and `utils.mask_target` is idempotent (anything already
+carrying `***` passes through untouched), which is what lets both layers
+stand: `PasswordService.mask_phone` renders `+79***34`, and re-masking that
+would have eaten the country code and shown the user a number that did not
+look like theirs.
+
+E-mail masks to first character + `***` + `@domain`; phone to the country code
++ `*** ***` + the last four digits in pairs.
+
+**Contract movement:** the `OtpSentResponse` component does **not** move — its
+description and its `u***@example.com` example were already correct, which is
+precisely why this was a defect and not a change of intent. What moves is the
+two request operations' own `OpenApiExample` response bodies, which had been
+written from the buggy behaviour (`"target": "user@example.com"` →
+`"u***@example.com"`, `"+12345678900"` → `"+1 *** *** 89 00"`), plus their
+descriptions.
+
+### The wrong-code ladder: 400, then 422 **or** 423, and the rule for which
+
+Consumer docs listed `422 error.422.blocked` and `423 error.423.account_locked`
+side by side for "too many wrong codes" on `/{email,phone}/verify/`, as if
+either might come back. A client reading that has no branch to write.
+Production settled it by answering 423 — while the module's contract did not
+declare 423 on the operation at all, so a consumer generating error handling
+off `docs/schema.json` had no 423 branch to generate.
+
+Both are real, they are different limits, and which one a caller meets is
+decided by **how the guesses were spread**:
+
+* the code's **own** attempt budget (`OTP_MAX_ATTEMPTS`, default 5) lives
+  inside the code entry; spending it destroys the code and blocks the
+  identifier for `OTP_BLOCK_DURATION` (default 10 min) → **422**;
+* the **cross-code** failure counter (`LockoutService`, rolling hour, tiers at
+  5/10/20 → 15 min / 1 h / 24 h) only advances on guesses that were actually
+  checked, and the guess that spends the budget comes back blocked instead —
+  so five wrong guesses at one code leave it at four, one short. Reaching
+  **423** takes a fresh code: a new budget, the same counter.
+
+The defaults make both limits five, which is how the same "five wrong codes"
+produced 422 in the test suite and 423 in production.
+
+`/{email,phone}/verify/` now declare `423` and `503` (both emitted, neither
+declared), `/{email,phone}/request/` declare `429` (emitted, and already named
+by one of their own examples), and the operation descriptions carry the rule.
+`MODULE.md` states it as a table. `tests/test_otp_wrong_code_ladder.py` pins
+the behaviour *and* asserts the committed schema declares each status, so the
+next consumer doc can be written off the contract instead of off production.
+
+Writing that gate corrected the fix's own first draft: it claimed a blocked
+identifier is refused a new code with 422, when the send side checks the
+30-second resend cooldown first and answers 429 inside that window. The docs
+now say the two are a sequence, not a choice.
+
+`docs/errors.json` and `docs/llms.txt` are unchanged: both carry the flat error
+registry, and no error code, status, parameter set or remediation moved — what
+was missing was never in them to fix.
+
 ## [0.39.1] — 2026-09-12
 
 No migration, no behaviour change. `v0.39.0` was tagged and never published:

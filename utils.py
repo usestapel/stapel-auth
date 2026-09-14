@@ -216,3 +216,28 @@ def mask_value(value: str, change_type: str) -> str:
     elif change_type == 'email':
         return mask_email(value)
     return value
+
+
+def mask_target(value):
+    """Mask a contact the caller already knows, with no channel declared.
+
+    :func:`mask_value` needs to be told which channel it is looking at.
+    This one infers it, because the place that needs it — the OTP "code sent"
+    response — carries one string and no discriminator, and the producers of
+    that string are spread across four modules. Inferring beats asking there:
+    a caller that has to name the channel is a caller that can name it wrong.
+
+    Idempotent by design. The value arriving here may already be masked by its
+    producer (``PasswordService.mask_phone`` renders ``+79***34``), and running
+    the phone mask over that again would eat the country code and show the user
+    a number that does not look like theirs. Anything already carrying ``***``
+    is passed through untouched, so masking at the call site AND at the
+    serializer is safe — which is what lets both stay in place.
+    """
+    if not value:
+        return value
+    if '***' in value:
+        return value
+    if '@' in value:
+        return mask_email(value)
+    return mask_phone(value)

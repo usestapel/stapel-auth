@@ -409,24 +409,31 @@ class SilentBehaviorLeaksNothingTests(APITestCase):
         self.assertEqual(closed_behavior(), "silent")
 
     def test_email_request_answers_member_and_stranger_identically(self):
+        from stapel_auth.utils import mask_email
+
         member = self.client.post(reverse("email_request"), {"email": "member@example.com"})
         stranger = self.client.post(reverse("email_request"), {"email": "nobody@example.com"})
         self.assertEqual(member.status_code, stranger.status_code)
         self.assertEqual(member.status_code, status.HTTP_200_OK)
-        # Byte-identical but for the address the caller themselves supplied.
+        # Byte-identical but for the address the caller themselves supplied —
+        # which the body carries masked (0.39.2), so that is the form to
+        # normalise away. Blanking the raw address instead would have left the
+        # masks in place and called two identical answers different.
         self.assertEqual(
-            member.content.replace(b"member@example.com", b"X"),
-            stranger.content.replace(b"nobody@example.com", b"X"),
+            member.content.replace(mask_email("member@example.com").encode(), b"X"),
+            stranger.content.replace(mask_email("nobody@example.com").encode(), b"X"),
         )
 
     def test_phone_request_answers_member_and_stranger_identically(self):
+        from stapel_auth.utils import mask_phone
+
         member = self.client.post(reverse("phone_request"), {"phone": "+12025550333"})
         stranger = self.client.post(reverse("phone_request"), {"phone": "+12025550444"})
         self.assertEqual(member.status_code, stranger.status_code)
         self.assertEqual(member.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            member.content.replace(b"+12025550333", b"X"),
-            stranger.content.replace(b"+12025550444", b"X"),
+            member.content.replace(mask_phone("+12025550333").encode(), b"X"),
+            stranger.content.replace(mask_phone("+12025550444").encode(), b"X"),
         )
 
     def test_the_stranger_is_never_sent_anything(self):

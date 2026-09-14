@@ -204,6 +204,27 @@ Pre-0.26 this module read `X-Forwarded-For` by hand and used its leftmost elemen
 
 Replacing a verified value goes through the change flow that already proves the current authenticator — `{email,phone}/change/instant/{request-old,verify-old,request-new,verify-new}/` (or the delayed 14-day strategy for a lost channel). A single OTP to the *new* address proves control of the new address only; accepting it as authority over the old one turns any live session — a stolen JWT, an unlocked phone, an XSS — into a permanent account takeover, because the attacker rewrites the recovery address without ever touching the one the owner still holds. **This has no configuration axis on purpose**: there is no deployment for which "one code to an address you chose rewrites the address you didn't" is the intended contract.
 
+### Wrong OTP codes — 400, then 422 **or** 423, and which one is not a coin flip
+
+Two independent limits guard `POST /{email,phone}/verify/`. They have different keys, different counters and different durations, and the one a caller meets is decided by **how the guesses were spread**, not by how many there were. Consumer docs that listed `error.422.blocked` and `error.423.account_locked` side by side as alternatives for "too many wrong codes" left clients with no rule to render; this is the rule.
+
+| Answer | Limit | When | Duration |
+|---|---|---|---|
+| `400 error.400.invalid_code_attempts` (`params.attempts_remaining`) | — | the code in hand still has budget | — |
+| `422 error.422.blocked` (`params.retry_after_minutes`) | the code's **own** attempt budget, stored inside the code entry | the `OTP_MAX_ATTEMPTS`-th wrong guess (default 5) against a **single** code: the code is destroyed and the identifier blocked | `OTP_BLOCK_DURATION`, default 600 s |
+| `423 error.423.account_locked` (`params.retry_after_minutes`) | the **cross-code** failure counter (`security.services.LockoutService`, rolling 1 h) | 5 / 10 / 20 failures spread over **re-requested** codes | 15 min / 1 h / 24 h |
+| `503 error.503.verification_unavailable` | either store | the store could not answer — nothing was checked | — |
+
+Why burning one code's budget lands on 422 and never on 423: the cross-code counter only advances on guesses that were actually *checked*, and the guess that spends the budget comes back `BLOCKED` instead — so a single code's five wrong guesses leave the counter at four, one short of its first tier. Reaching 423 takes a fresh code (a new budget, the same counter). Defaults make the two limits five apiece, which is why production could answer either.
+
+While a 423 lock stands it is checked **before** the code, so the endpoint answers 423 without looking at the code at all; a 422 block is checked inside the code store, and also refuses new sends — as `429 error.429.rate_limit` while the 30-second resend cooldown is still running, and as `422` once it is clear. A successful verification clears both the counter and the lock.
+
+Pinned end to end by `tests/test_otp_wrong_code_ladder.py`, which asserts the behaviour *and* that `docs/schema.json` declares every one of these statuses on the operation.
+
+### `OtpSentResponse.target` is masked, always
+
+The 200 body of `POST /{email,phone}/request/` carries `target` so a client can render "code sent to `u***@example.com`" — it is a **reminder of which contact was used, never an echo of the contact**. Masking lives in `otp.serializers.OtpSentResponseSerializer.to_representation` (via `utils.mask_target`), not only in the views: six views across four modules build this DTO, and a promise kept by whichever call sites remembered is not a promise. The mask is idempotent, so a producer that masks with its own renderer keeps it. E-mail → first character + `***` + `@domain`; phone → country code + `*** ***` + the last four digits in pairs.
+
 ### Celery beat schedule
 
 `tasks.py` defines three periodic tasks the **delayed** (14-day, no-old-channel-proof) authenticator-change strategy depends on end-to-end — `send_change_notifications` (day-1/7/13 emails/SMS to the old contact — or, for `change_type='totp'`, the user's current verified contact, since TOTP has no "old address"), `execute_pending_changes` (flips the email/phone, or force-disables the TOTP device, once `scheduled_at` is reached), `cleanup_expired_requests` (marks >30-day abandoned requests `EXPIRED`). No new beat entry was needed for TOTP — it reuses these same three tasks by `change_type`. Installing this app does **not** wire a host's `celery.py` — with no beat entry, a `PENDING` delayed change just sits there forever: no notifications, and it never applies. This is a fork-free extension point the same way OAuth providers and verification factors are: a **discoverability + documentation** contract, not auto-wiring (auto-editing a host's celery config is a scaffold concern, out of scope for a library).

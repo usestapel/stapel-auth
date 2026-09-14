@@ -349,8 +349,44 @@ from stapel_auth.sessions.views import (
     _add_login_hints,
     _issue_session_tokens,
 )
-from stapel_auth.utils import SerializerSeamsMixin
+from stapel_auth.utils import SerializerSeamsMixin, mask_email, mask_phone
 from stapel_auth.permissions import DenyEnrollOnly
+
+
+#: What `/email/verify/` and `/phone/verify/` answer to a wrong code, and when.
+#:
+#: One block, shared by both endpoints, because a consumer doc that described
+#: this ladder in prose got it wrong in exactly the way two independent limits
+#: invite: it listed 422 and 423 side by side as if either might come back for
+#: "too many wrong codes", leaving a client no rule for which to render. They
+#: are different limits with different keys, different counters and different
+#: durations, and which one a caller meets is decided by *how* the guesses were
+#: spread — not by how many there were.
+_WRONG_CODE_LADDER = """
+**Wrong codes — 400, then 422 or 423.** Two independent limits guard this
+endpoint, and they are not interchangeable:
+
+- `400 error.400.invalid_code_attempts` (`params.attempts_remaining`) — the
+  code in the user's hands still has budget. Keep the input open.
+- `422 error.422.blocked` (`params.retry_after_minutes`) — that ONE code's own
+  budget is spent: the `OTP_MAX_ATTEMPTS`-th wrong guess (default 5) against a
+  single code destroys it and blocks the identifier for `OTP_BLOCK_DURATION`
+  (default 10 minutes). For that window every call here answers 422 — the
+  correct code included. Requesting a new code is refused too, as 429 while
+  the 30-second resend cooldown is still running and as 422 after it.
+- `423 error.423.account_locked` (`params.retry_after_minutes`) — the
+  CROSS-code failure counter crossed a tier: 5, 10 or 20 failures in a rolling
+  hour lock the identifier for 15 minutes, 1 hour and 24 hours. Only wrong
+  codes that were actually checked advance it, so this tier is reached by
+  spreading guesses over RE-REQUESTED codes; emptying one code's budget meets
+  422 first (the counter stops one short). The lock is consulted before the
+  code is, so while it stands the endpoint answers 423 without looking at the
+  code at all.
+- `503 error.503.verification_unavailable` — the store behind either limit
+  could not answer. Not a rejection: nothing was checked.
+
+A successful verification clears the cross-code counter and the lock.
+"""
 
 
 @extend_schema_view(
@@ -432,6 +468,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 - If authenticated non-anonymous user requests OTP for an email already registered to another account, returns 409 Conflict
 - If the caller already has a VERIFIED email, requesting a code for a different one returns 403 `error.403.change_requires_current` — replacing a verified authenticator goes through the email change flow, which proves the current address first
 - Admin accounts (staff/superuser) always receive real OTP even in mock mode for security
+- `target` in the 200 body is MASKED (`u***@example.com`) — it is there to show the user which address the code went to, never to echo the address back
+- `429 error.429.rate_limit` when the 30-second cooldown or the hourly send budget is not clear yet, `422 error.422.blocked` when it IS clear but the identifier is still blocked for burning a code's attempt budget (see `POST /email/verify/`). The cooldown is checked first, so inside those 30 seconds a blocked identifier is told 429 — the two are a sequence, not a choice
 """,
         request=EmailAuthRequestSerializer,
         responses={
@@ -440,6 +478,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             403: StapelErrorSerializer,
             409: StapelErrorSerializer,
             422: StapelErrorSerializer,
+            429: StapelErrorSerializer,
             500: StapelErrorSerializer,
         },
         examples=[
@@ -452,7 +491,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 "Success response",
                 value={
                     "message": "Verification code sent successfully",
-                    "target": "user@example.com",
+                    "target": "u***@example.com",
                 },
                 response_only=True,
                 status_codes=["200"],
@@ -565,7 +604,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     )
             elif verification:
                 dto = OtpSentResponse(
-                    message="Verification code sent successfully", target=email
+                    message="Verification code sent successfully",
+                    target=mask_email(email),
                 )
                 return StapelResponse(
                     self.get_otp_sent_response_serializer_class()(dto),
@@ -592,7 +632,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 - `LOGGED_IN` - Existing user logged in
 - `MERGED` - Anonymous user merged into existing account
 - `MODIFIED` - Authenticated user set an email, or re-verified the one already on the account
-""",
+"""
+        + _WRONG_CODE_LADDER,
         request=EmailAuthVerifySerializer,
         responses={
             200: AuthResponseSerializer,
@@ -600,6 +641,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             403: StapelErrorSerializer,
             409: StapelErrorSerializer,
             422: StapelErrorSerializer,
+            423: StapelErrorSerializer,
+            503: StapelErrorSerializer,
         },
         examples=[
             OpenApiExample(
@@ -818,6 +861,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 - If authenticated non-anonymous user requests OTP for a phone already registered to another account, returns 409 Conflict
 - If the caller already has a VERIFIED phone, requesting a code for a different one returns 403 `error.403.change_requires_current` — replacing a verified authenticator goes through the phone change flow, which proves the current number first
 - Admin accounts (staff/superuser) always receive real OTP even in mock mode for security
+- `target` in the 200 body is MASKED (`+7 *** *** 12 34`) — it is there to show the user which number the code went to, never to echo the number back
+- `429 error.429.rate_limit` when the 30-second cooldown or the hourly send budget is not clear yet, `422 error.422.blocked` when it IS clear but the identifier is still blocked for burning a code's attempt budget (see `POST /phone/verify/`). The cooldown is checked first, so inside those 30 seconds a blocked identifier is told 429 — the two are a sequence, not a choice
 """,
         request=PhoneAuthRequestSerializer,
         responses={
@@ -826,6 +871,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             403: StapelErrorSerializer,
             409: StapelErrorSerializer,
             422: StapelErrorSerializer,
+            429: StapelErrorSerializer,
             500: StapelErrorSerializer,
         },
         examples=[
@@ -838,7 +884,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 "Success response",
                 value={
                     "message": "Verification code sent successfully",
-                    "target": "+12345678900",
+                    "target": "+1 *** *** 89 00",
                 },
                 response_only=True,
                 status_codes=["200"],
@@ -933,7 +979,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     )
             elif verification:
                 dto = OtpSentResponse(
-                    message="Verification code sent successfully", target=phone
+                    message="Verification code sent successfully",
+                    target=mask_phone(phone),
                 )
                 return StapelResponse(
                     self.get_otp_sent_response_serializer_class()(dto),
@@ -960,7 +1007,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 - `LOGGED_IN` - Existing user logged in
 - `MERGED` - Anonymous user merged into existing account
 - `MODIFIED` - Authenticated user set a phone, or re-verified the one already on the account
-""",
+"""
+        + _WRONG_CODE_LADDER,
         request=PhoneAuthVerifySerializer,
         responses={
             200: AuthResponseSerializer,
@@ -968,6 +1016,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             403: StapelErrorSerializer,
             409: StapelErrorSerializer,
             422: StapelErrorSerializer,
+            423: StapelErrorSerializer,
+            503: StapelErrorSerializer,
         },
         examples=[
             OpenApiExample(
