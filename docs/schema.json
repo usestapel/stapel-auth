@@ -9454,8 +9454,8 @@
           },
           "backup_codes_remaining": {
             "type": "integer",
-            "description": "How many unused backup codes are left",
-            "example": 6
+            "nullable": true,
+            "description": "How many unused backup codes are left, or null"
           }
         },
         "required": [

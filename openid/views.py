@@ -253,6 +253,20 @@ class TokenIntrospectView(APIView):
         if not payload:
             return StapelResponse({"active": False})  # noqa: R006
 
+        # RFC 7662's `exp`, `iat` and `token_type` are JWT CLAIMS, and
+        # `validate_token` answers with USER DATA: `extract_user_data` strips
+        # exp/iat/jti/token_type on the way out. Reading them off that dict
+        # could therefore only ever produce `null` — which is what this
+        # endpoint sent for every active token, against a contract declaring
+        # `integer` — and `token_type` could only ever be the "access"
+        # default, whatever the token actually was.
+        #
+        # Decoded AFTER `validate_token`, never instead of it: that call is
+        # what enforces revocation (a blacklisted jti) and the user-ban check.
+        # `decode_token` enforces neither, so using it as the gate would turn
+        # a contract fix into a security regression.
+        claims = jwt_provider.handler.decode_token(token) or {}
+
         return StapelResponse(  # noqa: R006
             {  # noqa: R006
                 "active": True,
@@ -260,9 +274,9 @@ class TokenIntrospectView(APIView):
                 "username": payload.get("username"),
                 "email": payload.get("email"),
                 "scope": payload.get("scope", ""),
-                "exp": payload.get("exp"),
-                "iat": payload.get("iat"),
-                "iss": payload.get("iss"),
-                "token_type": payload.get("token_type", "access"),
+                "exp": claims.get("exp"),
+                "iat": claims.get("iat"),
+                "iss": payload.get("iss") or claims.get("iss"),
+                "token_type": claims.get("token_type", "access"),
             }
         )

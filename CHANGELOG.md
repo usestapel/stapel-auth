@@ -1,5 +1,62 @@
 # Changelog
 
+## [0.40.0] — 2026-09-16
+
+No migration. The floor is unchanged.
+
+### Added — the contract is proved against the wire, and it found two lies
+
+`docs/schema.json` is emitted from `@extend_schema` annotations, and an
+annotation is a **claim** the generator cannot check against the method body.
+`tests/test_contract.py` compares the committed document against a fresh
+emission of the same annotations — it proves the file is not stale, and
+nothing else, because both sides come from the claim.
+
+`tests/test_contract_wire.py` performs every operation the committed schema
+declares with a JSON body and validates the body it gets back. **97 declared,
+96 driven, 1 excluded by name with its reason.** A missing recipe fails
+loudly; `RECIPES ∪ UNDRIVABLE` is asserted to equal the declared set, so a
+silent gap is impossible. It reads the committed document and never emits, so
+unlike the drift gate it runs on every interpreter.
+
+It found two mismatches on the day it was written, both "declares a concrete
+type, sends null" — the shape that makes a generated client's typed field
+wrong. **Both are fixed here, not exempted.**
+
+### Fixed — `POST /oauth2/introspect/` sends the expiry it promises
+
+`exp` and `iat` were declared `integer` and sent `null` on every **active**
+token, and `token_type` could only ever be the `"access"` default whatever the
+token was. The endpoint read them off `jwt_provider.validate_token()`, which
+answers **user data**: `extract_user_data` strips `exp`/`iat`/`jti`/
+`token_type` on the way out, so those three could never be anything else. An
+RFC 7662 consumer got `null` where a unix timestamp was promised — it could
+not cache the answer or schedule revalidation.
+
+The claims are now decoded separately, **after** `validate_token` and never
+instead of it: that call is what enforces revocation and the user-ban check,
+and `decode_token` enforces neither, so swapping them would have turned a
+contract fix into a security regression.
+
+### Fixed — `GET /security/status/` declares a nullable field as nullable
+
+`totp.backup_codes_remaining` was declared a **required** `integer` and
+answered `null` for every account without TOTP. `TOTPService.
+backup_codes_remaining` is typed `int | None`; `SecurityStatusTOTP` annotated
+it `int`; the emitter copied the DTO. The DTO now matches the service.
+
+`null` rather than `0` deliberately: `is_enabled` already carries "there is no
+TOTP here", and `0` means the codes are used up — a different state with a
+different fix. Every other concrete field in that module was checked against
+the code that fills it (`.count()`, booleans, lists); this was the only one.
+
+### Changed — CI promotes this library to `stapel-schema-lint --strict`
+
+SCH001 ships at warning fleet-wide because 25 of 26 schema-bearing libraries
+have no wire test. This library has one, so it opts in and cannot regress:
+delete the wire test and the build fails.
+
+
 ## [0.39.2] — 2026-09-14
 
 No migration. The floor is unchanged. Two findings from an external audit of a

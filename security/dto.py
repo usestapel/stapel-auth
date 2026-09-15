@@ -65,10 +65,18 @@ class SecurityStatusTOTP:
 
     Attributes:
         is_enabled: Whether TOTP is active. Example: true
-        backup_codes_remaining: How many unused backup codes are left. Example: 6
+        backup_codes_remaining: How many unused backup codes are left, or null
+            when there is no TOTP device at all. Example: 6
     """
     is_enabled: bool
-    backup_codes_remaining: int
+    # `int | None`, matching TOTPService.backup_codes_remaining, which answers
+    # None when the account has no active TOTP device. It was annotated `int`
+    # and the emitter copied that, so the contract declared a REQUIRED integer
+    # for a field that is null on every account without TOTP — a generated
+    # client typed it `number` and received null. `is_enabled` already carries
+    # "there is no TOTP here", so 0 would be a worse answer than null: 0 means
+    # the codes are used up, which is a different state with a different fix.
+    backup_codes_remaining: int | None
 
 
 @dataclass

@@ -1316,38 +1316,16 @@ def test_every_known_mismatch_is_still_declared_and_explained():
         assert reason and reason.strip(), f"{key} is recorded with no reason"
 
 
-#: Operations whose declared body the wire does NOT send — real defects, found
-#: by this gate on the day it was written, recorded here rather than left as a
-#: red build.
+#: Operations whose declared body the wire does not send.
 #:
-#: WHY xfail AND NOT A RED TEST. `stapel-auth` is the most depended-on library
-#: in the estate: a permanently red suite here blocks every release behind it,
-#: and a gate that blocks everybody is a gate somebody deletes at 2am. The
-#: fleet already settled this shape for `stapel-image-lint` IMG001 and for
-#: SCH001 — a finding that arrives before the fix it asks for lands as a
-#: WORKLIST, not a wall.
-#:
-#: What keeps it from rotting: `strict=True`. If somebody fixes the
-#: annotation, the xfail turns into an XPASS and this file FAILS until the
-#: entry is deleted. The defect cannot be quietly fixed and forgotten, and it
-#: cannot be quietly ignored either — every run prints it.
-KNOWN_MISMATCHES = {
-    ("POST", V1 + "/oauth2/introspect/"):
-        "Declares exp and iat as integer; the wire sends null on every ACTIVE "
-        "token. JWTHandler.extract_user_data (stapel-core core/jwt_handler.py) "
-        "strips exp/iat/jti/token_type before openid/views.py reads them, so "
-        "payload.get('exp') can never be anything else. An RFC 7662 consumer "
-        "gets null where the contract promises a unix timestamp. Fix the view "
-        "(carry the claims through) or the annotation (declare them nullable) "
-        "- not this file.",
-    ("GET", V1 + "/security/status/"):
-        "Declares totp.backup_codes_remaining as a REQUIRED integer; answers "
-        "null for every account without TOTP. TOTPService."
-        "backup_codes_remaining is typed int | None and returns None with no "
-        "active device, while security/dto.py annotates the field int, which "
-        "is what the emitter copied. A generated client types it number and "
-        "receives null.",
-}
+#: EMPTY, and that is the point: both entries this gate found on the day it was
+#: written were fixed rather than exempted (introspect now decodes the real
+#: claims; SecurityStatusTOTP.backup_codes_remaining is `int | None`, matching
+#: the service that fills it). The mechanism stays because the next wave will
+#: need it: an entry must name the defect and its owner, and `strict=True`
+#: turns a fixed one into a failure until the entry is deleted, so a finding
+#: can be neither forgotten nor quietly kept.
+KNOWN_MISMATCHES: dict = {}
 
 
 @pytest.mark.parametrize(
