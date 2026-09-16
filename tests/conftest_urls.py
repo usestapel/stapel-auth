@@ -27,4 +27,17 @@ from django.urls import include, path
 
 urlpatterns = [
     path("auth/api/", include("stapel_auth.urls")),
+    # The gdpr half of THIS module's contract. `codegen_urls.py` mounts both
+    # under `auth/api/`, so 14 of the 105 paths in the committed
+    # `docs/schema.json` — data export, erasure, DSAR, account closure and the
+    # gdpr owners/health pair — resolved nowhere under this urlconf and
+    # nothing in this repository had ever driven them. The document said this
+    # module answers them; the suite could not have told you whether it did.
+    #
+    # Mounting them makes every whole-surface gate in this suite see them too.
+    # Those gates are scoped to `stapel_auth.*` (see OWN_PACKAGE in
+    # tests/test_options_metadata.py and tests/test_verification.py): a
+    # library's gates grade the surface that library owns, and stapel_gdpr
+    # brings its own suite, its own flow declarations and its own wire test.
+    path("auth/api/", include("stapel_gdpr.urls")),
 ]

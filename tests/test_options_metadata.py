@@ -42,8 +42,32 @@ def _concrete(route: str) -> str:
     return _PARAM.sub(lambda m: _SAMPLES.get(m.group("conv") or "str", "sample"), route)
 
 
+#: This package's own import root. The walk below is scoped to it because the
+#: gate's claim is about the surface THIS package owns (see the module
+#: docstring: "Every route this package mounts"). The suite's URLconf also
+#: mounts `stapel_gdpr` — the other half of the contract this module emits —
+#: and those views have their own package, their own suite and their own
+#: gates. A gate that graded them here would make one library's red the
+#: consequence of another library's code, which is how a broken mount stays
+#: broken: fixing it looks like breaking two gates.
+OWN_PACKAGE = "stapel_auth."
+
+
+def _owning_module(pattern) -> str:
+    """The dotted module of the view a `URLPattern` dispatches to.
+
+    `as_view()` copies the class's `__module__` onto the returned function
+    (`functools.update_wrapper`), and DRF additionally pins `view.cls`. Read
+    the class when it is there and fall back to the function, so a plain
+    function-based view is still classified rather than silently dropped.
+    """
+    callback = pattern.callback
+    view_cls = getattr(callback, "cls", None) or getattr(callback, "view_class", None)
+    return getattr(view_cls or callback, "__module__", "")
+
+
 def _routes(resolver=None, prefix=""):
-    """Every mounted `path()` route, as a concrete URL."""
+    """Every mounted `path()` route THIS package owns, as a concrete URL."""
     resolver = resolver or get_resolver()
     for entry in resolver.url_patterns:
         route = getattr(entry.pattern, "_route", None)
@@ -52,6 +76,8 @@ def _routes(resolver=None, prefix=""):
         if isinstance(entry, URLResolver):
             yield from _routes(entry, prefix + route)
         elif isinstance(entry, URLPattern):
+            if not _owning_module(entry).startswith(OWN_PACKAGE):
+                continue
             yield "/" + _concrete(prefix + route)
 
 
@@ -62,6 +88,33 @@ def routes():
     # below pass while proving nothing.
     assert len(found) > 30, found
     return found
+
+
+@pytest.mark.django_db
+def test_the_walk_is_scoped_to_this_package(routes):
+    """The scoping is a claim about coverage, so it is asserted both ways.
+
+    Downward: no route in the sweep belongs to another package — without this
+    the filter could be a no-op and the gate would be grading `stapel_gdpr`'s
+    surface again the next time the suite URLconf grows a mount.
+
+    Upward: the sweep still reaches the two routes named in the incident this
+    file exists for — without this a typo in `OWN_PACKAGE` would empty the
+    walk past the `> 30` guard's notice by dropping everything except a
+    coincidental few.
+    """
+    from django.urls import resolve
+
+    foreign = sorted(
+        {
+            url
+            for url in routes
+            if not resolve(url).func.__module__.startswith(OWN_PACKAGE)
+        }
+    )
+    assert foreign == [], foreign
+    assert "/auth/api/v1/anonymous/" in routes
+    assert "/auth/api/v1/token/refresh/" in routes
 
 
 def _options(client, url):

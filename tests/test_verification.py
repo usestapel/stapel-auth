@@ -12,6 +12,7 @@ flows-and-verification.md §2 and the auth.step_up_verification flow):
 - password login TOTP gated by PASSWORD_LOGIN_STEP_UP;
 - flow registration + check_flows for the new endpoints.
 """
+import re
 import sys
 import types
 import uuid
@@ -670,6 +671,21 @@ class PasswordLoginStepUpTests(APITestCase):
 # same way a CI run would pass them via `check_flows --allow ...`. The new
 # verification endpoints are deliberately NOT here: they must be covered by
 # the auth.step_up_verification flow.
+#: The import root of the views this package owns, and a reader for the
+#: `check_flows` message that names one: "endpoint <METHOD> <path> (<ref>) …".
+#: A message that carries no ref is kept rather than dropped — a filter whose
+#: failure mode is "say nothing" is a gate that proves nothing.
+OWN_PACKAGE = "stapel_auth."
+_VIEW_REF = re.compile(r"\(([\w.]+)\)")
+
+
+def _owned_by_this_package(message: str) -> bool:
+    match = _VIEW_REF.search(message)
+    if match is None:
+        return True
+    return match.group(1).startswith(OWN_PACKAGE)
+
+
 LEGACY_FLOW_ALLOWLIST = (
     "/token",
     "/sessions",
@@ -765,7 +781,31 @@ class FlowDocumentationTests(TestCase):
         # path "/" which no substring allowlist can target without matching
         # everything — it is machinery, not an API endpoint.
         errors = [e for e in errors if "APIRootView" not in e.message]
+        # Scoped to the views THIS package owns. The suite URLconf also mounts
+        # `stapel_gdpr` — the other half of the contract this module emits —
+        # and `check_flows` walks whatever is mounted. Its endpoints carry
+        # their own flow declarations in their own package, verified by their
+        # own suite; putting thirteen of them on this library's allowlist
+        # would mean auth vouching for gdpr's flow coverage, and would make
+        # auth red for a change in a repository auth does not build.
+        errors = [e for e in errors if _owned_by_this_package(e.message)]
         self.assertEqual([e.message for e in errors], [])
+
+    def test_the_flow_scope_filter_keeps_this_package_in(self):
+        """Guard the filter above: it must exclude foreign views and no more.
+
+        A filter written as a substring test is one typo away from excluding
+        everything, and the assertion it guards is `== []` — which a filter
+        that drops every message passes perfectly. So: this package's own
+        refs survive it, a foreign ref does not, and a message with no
+        parenthesised ref at all is KEPT rather than silently dropped.
+        """
+        own = "endpoint POST /auth/api/v1/x/ (stapel_auth.views.V.post) belongs to no flow"
+        foreign = "endpoint POST /auth/api/v1/y/ (stapel_gdpr.views.W.post) belongs to no flow"
+        shapeless = "something is wrong and no view is named"
+        self.assertTrue(_owned_by_this_package(own))
+        self.assertFalse(_owned_by_this_package(foreign))
+        self.assertTrue(_owned_by_this_package(shapeless))
 
     def test_verification_endpoints_not_swallowed_by_allowlist(self):
         # Guard the previous test's meaning: no allowlist entry matches the
