@@ -202,16 +202,39 @@ class TestErasure:
         assert not SignupAttribution.objects.filter(user_id=user.pk).exists()
 
     def test_the_re_registration_hash_outlives_the_account(self):
-        """The one thing an erasure leaves behind, and it names nobody."""
-        import hashlib
+        """The one thing an erasure leaves behind, and it names nobody.
 
+        It used to name somebody. This test asserted a bare
+        `sha256(email.lower())` — no key, no salt, no purpose binding — which
+        is recoverable from a wordlist in seconds, so the row that existed to
+        avoid keeping the address kept a trivially reversible copy of it. It
+        also carried no `scheme`, so stapel-gdpr's `unverified` default spoke
+        for it, and such rows fail `gdpr.E004`, an ERROR that refuses this
+        service's next boot. A live fleet found out on 2026-09-16 when an
+        erasure drill wrote two of them and auth crash-looped on its next
+        restart.
+
+        The hash format belongs to the library that owns the model, so this
+        now asserts THAT value: the purpose-bound keyed HMAC, with its scheme
+        recorded.
+        """
         from stapel_gdpr.models import ReRegistrationHash
+        from stapel_gdpr.reregistration import compute_hash
 
         user = _make_user()
         erase_subject("account", user.pk)
 
-        digest = hashlib.sha256(user.email.lower().encode()).hexdigest()
-        assert ReRegistrationHash.objects.filter(hash_value=digest).exists()
+        row = ReRegistrationHash.objects.get(
+            hash_type=ReRegistrationHash.TYPE_EMAIL
+        )
+        assert row.hash_value == compute_hash("email", user.email)
+        assert row.scheme == ReRegistrationHash.SCHEME_HMAC_V1
+
+        # And the old value is nowhere near the database.
+        import hashlib
+
+        unsalted = hashlib.sha256(user.email.lower().encode()).hexdigest()
+        assert not ReRegistrationHash.objects.filter(hash_value=unsalted).exists()
 
     def test_redelivery_erases_nothing_twice_and_mints_the_same_receipt(self):
         user = _make_user()

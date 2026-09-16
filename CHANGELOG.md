@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.41.0] — 2026-09-17
+
+Minor, not patch: the re-registration hash VALUE changes, so a hash written by
+an older release no longer matches a lookup from this one.
+
+### Fixed — this module invented a hash format, and the format leaked the address
+
+`_store_reregistration_hashes` computed its own digest of the identifier:
+
+    hashlib.sha256(email.lower().strip()).hexdigest()
+
+No key, no salt, no purpose binding — recoverable from a wordlist in seconds.
+The row exists so an erasure does not have to keep the address, and it kept a
+trivially reversible copy of it instead.
+
+It also named no `scheme`, so `ReRegistrationHash`'s `unverified` default spoke
+for it. Rows like that are ignored by lookups and reported by `gdpr.E004` —
+which is an **Error**, so they refuse this service's next boot. A live fleet
+found out on 2026-09-16: a deliberate erasure drill wrote one correct
+`hmac-sha256-v1` row (from stapel-gdpr) and two `unverified` ones (from here)
+in the same second, and auth crash-looped on its next restart, hours later,
+with nothing on screen connecting the two.
+
+The hash format belongs to the library that owns the model, so this now
+delegates to `stapel_gdpr.reregistration.store_hashes()` — purpose-bound keyed
+HMAC, scheme recorded, retention set, idempotent. Everything this module used
+to approximate, correctly.
+
+Where `stapel_gdpr.reregistration` is not importable, **no row is written** and
+a warning says so. Guessing the format is what produced the defect; a missing
+re-registration record costs a deletion-oracle check, while a wrong one costs
+the address and the service's next boot.
+
+Two tests changed rather than being worked around: they asserted the unsalted
+digest, which is to say they pinned the defect.
+
 ## [0.40.0] — 2026-09-16
 
 No migration. The floor is unchanged.

@@ -169,12 +169,9 @@ def store_reregistration_hashes(user_id) -> None:
     is unavailable we degrade to a warning: a deployment without the hash
     store must still be able to erase.
     """
-    import hashlib
     import warnings
-    from datetime import timedelta
 
     from django.contrib.auth import get_user_model
-    from django.utils import timezone
     from django.utils.module_loading import import_string
 
     from .conf import auth_settings
@@ -183,7 +180,11 @@ def store_reregistration_hashes(user_id) -> None:
     if not model_path:
         return
     try:
-        ReRegistrationHash = import_string(model_path)
+        # Resolved as an AVAILABILITY probe, not for use: the row is written
+        # by the owning library's store_hashes() below, which knows the hash
+        # format. What this still answers is "is the configured model even
+        # installed" — a deployment without it must be able to erase.
+        import_string(model_path)
     except ImportError:
         warnings.warn(
             f"stapel-auth: re-registration model {model_path!r} is not "
@@ -199,23 +200,49 @@ def store_reregistration_hashes(user_id) -> None:
     if user is None:
         return
 
-    expires_at = timezone.now() + timedelta(days=REREGISTRATION_RETENTION_DAYS)
+    # The hash FORMAT belongs to the library that owns the model, and this
+    # module used to compute its own: a bare `sha256(email.lower().strip())`,
+    # with no key, no salt and no purpose binding — recoverable from a
+    # wordlist in seconds — and it named no scheme, so the model's
+    # `unverified` default spoke for it.
+    #
+    # Both halves of that were live defects. The digest leaked the address it
+    # was supposed to protect, and the unnamed scheme made the row one the
+    # owning library reports through an ERROR-level system check, which means
+    # the identity service refuses to boot once such a row exists. Measured on
+    # 2026-09-16, by a deliberate erasure drill: the erasure wrote one correct
+    # hmac-sha256-v1 row (from the owning library) and two unverified ones
+    # (from here) in the same second, and auth crash-looped on its next
+    # restart, hours later, on `gdpr.E004`.
+    #
+    # So this delegates. `store_hashes` computes the purpose-bound keyed HMAC,
+    # records the scheme, sets the retention, and is idempotent — everything
+    # below used to approximate, wrongly.
+    try:
+        from stapel_gdpr.reregistration import store_hashes
+    except ImportError:
+        store_hashes = None
 
-    def _sha256(value: str) -> str:
-        return hashlib.sha256(value.lower().strip().encode()).hexdigest()
+    if store_hashes is not None:
+        store_hashes(
+            user.pk,
+            email=user.email or None,
+            phone=str(user.phone) if getattr(user, 'phone', None) else None,
+        )
+        return
 
-    if user.email:
-        ReRegistrationHash.objects.get_or_create(
-            hash_type=ReRegistrationHash.TYPE_EMAIL,
-            hash_value=_sha256(user.email),
-            defaults={'user_id_was': str(user.pk), 'expires_at': expires_at},
-        )
-    if getattr(user, 'phone', None):
-        ReRegistrationHash.objects.get_or_create(
-            hash_type=ReRegistrationHash.TYPE_PHONE,
-            hash_value=_sha256(str(user.phone)),
-            defaults={'user_id_was': str(user.pk), 'expires_at': expires_at},
-        )
+    # A deployment that pointed REREGISTRATION_MODEL at its own model without
+    # the owning library. We cannot compute that model's hash format, and
+    # guessing is what produced the defect above, so we do not write: a
+    # missing re-registration record costs a deletion-oracle check, while a
+    # wrong one costs the address and the service's next boot.
+    warnings.warn(
+        "stapel-auth: re-registration hashes NOT stored — "
+        f"{model_path!r} is configured but stapel_gdpr.reregistration is not "
+        "importable, and this module will not invent a hash format. Install "
+        "stapel-gdpr, or have your model's library expose a store_hashes().",
+        stacklevel=2,
+    )
 
 
 def _deleted(model, **lookup) -> int:

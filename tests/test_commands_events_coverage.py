@@ -108,6 +108,61 @@ class GDPRProviderBranchTests(TestCase):
         # not the User row itself; assert it completes without error.
         self.provider.delete(user.id)
 
+    def test_reregistration_hashes_carry_the_owning_library_scheme(self):
+        """The erasure path must not write a row the owning library distrusts.
+
+        This module used to compute its own digest — a bare unsalted
+        sha256(email), recoverable from a wordlist — and named no scheme, so
+        ReRegistrationHash's `unverified` default spoke for it. Such a row is
+        ignored by lookups and reported by gdpr.E004, which is an ERROR: the
+        identity service refuses to boot once one exists.
+
+        Found on 2026-09-16 by a deliberate erasure drill on a live fleet. One
+        erasure wrote three rows in the same second — one correct
+        hmac-sha256-v1 and two unverified from here — and auth crash-looped on
+        its next restart, hours later.
+        """
+        from stapel_gdpr.models import ReRegistrationHash
+        from stapel_gdpr.reregistration import compute_hash
+
+        user = _make_phone_only_user()
+        self.provider._store_reregistration_hashes(user.id)
+
+        rows = list(ReRegistrationHash.objects.all())
+        self.assertTrue(rows)
+        # Not one unverified row, from any path.
+        self.assertEqual(
+            [r for r in rows if r.scheme == ReRegistrationHash.SCHEME_UNVERIFIED],
+            [],
+            "the erasure path wrote a row with no recorded hash scheme",
+        )
+        for row in rows:
+            self.assertEqual(row.scheme, ReRegistrationHash.SCHEME_HMAC_V1)
+
+        # And the VALUE is the owning library's purpose-bound keyed HMAC,
+        # not a digest this module invented.
+        phone_row = ReRegistrationHash.objects.get(
+            hash_type=ReRegistrationHash.TYPE_PHONE
+        )
+        self.assertEqual(
+            phone_row.hash_value, compute_hash("phone", str(user.phone))
+        )
+
+    def test_the_bare_unsalted_digest_is_never_written(self):
+        """The exact value the old implementation stored."""
+        import hashlib
+
+        from stapel_gdpr.models import ReRegistrationHash
+
+        user = _make_phone_only_user()
+        self.provider._store_reregistration_hashes(user.id)
+
+        unsalted = hashlib.sha256(str(user.phone).lower().strip().encode()).hexdigest()
+        self.assertFalse(
+            ReRegistrationHash.objects.filter(hash_value=unsalted).exists(),
+            "an unsalted digest of the identifier reached the database",
+        )
+
     def test_store_reregistration_hashes_phone_only(self):
         from stapel_gdpr.models import ReRegistrationHash
         user = _make_phone_only_user()

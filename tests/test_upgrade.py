@@ -649,7 +649,19 @@ class GDPRLazyModelTests(TestCase):
             username=f'gdpr2_{uuid.uuid4().hex[:6]}', email=email, password='x'
         )
         AuthGDPRProvider().delete(user.id)
-        h = hashlib.sha256(email.lower().encode()).hexdigest()
+        # The owning library's purpose-bound keyed HMAC, not the bare
+        # sha256(email) this used to assert — that digest is wordlist-
+        # recoverable and carried no scheme, which made the row one
+        # gdpr.E004 refuses a boot over.
+        from stapel_gdpr.reregistration import compute_hash
+
+        h = compute_hash("email", email)
+        self.assertFalse(
+            ReRegistrationHash.objects.filter(
+                hash_value=hashlib.sha256(email.lower().encode()).hexdigest()
+            ).exists(),
+            "an unsalted digest of the address reached the database",
+        )
         self.assertTrue(
             ReRegistrationHash.objects.filter(hash_value=h).exists()
         )
