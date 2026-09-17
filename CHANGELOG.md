@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.42.0] — 2026-09-18
+
+Minor: a new gated route (`get_jwt_status_urls`), no behavior change to any
+existing one.
+
+### Added — `GET jwt/status/`, the read-only sibling AUTH-02 left retired
+
+AUTH-02 (2026-08-24, a fleet host) retired the whole unversioned
+`api/jwt/{refresh,status}` mount because the *refresh* half re-minted a
+token pair with no tracked-session requirement and no `load_user_by_uid`
+trust decision. `stapel_core.django.jwt.views.JWTStatusView` never
+re-mints anything — it only decodes and reports the caller's own
+cookie-borne tokens — so it carries none of that risk. It is mounted back
+here, under the v1 canon this time, as its own always-on gate
+(`get_jwt_status_urls`) — narrower than what was retired: `token/refresh/`
+stays the only refresh surface.
+
+Reference consumer: `stapel-core`'s admin session-timeout widget
+(`static/admin/js/jwt_session.js`), which used to hardcode the pre-v1,
+now-permanently-404 literal `/auth/api/jwt/status/` — 804 hits/week on one
+open admin tab, log audit 2026-09-18. See `stapel-core` 0.83.2.
+
 ## [0.41.1] — 2026-09-17
 
 Patch: delete this module's copies of `gdpr.section.erased` and

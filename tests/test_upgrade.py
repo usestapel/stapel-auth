@@ -534,6 +534,11 @@ _EXPECTED_URLS = {
     # is stapel_core.django.sites'; auth owns the mount so the address is the
     # same in every fleet (0.31.0).
     'site-bootstrap': 'site/',
+    # Read-only JWT status probe, restored under v1 after AUTH-02
+    # (2026-08-24) retired the unversioned api/jwt/{refresh,status} mount —
+    # narrower than what was retired, since this view never re-mints a
+    # token. Reference consumer: stapel-core's jwt_session.js admin widget.
+    'jwt_status': 'jwt/status/',
 }
 
 
@@ -565,6 +570,7 @@ class URLFactoryEquivalenceTests(TestCase):
         combined = {}
         for factory in (
             auth_urls.get_sessions_urls,
+            auth_urls.get_jwt_status_urls,
             auth_urls.get_otp_urls,
             auth_urls.get_anonymous_urls,
             auth_urls.get_oauth_urls,

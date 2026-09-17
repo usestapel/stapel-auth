@@ -41,7 +41,7 @@ from .sso_views import (
 __all__ = [
     'get_otp_urls', 'get_anonymous_urls', 'get_password_urls', 'get_oauth_urls',
     'get_sso_urls', 'get_mfa_urls', 'get_qr_urls', 'get_magic_link_urls',
-    'get_login_grant_urls', 'get_sessions_urls', 'get_admin_api_urls',
+    'get_login_grant_urls', 'get_sessions_urls', 'get_jwt_status_urls', 'get_admin_api_urls',
     'get_security_urls', 'get_openid_urls', 'get_verification_urls',
     'get_site_bootstrap_urls', 'urlpatterns',
 ]
@@ -109,6 +109,32 @@ def get_sessions_urls(enabled=None):
         path('sessions/', SessionViewSet.as_view({'get': 'list_sessions', 'delete': 'revoke_all'}), name='sessions'),
         path('sessions/<str:session_id>/', SessionViewSet.as_view({'delete': 'revoke_one'}), name='session_revoke'),
         path('sessions/<str:session_id>/confirm/', SessionViewSet.as_view({'post': 'confirm_session'}), name='session_confirm'),
+    ])
+
+
+def get_jwt_status_urls(enabled=None):
+    """Read-only JWT status probe (``GET jwt/status/``). Always on.
+
+    Restores, under the v1 canon, the read-only sibling of the
+    unversioned ``api/jwt/{refresh,status}`` mount that a fleet host's
+    own ``core/urls.py`` retired (audit tag AUTH-02, 2026-08-24) —
+    deliberately narrower than what was retired there.
+    ``stapel_core.django.jwt.views.JWTStatusView`` only decodes and
+    reports the caller's OWN cookie-borne tokens (no re-mint, no
+    ``load_user_by_uid`` trust decision), so it carries none of the risk
+    that got ``jwt/refresh/`` retired from that surface — refresh stays
+    on the session-tracked ``token/refresh/`` above.
+
+    Reference consumer: stapel-core's admin session-timeout widget
+    (``static/admin/js/jwt_session.js``, loaded on every admin page via
+    ``base_site.html``), which used to hardcode the pre-v1, now-404
+    literal ``/auth/api/jwt/status/`` — this is the path it should poll
+    instead.
+    """
+    from stapel_core.django.jwt.views import JWTStatusView
+
+    return _gated('jwt_status', enabled, (), [
+        path('jwt/status/', JWTStatusView.as_view(), name='jwt_status'),
     ])
 
 
@@ -383,6 +409,7 @@ def get_admin_api_urls(enabled=None):
 # disabled features to 404 instead.
 urlpatterns = (
     get_sessions_urls(enabled=True)
+    + get_jwt_status_urls(enabled=True)
     + get_otp_urls(enabled=True)
     + get_anonymous_urls(enabled=True)
     + get_oauth_urls(enabled=True)
