@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.41.1] — 2026-09-17
+
+Patch: delete this module's copies of `gdpr.section.erased` and
+`gdpr.owner.alive`.
+
+`stapel-core` owns both facts and has shipped schemas for them since 0.81.0.
+These copies validated identically to core's — they differed only in prose —
+so nothing was being refused here. They go because identical copies are how
+divergent ones start: two sibling modules had already drifted theirs into
+pinning `owner` to their own name, which rejects every other owner's receipt
+inside the erasure's own transaction.
+
+Floor moves to `stapel-core>=0.81.0`, the release that ships the two schemas.
+
 ## [0.41.0] — 2026-09-17
 
 Minor, not patch: the re-registration hash VALUE changes, so a hash written by
