@@ -1,5 +1,76 @@
 # Changelog
 
+## [0.43.0] — 2026-09-18
+
+Minor, not patch: a new UNIQUE constraint and its migration
+(`0026_unique_sso_subject_per_org`), plus a contract that gains a route.
+
+### Fixed — SSO first login raced on a column that was never unique
+
+`SSOUserService.get_or_create_user` resolved the account with
+`User.objects.get_or_create(email=...)`. Email is deliberately NOT unique on
+the user model — accounts merge, guest rows are promoted, two products share a
+mailbox — so that call had no unique key to collide on, and Django's own
+IntegrityError retry inside `get_or_create` had nothing to recover from:
+
+- two first logins arriving together (an IdP opening two tabs, a retried ACS
+  POST, two pods behind one callback) both read "no such user" and both INSERT.
+  Nothing raises. The person now has two accounts;
+- and from then on every login through that address raises
+  `MultipleObjectsReturned` from inside `get_or_create` — the flow stops
+  working entirely, with no name for what happened.
+
+The identity an IdP asserts is its subject (`NameID`/`sub`) **inside one
+organisation**, and that pair is now unique in the database
+(`unique_sso_subject_per_org`, partial: a membership created outside SSO
+carries no subject, and "no identity" must not read as one shared identity).
+The first-login path follows the key:
+
+1. look the identity up by `(org, subject)` — a returning subject is resolved
+   without consulting the address at all, so an IdP that changes someone's
+   email no longer creates a second account;
+2. otherwise create the account and the identity inside ONE
+   `transaction.atomic()` whose conflict point is the identity insert. The
+   loser of a race rolls its own half-made account back, re-reads the winner's
+   identity ONCE, and returns that user. An `IntegrityError` that is not the
+   identity constraint is re-raised, not swallowed;
+3. email keeps exactly the role the fleet gave it — LINKING to an account that
+   already exists here, still gated by `SSO_LINK_EXISTING_BY_EMAIL` /
+   membership / org domain. What it no longer does is pick one row out of
+   several: an address matching more than one account is `AmbiguousSSOEmail`,
+   logged with the count, because choosing silently is an account takeover
+   with extra steps.
+
+The migration refuses rather than repairs: a duplicate `(org, subject)` pair
+means two accounts already answer to one IdP identity, and choosing the
+survivor is an account merge with a person behind it. It prints every
+colliding pair with its row count and user ids and stops, instead of letting
+`AddConstraint` fail with a bare `UniqueViolation` naming nothing — and
+without deleting anything.
+
+Tests: the deterministic loser (a real INSERT forced to collide → one user,
+one identity, no orphan), the unresolvable `IntegrityError`, the ambiguous
+address, identity-before-email resolution — and the real interleaving, two
+threads on two connections, in a new `concurrency` CI job on `postgres:16`
+(the idiom is stapel-core's). The suite asserts the database URL was honoured,
+so that job cannot go green on SQLite.
+
+### Changed — `docs/schema.json` now lists `GET /auth/api/v1/jwt/status/`
+
+The route has been mounted since 0.42.0, but `stapel_core`'s `JWTStatusView`
+was a plain Django view and drf-spectacular emits nothing for those, so the
+contract did not know it existed (the known gap 0.42.1 recorded). `stapel-core`
+0.85.0 makes it a DRF view with a response serializer and adds
+`stapel_core.contract.W001` so the next invisible route is named at
+`manage.py check` time. Re-emitted here; the floor moves to
+`stapel-core>=0.85.0`.
+
+The operation is driven against the wire (`tests/test_contract_wire.py`), not
+just declared. The monolith aggregate owes a regeneration for this one path —
+`tests/test_contract.py::test_matches_monolith_auth_slice` compares against a
+sibling repository and is red in the workspace until that aggregate is re-cut
+(module CI checks out only this repo and skips it).
+
 ## [0.42.1] — 2026-09-18
 
 Patch: the contract artifacts 0.42.0 bumped past.

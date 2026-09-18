@@ -11,6 +11,18 @@ from urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
 
+
+class AmbiguousSSOEmail(ValueError):
+    """The IdP's address matches more than one account here.
+
+    Email is not unique on the user model (accounts merge, guest rows are
+    promoted, two products share a mailbox), so "link this login to the
+    existing account with this address" has no answer when there are several.
+    Picking one silently is an account takeover with extra steps; this names
+    the collision instead, and an administrator resolves it. A ``ValueError``
+    so the callback keeps handling it as the refusal it already handles.
+    """
+
 _SAML_NS = {
     'saml':  'urn:oasis:names:tc:SAML:2.0:assertion',
     'samlp': 'urn:oasis:names:tc:SAML:2.0:protocol',
@@ -456,30 +468,107 @@ def _may_claim_existing_account(org, user, email: str) -> bool:
     return bool(domain) and email.rsplit('@', 1)[-1] == domain
 
 
+def _single_user_for(email: str):
+    """The one account this address names, or None — never one OF several.
+
+    ``User.email`` is not unique in this fleet, by design. A lookup that finds
+    two rows has no answer to "which account does this login belong to", and
+    the old ``get_or_create(email=...)`` answered it twice over: it picked
+    whichever row came back first, and — once two existed — raised
+    ``MultipleObjectsReturned`` from inside the login, with no name for what
+    had happened.
+    """
+    from django.contrib.auth import get_user_model
+
+    U = get_user_model()
+    matches = list(U.objects.filter(email=email)[:2])
+    if len(matches) > 1:
+        total = U.objects.filter(email=email).count()
+        logger.error(
+            "SSO login refused: the asserted address matches %d accounts in "
+            "this service, so there is no single account to link to. An "
+            "administrator must merge or re-address them.", total,
+        )
+        raise AmbiguousSSOEmail(
+            f'SSO cannot link this login: {total} accounts share the asserted '
+            f'address'
+        )
+    return matches[0] if matches else None
+
+
+def _sync_names_from_idp(user, attrs: dict) -> None:
+    """Fill in a name the IdP knows and this account does not."""
+    changed = False
+    if attrs.get('first_name') and not user.first_name:
+        user.first_name = attrs['first_name']
+        changed = True
+    if attrs.get('last_name') and not user.last_name:
+        user.last_name = attrs['last_name']
+        changed = True
+    if changed:
+        user.save(update_fields=['first_name', 'last_name'])
+
+
 class SSOUserService:
     @staticmethod
     def get_or_create_user(org, attrs: dict, request_user=None):
-        """JIT provision: find existing user by email or create; link membership.
+        """Resolve the SSO identity to an account, provisioning one if needed.
+
+        The identity is the **(org, subject)** pair the IdP asserts — its
+        ``NameID``/``sub`` inside one organisation — and that pair is unique
+        in the database (``unique_sso_subject_per_org``). Everything else
+        follows from having a real unique key:
+
+        * a returning subject is found by that key, whatever address the IdP
+          sends this time;
+        * a first login creates the account and the identity inside ONE
+          transaction whose conflict point is the identity insert. Two first
+          logins racing therefore produce one winner and one
+          ``IntegrityError``; the loser rolls its own account back, re-reads
+          the winner's identity once, and returns that user.
+
+        Email keeps exactly the role the fleet gave it — LINKING a first login
+        to an account that already exists here, subject to
+        :func:`_may_claim_existing_account` — and nothing more. It is not an
+        identity: it is not unique on the user model, so two first logins
+        keyed on it both INSERT (Django's own ``get_or_create`` retry has no
+        constraint to recover from) and the person ends up with two accounts.
 
         *request_user* — ``request.user`` from the callback view, when it was
         an anonymous guest session (may be ``None``/absent otherwise). When
-        the IdP's email is FRESH (no pre-existing account, the ``created``
-        branch below) and a guest session is in progress, the anchor is
-        attached to that SAME row (promote) instead of creating a second,
-        orphaning the guest row. An email that already belongs to an
-        existing account is a collision/merge case, left exactly as before
-        — request_user is intentionally ignored there.
+        the IdP's email is FRESH (no pre-existing account) and a guest session
+        is in progress, the anchor is attached to that SAME row (promote)
+        instead of creating a second, orphaning the guest row. An email that
+        already belongs to an existing account is a collision/merge case,
+        left exactly as before — request_user is intentionally ignored there.
         """
-        from django.contrib.auth import get_user_model
+        from django.db import IntegrityError, transaction
+
         from .models import OrgMembership
         from .otp.services import promote_anonymous_session
         from .registration import require_registration_open
-        U = get_user_model()
+
         email = attrs['email']
         if not email:
             raise ValueError('SSO assertion missing email')
+        subject_id = (attrs.get('subject_id') or '').strip()
 
-        existing = U.objects.filter(email=email).first()
+        # 1. The identity, by its unique key. A returning subject never
+        #    consults the address — the IdP may have changed it.
+        if subject_id:
+            try:
+                known = OrgMembership.objects.get(
+                    org=org, sso_subject_id=subject_id,
+                )
+            except OrgMembership.DoesNotExist:
+                known = None
+            if known is not None:
+                _sync_names_from_idp(known.user, attrs)
+                return known.user, False
+
+        # 2. No identity here yet: link to the one existing account this
+        #    address names, if the org may claim it, or provision.
+        existing = _single_user_for(email)
         if existing is not None and not _may_claim_existing_account(org, existing, email):
             raise ValueError(
                 f'SSO org {org.slug!r} may not claim the existing account for '
@@ -488,16 +577,64 @@ class SSOUserService:
             )
         if existing is None:
             # JIT provisioning IS registration (#86) — an employee the IdP
-            # vouches for but who has no account here gets one created. Both
-            # branches below that produce a new account (promote a guest row,
-            # or get_or_create's create half) sit behind this one check;
-            # ``existing is not None`` falls straight through to the login
-            # path untouched.
+            # vouches for but who has no account here gets one created.
             require_registration_open('sso')
-        if existing is None and request_user is not None and getattr(
+
+        try:
+            with transaction.atomic():
+                user, created = SSOUserService._provision(
+                    org, attrs, existing, request_user,
+                    promote_anonymous_session=promote_anonymous_session,
+                )
+                if not created:
+                    _sync_names_from_idp(user, attrs)
+                # The conflict point. Everything above rolls back with it, so
+                # the loser of a race leaves no half-account behind.
+                try:
+                    membership = OrgMembership.objects.get(user=user, org=org)
+                except OrgMembership.DoesNotExist:
+                    OrgMembership.objects.create(
+                        user=user, org=org, sso_subject_id=subject_id,
+                    )
+                else:
+                    if membership.sso_subject_id != subject_id:
+                        membership.sso_subject_id = subject_id
+                        membership.save(update_fields=['sso_subject_id'])
+        except IntegrityError as conflict:
+            if not subject_id:
+                raise
+            # One bounded re-read, never a loop: either the winner's identity
+            # is there now — in which case this request is simply the second
+            # login — or the constraint that fired was one this seam cannot
+            # reason about, and it must surface.
+            try:
+                winner = OrgMembership.objects.get(
+                    org=org, sso_subject_id=subject_id,
+                )
+            except OrgMembership.DoesNotExist:
+                # Not the identity constraint after all — surface the original.
+                raise conflict
+            logger.info(
+                "SSO first-login race on org=%s: the identity was already "
+                "committed, returning the winner's account.", org.slug,
+            )
+            _sync_names_from_idp(winner.user, attrs)
+            return winner.user, False
+
+        return user, created
+
+    @staticmethod
+    def _provision(org, attrs, existing, request_user, *, promote_anonymous_session):
+        """The account this login belongs to: linked, promoted or created."""
+        from django.contrib.auth import get_user_model
+
+        if existing is not None:
+            return existing, False
+
+        if request_user is not None and getattr(
             request_user, 'is_authenticated', False
         ) and request_user.is_anonymous:
-            request_user.email = email
+            request_user.email = attrs['email']
             request_user.is_email_verified = True
             request_user.is_active = True
             if attrs.get('first_name'):
@@ -506,34 +643,15 @@ class SSOUserService:
                 request_user.last_name = attrs['last_name']
             promote_anonymous_session(request_user, auth_type='sso')
             request_user.save()
-            user, created = request_user, True
-        else:
-            user, created = U.objects.get_or_create(
-                email=email,
-                defaults={
-                    'is_active': True,
-                    'first_name': attrs.get('first_name', ''),
-                    'last_name': attrs.get('last_name', ''),
-                },
-            )
-        if not created:
-            # Sync name if it came from IdP
-            changed = False
-            if attrs.get('first_name') and not user.first_name:
-                user.first_name = attrs['first_name']
-                changed = True
-            if attrs.get('last_name') and not user.last_name:
-                user.last_name = attrs['last_name']
-                changed = True
-            if changed:
-                user.save(update_fields=['first_name', 'last_name'])
+            return request_user, True
 
-        # Upsert org membership
-        OrgMembership.objects.update_or_create(
-            user=user, org=org,
-            defaults={'sso_subject_id': attrs.get('subject_id', '')},
-        )
-        return user, created
+        U = get_user_model()
+        return U.objects.create(
+            email=attrs['email'],
+            is_active=True,
+            first_name=attrs.get('first_name', ''),
+            last_name=attrs.get('last_name', ''),
+        ), True
 
     @staticmethod
     def issue_session_and_redirect(user, org, request):

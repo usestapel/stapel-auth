@@ -17,6 +17,8 @@ config, not a second copy of it").
 """
 from __future__ import annotations
 
+from stapel_core.testing import test_database
+
 
 def settings_kwargs(
     *,
@@ -130,12 +132,12 @@ def settings_kwargs(
         ROOT_URLCONF=root_urlconf,
         DEFAULT_AUTO_FIELD="django.db.models.BigAutoField",
         USE_TZ=True,
-        DATABASES={
-            "default": {
-                "ENGINE": "django.db.backends.sqlite3",
-                "NAME": ":memory:",
-            }
-        },
+        # SQLite in memory, or the server STAPEL_TEST_DATABASE_URL names.
+        # Concurrency cannot be tested on :memory: — every connection gets its
+        # own database, so two writers never meet. The SSO first-login race
+        # needs the real interleaving and marks itself to skip without a
+        # server; everything else keeps the fast in-process default.
+        DATABASES={"default": test_database()},
         CACHES={
             "default": {
                 "BACKEND": "django.core.cache.backends.locmem.LocMemCache",

@@ -445,6 +445,13 @@ def _capabilities(call):
     return call(anonymous())
 
 
+@recipe("GET", "/jwt/status/")
+def _jwt_status(call):
+    """Driven with no cookies at all — the answer a session probe gives the
+    caller who has nothing yet, and the one the widget polls on."""
+    return call(anonymous())
+
+
 @recipe("GET", "/service-keys")
 def _service_keys_list(call):
     service_key()

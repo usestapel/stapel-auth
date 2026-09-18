@@ -452,6 +452,21 @@ class OrgMembership(models.Model):
     class Meta:
         db_table = 'sso_org_memberships'
         unique_together = [('user', 'org')]
+        constraints = [
+            # The SSO identity, and the only unique key a first login can
+            # collide on. Email is not unique on the user model, so a flow
+            # keyed on it lets two concurrent first logins create two accounts
+            # for one person and then fails every later login with
+            # MultipleObjectsReturned. The (org, subject) pair is what the IdP
+            # actually asserts; partial, because a membership created outside
+            # SSO carries no subject and "no identity" must not read as one
+            # shared identity.
+            models.UniqueConstraint(
+                fields=['org', 'sso_subject_id'],
+                condition=~models.Q(sso_subject_id=''),
+                name='unique_sso_subject_per_org',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.user} @ {self.org.slug} ({self.role})'

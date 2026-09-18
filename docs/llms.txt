@@ -1,8 +1,8 @@
-# stapel-auth 0.42.1
+# stapel-auth 0.43.0
 
 User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.
 
-Contract: axes 31 · surface 18 · extension points 6 · operations 122 · error codes 144 · flows 4.
+Contract: axes 31 · surface 18 · extension points 6 · operations 123 · error codes 144 · flows 4.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -164,7 +164,7 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - stapel-gdpr (optional) — default REREGISTRATION_MODEL target (lazy dotted path); co-mounted under /auth/api/ in the contract harness
 - stapel-notifications (optional) — delivers the OTP / magic-link / security emails and SMS this module requests via notification.requested
 
-## HTTP operations (122) — call by operationId, never by a typed path
+## HTTP operations (123) — call by operationId, never by a typed path
 Paths are relative to `/auth/api/v1/`.
 ### API Keys
 - POST /service-keys — auth_api_v1_service_keys_create
@@ -311,6 +311,7 @@ Paths are relative to `/auth/api/v1/`.
 - GET /verification/preferences/ — auth_api_v1_verification_preferences_retrieve
 - PUT /verification/preferences/ — auth_api_v1_verification_preferences_update
 - GET /verification/{challenge_id}/ — auth_api_v1_verification_retrieve
+- GET /jwt/status/ — jwt_status
 
 ## Error codes (144) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.

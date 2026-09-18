@@ -1661,6 +1661,28 @@
         }
       }
     },
+    "/auth/api/v1/jwt/status/": {
+      "get": {
+        "operationId": "jwt_status",
+        "description": "Decodes the caller's own access/refresh tokens and reports whether they are still valid, together with the presented profile of the authenticated user. Mints nothing and never refreshes a token.\n\n**Permissions:** `AllowAny`",
+        "summary": "Current JWT session state",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JWTStatus"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
     "/auth/api/v1/logout/": {
       "get": {
         "operationId": "auth_api_v1_logout_retrieve",
@@ -8067,6 +8089,56 @@
           "change_token",
           "expires_at",
           "status"
+        ]
+      },
+      "JWTStatus": {
+        "type": "object",
+        "description": "The status payload, as the contract describes it.\n\nDeclaration only — the view answers with the dict it always answered\nwith, and this says what that dict is. ``profile`` is deliberately an\nopen object: its shape is the deployment's, decided by the swappable\n``USERS_PROFILE_PRESENTER``, and pinning one presenter's fields here\nwould describe a payload a host that swapped it does not send.",
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          },
+          "profile": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/JWTStatusTokens"
+          },
+          "message": {
+            "type": "string",
+            "description": "Present when the request carried no tokens."
+          }
+        },
+        "required": [
+          "authenticated"
+        ]
+      },
+      "JWTStatusTokens": {
+        "type": "object",
+        "description": "The ``tokens`` block of the status payload.",
+        "properties": {
+          "access_token_valid": {
+            "type": "boolean"
+          },
+          "refresh_token_valid": {
+            "type": "boolean"
+          },
+          "access_token_exp": {
+            "type": "integer",
+            "nullable": true
+          },
+          "refresh_token_exp": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "access_token_exp",
+          "access_token_valid",
+          "refresh_token_exp",
+          "refresh_token_valid"
         ]
       },
       "KindEnum": {
