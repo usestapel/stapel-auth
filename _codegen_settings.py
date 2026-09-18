@@ -78,6 +78,11 @@ def settings_kwargs(
             "DEFAULT_PERMISSION_CLASSES": [],
             "EXCEPTION_HANDLER": "stapel_core.django.api.errors.stapel_exception_handler",
         }
+    # SQLite in memory, or the server STAPEL_TEST_DATABASE_URL names.
+    # Concurrency cannot be tested on :memory: — every connection gets its
+    # own database, so two writers never meet. The SSO first-login race needs
+    # the real interleaving and marks itself to skip without a server.
+    database = test_database()
     kwargs = dict(
         SECRET_KEY="test-secret-key-32-chars-minimum!!",
         DEBUG=True,
@@ -132,12 +137,7 @@ def settings_kwargs(
         ROOT_URLCONF=root_urlconf,
         DEFAULT_AUTO_FIELD="django.db.models.BigAutoField",
         USE_TZ=True,
-        # SQLite in memory, or the server STAPEL_TEST_DATABASE_URL names.
-        # Concurrency cannot be tested on :memory: — every connection gets its
-        # own database, so two writers never meet. The SSO first-login race
-        # needs the real interleaving and marks itself to skip without a
-        # server; everything else keeps the fast in-process default.
-        DATABASES={"default": test_database()},
+        DATABASES={"default": database},
         CACHES={
             "default": {
                 "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
@@ -186,12 +186,19 @@ def settings_kwargs(
         URL_PREFIX="auth/",
         SERVICE_NAME="Iron Auth Test",
         KAFKA_BOOTSTRAP_SERVERS="",
-        # Skip migrations — create tables directly from models
-        MIGRATION_MODULES={
+        # Skip migrations — create tables directly from models. On SQLite
+        # only: `migrate --run-syncdb` builds every unmigrated app in one
+        # pass, and SQLite tolerates the deferred foreign keys that produces.
+        # A real server does not (users.User -> auth_group is emitted before
+        # django.contrib.auth's own migrations have run), and a server is
+        # exactly where the concurrency suite runs — so there the schema comes
+        # from the migrations, the way a deployment gets it. That also means
+        # the constraint under test is the one the migration creates.
+        MIGRATION_MODULES=({
             "users": None,
             "authentication": None,
             "gdpr": None,
-        },
+        } if "sqlite" in database["ENGINE"] else {}),
     )
     return kwargs
 
