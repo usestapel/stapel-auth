@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.42.1] — 2026-09-18
+
+Patch: the contract artifacts 0.42.0 bumped past.
+
+0.42.0 raised `pyproject.toml` but did not re-run `make contract`, so
+`docs/capabilities.json` — and the README assembled from it — still declared
+`0.41.1`. `contract-check` is the tag-time gate, and it was red; 0.42.0 was
+therefore never tagged and never published. This release carries the same
+`jwt/status/` route with artifacts and package version agreeing.
+
+Known gap, not introduced here: `stapel_core`'s `JWTStatusView` is a plain
+Django `View`, not a DRF one, so drf-spectacular emits no path for it and
+`docs/schema.json` does not list `/auth/api/v1/jwt/status/`. The route is
+mounted and covered by `tests/test_jwt_status_gate.py`; the contract cannot
+see it until the view moves to an APIView upstream.
+
 ## [0.42.0] — 2026-09-18
 
 Minor: a new gated route (`get_jwt_status_urls`), no behavior change to any
