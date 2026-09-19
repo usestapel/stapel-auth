@@ -808,7 +808,18 @@ class AuthenticatorChangeService:
 
     @staticmethod
     def _apply_change(user, change_type, new_value):
-        """Update the user's phone/email field and publish contact-changed event."""
+        """Update the user's phone/email field.
+
+        The contact-changed announcement is NOT made here any more. It used
+        to be — a hand-rolled, best-effort publish right after the save —
+        and this was the only place in the library that made it, which is
+        why a notification service's contact mirror held nothing but the
+        accounts that had changed an address. ``user.save()`` below is now
+        itself the trigger: the observer in
+        :mod:`stapel_auth.contact_projection` sees the write and emits
+        through the transactional outbox, here and on the ten registration
+        paths that were silent.
+        """
         if change_type == 'phone':
             user.phone = new_value
             user.is_phone_verified = True
@@ -816,27 +827,6 @@ class AuthenticatorChangeService:
             user.email = new_value
             user.is_email_verified = True
         user.save()
-
-        # Publish user-contact-changed event for notifications service
-        try:
-            from stapel_core.bus import publish, Event
-            from stapel_core.kafka.topics import TOPIC_USER_CONTACT_CHANGED
-            from stapel_core.kafka.events import EventType
-            publish(
-                TOPIC_USER_CONTACT_CHANGED,
-                Event(
-                    event_type=EventType.USER_CONTACT_CHANGED,
-                    service="auth",
-                    payload={
-                        "user_id": str(user.id),
-                        "email": user.email or "",
-                        "phone": user.phone or "",
-                    },
-                    key=str(user.id),
-                ),
-            )
-        except Exception:
-            logger.exception("Failed to publish user-contact-changed event")
 
     @staticmethod
     def _invalidate_all_tokens(user):

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "auth.contacts_page",
+  "description": "One keyset page of deliverable addresses — the PULL half of the contact projection, next to the user.contact.changed stream. Returns {contacts: [{user_id, email, phone, email_verified, phone_verified, language}], next: <cursor|null>}; feed next back as after. Exists because a stream has no repair: a consumer deployed after the accounts, a handler down while facts aged out, a bulk QuerySet.update() no model observer can see, or a fleet where the events were never emitted at all. Keyset rather than offset so a concurrent write cannot make the walk skip or duplicate a row. language is null until a host's AUTH_USER_MODEL defines one — auth stores no language field. addressable_only defaults to true (guests with neither address are not contacts). Service-only by construction: a bulk read of personal contact data on the internal transport, never to be given an HTTP surface.",
+  "type": "object",
+  "properties": {
+    "after": {
+      "type": ["string", "null"],
+      "description": "Keyset cursor: the last user id of the previous page. Omit or null for the first page."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "description": "Page size; defaults to 200, capped at 1000."
+    },
+    "since": {
+      "type": ["string", "null"],
+      "description": "ISO-8601 instant. Restricts the page to accounts modified at or after it, when the user model records a modification time; ignored on a model that does not."
+    },
+    "addressable_only": {
+      "type": "boolean",
+      "description": "Default true: skip accounts with neither e-mail nor phone. Send false to enumerate every account."
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "user.contact.changed",
+  "description": "Where this person can be written to. Emitted by the single observer in stapel_auth.contact_projection for every write that establishes or changes a deliverable address — registration, OAuth first login, guest upgrade, authenticator change, admin edit, shell — not by any individual view. Distinct from user.created/user.updated, which carry the identity row for shadow users tables: this carries one narrow, privacy-sensitive fact for the service allowed to write to a person. email and phone are always present and are empty strings when unset, so an address the account gave up can be cleared; delivery is at-least-once, so the consumer's apply must be an upsert.",
+  "type": "object",
+  "required": ["user_id", "email", "phone"],
+  "properties": {
+    "user_id":        { "type": "string", "format": "uuid", "description": "The account the addresses below belong to." },
+    "email":          { "type": "string", "description": "E-mail address, or \"\" when the account has none." },
+    "phone":          { "type": "string", "description": "E.164 phone number, or \"\" when the account has none." },
+    "email_verified": { "type": "boolean", "description": "Whether the e-mail address has been proven." },
+    "phone_verified": { "type": "boolean", "description": "Whether the phone number has been proven." }
+  },
+  "additionalProperties": false
+}

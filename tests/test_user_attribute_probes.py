@@ -35,6 +35,14 @@ _OPTIONAL_USER_ATTRS = {
     # Set by stapel-core's JWT middleware on the request user for the
     # duration of one request; never a stored field.
     "_stapel_staff_roles_claim": "transient request-scoped claim, not a field",
+    # auth stores no language: user.registered carries a registration HINT
+    # it does not keep, and a recipient's language is asked of profiles by
+    # name. auth.contacts_page keeps the key in its wire shape so a host
+    # whose AUTH_USER_MODEL does define one has somewhere to put it, and so
+    # the consumer does not change shape the day that happens. The default
+    # here is the correct and only answer on the stock model, and nothing
+    # security-relevant reads it.
+    "language": "optional host field; auth owns no language of its own",
 }
 
 

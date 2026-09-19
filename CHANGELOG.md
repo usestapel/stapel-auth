@@ -1,5 +1,79 @@
 # Changelog
 
+## [0.44.0] — 2026-09-19
+
+Minor, not patch: a new emitted event (`user.contact.changed`, previously
+published by exactly one flow through the pre-comm Kafka helper), a new comm
+Function (`auth.contacts_page`), and a contract that gains both.
+
+### Fixed — ten of the eleven ways to get an e-mail address announced nothing
+
+A notification service keeps a mirror of "where can this person be written
+to" and fills it from one event: `user.contact.changed`. The only producer of
+that event in this library was `AuthenticatorChangeService._apply_change` —
+the *change my e-mail/phone* flow. Every path that **establishes** an address
+was silent:
+
+- e-mail and phone OTP registration (`otp/views.py` `email_verify` /
+  `phone_verify`, both the fresh-account and the guest-upgrade branches);
+- OAuth first login, brand-new account (`otp/views.py:1726`
+  `_resolve_oauth_user` case 4) and the guest-upgrade branch above it
+  (case 3) — on a Google-first deployment that pair is nearly every account;
+- SSO provisioning (`sso_service.py:644` `_provision`, both branches);
+- password registration (`password/views.py:654`);
+- admin-created users (`admin/views.py:113`);
+- login-grant provisioning (`login_grant/services.py:189`) and
+  `auth.provision_user` (`functions.py:349`).
+
+Measured on a live fleet before the fix: 192 accounts with a verified e-mail
+in auth, 0 of them in the mirror, and transactional mail — payment receipts,
+"your file is ready" — journalled as `skipped: no email address for this
+recipient` for months. The addresses were in auth the whole time.
+
+The fix is not ten emits. `stapel_auth.contact_projection` is a single
+`pre_save`/`post_save` observer on `AUTH_USER_MODEL` — the same shape
+`activation.py` and `user_projection.py` already use — because the fact being
+announced ("this row's deliverable address is now X") is a property of the
+write, not of the view that performed it. The eleven call sites know nothing
+about it, and so does the twelfth login method. `_apply_change`'s hand-rolled
+publish is gone: its `user.save()` now reaches the same observer.
+
+Emission goes through the transactional outbox (`stapel_core.comm.emit`,
+action `user.contact.changed`) inside its own `transaction.atomic()`, so the
+event commits with the user row. A deprecated best-effort publish onto the
+legacy Kafka topic `stapel.auth.user-contact-changed` rides along for the
+window in which a consumer still runs `manage.py consume_contacts` rather
+than the comm action consumer; it is the only thing here allowed to fail
+quietly.
+
+`tests/test_contact_projection.py` is the gate: the auth flows as a
+parametrised list, each driven through its own entry point, each asserting an
+outbox row for its user — plus the architecture assertion that
+`contact_projection.py` is the package's ONLY producer of the fact, so a
+future hand-rolled emit next to a new view fails rather than quietly becoming
+a second writer.
+
+### Added — `auth.contacts_page` comm Function
+
+`{"after"?, "limit"?, "since"?, "addressable_only"?}` →
+`{"contacts": [{user_id, email, phone, email_verified, phone_verified,
+language}], "next": <cursor|null>}`. The **pull** half of the contact
+projection, next to the stream.
+
+A projection that can only be fed forward has no repair: a consumer deployed
+after the accounts existed, a handler down while the facts aged out of the
+topic, a bulk `QuerySet.update()` no model observer can see, or a fleet where
+the events were never emitted at all. Keyset-paginated rather than offset so
+a concurrent write cannot make the walk skip or duplicate a row. `language`
+is null until a host's `AUTH_USER_MODEL` defines one — auth owns no language
+of its own, and a mirrored guess would give that chain a fourth source of
+truth.
+
+Service-only by construction: a comm Function is name-addressed on the
+internal transport, with no URL, session or browser that can reach it. This
+one is a bulk read of personal contact data and must never be given an HTTP
+surface.
+
 ## [0.43.0] — 2026-09-18
 
 Minor, not patch: a new UNIQUE constraint and its migration

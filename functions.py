@@ -31,6 +31,43 @@ RESOLVE_MERGED_USER_SCHEMA = {
 }
 
 
+CONTACTS_PAGE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "after": {
+            "type": ["string", "null"],
+            "description": (
+                "Keyset cursor: the last user id of the previous page. Omit "
+                "or send null for the first page."
+            ),
+        },
+        "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "description": "Page size; defaults to 200, capped at 1000.",
+        },
+        "since": {
+            "type": ["string", "null"],
+            "description": (
+                "ISO-8601 instant. Restricts the page to accounts modified "
+                "at or after it, when the user model records a modification "
+                "time; ignored on a model that does not."
+            ),
+        },
+        "addressable_only": {
+            "type": "boolean",
+            "description": (
+                "Default true: skip accounts with neither e-mail nor phone "
+                "(guests). Send false to enumerate every account, which is "
+                "what a caller repairing deletions needs."
+            ),
+        },
+    },
+    "additionalProperties": False,
+}
+
+
 SIGNUP_ATTRIBUTION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -773,3 +810,105 @@ def user_projection(payload: dict) -> dict:
     if user is None:
         return {"found": False}
     return {"found": True, "user": projection_payload(user)}
+
+
+@function("auth.contacts_page", schema=CONTACTS_PAGE_SCHEMA)
+def contacts_page(payload: dict) -> dict:
+    """One keyset page of "where can this person be written to".
+
+    Payload: ``{"after"?, "limit"?, "since"?, "addressable_only"?}``.
+    Returns ``{"contacts": [{"user_id", "email", "phone", "email_verified",
+    "phone_verified", "language"}, ...], "next": <cursor or null>}``.
+
+    **Why a pull exists next to the push.**
+    ``user.contact.changed`` (:mod:`stapel_auth.contact_projection`) is the
+    stream, and it is enough right up to the moment it is not: a consumer
+    deployed after the accounts were created, a handler that was down while
+    the facts aged out of the topic, a bulk ``QuerySet.update()`` the model
+    observer cannot see, or — the case that produced this function — a fleet
+    where the events were never emitted at all, so a contact mirror holding
+    41 rows sat next to an auth database holding 192 verified addresses and
+    transactional mail was journalled "skipped: no email address" for
+    months. A projection that can only be fed forward has no repair; this is
+    the repair, and ``manage.py notifications_reconcile_contacts`` is its
+    caller.
+
+    **Keyset, not offset.** Paging by ``id > after`` over a table that is
+    being written to while the page walk runs cannot skip or duplicate a row
+    the way ``OFFSET`` does, and it costs one index seek per page rather
+    than a growing scan. ``next`` is the last id of the page, or null when
+    the page was the last one; a caller feeds it straight back as ``after``.
+
+    **Service-only by construction.** A comm Function is name-addressed on
+    the fleet's internal transport — there is no URL, no session and no
+    browser that can reach it — which is the same reason
+    ``auth.signup_attribution`` is one. This page is a bulk read of personal
+    contact data and must never be given an HTTP surface: the answer is a
+    list of addresses, and the only legitimate caller is the service that
+    already has to know them in order to write to people.
+
+    ``language`` is always null today and is in the shape on purpose: auth
+    stores no language field (``user.registered`` carries a registration
+    *hint* it does not keep). A recipient's language is asked of profiles by
+    name; the key is here so a host whose ``AUTH_USER_MODEL`` does define
+    one has somewhere to put it, and so a consumer does not have to change
+    shape if that day comes.
+
+    ``addressable_only`` defaults to true: an account with neither address —
+    every anonymous guest — is not a contact, and a mirror row for one is
+    indistinguishable from a real address nobody has heard about yet.
+    """
+    from django.contrib.auth import get_user_model
+    from django.core.exceptions import ValidationError
+    from django.db.models import Q
+
+    User = get_user_model()
+    limit = int(payload.get("limit") or 200)
+    limit = max(1, min(limit, 1000))
+
+    qs = User._default_manager.all().order_by("pk")
+
+    after = payload.get("after")
+    if after:
+        try:
+            qs = qs.filter(pk__gt=after)
+        except (ValidationError, ValueError):
+            # An unparseable cursor names no row; an empty page is the
+            # honest answer and stops the walk, where a raise would make a
+            # typo look like auth being down.
+            return {"contacts": [], "next": None}
+
+    since = payload.get("since")
+    concrete = {f.attname for f in User._meta.concrete_fields}
+    if since and "updated_at" in concrete:
+        from django.utils.dateparse import parse_datetime
+
+        moment = parse_datetime(since)
+        if moment is not None:
+            qs = qs.filter(updated_at__gte=moment)
+
+    if payload.get("addressable_only", True):
+        has_address = Q(email__isnull=False) & ~Q(email="")
+        if "phone" in concrete:
+            has_address |= Q(phone__isnull=False) & ~Q(phone="")
+        qs = qs.filter(has_address)
+
+    rows = list(qs[: limit + 1])
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+
+    contacts = [
+        {
+            "user_id": str(user.pk),
+            "email": (getattr(user, "email", "") or ""),
+            "phone": (getattr(user, "phone", "") or ""),
+            "email_verified": bool(getattr(user, "is_email_verified", False)),
+            "phone_verified": bool(getattr(user, "is_phone_verified", False)),
+            "language": (getattr(user, "language", None) or None),
+        }
+        for user in rows
+    ]
+    return {
+        "contacts": contacts,
+        "next": str(rows[-1].pk) if (has_more and rows) else None,
+    }

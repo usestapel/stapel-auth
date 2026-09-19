@@ -81,5 +81,16 @@ class StapelAuthConfig(AppConfig):
         from .user_projection import register_user_projection_observer
         register_user_projection_observer()
 
+        # Contact projection observer: announces every write that establishes
+        # or changes a deliverable address as user.contact.changed, so a
+        # notification service's contact mirror stops depending on somebody
+        # having remembered a per-view emit. Before it, the only producer was
+        # the authenticator-change flow and every registration path — OAuth
+        # first login above all — was silent, which is how transactional mail
+        # came to be journalled "skipped: no email address" for accounts that
+        # had one. See contact_projection.py.
+        from .contact_projection import register_contact_projection_observer
+        register_contact_projection_observer()
+
         # System check: USE_MOCK_*_OTP left on with DEBUG=False (checks.py).
         from . import checks as _checks  # noqa: F401

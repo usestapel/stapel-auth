@@ -21,6 +21,7 @@ EVENT_USER_MFA_DISABLED = "user.mfa_disabled"
 EVENT_USER_DEACTIVATED = "user.deactivated"
 EVENT_USER_REACTIVATED = "user.reactivated"
 EVENT_USER_MERGED = "user.merged"
+EVENT_USER_CONTACT_CHANGED = "user.contact.changed"
 
 
 @dataclass
@@ -298,6 +299,49 @@ class UserMergedPayload:
     reason: str = "anonymous_promotion"
 
 
+@dataclass
+class UserContactChangedPayload:
+    """Payload for ``user.contact.changed``
+    (schemas/emits/user.contact.changed.json).
+
+    **Where a person can be written to** — the fact a notification service's
+    contact mirror is made of. Emitted by the single observer in
+    :mod:`stapel_auth.contact_projection` for every write that establishes
+    or changes a deliverable address, whoever performed it: a registration,
+    an OAuth first login, a guest upgrade, an authenticator change, an admin
+    edit, a shell. Before that observer the only producer was the
+    authenticator-change flow, so a mirror on a Google-first deployment held
+    almost nothing and transactional mail was journalled as "skipped — no
+    email address for this recipient" for accounts whose address auth had
+    all along.
+
+    NOT ``user.created``/``user.updated``. Those carry the identity row (the
+    JWT claim set) for services that hold a shadow users table; this carries
+    one narrow, privacy-sensitive fact for the one service allowed to write
+    to a person, and a consumer of it stores addresses rather than accounts.
+    Keeping them apart is what lets the address mirror stay out of every
+    service that merely needs a foreign key.
+
+    ``email`` and ``phone`` are ALWAYS present, empty string when unset: an
+    omitted key would make "this account gave up its phone" look like "this
+    event says nothing about phones", and the mirror would go on writing to
+    an address that is gone. Delivery is at-least-once, so the consumer's
+    apply must be an upsert.
+
+    Fields:
+        user_id: UUID of the account the addresses belong to.
+        email: E-mail address, "" when the account has none.
+        phone: E.164 phone, "" when the account has none.
+        email_verified: Whether the address above has been proven.
+        phone_verified: Whether the number above has been proven.
+    """
+    user_id: str
+    email: str = ""
+    phone: str = ""
+    email_verified: bool = False
+    phone_verified: bool = False
+
+
 # Canonical event registry — keyed by the action name actually emitted.
 EVENT_REGISTRY = {
     EVENT_USER_REGISTERED: UserRegisteredPayload,
@@ -312,4 +356,5 @@ EVENT_REGISTRY = {
     EVENT_USER_DEACTIVATED: UserDeactivatedPayload,
     EVENT_USER_REACTIVATED: UserReactivatedPayload,
     EVENT_USER_MERGED: UserMergedPayload,
+    EVENT_USER_CONTACT_CHANGED: UserContactChangedPayload,
 }
