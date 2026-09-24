@@ -741,3 +741,27 @@ class LoginNotificationService:
 # PasskeyService
 # =============================================================================
 
+
+
+def refresh_is_honoured(payload: dict) -> bool:
+    """Would the refresh endpoint honour this (verified) refresh token?
+
+    Registered with stapel-core's ``register_refresh_check`` (apps.ready), so
+    every mint-from-refresh, including JWTAuthMiddleware's, gets the same
+    answer the refresh view gives: the session's current jti and not
+    revoked, or its previous jti inside the rotation grace window, or an
+    untracked jti only when ALLOW_UNTRACKED_REFRESH is on.
+    """
+    from stapel_auth.conf import auth_settings
+    from stapel_auth.models import UserSession
+
+    jti = payload.get("jti")
+    if not jti:
+        return bool(auth_settings.ALLOW_UNTRACKED_REFRESH)
+    row = UserSession.objects.filter(jti=jti).values("is_revoked").first()
+    if row is not None:
+        return not row["is_revoked"]
+    if SessionService.graced_session(jti, user_id=payload.get("user_id")) is not None:
+        return True
+    tracked_elsewhere = UserSession.objects.filter(previous_jti=jti).exists()
+    return bool(auth_settings.ALLOW_UNTRACKED_REFRESH) and not tracked_elsewhere

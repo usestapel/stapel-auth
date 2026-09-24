@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.45.0] — 2026-09-25
+
+Minor: the session table answers stapel-core's mint-from-refresh too.
+Floor `stapel-core>=0.91.0`. No migration.
+
+### Fixed — the middleware minted from refresh tokens the view refused
+
+On a client fleet one browser presented a refresh jti its session had
+rotated away from: `/token/refresh/` refused it 27 times in five days,
+while `JWTAuthMiddleware` minted 25 access tokens from it on expired
+requests to this service. The client saw "refresh 401, /me 200", bounced to
+sign-in, and lost a 7.1 GB upload at its `complete` call.
+
+`apps.ready()` now registers `sessions.services.refresh_is_honoured` with
+stapel-core's `register_refresh_check`. It gives the view's answer: the
+session's current jti and not revoked, or its previous jti inside
+`REFRESH_ROTATION_GRACE_SECONDS`, or an untracked jti only under
+`ALLOW_UNTRACKED_REFRESH` (and never one a session has rotated away from).
+`tests/test_refresh_middleware_parity.py` walks the view and the middleware
+side by side; without the registration the superseded and revoked cases go
+red.
+
 ## [0.44.0] — 2026-09-19
 
 Minor, not patch: a new emitted event (`user.contact.changed`, previously

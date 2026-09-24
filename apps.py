@@ -29,6 +29,12 @@ class StapelAuthConfig(AppConfig):
         for factor_cls in DEFAULT_FACTOR_CLASSES:
             register_factor(factor_cls())
 
+        # One answer for "is this refresh token honoured": the middleware's
+        # mint-from-refresh asks the same session table the refresh view does.
+        from stapel_core.django.jwt.provider import register_refresh_check
+        from .sessions.services import refresh_is_honoured
+        register_refresh_check(refresh_is_honoured)
+
         # comm Function providers (auth.verification.policy). Importing the
         # module runs the @function decorators; re-imports are no-ops and
         # re-registering the same handler object is idempotent.
