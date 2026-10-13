@@ -32,7 +32,7 @@ from stapel_core.django.openapi import (
 from stapel_auth.attribution import (
     attribution_from_query,
     from_state as attribution_from_state,
-    parse_signup_attribution,
+    lenient_signup_attribution,
     record_signup_attribution,
     to_state as attribution_to_state,
 )
@@ -1202,7 +1202,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             "presenting the anonymous session itself, is free. `device_id` is "
             "a dedup key, not a credential: its 60-second slot is scoped to "
             "the caller's address, and a value short enough to guess is "
-            "refused (`error.400.device_id_weak`)."
+            "refused (`error.400.device_id_weak`). An optional `attribution` "
+            "object (the same one the OTP verify body takes) is stored "
+            "against a newly minted guest; a malformed one is dropped, never "
+            "refused, and it follows the guest into the account it becomes."
         ),
         request=AnonymousAuthSerializer,
         responses={
@@ -1286,6 +1289,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 # Best-effort by contract (see `_notify_user_registered`):
                 # enroll must not fail because a listener is down.
                 _notify_user_registered(user, request=request)
+                # Only on the mint: a reused guest session registers nothing.
+                record_signup_attribution(
+                    user, serializer.validated_data.get("attribution")
+                )
             self.log_login_attempt(str(user.id), "success", request)
             access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.ANONYMOUS)
             tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
@@ -1336,12 +1343,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
         # The body is read field-by-field above rather than through the
         # serializer, so the optional attribution object is validated on its
-        # own — malformed input is refused here (400 error.400.attribution_
-        # invalid) instead of being quietly dropped.
-        raw_attribution = request.data.get("attribution")
-        attribution = (
-            parse_signup_attribution(raw_attribution) if raw_attribution else None
-        )
+        # own; a malformed one is dropped with a warning, never a 400.
+        attribution = lenient_signup_attribution(request.data.get("attribution"))
 
         ocore = OAuthService()
         user_data = ocore.get_user_data(provider, access_token)

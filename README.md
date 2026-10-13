@@ -24,7 +24,7 @@ pip install stapel-auth
 
 | Fact | Value |
 |---|---|
-| Version | `0.46.0` |
+| Version | `0.47.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | HTTP operations | 123 |
 | Config axes | 31 |
@@ -177,6 +177,14 @@ provider, or half an hour of thinking time, that tie is broken on the normal
 path. Holding the identifier server-side is what makes offline conversion
 import possible — including for the conversion the browser never sees, the
 account that starts paying weeks later.
+
+The guest mint (`POST /anonymous/`) takes the same object, and a guest's row
+follows it into the account it becomes — kept on promotion, moved onto the
+existing account on a merge, where the newer capture wins. The OAuth redirect
+reads the tags off the query as `utm_<key>` or bare `<key>`, takes `ref` as
+the landing surface (`landing_ref`, at most 64 characters of `[a-z0-9_]`), and
+dates a capture with no `captured_at` at the navigation itself. A malformed
+object is dropped with a warning in the log; it never refuses a sign-up.
 
 Nothing is collected here on its own: no object sent means no row. Read it
 back with the `auth.signup_attribution` comm Function; switch the whole thing

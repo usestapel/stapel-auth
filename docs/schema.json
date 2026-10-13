@@ -135,7 +135,7 @@
     "/auth/api/v1/anonymous/": {
       "post": {
         "operationId": "auth_api_v1_anonymous_create",
-        "description": "Create anonymous user. Minting a NEW guest is capped per client per hour (`ANONYMOUS_RATE_LIMIT_PER_HOUR`) — reusing an existing guest session, by `device_id` from the SAME client address or by presenting the anonymous session itself, is free. `device_id` is a dedup key, not a credential: its 60-second slot is scoped to the caller's address, and a value short enough to guess is refused (`error.400.device_id_weak`).\n\n**Permissions:** `DenyEnrollOnly`",
+        "description": "Create anonymous user. Minting a NEW guest is capped per client per hour (`ANONYMOUS_RATE_LIMIT_PER_HOUR`) — reusing an existing guest session, by `device_id` from the SAME client address or by presenting the anonymous session itself, is free. `device_id` is a dedup key, not a credential: its 60-second slot is scoped to the caller's address, and a value short enough to guess is refused (`error.400.device_id_weak`). An optional `attribution` object (the same one the OTP verify body takes) is stored against a newly minted guest; a malformed one is dropped, never refused, and it follows the guest into the account it becomes.\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Anonymous Auth"
         ],
@@ -6979,6 +6979,15 @@
             "type": "string",
             "description": "Optional opaque random token identifying this install, used to deduplicate guest mints for 60 seconds. At least 16 characters of [A-Za-z0-9-._~:+/=] — a UUID or a random hex/base64 value, not a readable name. The dedup slot is scoped to the caller's IP, so this is not a credential and cannot resume another client's session. Omit it to mint a fresh guest every time.",
             "maxLength": 255
+          },
+          "attribution": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SignupAttribution"
+              }
+            ],
+            "nullable": true,
+            "description": "Optional advertising attribution captured by the client on the landing page: {click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|ttclid, captured_at, utm?, landing_ref?}. The click identifier may be omitted when utm.source or landing_ref names the channel (an email or aggregator landing carries no click id); an identifier without its type, and a record carrying none of the three, are malformed. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored; a malformed object is dropped (logged server-side) and never refuses the request, and an invalid landing_ref is dropped on its own."
           }
         }
       },
@@ -7570,7 +7579,7 @@
               }
             ],
             "nullable": true,
-            "description": "Optional advertising attribution captured by the client on the landing page: {click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|ttclid, captured_at, utm?}. The click identifier may be omitted when utm.source names the channel (an email or aggregator landing carries no click id); an identifier without its type, and a record carrying neither, are refused. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored, a malformed object is refused with error.400.attribution_invalid."
+            "description": "Optional advertising attribution captured by the client on the landing page: {click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|ttclid, captured_at, utm?, landing_ref?}. The click identifier may be omitted when utm.source or landing_ref names the channel (an email or aggregator landing carries no click id); an identifier without its type, and a record carrying none of the three, are malformed. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored; a malformed object is dropped (logged server-side) and never refuses the request, and an invalid landing_ref is dropped on its own."
           }
         },
         "required": [
@@ -8450,7 +8459,7 @@
               }
             ],
             "nullable": true,
-            "description": "Optional advertising attribution captured by the client on the landing page: {click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|ttclid, captured_at, utm?}. The click identifier may be omitted when utm.source names the channel (an email or aggregator landing carries no click id); an identifier without its type, and a record carrying neither, are refused. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored, a malformed object is refused with error.400.attribution_invalid."
+            "description": "Optional advertising attribution captured by the client on the landing page: {click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|ttclid, captured_at, utm?, landing_ref?}. The click identifier may be omitted when utm.source or landing_ref names the channel (an email or aggregator landing carries no click id); an identifier without its type, and a record carrying none of the three, are malformed. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored; a malformed object is dropped (logged server-side) and never refuses the request, and an invalid landing_ref is dropped on its own."
           }
         },
         "required": [
@@ -9115,7 +9124,7 @@
               }
             ],
             "nullable": true,
-            "description": "Optional advertising attribution captured by the client on the landing page: {click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|ttclid, captured_at, utm?}. The click identifier may be omitted when utm.source names the channel (an email or aggregator landing carries no click id); an identifier without its type, and a record carrying neither, are refused. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored, a malformed object is refused with error.400.attribution_invalid."
+            "description": "Optional advertising attribution captured by the client on the landing page: {click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|ttclid, captured_at, utm?, landing_ref?}. The click identifier may be omitted when utm.source or landing_ref names the channel (an email or aggregator landing carries no click id); an identifier without its type, and a record carrying none of the three, are malformed. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored; a malformed object is dropped (logged server-side) and never refuses the request, and an invalid landing_ref is dropped on its own."
           }
         },
         "required": [
@@ -9642,7 +9651,7 @@
       },
       "SignupAttribution": {
         "type": "object",
-        "description": "The optional ``attribution`` object a registration request may carry.\n\nUnknown keys are ignored — DRF's default, and the right one here: the\nclient-side capture library is versioned independently of this service,\nand a tag it learns to collect next month must not start refusing\nsign-ups. Anything *malformed* is a different matter and is refused with\na single fleet error key rather than a per-field report: the object is\nwritten by our own capture code, so a shape error is a bug to fix, not a\nform for the user to correct, and the per-field detail would be the only\npart of a registration 400 that names an internal field name.\n\nBoth halves of the record are individually optional and the object is\nstill not a free-for-all — :meth:`to_internal_value` refuses the three\nshapes that could not be reported anywhere: a ``click_id`` with no type\n(no upload field to post it to), a type naming no identifier, and a\nrecord that carries neither an identifier nor a ``utm.source``.",
+        "description": "The optional ``attribution`` object a registration request may carry.\n\nUnknown keys are ignored — DRF's default, and the right one here: the\nclient-side capture library is versioned independently of this service,\nand a tag it learns to collect next month must not start refusing\nsign-ups. Anything *malformed* is judged with a single fleet error key\n(``error.400.attribution_invalid``) rather than a per-field report; as a\nrequest field the whole object is then dropped with a warning\n(:meth:`run_validation`), because a registration is never refused over\na marketing record.\n\nEach part of the record is optional and the object is still not a\nfree-for-all — :meth:`to_internal_value` refuses the three shapes that\ncould not be reported anywhere: a ``click_id`` with no type (no upload\nfield to post it to), a type naming no identifier, and a record that\ncarries no identifier, no ``utm.source`` and no ``landing_ref``.",
         "properties": {
           "click_id": {
             "type": "string",
@@ -9670,6 +9679,12 @@
             ],
             "nullable": true,
             "description": "Standard campaign tags read off the same landing URL."
+          },
+          "landing_ref": {
+            "type": "string",
+            "description": "The landing surface the visitor clicked through (the landing link's `ref`), e.g. transcribe_hero. At most 64 characters of [a-z0-9_]; any other value is dropped on its own, never refusing the rest of the record.",
+            "maxLength": 64,
+            "pattern": "^[a-z0-9_]+$"
           }
         },
         "required": [

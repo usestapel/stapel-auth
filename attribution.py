@@ -51,15 +51,25 @@ and a second tab all reorder arrival, and none of them reorder the clock.
 marketing record; registration is the product. Every write here is wrapped
 so that a missing table (a host that pinned the release and has not
 migrated yet), a database hiccup, or a malformed row logs loudly and
-returns ``None`` instead of turning a working sign-up into a 500. The
-opposite trade — losing accounts to keep a marketing row honest — is not
-one any deployment would choose.
+returns ``None`` instead of turning a working sign-up into a 500. The same
+holds for the input: a malformed ``attribution`` object on a registration
+request is dropped with a WARNING and the account is created without it.
+The opposite trade — losing accounts to keep a marketing row honest — is
+not one any deployment would choose.
+
+**A guest is an account, and its attribution follows it.** ``POST
+/anonymous/`` records the object like every other door. Promotion keeps
+the row (it is the same user); a merge into an existing account moves the
+guest's row onto the survivor, under the same newer-capture rule
+(:func:`carry_over_on_merge`).
 """
 from __future__ import annotations
 
 import logging
+import re
 
 from rest_framework import serializers
+from rest_framework.fields import empty
 from stapel_core.django.api.errors import StapelValidationError
 
 from stapel_auth.errors import ERR_400_ATTRIBUTION_INVALID
@@ -94,6 +104,12 @@ CLICK_ID_MAX_LENGTH = 512
 #: Longest campaign tag accepted.
 UTM_MAX_LENGTH = 255
 
+#: The landing surface that sent the visitor (``transcribe_hero``,
+#: ``header_mobile_cta``): a short machine slug, not free text.
+LANDING_REF_MAX_LENGTH = 64
+LANDING_REF_PATTERN = r'^[a-z0-9_]+$'
+_LANDING_REF_RE = re.compile(r'[a-z0-9_]{1,%d}' % LANDING_REF_MAX_LENGTH)
+
 
 #: Help text shared by every request that may register an account. Kept in
 #: one string because it is the same promise on every door: optional, never
@@ -102,12 +118,14 @@ UTM_MAX_LENGTH = 255
 ATTRIBUTION_HELP = (
     "Optional advertising attribution captured by the client on the landing "
     "page: {click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|"
-    "ttclid, captured_at, utm?}. The click identifier may be omitted when "
-    "utm.source names the channel (an email or aggregator landing carries no "
-    "click id); an identifier without its type, and a record carrying "
-    "neither, are refused. Stored against the account only when this call "
-    "registers it; ignored on a login. Unknown keys are ignored, a malformed "
-    "object is refused with error.400.attribution_invalid."
+    "ttclid, captured_at, utm?, landing_ref?}. The click identifier may be "
+    "omitted when utm.source or landing_ref names the channel (an email or "
+    "aggregator landing carries no click id); an identifier without its "
+    "type, and a record carrying none of the three, are malformed. Stored "
+    "against the account only when this call registers it; ignored on a "
+    "login. Unknown keys are ignored; a malformed object is dropped (logged "
+    "server-side) and never refuses the request, and an invalid landing_ref "
+    "is dropped on its own."
 )
 
 
@@ -137,17 +155,17 @@ class SignupAttributionSerializer(serializers.Serializer):
     Unknown keys are ignored — DRF's default, and the right one here: the
     client-side capture library is versioned independently of this service,
     and a tag it learns to collect next month must not start refusing
-    sign-ups. Anything *malformed* is a different matter and is refused with
-    a single fleet error key rather than a per-field report: the object is
-    written by our own capture code, so a shape error is a bug to fix, not a
-    form for the user to correct, and the per-field detail would be the only
-    part of a registration 400 that names an internal field name.
+    sign-ups. Anything *malformed* is judged with a single fleet error key
+    (``error.400.attribution_invalid``) rather than a per-field report; as a
+    request field the whole object is then dropped with a warning
+    (:meth:`run_validation`), because a registration is never refused over
+    a marketing record.
 
-    Both halves of the record are individually optional and the object is
-    still not a free-for-all — :meth:`to_internal_value` refuses the three
-    shapes that could not be reported anywhere: a ``click_id`` with no type
-    (no upload field to post it to), a type naming no identifier, and a
-    record that carries neither an identifier nor a ``utm.source``.
+    Each part of the record is optional and the object is still not a
+    free-for-all — :meth:`to_internal_value` refuses the three shapes that
+    could not be reported anywhere: a ``click_id`` with no type (no upload
+    field to post it to), a type naming no identifier, and a record that
+    carries no identifier, no ``utm.source`` and no ``landing_ref``.
     """
 
     click_id = serializers.CharField(
@@ -185,12 +203,41 @@ class SignupAttributionSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Standard campaign tags read off the same landing URL.",
     )
+    landing_ref = serializers.RegexField(
+        LANDING_REF_PATTERN,
+        max_length=LANDING_REF_MAX_LENGTH,
+        required=False,
+        help_text=(
+            "The landing surface the visitor clicked through (the landing "
+            "link's `ref`), e.g. transcribe_hero. At most 64 characters of "
+            "[a-z0-9_]; any other value is dropped on its own, never "
+            "refusing the rest of the record."
+        ),
+    )
+
+    def run_validation(self, data=empty):
+        """As a request field, a malformed object is dropped, never a 400.
+
+        Called as the root serializer (:func:`parse_signup_attribution`) it
+        still raises, so a Python caller can tell a bad mapping apart.
+        """
+        try:
+            return super().run_validation(data)
+        except serializers.ValidationError:
+            if self.parent is None:
+                raise
+            logger.warning(
+                "stapel-auth: dropping a malformed signup attribution "
+                "(the registration itself is unaffected)"
+            )
+            return None
 
     def to_internal_value(self, data):
         if not isinstance(data, dict):
             raise StapelValidationError(ERR_400_ATTRIBUTION_INVALID)
+        data = _with_valid_landing_ref(_without_blank_identifier(data))
         try:
-            value = super().to_internal_value(_without_blank_identifier(data))
+            value = super().to_internal_value(data)
         except serializers.ValidationError:
             # Collapse the nested report into the one key a client can act
             # on. Raised from here (not from validate()) so the parent
@@ -223,6 +270,28 @@ def _without_blank_identifier(data):
     return trimmed
 
 
+def _with_valid_landing_ref(data):
+    """Drop a ``landing_ref`` that is not a slug, keeping the rest.
+
+    The ref is a secondary tag: a bad one must not cost the click id or the
+    campaign that came with it.
+    """
+    if 'landing_ref' not in data:
+        return data
+    value = data.get('landing_ref')
+    if isinstance(value, str) and _LANDING_REF_RE.fullmatch(value):
+        return data
+    trimmed = dict(data)
+    del trimmed['landing_ref']
+    if value not in (None, ''):
+        logger.warning(
+            "stapel-auth: dropping an invalid landing_ref on a signup "
+            "attribution (at most %d characters of [a-z0-9_])",
+            LANDING_REF_MAX_LENGTH,
+        )
+    return trimmed
+
+
 def _coherent(value):
     """Refuse the attribution shapes nothing could ever be reported from.
 
@@ -236,9 +305,9 @@ def _coherent(value):
       destination and guessing one is how a gbraid gets rejected as a gclid;
     * a ``click_id_type`` naming no identifier: a platform label with
       nothing under it;
-    * neither an identifier nor a ``utm.source``: an empty record, which
-      would occupy the account's one attribution row while saying nothing —
-      strictly worse than the honest "no row at all".
+    * no identifier, no ``utm.source`` and no ``landing_ref``: an empty
+      record, which would occupy the account's one attribution row while
+      saying nothing — strictly worse than the honest "no row at all".
 
     Blank strings are normalised to absent first: a capture library that
     writes ``click_id: ""`` for "the URL had none" means the same thing as
@@ -247,14 +316,16 @@ def _coherent(value):
     click_id = (value.get('click_id') or '').strip()
     click_id_type = value.get('click_id_type') or ''
     utm_source = ((value.get('utm') or {}).get('source') or '').strip()
+    landing_ref = value.get('landing_ref') or ''
 
     if bool(click_id) != bool(click_id_type):
         raise StapelValidationError(ERR_400_ATTRIBUTION_INVALID)
-    if not click_id and not utm_source:
+    if not click_id and not utm_source and not landing_ref:
         raise StapelValidationError(ERR_400_ATTRIBUTION_INVALID)
 
     value['click_id'] = click_id
     value['click_id_type'] = click_id_type
+    value['landing_ref'] = landing_ref
     return value
 
 
@@ -307,6 +378,7 @@ def _write(user, attribution):
         'click_id': attribution.get('click_id') or '',
         'click_id_type': attribution.get('click_id_type') or '',
         'captured_at': captured_at,
+        'landing_ref': attribution.get('landing_ref') or '',
     }
     for key in UTM_KEYS:
         fields[f'utm_{key}'] = utm.get(key) or ''
@@ -343,6 +415,7 @@ def attribution_as_dict(row):
         'click_id_type': row.click_id_type,
         'captured_at': row.captured_at.isoformat(),
         'utm': {key: getattr(row, f'utm_{key}') for key in UTM_KEYS},
+        'landing_ref': row.landing_ref,
         'created_at': row.created_at.isoformat(),
         'updated_at': row.updated_at.isoformat(),
     }
@@ -359,46 +432,70 @@ def attribution_from_query(query_params):
     at the callback — the client never has to re-present it, and it never
     rides the provider's redirect.
 
+    Tolerant, because a navigation cannot be corrected by the person on it:
+
+    * campaign tags are read as ``utm_<key>`` or as the bare ``<key>``
+      (``source``, ``medium``, ...); ``utm_<key>`` wins when both are there;
+    * a missing ``captured_at`` is now — the query IS the navigation;
+    * ``ref`` is the landing surface, stored as ``landing_ref``.
+
     Returns the same mapping shape the body serializer produces, or ``None``
-    when the query carries neither a click identifier nor a ``utm_source``
-    — and ``None`` for a malformed one too, which is the opposite of what a
-    request BODY gets.
-    The difference is deliberate and it is about who is looking. A body
-    arrives from code that can be fixed and read a 400; this is a browser
-    NAVIGATION, and the response to it is a redirect to a provider's login
-    screen. Refusing here would put a JSON error envelope in the address
-    bar of somebody trying to sign in, and take the whole sign-in down over
-    a marketing tag. So a bad tag is dropped with a warning and the login
-    proceeds — the same rule the module already applies to a denial on the
-    callback side.
+    when the query carries no click identifier, ``source`` or ``ref`` — and
+    ``None`` for a malformed one too, dropped with a warning: the response
+    to this request is a redirect to a provider's login screen, and a JSON
+    error in somebody's address bar would take the sign-in down over a
+    marketing tag.
     """
+    from django.utils import timezone
+
     click_id = (query_params.get('click_id') or '').strip()
-    utm = {
-        key: query_params[f'utm_{key}']
-        for key in UTM_KEYS
-        if query_params.get(f'utm_{key}')
-    }
+    utm = {}
+    for key in UTM_KEYS:
+        value = query_params.get(f'utm_{key}') or query_params.get(key)
+        if value:
+            utm[key] = value
+    landing_ref = query_params.get('ref') or ''
     # A sign-in navigation that carries no advertising tag at all is the
     # ordinary case, and asking the serializer about it would only produce
-    # a warning per login. The same UTM-only record a request body may
-    # carry is read here too — the OAuth door is a registration door.
-    if not click_id and not utm.get('source'):
+    # a warning per login.
+    if not click_id and not utm.get('source') and not landing_ref:
         return None
     payload = {
         'click_id': click_id,
         'click_id_type': query_params.get('click_id_type') or '',
-        'captured_at': query_params.get('captured_at') or '',
+        'captured_at': (
+            query_params.get('captured_at') or timezone.now().isoformat()
+        ),
     }
     if utm:
         payload['utm'] = utm
+    if landing_ref:
+        payload['landing_ref'] = landing_ref
+    return _parse_or_drop(payload, 'an OAuth authorize query')
+
+
+def _parse_or_drop(payload, where):
+    """:func:`parse_signup_attribution`, or ``None`` with a warning."""
+    if not payload:
+        return None
     try:
         return parse_signup_attribution(payload)
     except Exception:
         logger.warning(
-            "stapel-auth: dropping a malformed attribution on an OAuth "
-            "authorize (the sign-in itself is unaffected)"
+            "stapel-auth: dropping a malformed attribution on %s "
+            "(the sign-in itself is unaffected)",
+            where,
         )
         return None
+
+
+def lenient_signup_attribution(payload):
+    """Validate a raw request-body mapping; ``None`` (logged) when malformed.
+
+    For a door that reads its body field by field instead of through a
+    serializer — the attribution can never refuse the registration.
+    """
+    return _parse_or_drop(payload, 'a registration request')
 
 
 def parse_signup_attribution(payload):
@@ -440,6 +537,8 @@ def to_state(attribution):
     utm = attribution.get('utm') or {}
     if utm:
         payload['utm'] = {key: value for key, value in utm.items() if value}
+    if attribution.get('landing_ref'):
+        payload['landing_ref'] = attribution['landing_ref']
     return payload
 
 
@@ -451,13 +550,54 @@ def from_state(payload):
     broken entry is dropped with a warning rather than raised at somebody
     who is merely finishing a sign-in.
     """
-    if not payload:
+    return _parse_or_drop(payload, 'an OAuth state entry')
+
+
+def carry_over_on_merge(guest_id, survivor):
+    """Move a merged guest's attribution onto the account that absorbs it.
+
+    Called inside :func:`stapel_auth.otp.services.merge_anonymous_into`
+    before the guest row (and, by cascade, its attribution) is deleted. The
+    guest door recorded where the visitor came from; signing in to an
+    existing account must not erase that. The newer-capture rule decides
+    against a row the survivor already holds.
+
+    Runs in its own savepoint and never raises: a failure here logs and the
+    merge goes on.
+    """
+    from django.db import transaction
+
+    from stapel_auth.conf import auth_settings
+    from stapel_auth.models import SignupAttribution
+
+    if not auth_settings.AUTH_SIGNUP_ATTRIBUTION:
         return None
     try:
-        return parse_signup_attribution(payload)
+        with transaction.atomic():
+            rows = SignupAttribution.objects.select_for_update()
+            guest_row = rows.filter(user_id=guest_id).first()
+            if guest_row is None:
+                return None
+            kept = rows.filter(user=survivor).first()
+            if kept is None:
+                guest_row.user = survivor
+                guest_row.save(update_fields=['user', 'updated_at'])
+                return guest_row
+            if kept.captured_at >= guest_row.captured_at:
+                return kept
+            fields = [
+                'click_id', 'click_id_type', 'captured_at', 'landing_ref',
+                *(f'utm_{key}' for key in UTM_KEYS),
+            ]
+            for name in fields:
+                setattr(kept, name, getattr(guest_row, name))
+            kept.save(update_fields=[*fields, 'updated_at'])
+            return kept
     except Exception:
-        logger.warning(
-            "stapel-auth: dropping an unusable attribution state entry "
-            "(the sign-in itself is unaffected)"
+        logger.exception(
+            "stapel-auth: could not carry signup attribution from guest %s "
+            "to user %s (the merge itself is unaffected)",
+            guest_id,
+            getattr(survivor, 'pk', None),
         )
         return None

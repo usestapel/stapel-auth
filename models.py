@@ -756,6 +756,9 @@ class SignupAttribution(models.Model):
     utm_campaign = models.CharField(max_length=255, blank=True)
     utm_term = models.CharField(max_length=255, blank=True)
     utm_content = models.CharField(max_length=255, blank=True)
+    #: The landing surface the visitor clicked through (the link's ``ref``,
+    #: e.g. ``transcribe_hero``): at most 64 characters of ``[a-z0-9_]``.
+    landing_ref = models.CharField(max_length=64, blank=True, default='')
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.47.0] — 2026-10-14
+
+Minor: a new column (migration `0028_signupattribution_landing_ref`,
+expand-only), a new request field on the guest door, and a relaxed request
+contract on every attribution door.
+
+### Added — signup attribution at the guest door
+
+`POST /anonymous/` accepts the same optional `attribution` object as the OTP
+verify body and stores it against a newly minted guest (a reused guest
+session records nothing; `AUTH_SIGNUP_ATTRIBUTION` applies as everywhere).
+The row follows the guest: promotion keeps it on the same user, and
+`merge_anonymous_into` now moves it onto the surviving account
+(`attribution.carry_over_on_merge`) unless the survivor already holds a newer
+capture — the same newer-`captured_at`-wins rule as a write. A failure there
+logs and never fails the merge.
+
+### Added — `landing_ref`
+
+`SignupAttribution.landing_ref`: the landing surface the visitor clicked
+through (e.g. `transcribe_hero`), at most 64 characters of `[a-z0-9_]`.
+Accepted in every `attribution` object and as `ref` on
+`GET /oauth/{provider}/authorize/`; returned by `auth.signup_attribution`.
+An invalid value is dropped on its own with a WARNING, keeping the rest of
+the record. A record naming only a `landing_ref` is a record.
+
+### Changed — tolerant OAuth authorize query
+
+`attribution_from_query` also reads the bare keys `source`, `medium`,
+`campaign`, `term`, `content` (`utm_<key>` wins when both are present) and
+takes `captured_at` as now when it is missing — the query is the navigation.
+
+### Changed — a malformed attribution never refuses a sign-up
+
+The OTP verifiers, `POST /oauth/login/` and `POST /anonymous/` no longer
+answer `400 error.400.attribution_invalid` for a malformed `attribution`
+object: it is dropped with a WARNING and the account is created without it.
+`parse_signup_attribution` still raises the key for a direct Python caller.
+Clients that relied on the 400 to detect a broken capture library should read
+the server log instead.
+
 ## [0.46.0] — 2026-10-14
 
 Minor: a new emitted event, a new setting, a new table (migration

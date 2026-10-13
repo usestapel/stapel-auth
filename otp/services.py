@@ -140,6 +140,10 @@ def merge_anonymous_into(
                 "source": source or MergeSource.UNKNOWN,
             },
         )
+        # The delete below cascades to the guest's attribution row.
+        from stapel_auth.attribution import carry_over_on_merge
+
+        carry_over_on_merge(guest_id, survivor)
         # Emit BEFORE the delete commits — same transaction, so the two are
         # inseparable.
         from django.contrib.auth import get_user_model

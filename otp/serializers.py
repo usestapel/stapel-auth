@@ -124,6 +124,10 @@ class AnonymousAuthSerializer(serializers.Serializer):
         ),
     )
 
+    attribution = SignupAttributionSerializer(
+        required=False, allow_null=True, help_text=ATTRIBUTION_HELP
+    )
+
     def validate_device_id(self, value):
         if not value:
             return value

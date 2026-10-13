@@ -14,9 +14,8 @@ shaped:
   OAuth one;
 * it does not exist when nobody sent one, and never appears by inference;
 * it is not demoted by a stale replay, and is refreshed by a fresher click;
-* a malformed object is refused loudly rather than dropped, because an
-  attribution silently thrown away is a campaign silently reported as
-  worthless;
+* a malformed object never costs the account: it is dropped with a
+  WARNING in the log and the registration goes on — on every door;
 * every platform the fleet actually buys traffic on can name its own
   identifier, and a channel that puts no identifier on the landing URL at
   all still attributes through ``utm.source`` — an accepted enum that is
@@ -66,6 +65,17 @@ def _verify(client, email, body):
         return client.post(
             reverse("email_verify"), {"email": email, **body}, format="json"
         )
+
+
+def _assert_dropped(response, email, caplog):
+    """The account exists, the attribution does not, and the log says why."""
+    assert response.status_code == 200, response.data
+    assert response.data["status"] == "REGISTERED"
+    assert User.objects.filter(email=email).exists()
+    assert not SignupAttribution.objects.filter(user__email=email).exists()
+    assert any(
+        "malformed" in record.getMessage() for record in caplog.records
+    ), [record.getMessage() for record in caplog.records]
 
 
 @pytest.fixture
@@ -123,22 +133,22 @@ class TestOtpRegistration:
         assert response.data["status"] == "LOGGED_IN"
         assert not SignupAttribution.objects.filter(user__email=email).exists()
 
-    def test_a_malformed_object_is_refused_with_the_fleet_envelope(self, client):
+    def test_a_malformed_object_is_dropped_and_the_account_is_created(
+        self, client, caplog
+    ):
         email = f"{uuid.uuid4().hex}@example.com"
 
-        response = _verify(
-            client,
-            email,
-            {
-                "code": "1234",
-                # 'gclid_v2' is not an identifier any upload can name.
-                "attribution": _attribution() | {"click_id_type": "gclid_v2"},
-            },
-        )
-        assert response.status_code == 400
-        assert response.data["localizable_error"] == "error.400.attribution_invalid"
-        # Refused means refused: no half-registered account behind the 400.
-        assert not User.objects.filter(email=email).exists()
+        with caplog.at_level("WARNING", logger="stapel_auth.attribution"):
+            response = _verify(
+                client,
+                email,
+                {
+                    "code": "1234",
+                    # 'gclid_v2' is not an identifier any upload can name.
+                    "attribution": _attribution() | {"click_id_type": "gclid_v2"},
+                },
+            )
+        _assert_dropped(response, email, caplog)
 
     @pytest.mark.parametrize(
         "type_",
@@ -185,25 +195,28 @@ class TestOtpRegistration:
         assert row.click_id == ""
         assert row.click_id_type == ""
 
-    def test_an_identifier_without_its_type_is_refused(self, client):
+    def test_an_identifier_without_its_type_is_dropped(self, client, caplog):
         """An offline upload names the field it posts to; this names none."""
         email = f"{uuid.uuid4().hex}@example.com"
         payload = _attribution()
         del payload["click_id_type"]
 
-        response = _verify(client, email, {"code": "1234", "attribution": payload})
-        assert response.status_code == 400
-        assert response.data["localizable_error"] == "error.400.attribution_invalid"
-        assert not User.objects.filter(email=email).exists()
+        with caplog.at_level("WARNING", logger="stapel_auth.attribution"):
+            response = _verify(
+                client, email, {"code": "1234", "attribution": payload}
+            )
+        _assert_dropped(response, email, caplog)
 
-    def test_a_type_naming_no_identifier_is_refused(self, client):
+    def test_a_type_naming_no_identifier_is_dropped(self, client, caplog):
         """A platform label with nothing under it is not a record."""
         email = f"{uuid.uuid4().hex}@example.com"
         payload = _attribution(type_="yclid") | {"click_id": ""}
 
-        response = _verify(client, email, {"code": "1234", "attribution": payload})
-        assert response.status_code == 400
-        assert response.data["localizable_error"] == "error.400.attribution_invalid"
+        with caplog.at_level("WARNING", logger="stapel_auth.attribution"):
+            response = _verify(
+                client, email, {"code": "1234", "attribution": payload}
+            )
+        _assert_dropped(response, email, caplog)
 
     @pytest.mark.parametrize(
         "payload",
@@ -216,7 +229,7 @@ class TestOtpRegistration:
             {"captured_at": NOW.isoformat(), "utm": {"medium": "cpc"}},
         ],
     )
-    def test_an_empty_record_is_refused(self, client, payload):
+    def test_an_empty_record_is_dropped(self, client, payload, caplog):
         """The one attribution row per account must not be spent on nothing.
 
         An empty row is strictly worse than no row: "no row" is the honest
@@ -225,10 +238,11 @@ class TestOtpRegistration:
         """
         email = f"{uuid.uuid4().hex}@example.com"
 
-        response = _verify(client, email, {"code": "1234", "attribution": payload})
-        assert response.status_code == 400
-        assert response.data["localizable_error"] == "error.400.attribution_invalid"
-        assert not SignupAttribution.objects.filter(user__email=email).exists()
+        with caplog.at_level("WARNING", logger="stapel_auth.attribution"):
+            response = _verify(
+                client, email, {"code": "1234", "attribution": payload}
+            )
+        _assert_dropped(response, email, caplog)
 
     def test_unknown_keys_are_ignored(self, client):
         """A capture library that learns a new tag must not break sign-up."""

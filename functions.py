@@ -724,8 +724,8 @@ def signup_attribution(payload: dict) -> dict | None:
     """The ad click an account was born from — or ``None``.
 
     Payload: ``{"user_id"}``. Answer: ``{"user_id", "click_id",
-    "click_id_type", "captured_at", "utm": {...}, "created_at",
-    "updated_at"}`` or ``None``. ``click_id``/``click_id_type`` are both
+    "click_id_type", "captured_at", "utm": {...}, "landing_ref",
+    "created_at", "updated_at"}`` or ``None``. ``click_id``/``click_id_type`` are both
     blank on a record whose landing carried only campaign tags — there is
     nothing to upload offline for it, and ``utm`` is the whole answer.
 

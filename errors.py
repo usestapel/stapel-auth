@@ -107,10 +107,9 @@ ERR_403_PRIVILEGED_ACCOUNT = 'error.403.privileged_account'
 ERR_403_REGISTRATION_CLOSED = 'error.403.registration_closed'
 # Authenticator rewrite without proof of the current authenticator (audit F4)
 ERR_403_CHANGE_REQUIRES_CURRENT = 'error.403.change_requires_current'
-# The optional `attribution` object on a registration request is malformed.
-# One key rather than a per-field report: the object is written by the
-# deployment's own capture code, so a shape error is a bug to fix, not a form
-# the person signing up can correct.
+# An attribution mapping is malformed. Raised by
+# `attribution.parse_signup_attribution` for a direct caller; a request field
+# drops the object with a warning instead, so no endpoint answers it.
 ERR_400_ATTRIBUTION_INVALID = 'error.400.attribution_invalid'
 
 AUTH_ERRORS = {
@@ -357,9 +356,7 @@ AUTH_REMEDIATION = {
     # The fix is a code sent to the address already on the account — i.e. the
     # change flow's request-old/verify-old pair, which is a verification step.
     ERR_403_CHANGE_REQUIRES_CURRENT: 'verify',
-    # A malformed attribution object is the client's own bug: the registration
-    # can be retried the moment the capture code is fixed, and there is
-    # nothing the person signing up can type differently.
+    # A malformed attribution mapping is the caller's own bug to fix.
     ERR_400_ATTRIBUTION_INVALID: 'fix_input',
 }
 
