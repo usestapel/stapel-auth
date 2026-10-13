@@ -11,8 +11,15 @@ from pathlib import Path
 
 from stapel_tools.capabilities import axis_group_rules, run_capabilities_cli
 
+#: ``AUTH_*`` keys that are code seams (dotted paths), not configuration
+#: axes: they are listed under ``extension_points`` in the curated layer.
+NOT_AXES = frozenset({"AUTH_SIGNUP_CONSENT_RESOLVER"})
+
+
 #: Which settings keys are configuration AXES at all (vs plain values).
 def IS_AXIS(key):  # noqa: N802 - a rule, exported under the name it is used by
+    if key in NOT_AXES:
+        return False
     return key.startswith("AUTH_") or key.endswith("_STEP_UP")
 
 

@@ -268,6 +268,15 @@ DEFAULTS = {
     # people while the rows stop being written.
     'AUTH_SIGNUP_ATTRIBUTION': True,
 
+    # Dotted path to the host's advertising-consent reader for the
+    # ``user.signed_up`` milestone (signup.py): called with the request,
+    # returns ``SignupConsent(ad_consent, source)`` or an
+    # ``(ad_consent, source)`` pair, ``ad_consent`` in granted/denied/unknown.
+    # None: every sign-up says "unknown". A raising resolver says "denied".
+    # The library ships no reader: which cookie or header means consent is
+    # the deployment's decision.
+    'AUTH_SIGNUP_CONSENT_RESOLVER': None,
+
     # THE IDENTITY MODEL knob (owner directive 2026-07-20). By default a
     # password is a CREDENTIAL, not an identity: setting one on an anonymous
     # guest session only makes that SAME account portable (loginable from
@@ -408,6 +417,8 @@ _NO_ENV = tuple(
     # against an account is a deployment's privacy decision, not
     # something a variable in the pod may flip.
     'AUTH_SIGNUP_ATTRIBUTION',
+    # A dotted-path seam: it decides what code runs on every sign-up.
+    'AUTH_SIGNUP_CONSENT_RESOLVER',
 )
 
 # NB: OAUTH_PROVIDER_CLASSES / REREGISTRATION_MODEL are intentionally NOT in

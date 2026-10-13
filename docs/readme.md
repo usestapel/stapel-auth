@@ -142,6 +142,15 @@ Nothing is collected here on its own: no object sent means no row. Read it
 back with the `auth.signup_attribution` comm Function; switch the whole thing
 off with `AUTH_SIGNUP_ATTRIBUTION`.
 
+The other half of a conversion report is the moment itself. `user.signed_up`
+fires once per account, ever, when a self-serve door (e-mail or phone code,
+OAuth, password with an address) leaves it holding a sign-in identity —
+a fresh account or a guest promoted on the same row. Guest enrolment, org
+provisioning, invitation grants, enterprise SSO and staff-made accounts do not
+fire it. It carries a server-clock `registered_at` and the visitor's
+advertising consent as your own `AUTH_SIGNUP_CONSENT_RESOLVER` reads the
+request (`unknown` without one, `denied` when it fails).
+
 ## Bus events
 
 Emitted through `stapel_core.comm` (transactional outbox — the event leaves if
@@ -151,6 +160,7 @@ and only if your transaction commits):
 |---|---|---|
 | `user.session_created` | [schema](https://github.com/usestapel/stapel-auth/blob/main/schemas/emits/user.session_created.json) | A user authenticated and a session was created |
 | `user.session_revoked` | [schema](https://github.com/usestapel/stapel-auth/blob/main/schemas/emits/user.session_revoked.json) | A session was revoked (logout or admin action) |
+| `user.signed_up` | [schema](https://github.com/usestapel/stapel-auth/blob/main/schemas/emits/user.signed_up.json) | A self-serve sign-up completed (fresh or promoted guest), once per account |
 
 ## Extension points
 

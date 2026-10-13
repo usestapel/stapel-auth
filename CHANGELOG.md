@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.46.0] — 2026-10-14
+
+Minor: a new emitted event, a new setting, a new table (migration
+`0027_usersignup`, expand-only).
+
+### Added — `user.signed_up`, one per account, at every self-serve door
+
+`user.registered` fires at account creation, guests included, so it cannot
+answer "a person signed up": the guest promoted on the same row announced
+nothing, and the phone door announced nothing at all. `user.signed_up`
+(`schemas/emits/user.signed_up.json`, `events.UserSignedUpPayload`) carries
+`{user_id, auth_type, registered_at, was_guest, is_staff, ad_consent,
+consent_source}` and is emitted by `signup.notify_user_signed_up` at the
+e-mail and phone OTP verifiers, both OAuth doors, password register with an
+e-mail or a phone (password-only only under `AUTH_PASSWORD_DEANONYMIZES`),
+and the `change_via_otp` promotion — fresh accounts and promoted guests
+alike, only on the branch that registered. Guest enrolment,
+`auth.provision_user`, login grants, enterprise SSO, `/admin-users/` and
+every LOGGED_IN / MERGED / MODIFIED answer emit nothing.
+
+Once per account: the new `UserSignup` row (user as primary key) is written
+in the emit's own savepoint, so a second door for the same account emits
+nothing. Best-effort like `user.registered`: a failure is logged and never
+fails the registration.
+
+### Added — `AUTH_SIGNUP_CONSENT_RESOLVER`
+
+A dotted path to the host's `resolver(request)`, returning
+`signup.SignupConsent(ad_consent, source)` or an `(ad_consent, source)` pair;
+its answer rides on `user.signed_up`. Unset: `unknown`. No request:
+`unknown`. A resolver that raises, cannot be imported or answers outside
+`granted` / `denied` / `unknown`: `denied`, and the registration succeeds.
+The library ships no reader.
+
+### Changed — the OAuth create branch hands its request to `user_registered`
+
+`_resolve_oauth_user` takes the view's `request` and passes it to
+`_notify_user_registered`, so the in-process `user_registered` signal gets
+the request on OAuth too.
+
+`tests/test_user_signed_up.py` covers every door, every non-door, the
+consent outcomes, and an AST inventory that fails when a function creating
+a user or calling `promote_anonymous_session` is neither an emitting door
+nor listed as not self-serve.
+
 ## [0.45.0] — 2026-09-25
 
 Minor: the session table answers stapel-core's mint-from-refresh too.

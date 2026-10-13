@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "user.signed_up",
+  "description": "An account completed a self-serve sign-up: a fresh account or a guest promoted on the same row now holds a sign-in identity. Emitted once per account, ever. Not emitted for guest enrolment, org provisioning, login grants, enterprise SSO or staff-created accounts.",
+  "type": "object",
+  "required": ["user_id", "auth_type", "registered_at", "was_guest", "is_staff", "ad_consent", "consent_source"],
+  "properties": {
+    "user_id":        { "type": "string", "format": "uuid" },
+    "auth_type":      { "type": "string" },
+    "registered_at":  { "type": "string", "format": "date-time", "description": "ISO 8601 UTC, server clock at the door." },
+    "was_guest":      { "type": "boolean" },
+    "is_staff":       { "type": "boolean" },
+    "ad_consent":     { "type": "string", "enum": ["granted", "denied", "unknown"] },
+    "consent_source": { "type": "string", "description": "What decided ad_consent: the host resolver's own label, or no_resolver / no_request / resolver_error." }
+  },
+  "additionalProperties": false
+}

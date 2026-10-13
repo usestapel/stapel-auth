@@ -378,6 +378,11 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             new_password=serializer.validated_data["new_password"],
         )
 
+        if was_anonymous and not user.is_anonymous:
+            from stapel_auth.signup import notify_user_signed_up
+
+            notify_user_signed_up(user, request=request, was_guest=True)
+
         if not was_anonymous:
             from stapel_auth.dto import SimpleStatusResponse
 
@@ -613,7 +618,10 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         # or no session at all, keeps the original behavior of creating a
         # brand-new account.
         auth_status = AuthStatus.REGISTERED
+        signed_up = False
+        was_guest = False
         if request.user.is_authenticated and request.user.is_anonymous:
+            was_guest = True
             user = request.user
             if email:
                 user.email = email
@@ -634,6 +642,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 from stapel_auth.otp.services import promote_anonymous_session
 
                 promote_anonymous_session(user, auth_type="email" if email else "phone")
+                signed_up = True
             elif auth_settings.AUTH_PASSWORD_DEANONYMIZES:
                 # Opt-in (THE IDENTITY MODEL knob): this deployment treats a
                 # password AS identity ("90s-style" login/password accounts),
@@ -642,6 +651,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 from stapel_auth.otp.services import promote_anonymous_session
 
                 promote_anonymous_session(user, auth_type="password")
+                signed_up = True
             else:
                 # Default: password/passkey/TOTP are CREDENTIALS, not identity
                 # (THE IDENTITY MODEL): this only makes the SAME anonymous
@@ -662,6 +672,13 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             user.save(update_fields=["password"])
 
             self._publish_user_registered(user, request=request)
+            # A password-only account holds no sign-in identity: not a sign-up.
+            signed_up = bool(email or phone)
+
+        if signed_up:
+            from stapel_auth.signup import notify_user_signed_up
+
+            notify_user_signed_up(user, request=request, was_guest=was_guest)
 
         access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.PASSWORD_REGISTER)
         dto = AuthResponse(

@@ -1,8 +1,8 @@
-# stapel-auth 0.45.0
+# stapel-auth 0.46.0
 
 User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.
 
-Contract: axes 31 · surface 18 · extension points 6 · operations 123 · error codes 144 · flows 4.
+Contract: axes 31 · surface 18 · extension points 7 · operations 123 · error codes 144 · flows 4.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -146,6 +146,8 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
   Corporate SSO/SAML just-in-time provisioning is enabled — show the 'sign in with your company account' entry point only when this is true.
 
 ## Extension points — what a product replaces, fork-free
+- AUTH_SIGNUP_CONSENT_RESOLVER [dotted_path]
+  Host consent reader for user.signed_up; unset = unknown, raising = denied.
 - AUTH_USER_MODEL [swappable_model]
   Standard Django user swap — subclass stapel-core's AbstractStapelUser; this module only ever uses get_user_model().
 - OAUTH_PROVIDER_CLASSES [dotted_path_list]

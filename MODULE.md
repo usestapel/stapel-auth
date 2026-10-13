@@ -14,6 +14,7 @@ Full-featured authentication as a single pip-installable Django app (`stapel_aut
 - **Admin/service API**: service API keys, capabilities, admin user broker, admin audit log; OpenID discovery + JWKS + token introspection; nginx `auth_request` monitoring proxy (`monitoring_proxy.py`).
 - **GDPR data owner** (section/owner name `auth`): the Art. 15 export lives in `gdpr.py: AuthGDPRProvider`, the Art. 17 erasure in `erasure.py: erase_subject` — one function reached both by the in-process provider (monolith registry, or `manage.py consume_gdpr` in microservices mode) and by the erasure-protocol subscribers `apps.py ready()` registers through `stapel_core.gdpr.register_gdpr_owner` (`gdpr.erasure.requested` → `gdpr.section.erased`, `gdpr.owner.probe` → `gdpr.owner.alive`, claiming subject type `account`). Auth also **hosts** stapel-gdpr, so both receipt paths run in one process for one account and exactly one receipt is written — the orchestrator's local receipt skips a part that is already done (`tests/test_gdpr_owner.py`).
 - **Signup attribution** (`attribution.py`, `models.SignupAttribution`, axis `AUTH_SIGNUP_ATTRIBUTION`): every door that answers `REGISTERED` accepts an optional `attribution` object (`{click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|ttclid, captured_at, utm?}`) and stores it once against the new account — the OTP verifiers and `POST /oauth/login/` in the body, `GET /oauth/{provider}/authorize/` as flat query parameters parked in the flow state the callback already reads (the redirect flow has no body, and the identifier never travels through the provider). Stored **only when the call registers**; a login carries no new attribution, and an older `captured_at` never overwrites a newer one. The identifier is optional as long as `utm.source` names the channel — an email campaign or an aggregator puts no click id on the landing URL, and a click-id-only record would report every one of those accounts as direct traffic; what is refused is an identifier with no type (an offline upload names the field it posts to), a type naming no identifier, and a record carrying neither. Read back through `auth.signup_attribution`. Exists because browser-side conversion reporting depends on a session tie that a webmail tab, an OAuth round trip, thirty minutes or an unanswered consent banner each break silently — offline conversion import is the only channel that needs no cookie at conversion time, and the only one that can report a conversion the browser never witnessed. Storing it can never refuse an account: every write is wrapped and a failure logs instead of 500ing a sign-up.
+- **Sign-up milestone** (`signup.py`, `models.UserSignup`, event `user.signed_up`, seam `AUTH_SIGNUP_CONSENT_RESOLVER`): one event per account, ever, at every self-serve door that leaves the account holding a sign-in identity — fresh or a guest promoted on the same row. See *The sign-up milestone* below.
 - **Flow registry** (`flows.py`): documented business flows consumed by `stapel_core.flows` tooling.
 
 Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`, `PROVIDER_REGISTRY`, `BEAT_SCHEDULE` (Celery beat schedule for the delayed-change tasks, see below), the staff-role assignment services `assign_staff_role`, `revoke_staff_role`, `staff_roles_for` (admin-suite AS-2, see below), and the per-feature URL factories `get_admin_api_urls`, `get_anonymous_urls`, `get_magic_link_urls`, `get_mfa_urls`, `get_oauth_urls`, `get_openid_urls`, `get_otp_urls`, `get_password_urls`, `get_qr_urls`, `get_security_urls`, `get_sessions_urls`, `get_sso_urls`, `get_verification_urls`.
@@ -62,6 +63,7 @@ Public package API (`stapel_auth/__init__.py`, lazy `__all__`): `auth_settings`,
 | `OAUTH_PROVIDER_CLASSES` | 9 built-ins (see below) | **Dotted-path list** of `OAuthProvider` subclasses registered at startup — append your own class to add a provider without touching this repo |
 | `AUTH_PHONE_REGISTRATION` / `AUTH_EMAIL_REGISTRATION` / `AUTH_OAUTH_REGISTRATION` / `AUTH_SSO_REGISTRATION` | `True` | Registration method gates — enforced at the **account-creation site**, not at the request-a-code step, so login keeps working with registration off (see "Closing registration" below) |
 | `AUTH_PASSWORD_REGISTRATION` | `False` | Password registration gate |
+| `AUTH_SIGNUP_CONSENT_RESOLVER` | `None` | **Dotted path** (or a callable) to the host's advertising-consent reader for `user.signed_up`; `no_env`. Contract under *The sign-up milestone* below. Not a config axis: listed under `extension_points` in `capabilities.json` |
 | `AUTH_REGISTRATION_CLOSED_BEHAVIOR` | `'silent'` | What a stranger sees on the OTP surfaces when their method's registration axis is off: `silent` (identical answer for everyone, the stranger's code is simply never delivered — no existence oracle), `request` (403 `error.403.registration_closed` at `*/request/`), `verify` (code sent, 403 at `*/verify/`). Unknown values degrade to `silent`. `no_env` |
 | `AUTH_PHONE_LOGIN` / `AUTH_EMAIL_LOGIN` / `AUTH_SSO_LOGIN` / `AUTH_QR_LOGIN` / `AUTH_PASSKEY_LOGIN` / `AUTH_MAGIC_LINK_LOGIN` | `True` | Login method gates |
 | `AUTH_OAUTH_LOGIN` | `True` | Gates both OAuth doors. The redirect flow (`/oauth/{provider}/authorize/` → `/callback/`) is safe by construction. **`POST /oauth/login/` — the token-body endpoint — is only safe once `OAUTH_ACCEPTED_AUDIENCES` pins which client IDs may vouch for an identity**; unpinned or unverifiable it refuses. See "The token-body OAuth endpoint" below |
@@ -298,6 +300,7 @@ Emitted events (`stapel_core.comm.emit`, transactional outbox; schemas in `schem
 | Event | Payload | When |
 |---|---|---|
 | `user.registered` | `{user_id, auth_type, email, avatar_url}` (`events.py: UserRegisteredPayload`) — `avatar_url` is `User.avatar` (OAuth only today), `null` otherwise | First successful auth of a new account (`otp/views.py: _notify_user_registered`) — profile/workspace creation is done by subscribers |
+| `user.signed_up` | `{user_id, auth_type, registered_at, was_guest, is_staff, ad_consent, consent_source}` (`events.py: UserSignedUpPayload`) | A self-serve sign-up completed — fresh account or promoted guest — once per account, ever (`signup.py: notify_user_signed_up`). Not a second `user.registered`: see *The sign-up milestone* |
 | `user.created` | the JWT claim set: `{user_id, username, email, phone?, auth_type?, is_anonymous?, is_staff, is_superuser, is_active, staff_roles?}` (`events.py: UserProjectionPayload`) | An identity row was born, whoever wrote it — a `post_save` observer (`user_projection.py`), not a call site. See **The user projection** below |
 | `user.updated` | same payload (the full claim set, not a delta) | A projected field of an existing row really changed. A re-save with no change, and any write whose `update_fields` cannot touch a projected field, emit nothing |
 | `user.merged` | `{from_user_id, into_user_id, reason}` (`events.py: UserMergedPayload`) | A guest account was folded into an existing one on sign-in and the guest row DELETED (`otp/services.py: merge_anonymous_into`). Consumers re-parent every row they own from `from_user_id` onto `into_user_id`, idempotently — the opposite instruction to `user.deleted` on the same tables, which is why `stapel_core.lifecycle.E001` fails an app that answers only the delete half. Emitted in the same transaction as the ledger row and the delete. `reason` is `anonymous_promotion` on every path today: it does not distinguish them, and `UserMerge.source` is where that distinction is kept |
@@ -521,7 +524,8 @@ zero-effort default for domain tables; it is NOT restated on each of them.
   (security/audit logs), `AuthenticatorChangeRequest` (change-flow workflow
   record — its `change_token` is additionally pinned via
   `AuthenticatorChangeRequestAdmin.secret_fields` since it is a live bearer
-  credential for the pending change, not just workflow metadata).
+  credential for the pending change, not just workflow metadata);
+  `UserSignup` (the `user.signed_up` once-per-account ledger).
 - **`@access.secret`** (superuser-only, sensitive fields masked):
   `ServiceAPIKey` (`key`), `RefreshTokenTracker` (`token`) — both
   pattern-auto-detected; `TOTPDevice` (`secret`, `backup_codes` — the latter
@@ -585,6 +589,44 @@ The sibling invariant of the session gate above, and the same shape: **one place
 **The oracle.** Refusing only *unknown* addresses turns the OTP endpoints into an account-existence oracle, so the tradeoff is a setting (`AUTH_REGISTRATION_CLOSED_BEHAVIOR`), not a rewrite: `silent` (default) answers everyone identically and never delivers the stranger's code — the record, the cooldown and the block state are all created exactly as for a member, so even the 429 is not a side channel; `request` refuses at `*/request/` (usable, fully enumerable); `verify` sends the code and refuses at `*/verify/` (enumerable *and* mails strangers). OAuth and SSO refuse a fresh identity outright — there is nothing to enumerate when the caller must already control the provider account.
 
 To close sign-up on a deployment: set the four/five `AUTH_*_REGISTRATION` axes to `False` and create accounts through `auth.provision_user` (or `/admin-users/`). `GET /capabilities/` already reports each method's `can_register`, so the frontend hides the sign-up surface without further work.
+
+### The sign-up milestone — `user.signed_up` (`signup.py`)
+
+`user.registered` fires at account **creation**, guests included, and workspaces provision on it. It cannot tell a reporter "a person signed up": it counts guests, says nothing when a guest is promoted on the same row, and the phone door never fired it. `user.signed_up` is that fact.
+
+**Doors that emit** (each calls `notify_user_signed_up` after the save that made the account signed up):
+
+| Door | Fresh | Promoted guest |
+|---|---|---|
+| `AuthViewSet.email_verify` | yes | yes |
+| `AuthViewSet.phone_verify` | yes | yes |
+| `AuthViewSet._resolve_oauth_user` (both OAuth doors pass their request) | yes | yes |
+| `PasswordViewSet.register` | only with an e-mail or a phone | with an e-mail or a phone; password-only only under `AUTH_PASSWORD_DEANONYMIZES` |
+| `PasswordService.change_via_otp` | — | yes, emitted by `PasswordViewSet.change_otp_verify` (it holds the request) |
+
+**Never emits:** `POST /anonymous/`, `auth.provision_user`, login grants, enterprise SSO (JIT create and guest promotion), `POST /admin-users/`, and every `LOGGED_IN` / `MERGED` / `MODIFIED` answer (a guest adding a password included). `tests/test_user_signed_up.py::TestDoorInventory` walks the package's AST: any function that creates a user or calls `promote_anonymous_session` must be a listed door that emits, or sit in `NOT_SELF_SERVE` with its reason — a new door fails there.
+
+**Once per account.** `UserSignup` (one row per user, the user is the primary key) is inserted in the same savepoint as the emit; a second door for the same account inserts nothing and emits nothing. The outbox `key` is a partition key, not a dedupe key, so it cannot hold this. Like `user.registered` the emit is best-effort: a failure rolls back the marker and the emit together, is logged, and never fails the registration. The row survives an erasure (it holds only the moment of birth; dropping it would re-arm the milestone).
+
+**Consent — `AUTH_SIGNUP_CONSENT_RESOLVER`.** A dotted path to `resolver(request)`, returning `stapel_auth.signup.SignupConsent(ad_consent, source)` or an `(ad_consent, source)` pair, with `ad_consent` in `granted` / `denied` / `unknown` and `source` a short label kept as `consent_source`. It runs inside its own savepoint. Outcomes the library decides: no setting → `unknown` / `no_resolver`; no request → `unknown` / `no_request` (the resolver is not called); a resolver that raises, cannot be imported or answers outside the vocabulary → `denied` / `resolver_error`, and the registration goes on. The library ships no reader — which cookie or header means consent, and which signal outranks which, is the host's decision:
+
+```python
+# acme/consent.py — a host's own reader (names are examples)
+from stapel_auth.signup import SignupConsent
+
+def signup_consent(request):
+    answer = request.COOKIES.get("acme_consent")
+    if answer == "accepted":
+        return SignupConsent("granted", "banner_accepted")
+    if answer == "rejected":
+        return SignupConsent("denied", "banner_rejected")
+    if request.headers.get("Sec-GPC") == "1":
+        return SignupConsent("denied", "gpc_header")
+    return SignupConsent("unknown", "no_signal")
+
+# settings.py
+STAPEL_AUTH = {"AUTH_SIGNUP_CONSENT_RESOLVER": "acme.consent.signup_consent"}
+```
 
 ### Signals
 

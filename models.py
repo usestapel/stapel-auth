@@ -773,3 +773,38 @@ class SignupAttribution(models.Model):
         # empty half of a label in an admin list.
         label = self.click_id_type or f'utm:{self.utm_source or "?"}'
         return f'{self.user_id}: {label}'
+
+
+@access.ops  # sign-up milestone ledger (admin-suite AS-5)
+class UserSignup(models.Model):
+    """The one ``user.signed_up`` an account is ever allowed.
+
+    The row is the guard, not a report: :func:`stapel_auth.signup.notify_user_signed_up`
+    inserts it in the same savepoint as the emit, and the primary key on the
+    user makes a second door for the same account (a promoted guest that
+    later passes another verifier, two racing requests) insert nothing and
+    therefore emit nothing. The emit's ``key`` is a partition key, not a
+    dedupe key, so the outbox cannot hold this invariant on its own.
+
+    Kept through an erasure: it carries no personal data beyond the moment
+    the account was born, and dropping it would re-arm the milestone.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name='signup_milestone',
+    )
+    #: Server clock at the door — the conversion time a reporter states.
+    registered_at = models.DateTimeField()
+    #: The account existed as a guest before this door promoted it.
+    was_guest = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'auth_user_signup'
+        verbose_name = 'User Signup'
+        verbose_name_plural = 'User Signups'
+
+    def __str__(self):
+        return f'{self.user_id}: {self.registered_at.isoformat()}'

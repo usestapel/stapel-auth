@@ -105,6 +105,7 @@ from stapel_auth.sessions.serializers import (
     TokenVerifySerializer,
     UserSerializer,
 )
+from stapel_auth.signup import notify_user_signed_up
 
 logger = logging.getLogger(__name__)
 
@@ -812,6 +813,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     request_user.is_email_verified = True
                     promote_anonymous_session(request_user, auth_type="email")
                     request_user.save()
+                    notify_user_signed_up(request_user, request=request, was_guest=True)
                     user = request_user
                     auth_status = AuthStatus.REGISTERED
                     record_signup_attribution(user, attribution)
@@ -833,6 +835,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                         email=email, auth_type="email", is_email_verified=True
                     )
                     self._publish_user_registered(user, request=request)
+                    notify_user_signed_up(user, request=request, was_guest=False)
                     auth_status = AuthStatus.REGISTERED
                     record_signup_attribution(user, attribution)
 
@@ -1150,6 +1153,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     request_user.is_phone_verified = True
                     promote_anonymous_session(request_user, auth_type="phone")
                     request_user.save()
+                    notify_user_signed_up(request_user, request=request, was_guest=True)
                     user = request_user
                     auth_status = AuthStatus.REGISTERED
                     record_signup_attribution(user, attribution)
@@ -1170,6 +1174,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     user = User.objects.create(
                         phone=phone, auth_type="phone", is_phone_verified=True
                     )
+                    notify_user_signed_up(user, request=request, was_guest=False)
                     auth_status = AuthStatus.REGISTERED
                     record_signup_attribution(user, attribution)
 
@@ -1347,7 +1352,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         request_user = request.user if request.user.is_authenticated else None
         try:
             user, auth_status = self._resolve_oauth_user(
-                provider, user_data, request_user=request_user
+                provider, user_data, request_user=request_user, request=request
             )
         except OAuthEmailNotVerified:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
@@ -1529,7 +1534,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             request_user = None
         try:
             user, auth_status = self._resolve_oauth_user(
-                provider, user_data, request_user=request_user
+                provider, user_data, request_user=request_user, request=request
             )
         except OAuthEmailNotVerified:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
@@ -1623,7 +1628,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         set_auth_hint_cookie(response)
         return response
 
-    def _resolve_oauth_user(self, provider, user_data, request_user=None):
+    def _resolve_oauth_user(self, provider, user_data, request_user=None, request=None):
         """Find or create a user for an OAuth sign-in.
 
         Returns ``(user, AuthStatus)`` — the caller reports the outcome, which
@@ -1643,7 +1648,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
         *request_user* is ``request.user`` from the caller (may be ``None``
         for an unauthenticated caller, or a non-anonymous authenticated user
-        — in either case this falls through to case 4).
+        — in either case this falls through to case 4). *request* is the
+        view's request, handed to the sign-up consent resolver.
 
         WHEN CASES 1-2 HIT AND THE CALLER IS A GUEST, the guest is folded into
         the account it just proved it owns (:func:`merge_anonymous_into`,
@@ -1723,6 +1729,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             guest.is_email_verified = email_verified
             promote_anonymous_session(guest, auth_type="oauth")
             guest.save()
+            notify_user_signed_up(guest, request=request, was_guest=True)
             return guest, AuthStatus.REGISTERED
 
         # 4. Brand-new user — the OAuth creation site (#86). No oracle to
@@ -1737,7 +1744,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             avatar=avatar,
             is_email_verified=email_verified,
         )
-        self._publish_user_registered(user)
+        self._publish_user_registered(user, request=request)
+        notify_user_signed_up(user, request=request, was_guest=False)
         return user, AuthStatus.REGISTERED
 
     def _publish_user_registered(self, user, request=None) -> None:

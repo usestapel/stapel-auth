@@ -10,6 +10,7 @@ auth emits ``emit("user.registered")`` and consumers (e.g. workspaces'
 from dataclasses import dataclass, field
 
 EVENT_USER_REGISTERED = "user.registered"
+EVENT_USER_SIGNED_UP = "user.signed_up"
 EVENT_USER_CREATED = "user.created"
 EVENT_USER_UPDATED = "user.updated"
 EVENT_STAFF_ROLE_ASSIGNED = "staff.role.assigned"
@@ -65,6 +66,37 @@ class UserRegisteredPayload:
     language: str | None = None
     display_name: str | None = None
     is_anonymous: bool = False
+
+
+@dataclass
+class UserSignedUpPayload:
+    """Payload for ``user.signed_up`` (schemas/emits/user.signed_up.json).
+
+    NOT a second ``user.registered``. That one fires at account creation,
+    guests included, and workspaces provision on it. This one fires once per
+    account, ever, when a SELF-SERVE door leaves it holding a sign-in
+    identity — a fresh account or a guest promoted on the same row
+    (``stapel_auth.signup``). Org provisioning, login grants, enterprise SSO
+    and staff-created accounts never emit it.
+
+    Fields:
+        user_id: UUID of the account.
+        auth_type: The anchor the door attached (email/phone/oauth/password).
+        registered_at: ISO 8601 UTC, server clock at the door.
+        was_guest: The row existed as a guest before this door promoted it.
+        is_staff: Django's staff flag at that moment.
+        ad_consent: ``"granted"`` | ``"denied"`` | ``"unknown"`` as the host's
+            ``AUTH_SIGNUP_CONSENT_RESOLVER`` read the request; ``"unknown"``
+            with no resolver or no request, ``"denied"`` when it raised.
+        consent_source: What decided ``ad_consent``.
+    """
+    user_id: str
+    auth_type: str
+    registered_at: str
+    was_guest: bool
+    is_staff: bool
+    ad_consent: str
+    consent_source: str
 
 
 @dataclass
@@ -345,6 +377,7 @@ class UserContactChangedPayload:
 # Canonical event registry — keyed by the action name actually emitted.
 EVENT_REGISTRY = {
     EVENT_USER_REGISTERED: UserRegisteredPayload,
+    EVENT_USER_SIGNED_UP: UserSignedUpPayload,
     EVENT_USER_CREATED: UserProjectionPayload,
     EVENT_USER_UPDATED: UserProjectionPayload,
     EVENT_STAFF_ROLE_ASSIGNED: StaffRoleAssignedPayload,
