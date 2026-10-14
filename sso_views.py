@@ -19,6 +19,7 @@ from stapel_core.django.api.errors import (
 )
 from stapel_core.django.api.serializers import StapelDataclassSerializer
 
+from . import flow_binding
 from .errors import (
     ERR_400_SSO_NOT_CONFIGURED,
     ERR_404_SSO_ORG_NOT_FOUND,
@@ -32,6 +33,7 @@ from stapel_auth.permissions import DenyEnrollOnly
 logger = logging.getLogger(__name__)
 
 _OIDC_STATE_TTL = 600  # 10 min
+_OIDC_FLOW = "oidc"
 
 
 @dataclass
@@ -184,12 +186,17 @@ class SSOLoginView(APIView):
             except Exception as e:
                 logger.error(f"OIDC authorize error [{slug}]: {e}")
                 return error_500_internal()
+            # Bound to this browser (flow_binding): the callback refuses a
+            # state presented by a browser that did not start the flow.
+            binding_nonce, state_data["binding"] = flow_binding.new_binding()
             cache.set(
                 f"oidc_state:{state_data['state']}",
                 json.dumps(state_data),
                 _OIDC_STATE_TTL,
             )
-            return HttpResponseRedirect(url)
+            response = HttpResponseRedirect(url)
+            flow_binding.bind(response, _OIDC_FLOW, binding_nonce, _OIDC_STATE_TTL)
+            return response
 
         return StapelErrorResponse(400, ERR_400_SSO_NOT_CONFIGURED)
 
@@ -279,6 +286,11 @@ class OIDCCallbackView(APIView):
         responses={302: None},
     )
     def get(self, request: Request, slug: str):  # noqa: R007
+        response = self._callback(request, slug)
+        flow_binding.clear(response, _OIDC_FLOW)
+        return response
+
+    def _callback(self, request: Request, slug: str):
         org = _get_org(slug)
         if not org:
             return HttpResponseRedirect(
@@ -311,6 +323,11 @@ class OIDCCallbackView(APIView):
             )
         cache.delete(f"oidc_state:{state}")
         state_data = json.loads(state_raw)
+        if not flow_binding.is_bound(request, _OIDC_FLOW, state_data.get("binding")):
+            logger.warning(f"OIDC callback refused: state not bound to this browser [{slug}]")
+            return HttpResponseRedirect(
+                f"{_frontend_url(request)}/login?error=sso_invalid_response"
+            )
 
         try:
             attrs = OIDCService.exchange_code(slug, cfg, code, state_data)

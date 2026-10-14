@@ -423,10 +423,16 @@ class OAuthAuthorizeCallbackBranchTests(APITestCase):
     def _store_state(
         self, provider="test", state="st-1", redirect_after="", user_id=None
     ):
+        from stapel_auth import flow_binding
+
+        # The browser that started the flow holds the binding cookie.
+        nonce, digest = flow_binding.new_binding()
+        self.client.cookies["stapel_flow_oauth"] = nonce
         cache.set(
             f"oauth_state:{state}",
             {
                 "provider": provider,
+                "binding": digest,
                 "redirect_uri": "http://localhost:8000/api/v1/oauth/test/callback",
                 "redirect_after": redirect_after,
                 "user_id": user_id,

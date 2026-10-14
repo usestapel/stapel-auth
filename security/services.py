@@ -63,12 +63,14 @@ class LockoutService:
 
     @classmethod
     def record_failure(cls, identifier: str) -> int:
-        """Increment failure counter. Returns current count."""
-        from django.core.cache import cache
+        """Increment failure counter. Returns current count.
+
+        Atomic (counters.bump): parallel wrong guesses each get their own
+        number, so a burst cannot all read the count below the first tier.
+        """
+        from stapel_auth.counters import bump
         attempts_key, _ = cls._keys(identifier)
-        count = (cache.get(attempts_key) or 0) + 1
-        cache.set(attempts_key, count, cls.WINDOW)
-        return count
+        return bump(attempts_key, cls.WINDOW)
 
     @classmethod
     def apply_lockout(cls, identifier: str, count: int, user=None, request=None):

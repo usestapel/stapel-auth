@@ -59,9 +59,10 @@ TRIAD = ("schema.json", "flows.json", "errors.json")
 # the fleet whose llms.txt does not fit the generator's default 4000-token
 # budget (~7261 tokens, all real surface — 28 axes, 53 error codes). The
 # owner's call: raise the ceiling to 8000 for this module, do not shorten
-# intent/summary lines to fit. The budget stays enforced, just at 8000.
+# intent/summary lines to fit. The budget stays enforced (8200 since 0.48.0:
+# the OTP_LOGIN_STEP_UP security axis).
 ARTIFACTS = TRIAD + ("capabilities.json", "llms.txt")
-LLMS_TXT_BUDGET = "8000"
+LLMS_TXT_BUDGET = "8200"
 
 
 def _emit(out_dir: Path) -> None:
@@ -213,7 +214,7 @@ _EXPECTED_AXES = {
     # surface of its own, so it is an axis like every other door.
     "AUTH_LEGACY_TOKEN_LOGIN",
     # auth.anonymous / auth.mfa / auth.stepup
-    "AUTH_ANONYMOUS", "AUTH_TOTP", "OAUTH_STEP_UP", "PASSWORD_LOGIN_STEP_UP",
+    "AUTH_ANONYMOUS", "AUTH_TOTP", "OAUTH_STEP_UP", "PASSWORD_LOGIN_STEP_UP", "OTP_LOGIN_STEP_UP",
     # auth.placement (§60-follow-up: per-method UI placement, sibling axis to
     # the *_LOGIN gates above — presentational, enum-kind, gates no operations)
     "AUTH_EMAIL_PLACEMENT", "AUTH_PHONE_PLACEMENT", "AUTH_PASSWORD_PLACEMENT",
@@ -235,12 +236,12 @@ def _capabilities() -> dict:
 
 
 def test_capabilities_axes_inventory():
-    """13 method gates + anonymous + totp + 2 step-up + 8 placement +
+    """13 method gates + anonymous + totp + 3 step-up + 8 placement +
     password-deanonymizes, closed-registration-behavior and
     login-grant-existing-accounts policy, all grouped."""
     doc = _capabilities()
     assert {a["key"] for a in doc["axes"]} == _EXPECTED_AXES
-    assert len(doc["axes"]) == 31
+    assert len(doc["axes"]) == 32
     for axis in doc["axes"]:
         expected_kind = "enum" if axis["key"] in _ENUM_AXES else "bool"
         assert axis["kind"] == expected_kind, axis["key"]

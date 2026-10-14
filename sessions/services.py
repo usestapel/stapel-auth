@@ -538,6 +538,41 @@ class SessionService:
         return session
 
     @classmethod
+    def revoke_on_reuse(cls, presented_jti: str, user_id=None) -> bool:
+        """Revoke the session whose superseded refresh jti was presented again.
+
+        A refresh token is single-use: rotation hands out its successor. The
+        same token coming back after that — outside the D413 grace window —
+        means two parties hold it, and the server cannot tell which one is the
+        thief, so the session both are riding ends (refresh-token reuse
+        detection). The session row remembers exactly one previous jti, so
+        reuse is detected for the token one rotation back; an older one is
+        refused without being traceable to its session.
+
+        Returns ``True`` when a session was revoked.
+        """
+        if not presented_jti:
+            return False
+        if cls.graced_session(presented_jti, user_id=user_id) is not None:
+            return False  # a racing tab of the legitimate holder, not a replay
+        from stapel_auth.models import UserSession
+
+        qs = UserSession.objects.filter(previous_jti=presented_jti, is_revoked=False)
+        if user_id:
+            qs = qs.filter(user_id=user_id)
+        session = qs.first()
+        if session is None:
+            return False
+        logger.warning(
+            "refresh_reuse: superseded refresh jti presented again; "
+            "revoking session %s (user %s)",
+            session.pk,
+            session.user_id,
+        )
+        cls.revoke_session(session)
+        return True
+
+    @classmethod
     def current_refresh_for(cls, presented_jti: str):
         """The refresh token that superseded ``presented_jti``, while cached."""
         if cls._grace_seconds() <= 0 or not presented_jti:

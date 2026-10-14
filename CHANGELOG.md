@@ -1,5 +1,85 @@
 # Changelog
 
+## [0.48.0] — 2026-10-15
+
+Minor, security. Several answers change shape for callers that relied on
+them; each is listed with what to do.
+
+### Fixed — OAuth / OIDC login CSRF (redirect flows bound to the browser)
+
+`GET /oauth/{provider}/authorize/` and the OIDC SSO start now set an
+HttpOnly, SameSite=Lax cookie (`stapel_flow_oauth` / `stapel_flow_oidc`,
+Secure per `JWT_COOKIE_SECURE`, domain per `JWT_COOKIE_DOMAIN`) holding a
+random nonce; the parked state keeps only its SHA-256. The callback refuses
+(`400 error.400.oauth_failed`, OIDC: `/login?error=sso_invalid_response`)
+unless the browser presents the matching cookie, before any code exchange —
+so a state started by one browser can no longer sign another browser in, or
+merge that browser's guest into somebody else's account. The cookie is
+expired on every callback answer. Module: `stapel_auth.flow_binding`.
+
+### Fixed — email/SMS code login demands TOTP (`OTP_LOGIN_STEP_UP`, default on)
+
+`POST /email/verify/` and `/phone/verify/` answer `TOTP_REQUIRED` with a
+`challenge_token` (the `LoginResponse` union, as `/password/login/` does)
+instead of a session when the account — staff included — has an active TOTP
+device and the outcome is `LOGGED_IN` or `MERGED`. Finish with
+`POST /totp/challenge/verify/`. Clients that treat every 200 from verify as a
+session must handle `TOTP_REQUIRED`.
+
+### Fixed — redirect targets judged as the browser reads them
+
+`stapel_auth.hosts.safe_return_target` / `safe_relative_path`: tabs and
+newlines are deleted (browsers delete them), then any remaining control
+character, any backslash, scheme-relative `//`, userinfo, and non-https
+schemes are refused. Used by the OAuth `redirect_after`, the magic-link and
+QR `redirect_url` validators (which used to accept `/\t/evil.test`).
+
+### Fixed — atomic budgets (beyond 0.47.1's guest mint)
+
+Wrong-code attempts (a per-code guess counter in front of the store's own),
+the cross-code lockout tiers, the guest-mint budget, the magic-link hourly cap
+and concurrent OTP sends now count with `cache.add` + `cache.incr`
+(`stapel_auth.counters`), so a burst of parallel requests cannot all read
+"budget left". A magic link is consumed by exactly one request.
+
+### Added — SMS budget (`SMS_BUDGET_PER_IP_PER_HOUR` 10, `SMS_BUDGET_GLOBAL_PER_HOUR` 300)
+
+Every real SMS is drawn from a per-client-address and a deployment-wide
+hourly budget (`0` disables either). Over budget, the caller gets the
+ordinary "code sent" answer and nothing is sent.
+
+### Fixed — refresh-token reuse revokes the session
+
+A superseded refresh token presented again outside the
+`REFRESH_ROTATION_GRACE_SECONDS` window now revokes the session it belonged to
+(its current token stops working too). Only the token one rotation back maps
+to its session; an older one is refused without revocation.
+
+### Changed — enumeration
+
+`POST /magic/request/` spends its hourly cap for every requested address, so
+the 429 no longer distinguishes registered addresses. `POST /email/request/`
+and `/phone/request/` answer an address reserved by somebody's pending change
+with the ordinary 200 (and no code) unless the caller is a signed-in account
+— `409 error.409.{email,phone}_reserved` is now only for that caller.
+
+### Fixed — OAuth identities use verified addresses only
+
+GitHub: the primary verified address from `/user/emails`, never the public
+profile field or an unverified/non-primary entry. Zoom: `verified == 1`.
+Existing accounts are matched case-insensitively; an address the provider did
+not verify is never stored on a new account.
+
+### Removed — `GET /logout/`
+
+Logout is `POST /logout/` only (a GET is a logout any page can trigger).
+`GET` now answers 405. The refresh token a logout revokes must verify.
+
+### Changed — `auth.admin_reset_password` always demands `password_change`
+
+An administrator-chosen password stops working at its first use whatever
+`first_login_policies` says; callers may add `mfa_enroll`.
+
 ## [0.47.1] — 2026-10-15
 
 ### Fixed — the guest-mint budget is spent atomically

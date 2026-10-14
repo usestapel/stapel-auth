@@ -30,7 +30,19 @@ from __future__ import annotations
 
 from urllib.parse import urlsplit
 
-__all__ = ["allowed_return_origins", "frontend_url_for", "origin_of"]
+__all__ = [
+    "allowed_return_origins",
+    "frontend_url_for",
+    "origin_of",
+    "safe_relative_path",
+    "safe_return_target",
+]
+
+#: What a browser silently deletes from anywhere inside a URL before parsing it
+#: (WHATWG URL, "remove all ASCII tab or newline"). A validator that does not
+#: delete them too is checking a different string than the one navigated to:
+#: ``/\t/evil.test`` is not ``//`` here and is ``//evil.test`` in the browser.
+_URL_STRIPPED = str.maketrans("", "", "\t\r\n")
 
 
 def _frontend_url() -> str:
@@ -87,3 +99,62 @@ def allowed_return_origins() -> frozenset[str]:
     if frontend:
         origins.add(frontend)
     return frozenset(origins)
+
+
+def _normalised(value) -> str:
+    """*value* as the browser will read it, or ``""`` when it is not a URL we
+    are willing to reason about.
+
+    Tabs and newlines are deleted (the browser does), surrounding spaces are
+    trimmed (the browser does). Anything still carrying a control character or
+    a backslash is refused outright: browsers treat ``\\`` as ``/`` in
+    special schemes, so ``/\\evil.test`` is a scheme-relative URL to them.
+    """
+    if not value:
+        return ""
+    cleaned = str(value).translate(_URL_STRIPPED).strip()
+    if not cleaned or "\\" in cleaned:
+        return ""
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in cleaned):
+        return ""
+    return cleaned
+
+
+def safe_relative_path(value) -> str:
+    """*value* when it is a same-origin path (``/x``), else ``""``.
+
+    Scheme-relative (``//host``), backslash and control-character variants
+    are refused after the same normalisation a browser applies.
+    """
+    cleaned = _normalised(value)
+    if cleaned.startswith("/") and not cleaned.startswith("//"):
+        return cleaned
+    return ""
+
+
+def safe_return_target(value) -> str:
+    """A path, or an absolute URL on an origin this deployment serves; else ``""``.
+
+    The single validator behind every ``redirect_after`` / ``return_to`` this
+    module honours. Absolute targets must be ``https`` (or ``FRONTEND_URL``'s
+    own scheme, for local development), carry no userinfo, and name an origin
+    in :func:`allowed_return_origins` by equality.
+    """
+    cleaned = _normalised(value)
+    if not cleaned:
+        return ""
+    if cleaned.startswith("/"):
+        return safe_relative_path(cleaned)
+    try:
+        parts = urlsplit(cleaned)
+    except ValueError:
+        return ""
+    if parts.username is not None or parts.password is not None:
+        return ""
+    scheme = (parts.scheme or "").lower()
+    dev_scheme = origin_of(_frontend_url()).split(":", 1)[0]
+    if scheme != "https" and not (dev_scheme and scheme == dev_scheme):
+        return ""
+    if origin_of(cleaned) in allowed_return_origins():
+        return cleaned
+    return ""

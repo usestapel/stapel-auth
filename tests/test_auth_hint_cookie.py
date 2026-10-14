@@ -134,16 +134,11 @@ class LogoutClearsHintCookieTests(APITestCase):
         cookie = response.cookies[HINT_COOKIE_NAME]
         self.assertTrue(cookie["max-age"] == 0 or cookie.value == "")
 
-    def test_logout_get_clears_hint_cookie(self):
-        refresh = TokenService.get_refresh_token_for_user(self.user)
+    def test_logout_get_is_refused_and_keeps_the_hint_cookie(self):
         self.client.force_authenticate(user=self.user)
-        self.client.cookies["stapel_jwt"] = str(refresh.access_token)
-        self.client.cookies["stapel_refresh_jwt"] = str(refresh)
         self.client.cookies[HINT_COOKIE_NAME] = "1"
 
         response = self.client.get(reverse("logout"))
 
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(HINT_COOKIE_NAME, response.cookies)
-        cookie = response.cookies[HINT_COOKIE_NAME]
-        self.assertTrue(cookie["max-age"] == 0 or cookie.value == "")
+        self.assertEqual(response.status_code, 405)
+        self.assertNotIn(HINT_COOKIE_NAME, response.cookies)

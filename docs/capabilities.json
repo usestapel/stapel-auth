@@ -1,6 +1,6 @@
 {
   "module": "stapel-auth",
-  "version": "0.47.1",
+  "version": "0.48.0",
   "provides": "User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.",
   "axes": [
     {
@@ -62,7 +62,6 @@
           "auth_api_v1_email_request_create",
           "auth_api_v1_email_verify_create",
           "auth_api_v1_logout_create",
-          "auth_api_v1_logout_retrieve",
           "auth_api_v1_me_retrieve",
           "auth_api_v1_phone_change_delayed_cancel_create",
           "auth_api_v1_phone_change_delayed_initiate_create",
@@ -103,7 +102,6 @@
           "auth_api_v1_email_request_create",
           "auth_api_v1_email_verify_create",
           "auth_api_v1_logout_create",
-          "auth_api_v1_logout_retrieve",
           "auth_api_v1_me_retrieve",
           "auth_api_v1_phone_change_delayed_cancel_create",
           "auth_api_v1_phone_change_delayed_initiate_create",
@@ -267,7 +265,6 @@
           "auth_api_v1_email_request_create",
           "auth_api_v1_email_verify_create",
           "auth_api_v1_logout_create",
-          "auth_api_v1_logout_retrieve",
           "auth_api_v1_me_retrieve",
           "auth_api_v1_phone_change_delayed_cancel_create",
           "auth_api_v1_phone_change_delayed_initiate_create",
@@ -308,7 +305,6 @@
           "auth_api_v1_email_request_create",
           "auth_api_v1_email_verify_create",
           "auth_api_v1_logout_create",
-          "auth_api_v1_logout_retrieve",
           "auth_api_v1_me_retrieve",
           "auth_api_v1_phone_change_delayed_cancel_create",
           "auth_api_v1_phone_change_delayed_initiate_create",
@@ -665,6 +661,21 @@
         "summary": "Require a two-factor code after password login for TOTP-enrolled accounts. On by default — a password alone is phishable.",
         "business_label": "Extra verification after password sign-in"
       }
+    },
+    {
+      "key": "OTP_LOGIN_STEP_UP",
+      "kind": "bool",
+      "default": true,
+      "group": "auth.stepup",
+      "gates": {
+        "operations": [],
+        "co_gates": [],
+        "behavior": "When on, such a login returns a TOTP challenge instead of tokens."
+      },
+      "curated": {
+        "summary": "Require a two-factor code after email/SMS code login for TOTP-enrolled accounts. On by default.",
+        "business_label": "Extra verification after email or SMS code sign-in"
+      }
     }
   ],
   "extension_points": [
@@ -832,7 +843,7 @@
       "consumer": "frontend"
     }
   ],
-  "operations_total": 123,
+  "operations_total": 122,
   "requires": [
     {
       "module": "stapel-core",

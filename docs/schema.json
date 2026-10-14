@@ -1057,7 +1057,7 @@
     "/auth/api/v1/email/verify/": {
       "post": {
         "operationId": "auth_api_v1_email_verify_create",
-        "description": "Verify email and authenticate/register.\n\n**Authentication Flows:**\n- **Unauthenticated user + new email** → REGISTERED (new account created)\n- **Unauthenticated user + existing email** → LOGGED_IN (login to existing account)\n- **Anonymous user + new email** → REGISTERED (anonymous completes registration)\n- **Anonymous user + existing email** → MERGED (anonymous merged into existing account)\n- **Authenticated user + FIRST email** → MODIFIED (user sets an email the account did not have verified)\n- **Authenticated user + a DIFFERENT email over a verified one** → 403 `error.403.change_requires_current` (use the email change flow: it proves the current email first)\n- **Invalid/expired code** → REJECTED\n\n**Status values:**\n- `REJECTED` - Invalid code, expired code, or blocked\n- `REGISTERED` - New account created or anonymous completed registration\n- `LOGGED_IN` - Existing user logged in\n- `MERGED` - Anonymous user merged into existing account\n- `MODIFIED` - Authenticated user set an email, or re-verified the one already on the account\n\n**Wrong codes — 400, then 422 or 423.** Two independent limits guard this\nendpoint, and they are not interchangeable:\n\n- `400 error.400.invalid_code_attempts` (`params.attempts_remaining`) — the\n  code in the user's hands still has budget. Keep the input open.\n- `422 error.422.blocked` (`params.retry_after_minutes`) — that ONE code's own\n  budget is spent: the `OTP_MAX_ATTEMPTS`-th wrong guess (default 5) against a\n  single code destroys it and blocks the identifier for `OTP_BLOCK_DURATION`\n  (default 10 minutes). For that window every call here answers 422 — the\n  correct code included. Requesting a new code is refused too, as 429 while\n  the 30-second resend cooldown is still running and as 422 after it.\n- `423 error.423.account_locked` (`params.retry_after_minutes`) — the\n  CROSS-code failure counter crossed a tier: 5, 10 or 20 failures in a rolling\n  hour lock the identifier for 15 minutes, 1 hour and 24 hours. Only wrong\n  codes that were actually checked advance it, so this tier is reached by\n  spreading guesses over RE-REQUESTED codes; emptying one code's budget meets\n  422 first (the counter stops one short). The lock is consulted before the\n  code is, so while it stands the endpoint answers 423 without looking at the\n  code at all.\n- `503 error.503.verification_unavailable` — the store behind either limit\n  could not answer. Not a rejection: nothing was checked.\n\nA successful verification clears the cross-code counter and the lock.\n\n\n**Permissions:** `DenyEnrollOnly`",
+        "description": "Verify email and authenticate/register.\n\n**Authentication Flows:**\n- **Unauthenticated user + new email** → REGISTERED (new account created)\n- **Unauthenticated user + existing email** → LOGGED_IN (login to existing account)\n- **Anonymous user + new email** → REGISTERED (anonymous completes registration)\n- **Anonymous user + existing email** → MERGED (anonymous merged into existing account)\n- **Authenticated user + FIRST email** → MODIFIED (user sets an email the account did not have verified)\n- **Authenticated user + a DIFFERENT email over a verified one** → 403 `error.403.change_requires_current` (use the email change flow: it proves the current email first)\n- **Invalid/expired code** → REJECTED\n\n**Status values:**\n- `REJECTED` - Invalid code, expired code, or blocked\n- `REGISTERED` - New account created or anonymous completed registration\n- `LOGGED_IN` - Existing user logged in\n- `MERGED` - Anonymous user merged into existing account\n- `MODIFIED` - Authenticated user set an email, or re-verified the one already on the account\n- `TOTP_REQUIRED` - LOGGED_IN or MERGED into an account with TOTP enabled (`OTP_LOGIN_STEP_UP`, default on): no session yet — pass `challenge_token` to `POST /totp/challenge/verify/`\n\n**Wrong codes — 400, then 422 or 423.** Two independent limits guard this\nendpoint, and they are not interchangeable:\n\n- `400 error.400.invalid_code_attempts` (`params.attempts_remaining`) — the\n  code in the user's hands still has budget. Keep the input open.\n- `422 error.422.blocked` (`params.retry_after_minutes`) — that ONE code's own\n  budget is spent: the `OTP_MAX_ATTEMPTS`-th wrong guess (default 5) against a\n  single code destroys it and blocks the identifier for `OTP_BLOCK_DURATION`\n  (default 10 minutes). For that window every call here answers 422 — the\n  correct code included. Requesting a new code is refused too, as 429 while\n  the 30-second resend cooldown is still running and as 422 after it.\n- `423 error.423.account_locked` (`params.retry_after_minutes`) — the\n  CROSS-code failure counter crossed a tier: 5, 10 or 20 failures in a rolling\n  hour lock the identifier for 15 minutes, 1 hour and 24 hours. Only wrong\n  codes that were actually checked advance it, so this tier is reached by\n  spreading guesses over RE-REQUESTED codes; emptying one code's budget meets\n  422 first (the counter stops one short). The lock is consulted before the\n  code is, so while it stands the endpoint answers 423 without looking at the\n  code at all.\n- `503 error.503.verification_unavailable` — the store behind either limit\n  could not answer. Not a rejection: nothing was checked.\n\nA successful verification clears the cross-code counter and the lock.\n\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Email Auth"
         ],
@@ -1100,7 +1100,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AuthResponse"
+                  "$ref": "#/components/schemas/LoginResponse"
                 },
                 "examples": {
                   "Success-NewUserRegistered": {
@@ -1684,47 +1684,6 @@
       }
     },
     "/auth/api/v1/logout/": {
-      "get": {
-        "operationId": "auth_api_v1_logout_retrieve",
-        "description": "Logout user via GET request (for cookie-based authentication). Blacklists both access and refresh tokens.\n\n**Permissions:** `DenyEnrollOnly`",
-        "tags": [
-          "Session"
-        ],
-        "security": [
-          {
-            "JWTCookieAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LogoutResponse"
-                },
-                "examples": {
-                  "LogoutResponse": {
-                    "value": {
-                      "message": "Successfully logged out"
-                    }
-                  }
-                }
-              }
-            },
-            "description": ""
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StapelError"
-                }
-              }
-            },
-            "description": ""
-          }
-        }
-      },
       "post": {
         "operationId": "auth_api_v1_logout_create",
         "description": "Logout user and blacklist both access and refresh tokens\n\n**Permissions:** `DenyEnrollOnly`",
@@ -3950,7 +3909,7 @@
     "/auth/api/v1/phone/verify/": {
       "post": {
         "operationId": "auth_api_v1_phone_verify_create",
-        "description": "Verify phone number and authenticate/register.\n\n**Authentication Flows:**\n- **Unauthenticated user + new phone** → REGISTERED (new account created)\n- **Unauthenticated user + existing phone** → LOGGED_IN (login to existing account)\n- **Anonymous user + new phone** → REGISTERED (anonymous completes registration)\n- **Anonymous user + existing phone** → MERGED (anonymous merged into existing account)\n- **Authenticated user + FIRST phone** → MODIFIED (user sets a phone the account did not have verified)\n- **Authenticated user + a DIFFERENT phone over a verified one** → 403 `error.403.change_requires_current` (use the phone change flow: it proves the current phone first)\n- **Invalid/expired code** → REJECTED\n\n**Status values:**\n- `REJECTED` - Invalid code, expired code, or blocked\n- `REGISTERED` - New account created or anonymous completed registration\n- `LOGGED_IN` - Existing user logged in\n- `MERGED` - Anonymous user merged into existing account\n- `MODIFIED` - Authenticated user set a phone, or re-verified the one already on the account\n\n**Wrong codes — 400, then 422 or 423.** Two independent limits guard this\nendpoint, and they are not interchangeable:\n\n- `400 error.400.invalid_code_attempts` (`params.attempts_remaining`) — the\n  code in the user's hands still has budget. Keep the input open.\n- `422 error.422.blocked` (`params.retry_after_minutes`) — that ONE code's own\n  budget is spent: the `OTP_MAX_ATTEMPTS`-th wrong guess (default 5) against a\n  single code destroys it and blocks the identifier for `OTP_BLOCK_DURATION`\n  (default 10 minutes). For that window every call here answers 422 — the\n  correct code included. Requesting a new code is refused too, as 429 while\n  the 30-second resend cooldown is still running and as 422 after it.\n- `423 error.423.account_locked` (`params.retry_after_minutes`) — the\n  CROSS-code failure counter crossed a tier: 5, 10 or 20 failures in a rolling\n  hour lock the identifier for 15 minutes, 1 hour and 24 hours. Only wrong\n  codes that were actually checked advance it, so this tier is reached by\n  spreading guesses over RE-REQUESTED codes; emptying one code's budget meets\n  422 first (the counter stops one short). The lock is consulted before the\n  code is, so while it stands the endpoint answers 423 without looking at the\n  code at all.\n- `503 error.503.verification_unavailable` — the store behind either limit\n  could not answer. Not a rejection: nothing was checked.\n\nA successful verification clears the cross-code counter and the lock.\n\n\n**Permissions:** `DenyEnrollOnly`",
+        "description": "Verify phone number and authenticate/register.\n\n**Authentication Flows:**\n- **Unauthenticated user + new phone** → REGISTERED (new account created)\n- **Unauthenticated user + existing phone** → LOGGED_IN (login to existing account)\n- **Anonymous user + new phone** → REGISTERED (anonymous completes registration)\n- **Anonymous user + existing phone** → MERGED (anonymous merged into existing account)\n- **Authenticated user + FIRST phone** → MODIFIED (user sets a phone the account did not have verified)\n- **Authenticated user + a DIFFERENT phone over a verified one** → 403 `error.403.change_requires_current` (use the phone change flow: it proves the current phone first)\n- **Invalid/expired code** → REJECTED\n\n**Status values:**\n- `REJECTED` - Invalid code, expired code, or blocked\n- `REGISTERED` - New account created or anonymous completed registration\n- `LOGGED_IN` - Existing user logged in\n- `MERGED` - Anonymous user merged into existing account\n- `MODIFIED` - Authenticated user set a phone, or re-verified the one already on the account\n- `TOTP_REQUIRED` - LOGGED_IN or MERGED into an account with TOTP enabled (`OTP_LOGIN_STEP_UP`, default on): no session yet — pass `challenge_token` to `POST /totp/challenge/verify/`\n\n**Wrong codes — 400, then 422 or 423.** Two independent limits guard this\nendpoint, and they are not interchangeable:\n\n- `400 error.400.invalid_code_attempts` (`params.attempts_remaining`) — the\n  code in the user's hands still has budget. Keep the input open.\n- `422 error.422.blocked` (`params.retry_after_minutes`) — that ONE code's own\n  budget is spent: the `OTP_MAX_ATTEMPTS`-th wrong guess (default 5) against a\n  single code destroys it and blocks the identifier for `OTP_BLOCK_DURATION`\n  (default 10 minutes). For that window every call here answers 422 — the\n  correct code included. Requesting a new code is refused too, as 429 while\n  the 30-second resend cooldown is still running and as 422 after it.\n- `423 error.423.account_locked` (`params.retry_after_minutes`) — the\n  CROSS-code failure counter crossed a tier: 5, 10 or 20 failures in a rolling\n  hour lock the identifier for 15 minutes, 1 hour and 24 hours. Only wrong\n  codes that were actually checked advance it, so this tier is reached by\n  spreading guesses over RE-REQUESTED codes; emptying one code's budget meets\n  422 first (the counter stops one short). The lock is consulted before the\n  code is, so while it stands the endpoint answers 423 without looking at the\n  code at all.\n- `503 error.503.verification_unavailable` — the store behind either limit\n  could not answer. Not a rejection: nothing was checked.\n\nA successful verification clears the cross-code counter and the lock.\n\n\n**Permissions:** `DenyEnrollOnly`",
         "tags": [
           "Phone Auth"
         ],
@@ -3993,7 +3952,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AuthResponse"
+                  "$ref": "#/components/schemas/LoginResponse"
                 }
               }
             },

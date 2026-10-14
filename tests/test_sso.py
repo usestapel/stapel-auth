@@ -478,7 +478,11 @@ class OIDCCallbackViewTests(APITestCase):
         self.url = reverse('sso_oidc_callback', kwargs={'slug': 'acmecorp'})
 
     def _store_state(self, state='teststate'):
-        state_data = {'state': state, 'nonce': 'n', 'verifier': 'v', 'org_slug': 'acmecorp'}
+        from stapel_auth import flow_binding
+        nonce, digest = flow_binding.new_binding()
+        self.client.cookies['stapel_flow_oidc'] = nonce
+        state_data = {'state': state, 'nonce': 'n', 'verifier': 'v', 'org_slug': 'acmecorp',
+                      'binding': digest}
         cache.set(f'oidc_state:{state}', json.dumps(state_data), 600)
         return state_data
 

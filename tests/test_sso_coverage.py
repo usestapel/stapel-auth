@@ -570,7 +570,12 @@ class OIDCCallbackErrorTests(APITestCase):
     def _store_state(self, state="teststate"):
         import json
 
-        data = {"state": state, "nonce": "n", "verifier": "v", "org_slug": "acmecorp"}
+        from stapel_auth import flow_binding
+
+        nonce, digest = flow_binding.new_binding()
+        self.client.cookies["stapel_flow_oidc"] = nonce
+        data = {"state": state, "nonce": "n", "verifier": "v", "org_slug": "acmecorp",
+                "binding": digest}
         cache.set(f"oidc_state:{state}", json.dumps(data), 600)
 
     def test_unknown_org_redirects(self):

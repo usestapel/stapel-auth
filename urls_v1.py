@@ -170,7 +170,9 @@ def get_otp_urls(enabled=None):
 
         # User info and logout
         path('me/', AuthViewSet.as_view({'get': 'me'}), name='me'),
-        path('logout/', AuthViewSet.as_view({'post': 'logout', 'get': 'logout_get'}), name='logout'),
+        # POST only: a state-changing GET is a logout anybody can trigger
+        # with a link or an <img> from another site.
+        path('logout/', AuthViewSet.as_view({'post': 'logout'}), name='logout'),
 
         # Token verification
         path('verify/', AuthViewSet.as_view({'post': 'verify_token'}), name='verify_token'),

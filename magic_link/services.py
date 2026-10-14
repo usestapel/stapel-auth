@@ -36,15 +36,30 @@ class MagicLinkService:
         return f'magic_link_rate:{email.lower()}'
 
     @classmethod
-    def create(cls, user, redirect_url: str = '/') -> str | None:
-        """Create a magic link token. Returns None if rate-limited."""
-        from django.core.cache import cache
-        rate_key = cls._rate_key(user.email)
-        count = cache.get(rate_key) or 0
+    def spend_rate(cls, email: str) -> bool:
+        """Spend one send for *email*; ``False`` once the hourly cap is reached.
+
+        Spent for EVERY requested address, registered or not: a cap that only
+        existed for real accounts answered 429 for them and 200 for strangers,
+        which is a membership oracle with extra steps. Atomic (counters.bump).
+        """
+        from stapel_auth.counters import bump
+
         limit = cls.rate_limit()
-        if limit > 0 and count >= limit:
+        if limit <= 0:
+            return True
+        return bump(cls._rate_key(email), cls.RATE_WINDOW) <= limit
+
+    @classmethod
+    def create(cls, user, redirect_url: str = '/', *, rate_spent: bool = False) -> str | None:
+        """Create a magic link token. Returns None if rate-limited.
+
+        *rate_spent* says the caller already spent this send's slot
+        (:meth:`spend_rate`), so it is not spent twice.
+        """
+        from django.core.cache import cache
+        if not rate_spent and not cls.spend_rate(user.email):
             return None
-        cache.set(rate_key, count + 1, cls.RATE_WINDOW)
         token = secrets.token_urlsafe(32)
         cache.set(cls._token_key(token), {'user_id': str(user.id), 'redirect_url': redirect_url or '/'}, cls.TTL)
         return token
@@ -63,13 +78,16 @@ class MagicLinkService:
         data = cache.get(key)
         if not data:
             return None
-        cache.delete(key)
+        # delete() reports whether THIS call removed the key: of two parallel
+        # consumers exactly one gets True, so a link signs in exactly once.
+        if not cache.delete(key):
+            return None
         return data
 
     @classmethod
-    def send(cls, user, request=None, redirect_url: str = '/'):
+    def send(cls, user, request=None, redirect_url: str = '/', *, rate_spent: bool = False):
         """Create token, enqueue email send. Returns False if rate-limited."""
-        token = cls.create(user, redirect_url=redirect_url)
+        token = cls.create(user, redirect_url=redirect_url, rate_spent=rate_spent)
         if token is None:
             return False
         from stapel_core.notifications import request_notification

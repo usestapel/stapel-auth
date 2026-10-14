@@ -484,12 +484,11 @@ def admin_reset_password(payload: dict) -> dict:
       standing does not recover an account — the attacker's session
       outlives the recovery. ``SessionService.revoke_all`` blacklists the
       JTIs and emits ``user.session_revoked`` per session.
-    * **the new password is temporary by construction.** The default
-      ``first_login_policies`` is ``["password_change"]``: a password
-      somebody other than the account owner chose must stop working at its
-      first use. An org may add ``mfa_enroll`` (independent since #90); an
-      org may pass ``[]`` to suppress it, and that is then a decision on
-      the record rather than an omission.
+    * **the new password is temporary by construction.** ``password_change``
+      is always demanded: a password somebody other than the account owner
+      chose must stop working at its first use. An org may add
+      ``mfa_enroll`` (independent since #90); a payload that leaves
+      ``password_change`` out gets it anyway.
     * **the actor is on the audit row.** ``AuthAuditLog`` gets a
       ``password_reset`` entry carrying ``actor_id`` and ``via:
       admin_reset``. "Who reset this password" must be answerable from
@@ -534,6 +533,11 @@ def admin_reset_password(payload: dict) -> dict:
     )
     if policies is None:
         return {"error": ERR_400_BAD_REQUEST}
+    # A password somebody other than the owner chose stops working at its
+    # first use — not negotiable by the caller. An org may ADD mfa_enroll; it
+    # can no longer subtract the forced change.
+    if FirstLoginPolicyService.REQUIRES_PASSWORD_CHANGE not in policies:
+        policies = [FirstLoginPolicyService.REQUIRES_PASSWORD_CHANGE, *policies]
 
     User = get_user_model()
     try:

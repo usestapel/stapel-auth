@@ -302,9 +302,22 @@ class MagicLinkRequestTests(APITestCase):
 
     def test_request_rate_limited_returns_429(self):
         user = _make_user()
-        with patch('stapel_auth.magic_link.services.MagicLinkService.send', return_value=False):
+        with patch('stapel_auth.magic_link.services.MagicLinkService.spend_rate', return_value=False):
             resp = self.client.post(reverse('magic_request'), {'email': user.email}, format='json')
         self.assertEqual(resp.status_code, 429)
+
+    def test_request_rate_limit_is_the_same_for_unknown_addresses(self):
+        """The cap is spent per requested address, registered or not: a 429
+        that only real accounts could earn is a membership oracle."""
+        from stapel_auth.magic_link.services import MagicLinkService
+
+        known, unknown = _make_user().email, 'nobody-here@example.com'
+        for email in (known, unknown):
+            codes = [
+                self.client.post(reverse('magic_request'), {'email': email}, format='json').status_code
+                for _ in range(MagicLinkService.RATE_LIMIT + 1)
+            ]
+            self.assertEqual(codes, [200] * MagicLinkService.RATE_LIMIT + [429], email)
 
     def test_verify_no_token_redirects_to_error(self):
         resp = self.client.get(reverse('magic_verify'))
@@ -1306,8 +1319,14 @@ class OAuthCallbackTests(APITestCase):
 
     def _store_state(self, state='test-state-abc', redirect_after=''):
         from django.core.cache import cache
+
+        from stapel_auth import flow_binding
+        # The browser that started the flow holds the binding cookie.
+        nonce, digest = flow_binding.new_binding()
+        self.client.cookies['stapel_flow_oauth'] = nonce
         cache.set(f'oauth_state:{state}', {
             'provider': 'test',
+            'binding': digest,
             'redirect_uri': 'http://localhost:8000/api/v1/oauth/test/callback',
             'redirect_after': redirect_after,
         }, timeout=600)

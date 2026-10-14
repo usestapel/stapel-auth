@@ -123,8 +123,6 @@ class GitHubProvider(OAuthProvider):
         if response.status_code != 200:
             return None
         data = response.json()
-        email = data.get("email")
-        email_verified = False
         emails = []
         try:
             emails_resp = requests.get("https://api.github.com/user/emails", headers=headers, timeout=10)
@@ -135,20 +133,20 @@ class GitHubProvider(OAuthProvider):
         except Exception:
             # Verification status unknown -> treat as unverified (fail-safe)
             emails = []
-        if email:
-            # Public profile email: verified only if GitHub lists it verified
-            email_verified = any(
-                e.get("email") == email and e.get("verified") for e in emails
-            )
-        else:
-            primary = next(
-                (e for e in emails if e.get("primary") and e.get("verified")), None
-            )
-            if primary:
-                email, email_verified = primary["email"], True
-            elif emails:
-                email = emails[0].get("email")
-                email_verified = bool(emails[0].get("verified"))
+        # The account's PRIMARY address, and only once GitHub has verified it.
+        # The public profile `email` is a free-text field the user can set to
+        # any address, verified or not, and so is any non-primary entry: an
+        # identity claimed from either is somebody else's mailbox waiting to
+        # be squatted. No primary verified address = no email.
+        primary = next(
+            (
+                e for e in emails
+                if e.get("primary") and e.get("verified") is True and e.get("email")
+            ),
+            None,
+        )
+        email = primary["email"] if primary else None
+        email_verified = primary is not None
         return OAuthUserData(
             id=str(data.get("id", "")),
             email=email,
@@ -197,6 +195,9 @@ class ZoomProvider(OAuthProvider):
             email=data.get("email"),
             username=username,
             avatar=data.get("pic_url"),
+            # Zoom's user object says whether the address was verified
+            # (`verified: 1`); anything else is a claim, not a proof.
+            email_verified=data.get("verified") == 1,
         )
 
 

@@ -523,11 +523,6 @@ def _me(call):
     return call(client_for(make_user()))
 
 
-@recipe("GET", "/logout/")
-def _logout_get(call):
-    return call(client_for(make_user()))
-
-
 @recipe("POST", "/logout/")
 def _logout_post(call):
     tokens = otp_login()["tokens"]

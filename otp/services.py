@@ -32,6 +32,34 @@ email_code_store = OneTimeCodeStore("otp_email")
 phone_code_store = OneTimeCodeStore("otp_phone")
 
 
+def sms_budget_allows(client_ip=None) -> bool:
+    """Spend one SMS from the hourly budgets; ``False`` when one is spent.
+
+    Two fixed hourly windows (``SMS_BUDGET_PER_IP_PER_HOUR``,
+    ``SMS_BUDGET_GLOBAL_PER_HOUR``; ``0`` disables either). Per-IP applies
+    only when the caller knows the client address — the unauthenticated
+    doors pass it. Counted atomically (:mod:`stapel_auth.counters`), so a
+    burst of parallel requests cannot all read "budget left".
+    """
+    import time
+
+    from stapel_auth.conf import auth_settings
+    from stapel_auth.counters import bump
+
+    window = int(time.time() // 3600)
+    per_ip = int(auth_settings.SMS_BUDGET_PER_IP_PER_HOUR or 0)
+    if per_ip > 0 and client_ip:
+        if bump(f"stapel_auth:sms_budget:ip:{client_ip}:{window}", 3600) > per_ip:
+            logger.warning("SMS budget spent for one client address this hour")
+            return False
+    overall = int(auth_settings.SMS_BUDGET_GLOBAL_PER_HOUR or 0)
+    if overall > 0:
+        if bump(f"stapel_auth:sms_budget:global:{window}", 3600) > overall:
+            logger.error("SMS budget spent for the whole deployment this hour")
+            return False
+    return True
+
+
 def promote_anonymous_session(user, *, auth_type: str) -> None:
     """Flip an anonymous guest account to registered.
 
@@ -229,6 +257,15 @@ class _OtpCodeService:
     store: OneTimeCodeStore
     #: What the log calls the thing being verified.
     channel = ''
+    #: Whether a delivered code costs money per message (SMS): such sends
+    #: are drawn from the SMS budget (:func:`sms_budget_allows`).
+    paid_delivery = False
+
+    def _guess_key(self, identifier: str) -> str:
+        return f"stapel_auth:otp_guesses:{self.channel}:{identifier}"
+
+    def _send_claim_key(self, identifier: str) -> str:
+        return f"stapel_auth:otp_send_claim:{self.channel}:{identifier}"
 
     # Read at call time, not in __init__: this package's rule everywhere
     # else, and the reason it matters here is mundane — a long-lived
@@ -279,7 +316,7 @@ class _OtpCodeService:
         raise NotImplementedError
 
     def send_verification_code(self, identifier, device_id=None, force_real_otp=False,
-                               deliver=True):
+                               deliver=True, client_ip=None):
         """Issue a code for *identifier* and (usually) send it.
 
         *deliver* ``False`` runs the whole flow — the same rate-limit and block
@@ -305,10 +342,33 @@ class _OtpCodeService:
                 logger.warning(f"Rate limit exceeded for {self.channel}")
                 return {'error': 'rate_limit', 'retry_after': wait}
 
+            # The cooldown above is a read; two parallel requests both pass
+            # it. The claim is the atomic half: exactly one of them sends.
+            from stapel_auth.counters import claim
+
+            claim_key = self._send_claim_key(identifier)
+            if self.resend_cooldown > 0 and not claim(claim_key, self.resend_cooldown):
+                logger.warning(f"Concurrent send refused for {self.channel}")
+                return {'error': 'rate_limit', 'retry_after': self.resend_cooldown}
+
             blocked = self.store.blocked_for(identifier)
             if blocked:
                 logger.warning(f"{self.channel} is blocked for {blocked}s")
+                # A refused send costs the user nothing — give the claim back.
+                from django.core.cache import cache
+
+                cache.delete(claim_key)
                 return {'error': 'blocked', 'retry_after': blocked}
+
+            # SMS pumping: over budget, the caller gets the ordinary answer
+            # and nothing is sent (the same arm as a closed registration).
+            if (
+                deliver
+                and self.paid_delivery
+                and not (self.use_mock_otp and not force_real_otp)
+                and not sms_budget_allows(client_ip)
+            ):
+                deliver = False
 
             # Generate code (force real OTP for admin accounts; an
             # undelivered code is ALWAYS real — the mock code is public)
@@ -323,6 +383,10 @@ class _OtpCodeService:
                 max_attempts=self.max_attempts,
                 device_id=device_id,
             )
+            # A fresh code arrives with a fresh guess budget.
+            from django.core.cache import cache
+
+            cache.delete(self._guess_key(identifier))
 
             if not deliver:
                 # Nothing is sent and nothing is logged about the code — the
@@ -359,6 +423,20 @@ class _OtpCodeService:
         both, so a fresh code always arrives with a fresh budget.
         """
         try:
+            # The store keeps the attempt count inside the code entry and
+            # updates it read-modify-write, so N parallel guesses all read the
+            # same count. This counter is atomic: no more than max_attempts
+            # checks ever reach one code, however they are timed.
+            from stapel_auth.counters import bump
+
+            guesses = bump(self._guess_key(identifier), max(int(self.otp_ttl), 1))
+            if guesses > self.max_attempts:
+                retry_after = self.store.blocked_for(identifier) or self.store.block(
+                    identifier, self.block_duration
+                )
+                self.store.discard(identifier)
+                logger.warning(f"Guess budget spent for {self.channel}")
+                return {'error': 'blocked', 'retry_after': retry_after}
             check = self.store.check(
                 identifier, code, block_seconds=self.block_duration
             )
@@ -383,6 +461,7 @@ class PhoneVerificationService(_OtpCodeService):
 
     store = phone_code_store
     channel = 'phone'
+    paid_delivery = True
 
     def __init__(self):
         from stapel_auth.conf import auth_settings
@@ -398,9 +477,10 @@ class PhoneVerificationService(_OtpCodeService):
     # Thin overrides: `phone=` / `email=` are keyword arguments callers pass
     # by name, so the parameter is part of the signature, not an internal one.
     def send_verification_code(self, phone, device_id=None, force_real_otp=False,
-                               deliver=True):
+                               deliver=True, client_ip=None):
         return super().send_verification_code(
-            phone, device_id, force_real_otp=force_real_otp, deliver=deliver
+            phone, device_id, force_real_otp=force_real_otp, deliver=deliver,
+            client_ip=client_ip,
         )
 
     def verify_code(self, phone, code):
@@ -437,9 +517,10 @@ class EmailVerificationService(_OtpCodeService):
         self.resend_cooldown = auth_settings.OTP_RESEND_COOLDOWN
 
     def send_verification_code(self, email, device_id=None, force_real_otp=False,
-                               deliver=True):
+                               deliver=True, client_ip=None):
         return super().send_verification_code(
-            email, device_id, force_real_otp=force_real_otp, deliver=deliver
+            email, device_id, force_real_otp=force_real_otp, deliver=deliver,
+            client_ip=client_ip,
         )
 
     def verify_code(self, email, code):

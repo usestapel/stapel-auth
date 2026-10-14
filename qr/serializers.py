@@ -43,14 +43,13 @@ class QRGenerateSerializer(serializers.Serializer):
     def validate_redirect_url(self, value):
         if not value:
             return value
-        # Reject protocol-relative ("//evil.com") and backslash variants --
-        # only single-slash same-site paths.
-        if (
-            value.startswith("/")
-            and not value.startswith("//")
-            and not value.startswith("/\\")
-        ):
-            return value
+        # Same-site paths only, judged after the browser's own normalisation
+        # (tabs/newlines dropped, backslash = slash): stapel_auth.hosts.
+        from stapel_auth.hosts import safe_relative_path
+
+        safe = safe_relative_path(value)
+        if safe:
+            return safe
         raise StapelValidationError(ERR_400_INVALID_REDIRECT_URL)
 
 

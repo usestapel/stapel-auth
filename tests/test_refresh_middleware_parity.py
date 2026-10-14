@@ -80,8 +80,9 @@ class RefreshMiddlewareParityTests(APITestCase):
             _middleware_mints(self.refresh),
             "the middleware minted from a refresh token the view refuses",
         )
-        # The token the rotation handed out still works everywhere.
-        self.assertTrue(_middleware_mints(current))
+        # Reuse detection: replaying the superseded token ended the session,
+        # so the token the rotation handed out is refused everywhere too.
+        self.assertFalse(_middleware_mints(current))
 
     def test_a_revoked_session_is_refused_by_both(self):
         UserSession.objects.filter(pk=self.session.pk).update(is_revoked=True)

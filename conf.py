@@ -111,6 +111,15 @@ DEFAULTS = {
     # `anonymous` capability. Independent of the email/phone method gates.
     'AUTH_ANONYMOUS': True,
 
+    # SMS budget (SMS pumping): every real text this module sends costs the
+    # deployment money, and the phone OTP doors are unauthenticated. Two
+    # fixed hourly windows, checked atomically before a code is delivered:
+    # per client IP and for the whole deployment. Over budget, the caller
+    # gets the ordinary "code sent" answer and nothing is sent — a pumper
+    # learns nothing to rotate on. 0 disables a limit.
+    'SMS_BUDGET_PER_IP_PER_HOUR': 10,
+    'SMS_BUDGET_GLOBAL_PER_HOUR': 300,
+
     # JWT cookies (override if needed; usually inherited from stapel-core settings)
     'JWT_COOKIE_DOMAIN': None,
 
@@ -365,6 +374,11 @@ DEFAULTS = {
     # Password login: on by default (a password alone is phishable) —
     # preserves the pre-0.3 behavior; opt out with PASSWORD_LOGIN_STEP_UP=False.
     'PASSWORD_LOGIN_STEP_UP': True,
+    # Email/SMS one-time-code login: on by default. A code proves control of
+    # an inbox or a SIM, which is exactly what a TOTP device is enrolled to
+    # protect against — without this, the OTP door walked past the second
+    # factor that the password door demands.
+    'OTP_LOGIN_STEP_UP': True,
 
     # Which session-issuance paths the first-login policy flags
     # (password_change_required / mfa_enrollment_required) block. See

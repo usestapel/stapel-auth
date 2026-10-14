@@ -26,8 +26,9 @@ PYTHON ?= python3
 # trimmed-to-fit context file is indistinguishable from a complete one at the
 # point of use, which is the failure mode the hard-budget gate exists to
 # prevent. This is a deliberate, reviewed exception, not a workaround of the
-# gate: contract-check below enforces the same 8000 ceiling, it does not
-# disable the check.
+# gate: contract-check below enforces the same ceiling, it does not
+# disable the check. Raised to 8200 in 0.48.0: the OTP_LOGIN_STEP_UP axis (a
+# security gate, real surface) took the file ~30 tokens past 8000.
 #
 # README.md is the SIXTH artifact (tracker #257): assembled by
 # stapel_tools.readme from docs/readme.md (the human half — what this module
@@ -37,7 +38,7 @@ PYTHON ?= python3
 contract:
 	$(PYTHON) -m stapel_auth._codegen --out docs
 	$(PYTHON) -m stapel_auth._capabilities --out docs
-	$(PYTHON) -m stapel_tools.llms_txt . --budget 8000
+	$(PYTHON) -m stapel_tools.llms_txt . --budget 8200
 	$(PYTHON) -m stapel_tools.readme .
 
 # Drift gate: regenerate into a temp dir and diff against the committed docs/*.json
@@ -46,7 +47,7 @@ contract-check:
 	@tmp=$$(mktemp -d); \
 	$(PYTHON) -m stapel_auth._codegen --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
 	$(PYTHON) -m stapel_auth._capabilities --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
-	$(PYTHON) -m stapel_tools.llms_txt . --out "$$tmp" --budget 8000 || { rm -rf "$$tmp"; exit 1; }; \
+	$(PYTHON) -m stapel_tools.llms_txt . --out "$$tmp" --budget 8200 || { rm -rf "$$tmp"; exit 1; }; \
 	rc=0; \
 	for f in schema.json flows.json errors.json capabilities.json llms.txt; do \
 		if ! diff -q "docs/$$f" "$$tmp/$$f" >/dev/null 2>&1; then \

@@ -157,12 +157,21 @@ class ResetPasswordIsTemporaryTests(TestCase):
         self.assertTrue(user.password_change_required)
         self.assertTrue(user.mfa_enrollment_required)
 
-    def test_suppressing_the_demand_is_possible_and_explicit(self):
+    def test_the_forced_change_cannot_be_suppressed(self):
+        """A password the admin knows stops working at first use, whatever
+        the caller asked for — an empty set no longer waives it."""
         user = _user()
         result = _reset(user, first_login_policies=[])
-        self.assertEqual(result["first_login_policies_applied"], [])
+        self.assertEqual(result["first_login_policies_applied"], ["password_change"])
         user.refresh_from_db()
-        self.assertFalse(user.password_change_required)
+        self.assertTrue(user.password_change_required)
+
+    def test_mfa_alone_still_gets_the_forced_change(self):
+        user = _user()
+        result = _reset(user, first_login_policies=["mfa_enroll"])
+        self.assertEqual(
+            result["first_login_policies_applied"], ["password_change", "mfa_enroll"]
+        )
 
     def test_malformed_policy_set_is_refused_by_the_schema(self):
         user = _user()

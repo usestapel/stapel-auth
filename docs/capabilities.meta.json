@@ -153,6 +153,11 @@
       "summary": "Require a two-factor code after password login for TOTP-enrolled accounts. On by default — a password alone is phishable.",
       "behavior": "When on, a successful password login with a TOTP-enrolled account returns a TOTP challenge instead of tokens."
     },
+    "OTP_LOGIN_STEP_UP": {
+      "business_label": "Extra verification after email or SMS code sign-in",
+      "summary": "Require a two-factor code after email/SMS code login for TOTP-enrolled accounts. On by default.",
+      "behavior": "When on, such a login returns a TOTP challenge instead of tokens."
+    },
     "AUTH_EMAIL_PLACEMENT": {
       "business_label": "Where the email sign-in method appears",
       "summary": "Controls whether the email one-time-code method renders inline in the primary sign-in tabs, behind the \"more\" menu, or in the bottom button row. Purely presentational."

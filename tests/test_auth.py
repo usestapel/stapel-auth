@@ -366,6 +366,7 @@ class OAuthAuthenticationTests(APITestCase):
         mock_get_user_data.return_value = OAuthUserData(
             id="google-oauth-longavatar",
             email="longavatar@example.com",
+            email_verified=True,
             username="Long Avatar",
             avatar=long_avatar,
         )
@@ -387,6 +388,7 @@ class OAuthAuthenticationTests(APITestCase):
         mock_get_user_data.return_value = OAuthUserData(
             id="google-oauth-hugeavatar",
             email="hugeavatar@example.com",
+            email_verified=True,
             username="Huge Avatar",
             avatar=huge,
         )
@@ -1513,13 +1515,13 @@ class LogoutEndpointTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("message", response.data)
 
-    def test_logout_get_authenticated_returns_success(self):
-        """Logout GET with auth should return success"""
+    def test_logout_get_is_not_a_logout(self):
+        """GET never changes state: a cross-site link must not sign anyone out."""
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get(reverse("logout"))
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
 # =============================================================================
@@ -2432,10 +2434,10 @@ class LogoutEdgeCaseTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_logout_get_request(self):
-        """Logout should work with GET request"""
+        """GET /logout/ is refused — logout is POST only."""
         response = self.client.get(reverse("logout"))
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotEqual(response.status_code, status.HTTP_200_OK)
 
 
 class EmailVerifyMaxAttemptsTests(APITestCase):
@@ -3188,7 +3190,7 @@ class ReservationCheckTests(APITestCase):
         )
 
     def test_email_request_blocked_by_reservation(self):
-        """Email request should return 409 if email is reserved by pending change"""
+        """A reserved email gets the ordinary answer and no usable code."""
         # user_a creates pending delayed change to newemail
         AuthenticatorChangeRequest.objects.create(
             user=self.user_a,
@@ -3205,11 +3207,18 @@ class ReservationCheckTests(APITestCase):
                 "email": "reserved@example.com",
             },
         )
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertIn("reserved", response.data["error"].lower())
+        # A stranger is not told the address is reserved (that would say
+        # somebody is moving their account to it): the ordinary answer, and
+        # no code that could complete a registration.
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        verify = self.client.post(
+            reverse("email_verify"), {"email": "reserved@example.com", "code": "0000"}
+        )
+        self.assertNotEqual(verify.status_code, status.HTTP_200_OK)
+        self.assertFalse(User.objects.filter(email="reserved@example.com").exists())
 
     def test_phone_request_blocked_by_reservation(self):
-        """Phone request should return 409 if phone is reserved by pending change"""
+        """A reserved phone gets the ordinary answer and no usable code."""
         AuthenticatorChangeRequest.objects.create(
             user=self.user_a,
             change_type="phone",
@@ -3224,8 +3233,12 @@ class ReservationCheckTests(APITestCase):
                 "phone": "+13125550600",
             },
         )
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertIn("reserved", response.data["error"].lower())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        verify = self.client.post(
+            reverse("phone_verify"), {"phone": "+13125550600", "code": "0000"}
+        )
+        self.assertNotEqual(verify.status_code, status.HTTP_200_OK)
+        self.assertFalse(User.objects.filter(phone="+13125550600").exists())
 
     def test_email_request_allowed_after_cancel(self):
         """Email request should succeed after reservation is cancelled"""

@@ -36,6 +36,7 @@ from stapel_auth.attribution import (
     record_signup_attribution,
     to_state as attribution_to_state,
 )
+from stapel_auth import flow_binding
 from stapel_auth.errors import *
 from stapel_auth.hosts import frontend_url_for
 from stapel_auth.mfa.dto import TOTPChallengeResponse, TOTPChallengeStatus
@@ -109,6 +110,10 @@ from stapel_auth.signup import notify_user_signed_up
 
 logger = logging.getLogger(__name__)
 
+#: The flow_binding name of the OAuth redirect flow, and how long it may take.
+_OAUTH_FLOW = "oauth"
+_OAUTH_STATE_TTL = 600
+
 
 class OAuthEmailNotVerified(Exception):
     """OAuth email matches an existing account but the provider did not
@@ -163,24 +168,13 @@ def _sanitize_redirect_after(value: str) -> str:
     own scheme, which is how ``http://localhost:3000`` stays usable in local
     development without opening the door to ``http://<registered host>/``.
     """
+    from stapel_auth.hosts import safe_return_target
+
     if not value:
         return ""
-    if value.startswith("/") and not value.startswith("//") and not value.startswith("/\\"):
-        return value
-    from urllib.parse import urlsplit
-
-    from stapel_auth.conf import auth_settings
-    from stapel_auth.hosts import allowed_return_origins, origin_of
-
-    frontend = getattr(auth_settings, "FRONTEND_URL", "") or ""
-    try:
-        scheme = urlsplit(value).scheme.lower()
-    except ValueError:
-        scheme = ""
-    dev_scheme = origin_of(frontend).split(":", 1)[0]
-    if scheme == "https" or (dev_scheme and scheme == dev_scheme):
-        if origin_of(value) in allowed_return_origins():
-            return value
+    safe = safe_return_target(value)
+    if safe:
+        return safe
     logger.warning("Rejected oauth redirect_after target: %r", value)
     return ""
 
@@ -328,19 +322,11 @@ def _anonymous_mint_budget_spent(client_ip: str) -> int:
     limit = auth_settings.ANONYMOUS_RATE_LIMIT_PER_HOUR or 0
     if limit <= 0:
         return 0
+    from stapel_auth.counters import bump
+
     window = 60 * 60
     key = f'anon_mint_rate:{client_ip or "unknown"}'
-    # Atomic: add() opens the window once, incr() spends a slot in one
-    # round trip. A get-then-set let N concurrent requests all read the same
-    # count and all mint.
-    cache.add(key, 0, window)
-    try:
-        count = cache.incr(key)
-    except ValueError:
-        # The window expired between add() and incr(): this is its first slot.
-        cache.add(key, 1, window)
-        count = 1
-    if count > limit:
+    if bump(key, window) > limit:
         # cache.ttl is a django-redis extension; locmem has no ttl to read.
         ttl = cache.ttl(key) if hasattr(cache, 'ttl') else 0
         return max(int(ttl or 0), 1)
@@ -408,7 +394,6 @@ A successful verification clears the cross-code counter and the lock.
     oauth_authorize=extend_schema(tags=["OAuth"]),
     oauth_callback=extend_schema(tags=["OAuth"]),
     logout=extend_schema(tags=["Session"]),
-    logout_get=extend_schema(tags=["Session"]),
     me=extend_schema(tags=["User"]),
     verify_token=extend_schema(tags=["Token"]),
 )
@@ -567,7 +552,12 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 change_type="email",
                 status=AuthenticatorChangeStatus.PENDING,
             ).exists()
-            if reserved:
+            # Only a signed-in account changing its own contact is told the
+            # address is reserved. Anybody else gets the ordinary answer and
+            # no code (below): a 409 here told a stranger that somebody is
+            # moving their account to this email.
+            signed_in = request_user is not None and not request_user.is_anonymous
+            if reserved and signed_in:
                 return StapelErrorResponse(409, ERR_409_EMAIL_RESERVED)
 
             # Check if target email belongs to admin (staff/superuser) - force real OTP
@@ -582,7 +572,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             # authenticated non-anonymous caller is changing their own email.
             # Everything else about this handler stays identical, on purpose —
             # see registration.py on the oracle.
-            deliver = True
+            deliver = not reserved
             if _would_register(target_user, request_user) and not registration_open("email"):
                 behavior = closed_behavior()
                 if behavior == BEHAVIOR_REQUEST:
@@ -641,11 +631,12 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 - `LOGGED_IN` - Existing user logged in
 - `MERGED` - Anonymous user merged into existing account
 - `MODIFIED` - Authenticated user set an email, or re-verified the one already on the account
+- `TOTP_REQUIRED` - LOGGED_IN or MERGED into an account with TOTP enabled (`OTP_LOGIN_STEP_UP`, default on): no session yet — pass `challenge_token` to `POST /totp/challenge/verify/`
 """
         + _WRONG_CODE_LADDER,
         request=EmailAuthVerifySerializer,
         responses={
-            200: AuthResponseSerializer,
+            200: LoginResponseSerializer,
             400: StapelErrorSerializer,
             403: StapelErrorSerializer,
             409: StapelErrorSerializer,
@@ -847,6 +838,14 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     auth_status = AuthStatus.REGISTERED
                     record_signup_attribution(user, attribution)
 
+            # An existing account's second factor is not waived because the
+            # first one was a code instead of a password (OTP_LOGIN_STEP_UP).
+            if auth_status in (AuthStatus.LOGGED_IN, AuthStatus.MERGED):
+                challenge = self._otp_login_step_up(user)
+                if challenge is not None:
+                    self.log_login_attempt(email, "success", request)
+                    return challenge
+
             self.log_login_attempt(email, "success", request)
             access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.OTP_EMAIL)
             tokens_dto = TokenPairResponse(refresh=refresh_token, access=access_token)
@@ -862,6 +861,26 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             set_jwt_cookies(response, access_token, refresh_token)
             set_auth_hint_cookie(response)
             return _add_login_hints(response)
+
+    def _otp_login_step_up(self, user):
+        """A TOTP challenge for *user*, or ``None`` when no second factor is owed.
+
+        Same rule as the password door (``PASSWORD_LOGIN_STEP_UP``): an
+        account with an active TOTP device gets ``TOTP_REQUIRED`` and a
+        ``challenge_token`` for ``POST /totp/challenge/verify/`` instead of a
+        session. Staff accounts are not exempt.
+        """
+        from stapel_auth.conf import auth_settings
+        from stapel_auth.mfa.services import TOTPService
+
+        if not auth_settings.OTP_LOGIN_STEP_UP or not TOTPService.is_enabled(user):
+            return None
+        dto = TOTPChallengeResponse(
+            status=TOTPChallengeStatus.TOTP_REQUIRED,
+            challenge_token=TOTPService.create_challenge(str(user.id)),
+            expires_in=TOTPService.CHALLENGE_TTL,
+        )
+        return StapelResponse(self.get_totp_challenge_response_serializer_class()(dto))
 
     @extend_schema(
         description="""Request phone verification code (SMS OTP).
@@ -948,7 +967,12 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 change_type="phone",
                 status=AuthenticatorChangeStatus.PENDING,
             ).exists()
-            if reserved:
+            # Only a signed-in account changing its own contact is told the
+            # address is reserved. Anybody else gets the ordinary answer and
+            # no code (below): a 409 here told a stranger that somebody is
+            # moving their account to this phone.
+            signed_in = request_user is not None and not request_user.is_anonymous
+            if reserved and signed_in:
                 return StapelErrorResponse(409, ERR_409_PHONE_RESERVED)
 
             # Check if target phone belongs to admin (staff/superuser) - force real OTP
@@ -959,7 +983,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 logger.info(f"Admin account detected for {phone}, forcing real OTP")
 
             # Registration gate (#86) — same shape as email/request above.
-            deliver = True
+            deliver = not reserved
             if _would_register(target_user, request_user) and not registration_open("phone"):
                 behavior = closed_behavior()
                 if behavior == BEHAVIOR_REQUEST:
@@ -974,7 +998,11 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             # Send verification code
             verification_service = PhoneVerificationService()
             verification = verification_service.send_verification_code(
-                phone, device_id, force_real_otp=force_real_otp, deliver=deliver
+                phone,
+                device_id,
+                force_real_otp=force_real_otp,
+                deliver=deliver,
+                client_ip=self.get_client_ip(request),
             )
 
             # Handle different response types
@@ -1018,11 +1046,12 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 - `LOGGED_IN` - Existing user logged in
 - `MERGED` - Anonymous user merged into existing account
 - `MODIFIED` - Authenticated user set a phone, or re-verified the one already on the account
+- `TOTP_REQUIRED` - LOGGED_IN or MERGED into an account with TOTP enabled (`OTP_LOGIN_STEP_UP`, default on): no session yet — pass `challenge_token` to `POST /totp/challenge/verify/`
 """
         + _WRONG_CODE_LADDER,
         request=PhoneAuthVerifySerializer,
         responses={
-            200: AuthResponseSerializer,
+            200: LoginResponseSerializer,
             400: StapelErrorSerializer,
             403: StapelErrorSerializer,
             409: StapelErrorSerializer,
@@ -1185,6 +1214,14 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     notify_user_signed_up(user, request=request, was_guest=False)
                     auth_status = AuthStatus.REGISTERED
                     record_signup_attribution(user, attribution)
+
+            # An existing account's second factor is not waived because the
+            # first one was a code instead of a password (OTP_LOGIN_STEP_UP).
+            if auth_status in (AuthStatus.LOGGED_IN, AuthStatus.MERGED):
+                challenge = self._otp_login_step_up(user)
+                if challenge is not None:
+                    self.log_login_attempt(phone, "success", request)
+                    return challenge
 
             self.log_login_attempt(phone, "success", request)
             access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.OTP_PHONE)
@@ -1456,10 +1493,15 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         # The pin closes the other direction — a cookie that changed
         # mid-flight (another tab signed out, a second guest minted) must not
         # silently upgrade a session that never opened this flow.
+        # The state alone proves somebody started this flow, not that THIS
+        # browser did: the cookie set below binds it (flow_binding), and the
+        # callback refuses a browser that cannot present it.
+        binding_nonce, binding_digest = flow_binding.new_binding()
         cache.set(
             f"oauth_state:{state}",
             {
                 "provider": provider,
+                "binding": binding_digest,
                 "redirect_uri": redirect_uri,
                 "redirect_after": request.query_params.get("redirect_uri", ""),
                 "user_id": (
@@ -1469,10 +1511,12 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 ),
                 "attribution": attribution_to_state(attribution),
             },
-            timeout=600,
+            timeout=_OAUTH_STATE_TTL,
         )
 
-        return redirect(p.get_authorization_url(cfg.client_id, redirect_uri, state))
+        response = redirect(p.get_authorization_url(cfg.client_id, redirect_uri, state))
+        flow_binding.bind(response, _OAUTH_FLOW, binding_nonce, _OAUTH_STATE_TTL)
+        return response
 
     @extend_schema(
         description="OAuth provider callback — exchanges code for JWT and redirects to frontend",
@@ -1483,6 +1527,13 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     )
     def oauth_callback(self, request, provider=None):  # noqa: R007
         """Handle OAuth authorization code callback"""
+        # One flow, one use: whatever the outcome, the browser's binding
+        # cookie for it is spent.
+        response = self._oauth_callback(request, provider)
+        flow_binding.clear(response, _OAUTH_FLOW)
+        return response
+
+    def _oauth_callback(self, request, provider):
         from urllib.parse import urlencode
 
         from django.core.cache import cache
@@ -1502,6 +1553,16 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if not state_data or state_data.get("provider") != provider:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
         cache.delete(f"oauth_state:{state}")
+        if not flow_binding.is_bound(request, _OAUTH_FLOW, state_data.get("binding")):
+            # A valid state presented by a browser that did not start the
+            # flow: somebody else's code being replayed into this browser
+            # (login CSRF). Nothing is exchanged, nobody is signed in, and
+            # no guest in this browser is merged anywhere.
+            logger.warning(
+                "oauth callback refused: state %s... not bound to this browser",
+                state[:8],
+            )
+            return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
 
         p = PROVIDER_REGISTRY.get(provider)
         if not p:
@@ -1708,7 +1769,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         # in as the victim.
         email_verified = bool(getattr(user_data, "email_verified", False))
         if email:
-            existing = User.objects.filter(email=email).first()
+            # Addresses are compared case-insensitively: Victim@x and victim@x
+            # are one mailbox, and an exact match would let the first one
+            # through as a "new" identity beside the real account.
+            existing = User.objects.filter(email__iexact=email).first()
             if existing is not None:
                 if email_verified:
                     return claim(
@@ -1725,6 +1789,13 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         avatar = user_data.avatar
         if avatar and len(avatar) > 500:
             avatar = None
+
+        # An address the provider did not verify is not stored at all. Kept,
+        # it would occupy that mailbox here: its real owner's later email
+        # sign-in would land in THIS account, which the OAuth identity can
+        # still open (pre-account takeover).
+        if not email_verified:
+            email = None
 
         # 3. Fresh anchor + an anonymous guest session already in progress —
         # attach to that row instead of creating (and thereby orphaning) a
@@ -1801,17 +1872,6 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         """POST endpoint to logout user"""
         return self._logout(request)
 
-    @extend_schema(
-        description="Logout user via GET request (for cookie-based authentication). Blacklists both access and refresh tokens.",
-        responses={200: LogoutResponseSerializer, 400: StapelErrorSerializer},
-    )
-    @action(
-        detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated]
-    )
-    def logout_get(self, request):  # noqa: R007
-        """GET endpoint to logout user (for cookie-based authentication)"""
-        return self._logout(request)
-
     def _logout(self, request):
         """Internal method to handle logout and blacklist tokens"""
         try:
@@ -1868,7 +1928,9 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             # Blacklist refresh token and revoke session
             if refresh_token:
                 try:
-                    payload = jwt_handler.decode_token(refresh_token, verify=False)
+                    # Verified: this jti revokes a session row, and an
+                    # unsigned token naming somebody else's jti must not.
+                    payload = jwt_handler.decode_token(refresh_token)
                     if payload and "jti" in payload:
                         jti = payload["jti"]
                         exp = payload.get("exp")

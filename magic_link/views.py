@@ -50,16 +50,15 @@ class MagicLinkViewSet(SerializerSeamsMixin, ViewSet):
         email = ser.validated_data["email"].lower()
         redirect_url = ser.validated_data.get("redirect_url") or "/"
         U = _get_user_model()
-        # Always return same response to not leak user existence
-        try:
-            user = U.objects.get(email=email, is_active=True)
-            sent = MagicLinkService.send(
-                user, request=request, redirect_url=redirect_url
+        # Same answer whether or not the address is registered — including
+        # the 429: the hourly cap is spent for every requested address.
+        if not MagicLinkService.spend_rate(email):
+            return StapelErrorResponse(429, ERR_429_MAGIC_LINK_RATE)
+        user = U.objects.filter(email__iexact=email, is_active=True).first()
+        if user is not None:
+            MagicLinkService.send(
+                user, request=request, redirect_url=redirect_url, rate_spent=True
             )
-            if not sent:
-                return StapelErrorResponse(429, ERR_429_MAGIC_LINK_RATE)
-        except U.DoesNotExist:
-            pass
         return StapelResponse(
             self.get_response_serializer_class()(
                 {"message": "If this email is registered, an email link has been sent."}

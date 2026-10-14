@@ -438,7 +438,7 @@ class PasswordService:
         SessionService.revoke_all(user, except_jti=except_jti)
 
     @classmethod
-    def reset_request(cls, *, email=None, phone=None) -> str:
+    def reset_request(cls, *, email=None, phone=None, client_ip=None) -> str:
         """Send reset OTP. Returns masked target. Raises StapelServiceError."""
         from django.contrib.auth import get_user_model
 
@@ -459,7 +459,9 @@ class PasswordService:
         except User.DoesNotExist:
             raise StapelServiceError(404, ERR_404_USER_FOR_RESET)
         cls._check_mock_admin(user)
-        result = PhoneVerificationService().send_verification_code(phone)
+        result = PhoneVerificationService().send_verification_code(
+            phone, client_ip=client_ip
+        )
         cls._raise_for_otp_result(result)
         return cls.mask_phone(phone)
 

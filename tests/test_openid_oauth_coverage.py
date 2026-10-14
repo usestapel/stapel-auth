@@ -238,7 +238,8 @@ class GitHubProviderCoverageTests(APITestCase):
             _make_response(status_code=500),
         ]
         result = self._github().get_user_data("tok")
-        self.assertEqual(result.email, "p@example.com")
+        # Unverified: no address at all, not the public profile field.
+        self.assertIsNone(result.email)
         self.assertFalse(result.email_verified)
 
     @patch("stapel_auth.oauth_providers.requests.get")
@@ -249,7 +250,8 @@ class GitHubProviderCoverageTests(APITestCase):
             Exception("network down"),
         ]
         result = self._github().get_user_data("tok")
-        self.assertEqual(result.email, "e@example.com")
+        # Unverified: no address at all, not the public profile field.
+        self.assertIsNone(result.email)
         self.assertFalse(result.email_verified)
 
     @patch("stapel_auth.oauth_providers.requests.get")
@@ -260,7 +262,8 @@ class GitHubProviderCoverageTests(APITestCase):
             _make_response(json_data={"message": "Not Found"}),
         ]
         result = self._github().get_user_data("tok")
-        self.assertEqual(result.email, "d@example.com")
+        # Unverified: no address at all, not the public profile field.
+        self.assertIsNone(result.email)
         self.assertFalse(result.email_verified)
 
     @patch("stapel_auth.oauth_providers.requests.get")
@@ -292,7 +295,8 @@ class GitHubProviderCoverageTests(APITestCase):
 
     @patch("stapel_auth.oauth_providers.requests.get")
     def test_no_public_email_falls_back_to_first(self, mock_get):
-        """No profile e-mail and no primary+verified -> first listed (lines 88-89)."""
+        """No primary+verified address -> no address: an unverified entry is
+        a claim on somebody's mailbox, not an identity."""
         mock_get.side_effect = [
             _make_response(json_data={"id": 5, "login": "gh5", "email": None}),
             _make_response(
@@ -302,7 +306,7 @@ class GitHubProviderCoverageTests(APITestCase):
             ),
         ]
         result = self._github().get_user_data("tok")
-        self.assertEqual(result.email, "first@example.com")
+        self.assertIsNone(result.email)
         self.assertFalse(result.email_verified)
 
 

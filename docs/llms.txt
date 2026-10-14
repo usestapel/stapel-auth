@@ -1,8 +1,8 @@
-# stapel-auth 0.47.1
+# stapel-auth 0.48.0
 
 User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.
 
-Contract: axes 31 · surface 18 · extension points 7 · operations 123 · error codes 144 · flows 4.
+Contract: axes 32 · surface 18 · extension points 7 · operations 122 · error codes 144 · flows 4.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -12,12 +12,12 @@ Settings keys; `default` is what you get by saying nothing. Turning an axis off 
   gates 1 operation(s)
 - AUTH_EMAIL_LOGIN [bool, default true] — Sign-in with an email code
   Existing users sign in by receiving a one-time code by email.
-  gates 22 operation(s); kept mounted by AUTH_EMAIL_REGISTRATION, AUTH_PHONE_LOGIN, AUTH_PHONE_REGISTRATION
+  gates 21 operation(s); kept mounted by AUTH_EMAIL_REGISTRATION, AUTH_PHONE_LOGIN, AUTH_PHONE_REGISTRATION
 - AUTH_EMAIL_PLACEMENT [enum, default "main"] — Where the email sign-in method appears
   Controls whether the email one-time-code method renders inline in the primary sign-in tabs, behind the "more" menu, or in the bottom button row. Purely presentational.
 - AUTH_EMAIL_REGISTRATION [bool, default true] — Sign-up with an email address
   New users can create an account by confirming their email with a one-time code.
-  gates 22 operation(s); kept mounted by AUTH_EMAIL_LOGIN, AUTH_PHONE_LOGIN, AUTH_PHONE_REGISTRATION
+  gates 21 operation(s); kept mounted by AUTH_EMAIL_LOGIN, AUTH_PHONE_LOGIN, AUTH_PHONE_REGISTRATION
 - AUTH_LEGACY_TOKEN_LOGIN [bool, default false] — Sign-in through the legacy token endpoint
   Deprecated alias of password sign-in for clients pinned to the old token-pair response. Off by default; needs password sign-in on as well.
   gates 1 operation(s)
@@ -56,12 +56,12 @@ Settings keys; `default` is what you get by saying nothing. Turning an axis off 
   gates 11 operation(s); kept mounted by AUTH_PASSWORD_LOGIN
 - AUTH_PHONE_LOGIN [bool, default true] — Sign-in with a phone number
   Existing users sign in by receiving a one-time SMS code.
-  gates 22 operation(s); kept mounted by AUTH_EMAIL_LOGIN, AUTH_EMAIL_REGISTRATION, AUTH_PHONE_REGISTRATION
+  gates 21 operation(s); kept mounted by AUTH_EMAIL_LOGIN, AUTH_EMAIL_REGISTRATION, AUTH_PHONE_REGISTRATION
 - AUTH_PHONE_PLACEMENT [enum, default "main"] — Where the phone sign-in method appears
   Controls whether the phone one-time-code method renders inline in the primary sign-in tabs, behind the "more" menu, or in the bottom button row. Purely presentational.
 - AUTH_PHONE_REGISTRATION [bool, default true] — Sign-up with a phone number
   New users can create an account by confirming their phone number with a one-time SMS code.
-  gates 22 operation(s); kept mounted by AUTH_EMAIL_LOGIN, AUTH_EMAIL_REGISTRATION, AUTH_PHONE_LOGIN
+  gates 21 operation(s); kept mounted by AUTH_EMAIL_LOGIN, AUTH_EMAIL_REGISTRATION, AUTH_PHONE_LOGIN
 - AUTH_QR_LOGIN [bool, default true] — Sign-in by QR code from another device
   A signed-in device shows a QR code; scanning it signs the user in on the new device.
   gates 5 operation(s)
@@ -84,6 +84,8 @@ Settings keys; `default` is what you get by saying nothing. Turning an axis off 
   gates 9 operation(s); kept mounted by AUTH_PASSKEY_LOGIN
 - OAUTH_STEP_UP [bool, default false] — Extra verification after social sign-in
   Require a two-factor code even after a social (OAuth) login. Off by default — the provider already authenticated the user.
+- OTP_LOGIN_STEP_UP [bool, default true] — Extra verification after email or SMS code sign-in
+  Require a two-factor code after email/SMS code login for TOTP-enrolled accounts. On by default.
 - PASSWORD_LOGIN_STEP_UP [bool, default true] — Extra verification after password sign-in
   Require a two-factor code after password login for TOTP-enrolled accounts. On by default — a password alone is phishable.
 
@@ -166,7 +168,7 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - stapel-gdpr (optional) — default REREGISTRATION_MODEL target (lazy dotted path); co-mounted under /auth/api/ in the contract harness
 - stapel-notifications (optional) — delivers the OTP / magic-link / security emails and SMS this module requests via notification.requested
 
-## HTTP operations (123) — call by operationId, never by a typed path
+## HTTP operations (122) — call by operationId, never by a typed path
 Paths are relative to `/auth/api/v1/`.
 ### API Keys
 - POST /service-keys — auth_api_v1_service_keys_create
@@ -279,7 +281,6 @@ Paths are relative to `/auth/api/v1/`.
 - GET /security/status/ — auth_api_v1_security_status_retrieve
 ### Session
 - POST /logout/ — auth_api_v1_logout_create
-- GET /logout/ — auth_api_v1_logout_retrieve
 - POST /sessions/{session_id}/confirm/ — auth_api_v1_sessions_confirm_create
 - DELETE /sessions/ — auth_api_v1_sessions_destroy
 - DELETE /sessions/{session_id}/ — auth_api_v1_sessions_destroy_2

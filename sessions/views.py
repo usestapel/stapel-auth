@@ -491,6 +491,10 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
                         _uid,
                     )
                 else:
+                    # A superseded token outside the grace window: the
+                    # session it belonged to is compromised (reuse).
+                    # revoke_on_reuse leaves a graced racer alone itself.
+                    SessionService.revoke_on_reuse(old_jti, user_id=_uid)
                     return StapelErrorResponse(401, ERR_401_REFRESH_REVOKED)
         else:
             new_refresh_token = refresh_token

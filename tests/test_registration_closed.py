@@ -577,7 +577,7 @@ class OpenRegistrationIsUnaffectedTests(APITestCase):
     def test_oauth_still_registers(self, mock_user_data):
         mock_user_data.return_value = OAuthUserData(
             id="google-fresh-1", email="fresh-oauth@example.com",
-            username="Fresh", avatar=None,
+            username="Fresh", avatar=None, email_verified=True,
         )
         resp = self.client.post(
             reverse("oauth_login"),

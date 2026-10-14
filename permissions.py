@@ -23,7 +23,6 @@ ENROLL_ONLY_ALLOWED_ACTIONS = frozenset({
     ("PasskeyViewSet", "register_begin"),
     ("PasskeyViewSet", "register_complete"),
     ("AuthViewSet", "logout"),
-    ("AuthViewSet", "logout_get"),
 })
 
 
