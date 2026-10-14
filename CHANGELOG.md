@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.47.1] — 2026-10-15
+
+### Fixed — the guest-mint budget is spent atomically
+
+`POST /anonymous/` counted its per-client hourly budget
+(`ANONYMOUS_RATE_LIMIT_PER_HOUR`) with a cache read followed by a write, so
+concurrent requests all read the same count and all minted. The budget is now
+opened with `cache.add` and spent with `cache.incr`; the window is fixed from
+the first mint rather than slid by each one.
+
 ## [0.47.0] — 2026-10-14
 
 Minor: a new column (migration `0028_signupattribution_landing_ref`,

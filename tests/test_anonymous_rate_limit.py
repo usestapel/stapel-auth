@@ -48,6 +48,18 @@ class AnonymousMintingIsCappedTests(APITestCase):
             User.objects.count() - before, 3, "a refused mint still created a row"
         )
 
+    def test_a_stale_read_cannot_reopen_the_budget(self):
+        """Concurrent mints all read the same count under get-then-set and
+        all pass. Simulated by a cache whose reads always lag: the budget
+        must still hold, because spending is one atomic increment."""
+        from unittest import mock
+
+        before = User.objects.count()
+        with mock.patch.object(cache, "get", lambda *a, **k: 0):
+            codes = [self._mint().status_code for _ in range(5)]
+        self.assertEqual(codes, [201, 201, 201, 429, 429])
+        self.assertEqual(User.objects.count() - before, 3)
+
     def test_the_budget_is_per_client(self):
         for _ in range(3):
             self.assertEqual(self._mint(ip="10.0.0.7").status_code, 201)

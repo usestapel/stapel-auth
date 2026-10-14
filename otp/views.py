@@ -330,12 +330,20 @@ def _anonymous_mint_budget_spent(client_ip: str) -> int:
         return 0
     window = 60 * 60
     key = f'anon_mint_rate:{client_ip or "unknown"}'
-    count = cache.get(key) or 0
-    if count >= limit:
+    # Atomic: add() opens the window once, incr() spends a slot in one
+    # round trip. A get-then-set let N concurrent requests all read the same
+    # count and all mint.
+    cache.add(key, 0, window)
+    try:
+        count = cache.incr(key)
+    except ValueError:
+        # The window expired between add() and incr(): this is its first slot.
+        cache.add(key, 1, window)
+        count = 1
+    if count > limit:
         # cache.ttl is a django-redis extension; locmem has no ttl to read.
         ttl = cache.ttl(key) if hasattr(cache, 'ttl') else 0
         return max(int(ttl or 0), 1)
-    cache.set(key, count + 1, window)
     return 0
 
 
