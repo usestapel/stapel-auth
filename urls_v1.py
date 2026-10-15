@@ -20,7 +20,7 @@ exactly as before.
 from typing import NamedTuple
 
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 from stapel_auth.sessions.views import CustomTokenObtainPairView, CustomTokenRefreshView, SessionViewSet
 from stapel_auth.otp.views import AuthViewSet, AuthenticatorChangeViewSet
 from stapel_auth.oauth.views import OAuthLinkViewSet
@@ -384,7 +384,9 @@ def get_site_bootstrap_urls(enabled=None):
 
 def get_admin_api_urls(enabled=None):
     """Service keys, capabilities, admin user broker, admin audit. Always on."""
-    router = DefaultRouter(trailing_slash=False)
+    # SimpleRouter: no API root view, so the bare v1/ prefix stays free for a
+    # sibling module mounted under the same prefix.
+    router = SimpleRouter(trailing_slash=False)
     router.register(r'service-keys', ServiceAPIKeyViewSet, basename='service-keys')
     return _gated('admin_api', enabled, (), [
         # Router URLs

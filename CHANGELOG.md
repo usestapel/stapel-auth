@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.48.1] — 2026-10-15
+
+Patch: the service-keys router no longer owns the bare `v1/` path. It was a
+DRF `DefaultRouter`, whose API root view answered `<prefix>/api/v1/` and so
+captured the list/create route of any module mounted under the same prefix
+(a monolith with one service prefix lost its workspaces list). It is a
+`SimpleRouter` now; the service-keys routes and their names are unchanged.
+
 ## [0.48.0] — 2026-10-15
 
 Minor, security. Several answers change shape for callers that relied on
