@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.49.0] — 2026-10-22
+
+Minor (pre-1.0: a minor is breaking): password registration no longer marks
+the typed email/phone verified.
+
+### Security — account pre-hijacking through password registration
+
+`POST /password/register/` stored a caller-supplied email/phone as verified.
+An attacker registered a victim's address with their own password; the
+victim's later email sign-in landed in that row, where the attacker was
+signed in. The anchors are now stored unverified, and the first proof of an
+unproven anchor on an existing account (OTP, magic link, verified OAuth email,
+guest merge) takes it over: `accounts.claim_by_proof` revokes every session
+and removes the password and passkeys, then marks the anchor proven. Accounts
+issued under a username (`auth_type="login"`) keep their credentials.
+
+### Fixed — an authenticator change left other sessions signed in
+
+`_invalidate_all_tokens`, run after an instant or delayed (14-day) phone/email
+change, revoked only `RefreshTokenTracker` rows, a table nothing writes. It now
+revokes every `UserSession` through `SessionService.revoke_all`; the instant
+flow re-issues the caller a fresh pair.
+
+### Fixed — accounts born without `user.registered`
+
+The phone-OTP door, `POST /admin/users/` and SSO provisioning created users
+without the event profiles, workspaces and notifications provision on. Every
+creation site now goes through `accounts.create_account`; an architecture test
+refuses a bare `User.objects.create` elsewhere.
+
+### Fixed — one mailbox could become two accounts
+
+The OTP, password, passkey, SSO and login-grant doors matched email exactly,
+so `Alice@x.com` and `alice@x.com` were two accounts and a password login over
+both raised `MultipleObjectsReturned` (a 500). Every door now matches through
+`accounts.users_by_email` (case-insensitive, oldest first); a password login
+tries each case-variant account. `manage.py auth_email_duplicates` lists
+existing duplicates without writing; no data is changed.
+
 ## [0.48.1] — 2026-10-15
 
 Patch: the service-keys router no longer owns the bare `v1/` path. It was a

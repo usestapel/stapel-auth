@@ -137,13 +137,14 @@ class CustomTokenObtainPairView(SerializerSeamsMixin, APIView):
 
         if user is None:
             # Try email authentication
-            try:
-                user_by_email = User.objects.get(email=username)
+            from stapel_auth.accounts import users_by_email
+
+            for user_by_email in users_by_email(username):
                 user = authenticate(
                     request, username=user_by_email.username, password=password
                 )
-            except User.DoesNotExist:
-                pass
+                if user is not None:
+                    break
 
         if user is None:
             count = LockoutService.record_failure(username)

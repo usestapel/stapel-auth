@@ -84,12 +84,9 @@ class AdminUserViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["post"])
     def create_user(self, request):  # noqa: R007
-        from django.contrib.auth import get_user_model
         from stapel_core.django.api.errors import error_403_forbidden
 
         from stapel_auth.permissions import IsServiceAPIKey
-
-        User = get_user_model()
 
         # Allow either staff user or service API key
         is_svc_key = IsServiceAPIKey().has_permission(request, self)
@@ -110,7 +107,11 @@ class AdminUserViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         mark_verified = data.get("mark_verified", True)
         send_welcome = data.get("send_welcome", False)
 
-        user = User.objects.create(
+        from stapel_auth.accounts import create_account
+
+        user = create_account(
+            request=request,
+            display_name=display_name,
             email=email,
             phone=phone,
             username=username or (email.split("@")[0] if email else phone),

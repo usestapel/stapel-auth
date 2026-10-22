@@ -459,9 +459,15 @@ def _callee(call_node):
     return None
 
 
+#: The creation primitive every site calls (``accounts.create_account``): it
+#: makes the row and announces ``user.registered``; whether a birth is a
+#: sign-up is its caller's question, so the callers are what is classified.
+PRIMITIVES = {"accounts.py::create_account"}
+
+
 def _makes_an_account(call_node):
     f = call_node.func
-    if _callee(call_node) == "promote_anonymous_session":
+    if _callee(call_node) in ("promote_anonymous_session", "create_account"):
         return True
     if not isinstance(f, ast.Attribute):
         return False
@@ -511,7 +517,7 @@ class TestDoorInventory:
     def test_every_account_making_function_is_classified(self):
         functions = _functions()
         makers = {name for name, fn in functions.items() if _calls(fn, _makes_an_account)}
-        classified = DOORS | set(EMITTED_BY_CALLER) | set(NOT_SELF_SERVE)
+        classified = DOORS | set(EMITTED_BY_CALLER) | set(NOT_SELF_SERVE) | PRIMITIVES
         assert makers - classified == set(), (
             "new account-making code: emit user.signed_up there (DOORS) or "
             "list it in NOT_SELF_SERVE with the reason"

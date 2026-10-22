@@ -107,6 +107,12 @@ from stapel_auth.sessions.serializers import (
     UserSerializer,
 )
 from stapel_auth.signup import notify_user_signed_up
+from stapel_auth.accounts import (
+    claim_by_proof,
+    create_account,
+    find_user_by_email,
+    users_by_email,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -528,7 +534,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             if request_user and not request_user.is_anonymous:
                 # Non-anonymous user trying to add/change email
                 existing_user = (
-                    User.objects.filter(email=email).exclude(id=request_user.id).first()
+                    users_by_email(email).exclude(id=request_user.id).first()
                 )
                 if existing_user:
                     return StapelErrorResponse(409, ERR_409_EMAIL_TAKEN)
@@ -562,7 +568,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
             # Check if target email belongs to admin (staff/superuser) - force real OTP
             force_real_otp = False
-            target_user = User.objects.filter(email=email).first()
+            target_user = find_user_by_email(email)
             if target_user and (target_user.is_staff or target_user.is_superuser):
                 force_real_otp = True
                 logger.info(f"Admin account detected for {email}, forcing real OTP")
@@ -765,7 +771,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             # Code verified successfully - determine auth status
             LockoutService.clear(email)
             request_user = request.user if request.user.is_authenticated else None
-            existing_user = User.objects.filter(email=email).first()
+            existing_user = find_user_by_email(email)
             auth_status = None
             user = None
 
@@ -820,20 +826,22 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             else:
                 # CASE: Unauthenticated user
                 if existing_user:
-                    # LOGGED_IN: Existing account
+                    # LOGGED_IN: Existing account. An address that account
+                    # never proved is taken over by this proof.
                     user = existing_user
-                    user.is_email_verified = True
-                    user.save()
+                    claim_by_proof(user, "is_email_verified")
                     auth_status = AuthStatus.LOGGED_IN
                 else:
                     # REGISTERED: New account — the creation site, and
                     # therefore where the registration gate lives (#86).
                     if not registration_open("email"):
                         return _registration_closed_verify_response()
-                    user = User.objects.create(
-                        email=email, auth_type="email", is_email_verified=True
+                    user = create_account(
+                        announce=lambda created: self._publish_user_registered(
+                            created, request=request
+                        ),
+                        email=email, auth_type="email", is_email_verified=True,
                     )
-                    self._publish_user_registered(user, request=request)
                     notify_user_signed_up(user, request=request, was_guest=False)
                     auth_status = AuthStatus.REGISTERED
                     record_signup_attribution(user, attribution)
@@ -1198,18 +1206,19 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             else:
                 # CASE: Unauthenticated user
                 if existing_user:
-                    # LOGGED_IN: Existing account
+                    # LOGGED_IN: Existing account. A number that account
+                    # never proved is taken over by this proof.
                     user = existing_user
-                    user.is_phone_verified = True
-                    user.save()
+                    claim_by_proof(user, "is_phone_verified")
                     auth_status = AuthStatus.LOGGED_IN
                 else:
                     # REGISTERED: New account — the creation site, and
                     # therefore where the registration gate lives (#86).
                     if not registration_open("phone"):
                         return _registration_closed_verify_response()
-                    user = User.objects.create(
-                        phone=phone, auth_type="phone", is_phone_verified=True
+                    user = create_account(
+                        request=request,
+                        phone=phone, auth_type="phone", is_phone_verified=True,
                     )
                     notify_user_signed_up(user, request=request, was_guest=False)
                     auth_status = AuthStatus.REGISTERED
@@ -1743,6 +1752,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         def claim(survivor, verified_flag, source):
             """Hand *survivor* back, taking the guest's rows along if there is one."""
             if guest is None or str(guest.id) == str(survivor.id):
+                if verified_flag:
+                    claim_by_proof(survivor, verified_flag)
                 return survivor, AuthStatus.LOGGED_IN
             return (
                 merge_anonymous_into(
@@ -1818,7 +1829,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         # protect here: the caller had to hold a valid provider token for
         # this identity to get this far, so the refusal is named.
         require_registration_open("oauth")
-        user = User.objects.create(
+        user = create_account(
+            announce=lambda created: self._publish_user_registered(created, request=request),
             email=email,
             oauth_provider=provider,
             oauth_id=oauth_id,
@@ -1826,7 +1838,6 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             avatar=avatar,
             is_email_verified=email_verified,
         )
-        self._publish_user_registered(user, request=request)
         notify_user_signed_up(user, request=request, was_guest=False)
         return user, AuthStatus.REGISTERED
 

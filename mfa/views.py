@@ -713,11 +713,10 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
         if email:
             from django.contrib.auth import get_user_model
 
+            from stapel_auth.accounts import users_by_email
+
             U = get_user_model()
-            try:
-                user = U.objects.get(email=email, is_active=True)
-            except U.DoesNotExist:
-                pass
+            user = users_by_email(email, U.objects.filter(is_active=True)).first() or user
         try:
             session_key, options_json = PasskeyService.authentication_begin(user)
         except Exception:

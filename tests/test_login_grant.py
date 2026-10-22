@@ -118,7 +118,7 @@ class LoginGrantServiceTests(TestCase):
         self.assertEqual(user.auth_type, "email")
         self.assertTrue(user.is_email_verified)
         self.assertFalse(user.has_usable_password())
-        notify.assert_called_once_with(user, language="ru")
+        notify.assert_called_once_with(user, request=None, language="ru", display_name=None)
 
     def test_exchange_create_respects_unverified_hint(self):
         token = issue_login_grant(

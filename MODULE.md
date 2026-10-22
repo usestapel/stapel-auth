@@ -600,7 +600,12 @@ To close sign-up on a deployment: set the four/five `AUTH_*_REGISTRATION` axes t
 
 ### The sign-up milestone — `user.signed_up` (`signup.py`)
 
-`user.registered` fires at account **creation**, guests included, and workspaces provision on it. It cannot tell a reporter "a person signed up": it counts guests, says nothing when a guest is promoted on the same row, and the phone door never fired it. `user.signed_up` is that fact.
+`user.registered` fires at account **creation**, guests included, and workspaces provision on it. Every creation site goes through `accounts.create_account`, which creates the row and emits it (`tests/test_account_birth.py` refuses a bare `User.objects.create` elsewhere in the package); before 0.49 the phone door, the admin broker and SSO provisioning never fired it. It cannot tell a reporter "a person signed up": it counts guests and says nothing when a guest is promoted on the same row. `user.signed_up` is that fact.
+
+### Anchors and proof (`accounts.py`)
+
+- An email/phone typed into `POST /password/register/` is stored **unverified**. The first proof of that anchor on the existing account (email/phone OTP, magic link, a verified OAuth email, a guest merge) takes the account over: `accounts.claim_by_proof` revokes every session and removes the password and passkeys the other party could have set, then marks the anchor proven. A TOTP device is kept. Accounts issued under a username (`auth.provision_user`, `auth_type="login"`) keep their credentials.
+- Email is matched case-insensitively at every door (`accounts.users_by_email`, oldest row first). `manage.py auth_email_duplicates [--json]` lists accounts that already share one mailbox up to case; it writes nothing. A unique constraint on `lower(email)` is safe to add only once it prints nothing.
 
 **Doors that emit** (each calls `notify_user_signed_up` after the save that made the account signed up):
 

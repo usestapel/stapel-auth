@@ -341,6 +341,7 @@ def provision_user(payload: dict) -> dict:
         ERR_400_USERNAME_NAMESPACE_INVALID,
         ERR_409_USERNAME_TAKEN,
     )
+    from stapel_auth.accounts import create_account
     from stapel_auth.password.services import FirstLoginPolicyService
     from stapel_auth.utils import parse_namespaced_login, validate_local_username
 
@@ -383,7 +384,8 @@ def provision_user(payload: dict) -> dict:
     display_name = payload.get("display_name") or None
     try:
         with transaction.atomic():
-            user = User.objects.create(
+            user = create_account(
+                display_name=display_name,
                 username=username,
                 email=payload.get("email") or None,
                 auth_type="login",
@@ -399,10 +401,6 @@ def provision_user(payload: dict) -> dict:
     except IntegrityError:
         # Lost the race on the unique username — same structured failure.
         return {"error": ERR_409_USERNAME_TAKEN}
-
-    from stapel_auth.otp.views import _notify_user_registered
-
-    _notify_user_registered(user, display_name=display_name)
 
     result = {"user_id": str(user.pk)}
     if generated is not None:

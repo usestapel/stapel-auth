@@ -386,89 +386,37 @@ class ApplyChangePublishErrorTests(TestCase):
 
 
 class InvalidateAllTokensTests(TestCase):
-    def test_loop_over_trackers_valid_and_invalid(self):
-        # Real refresh token (decodes -> jti/exp -> blacklist) + garbage token
-        # (decode raises -> inner except continue) -> lines 645-660
-        from stapel_core.django.jwt.provider import jwt_provider
+    """An authenticator change ends every live session.
 
-        from stapel_auth.models import RefreshTokenTracker
+    It used to revoke only ``RefreshTokenTracker`` rows, a table nothing has
+    written since sessions moved to ``UserSession``: after a contact change
+    (or the 14-day delayed recovery) a stolen session stayed signed in.
+    """
+
+    def _session(self, user, jti):
+        from stapel_auth.sessions.services import SessionService
+
+        return SessionService.create(
+            user, jti, timezone.now() + timedelta(days=7), access_jti=f"a-{jti}"
+        )
+
+    def test_every_live_session_is_revoked(self):
+        from stapel_auth.models import UserSession
         from stapel_auth.otp.services import AuthenticatorChangeService
 
         user = _make_user()
-        _access, refresh = jwt_provider.create_tokens(user)
-        RefreshTokenTracker.objects.create(
-            user=user,
-            token=refresh,
-            expires_at=timezone.now() + timedelta(days=7),
-        )
-        RefreshTokenTracker.objects.create(
-            user=user,
-            token="not-a-real-jwt-token",
-            expires_at=timezone.now() + timedelta(days=7),
-        )
-        # Token with a jti but no exp -> `if exp:` false branch (655->650)
-        import jwt as _jwt
+        other = _make_user()
+        self._session(user, "victim-laptop")
+        self._session(user, "attacker-copy")
+        self._session(other, "someone-else")
 
-        RefreshTokenTracker.objects.create(
-            user=user,
-            token=_jwt.encode({"jti": "no-exp"}, "x" * 32, algorithm="HS256"),
-            expires_at=timezone.now() + timedelta(days=7),
-        )
-        # Token with exp already in the past -> expires_in <= 0 branch (657->650)
-        past_exp = int((timezone.now() - timedelta(days=1)).timestamp())
-        RefreshTokenTracker.objects.create(
-            user=user,
-            token=_jwt.encode(
-                {"jti": "past", "exp": past_exp}, "x" * 32, algorithm="HS256"
-            ),
-            expires_at=timezone.now() + timedelta(days=7),
-        )
-        AuthenticatorChangeService._invalidate_all_tokens(user)
-        # all trackers marked revoked
-        self.assertFalse(
-            RefreshTokenTracker.objects.filter(user=user, is_revoked=False).exists()
-        )
-
-    def test_inner_decode_exception_continues(self):
-        # decode_token raising -> inner except/continue lines 659-660.
-        # (Normally decode_token swallows bad tokens and returns None, so this
-        # branch is only reachable via an unexpected decode failure.)
-        from stapel_auth.models import RefreshTokenTracker
-        from stapel_auth.otp.services import AuthenticatorChangeService
-
-        user = _make_user()
-        RefreshTokenTracker.objects.create(
-            user=user,
-            token="tok-inner",
-            expires_at=timezone.now() + timedelta(days=7),
-        )
-        with patch(
-            "stapel_core.core.jwt_handler.JWTHandler.decode_token",
-            side_effect=Exception("decode blew up"),
-        ):
+        with patch("stapel_auth.sessions.services._blacklist_jti") as blacklist:
             AuthenticatorChangeService._invalidate_all_tokens(user)
-        self.assertFalse(
-            RefreshTokenTracker.objects.filter(user=user, is_revoked=False).exists()
-        )
 
-    def test_outer_exception_is_logged(self):
-        # TokenBlacklist() raising -> outer except branch lines 661-662
-        from stapel_auth.models import RefreshTokenTracker
-        from stapel_auth.otp.services import AuthenticatorChangeService
-
-        user = _make_user()
-        RefreshTokenTracker.objects.create(
-            user=user,
-            token="tok-outer",
-            expires_at=timezone.now() + timedelta(days=7),
-        )
-        with patch(
-            "stapel_core.core.token_blacklist.TokenBlacklist",
-            side_effect=Exception("redis down"),
-        ):
-            # must not raise
-            AuthenticatorChangeService._invalidate_all_tokens(user)
-        self.assertTrue(RefreshTokenTracker.objects.filter(user=user).exists())
+        self.assertFalse(UserSession.objects.filter(user=user, is_revoked=False).exists())
+        self.assertTrue(UserSession.objects.filter(user=other, is_revoked=False).exists())
+        blacklisted = {call.args[0] for call in blacklist.call_args_list}
+        self.assertTrue({"victim-laptop", "attacker-copy", "a-attacker-copy"} <= blacklisted)
 
 
 class GetValidChangeRequestTests(TestCase):

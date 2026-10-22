@@ -163,7 +163,6 @@ class LoginGrantService:
         token. A guest (anonymous) row is not "an existing account" for this
         purpose — a grant is precisely how a guest stops being one.
         """
-        from django.contrib.auth import get_user_model
 
         policy = _existing_account_policy(existing_accounts)
 
@@ -171,8 +170,9 @@ class LoginGrantService:
         if not data:
             return None
         email = data['email']
-        User = get_user_model()
-        user = User.objects.filter(email=email).first()
+        from stapel_auth.accounts import find_user_by_email
+
+        user = find_user_by_email(email)
         if user is not None:
             if not user.is_active:
                 return None
@@ -186,15 +186,16 @@ class LoginGrantService:
             return user, False
         if not data.get('create_if_missing'):
             return None
-        user = User.objects.create(
+        from stapel_auth.accounts import create_account
+
+        user = create_account(
+            language=data.get('language'),
             email=email,
             auth_type='email',
             is_email_verified=bool(data.get('verified_email', True)),
         )
         user.set_unusable_password()
         user.save(update_fields=['password'])
-        from stapel_auth.otp.views import _notify_user_registered
-        _notify_user_registered(user, language=data.get('language'))
         return user, True
 
 

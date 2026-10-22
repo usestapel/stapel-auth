@@ -607,7 +607,9 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         phone = data.get("phone")
         username = data.get("username")
 
-        if email and User.objects.filter(email=email).exists():
+        from stapel_auth.accounts import users_by_email
+
+        if email and users_by_email(email).exists():
             return StapelErrorResponse(409, ERR_409_EMAIL_TAKEN)
         if phone and User.objects.filter(phone=phone).exists():
             return StapelErrorResponse(409, ERR_409_PHONE_TAKEN)
@@ -627,12 +629,13 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if request.user.is_authenticated and request.user.is_anonymous:
             was_guest = True
             user = request.user
+            # Unverified for the same reason as the fresh-account branch below.
             if email:
                 user.email = email
-                user.is_email_verified = True
+                user.is_email_verified = False
             if phone:
                 user.phone = phone
-                user.is_phone_verified = True
+                user.is_phone_verified = False
             if username:
                 user.username = username
             user.set_password(data["password"])
@@ -665,17 +668,24 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 auth_status = AuthStatus.MODIFIED
             user.save()
         else:
-            user = User.objects.create(
+            # The anchors are NOT verified: nothing proved the caller holds
+            # the mailbox or the number. Marking them verified let anyone
+            # pre-register a victim's address and be logged into that same
+            # row the day the victim signed in by code (account
+            # pre-hijacking). The first OTP that proves the anchor takes the
+            # account over (``accounts.claim_by_proof``).
+            from stapel_auth.accounts import create_account
+
+            user = create_account(
+                announce=lambda created: self._publish_user_registered(created, request=request),
                 email=email,
                 phone=phone,
                 username=username or (email.split("@")[0] if email else phone),
-                is_email_verified=bool(email),
-                is_phone_verified=bool(phone),
+                is_email_verified=False,
+                is_phone_verified=False,
             )
             user.set_password(data["password"])
             user.save(update_fields=["password"])
-
-            self._publish_user_registered(user, request=request)
             # A password-only account holds no sign-in identity: not a sign-up.
             signed_up = bool(email or phone)
 

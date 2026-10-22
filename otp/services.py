@@ -142,7 +142,9 @@ def merge_anonymous_into(
     # trusted.
     with transaction.atomic():
         if verified_flag:
-            setattr(survivor, verified_flag, True)
+            from stapel_auth.accounts import claim_by_proof
+
+            claim_by_proof(survivor, verified_flag, save=False)
         # Save BEFORE the emit: any projection event the observer raises for
         # the survivor lands in the outbox first, so a consumer learns of this
         # account before being told to reassign rows onto it.
@@ -875,7 +877,9 @@ class AuthenticatorChangeService:
         if change_type == 'phone':
             qs = User.objects.filter(phone=value)
         else:
-            qs = User.objects.filter(email=value)
+            from stapel_auth.accounts import users_by_email
+
+            qs = users_by_email(value)
         if exclude_user:
             qs = qs.exclude(id=exclude_user.id)
         if qs.exists():
@@ -915,37 +919,16 @@ class AuthenticatorChangeService:
 
     @staticmethod
     def _invalidate_all_tokens(user):
-        """Blacklist all refresh tokens for this user via RefreshTokenTracker + Redis."""
-        from stapel_auth.models import RefreshTokenTracker
+        """Sign the account out everywhere after an authenticator change.
 
-        # Mark all tracked refresh tokens as revoked
-        RefreshTokenTracker.objects.filter(user=user, is_revoked=False).update(is_revoked=True)
+        Revokes every live ``UserSession`` (refresh and access jti
+        blacklisted) through ``SessionService.revoke_all``, the store the
+        session minter writes. The instant flow issues the caller a fresh
+        pair right after, so only the other sessions end.
+        """
+        from stapel_auth.sessions.services import SessionService
 
-        # Also blacklist via Redis if available
-        try:
-            from stapel_core.core.token_blacklist import TokenBlacklist
-            from stapel_core.core.jwt_handler import JWTHandler
-            from stapel_core.django.jwt.utils import load_jwt_config_from_settings
-            from datetime import datetime, timezone as dt_timezone
-
-            blacklist = TokenBlacklist()
-            config = load_jwt_config_from_settings()
-            jwt_handler = JWTHandler(config)
-
-            tokens = RefreshTokenTracker.objects.filter(user=user)
-            for tracker in tokens:
-                try:
-                    payload = jwt_handler.decode_token(tracker.token, verify=False)
-                    if payload and 'jti' in payload:
-                        exp = payload.get('exp')
-                        if exp:
-                            expires_in = datetime.fromtimestamp(exp, tz=dt_timezone.utc) - datetime.now(dt_timezone.utc)
-                            if expires_in.total_seconds() > 0:
-                                blacklist.blacklist_token(payload['jti'], expires_in)
-                except Exception:
-                    continue
-        except Exception as e:
-            logger.warning(f"Failed to blacklist tokens via Redis for user {user.id}: {e}")
+        SessionService.revoke_all(user)
 
     def _get_valid_change_request(self, user, change_type, change_token):
         """Get a pending instant-flow change request by change_token."""

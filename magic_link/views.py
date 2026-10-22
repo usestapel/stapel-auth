@@ -115,6 +115,10 @@ class MagicLinkViewSet(SerializerSeamsMixin, ViewSet):
             return redirect(f"{frontend_url}/login?error=invalid_link")
 
         AuditService.log("magic_link_used", user=user, request=request)
+        # Following the link proves the mailbox.
+        from stapel_auth.accounts import claim_by_proof
+
+        claim_by_proof(user, "is_email_verified")
         redirect_url = data.get("redirect_url") or "/"
 
         # If TOTP enabled — redirect to login page with TOTP challenge

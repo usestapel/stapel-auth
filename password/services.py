@@ -315,10 +315,9 @@ class PasswordService:
         try:
             user = User.objects.get(username=login)
         except User.DoesNotExist:
-            try:
-                user = User.objects.get(email=login)
-            except User.DoesNotExist:
-                return None
+            from stapel_auth.accounts import authenticate_by_email
+
+            return authenticate_by_email(login, password)
         if user.check_password(password):
             return user
         return None
@@ -446,9 +445,10 @@ class PasswordService:
 
         User = get_user_model()
         if email:
-            try:
-                user = User.objects.get(email=email, is_email_verified=True)
-            except User.DoesNotExist:
+            from stapel_auth.accounts import users_by_email
+
+            user = users_by_email(email).filter(is_email_verified=True).first()
+            if user is None:
                 raise StapelServiceError(404, ERR_404_USER_FOR_RESET)
             cls._check_mock_admin(user)
             result = EmailVerificationService().send_verification_code(email)
@@ -476,9 +476,10 @@ class PasswordService:
         if email:
             result = EmailVerificationService().verify_code(email, code)
             cls._raise_for_otp_result(result)
-            try:
-                user = User.objects.get(email=email, is_email_verified=True)
-            except User.DoesNotExist:
+            from stapel_auth.accounts import users_by_email
+
+            user = users_by_email(email).filter(is_email_verified=True).first()
+            if user is None:
                 raise StapelServiceError(404, ERR_404_USER_FOR_RESET)
         else:
             result = PhoneVerificationService().verify_code(phone, code)

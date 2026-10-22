@@ -478,12 +478,11 @@ def _single_user_for(email: str):
     ``MultipleObjectsReturned`` from inside the login, with no name for what
     had happened.
     """
-    from django.contrib.auth import get_user_model
+    from stapel_auth.accounts import users_by_email
 
-    U = get_user_model()
-    matches = list(U.objects.filter(email=email)[:2])
+    matches = list(users_by_email(email)[:2])
     if len(matches) > 1:
-        total = U.objects.filter(email=email).count()
+        total = users_by_email(email).count()
         logger.error(
             "SSO login refused: the asserted address matches %d accounts in "
             "this service, so there is no single account to link to. An "
@@ -626,8 +625,6 @@ class SSOUserService:
     @staticmethod
     def _provision(org, attrs, existing, request_user, *, promote_anonymous_session):
         """The account this login belongs to: linked, promoted or created."""
-        from django.contrib.auth import get_user_model
-
         if existing is not None:
             return existing, False
 
@@ -645,8 +642,9 @@ class SSOUserService:
             request_user.save()
             return request_user, True
 
-        U = get_user_model()
-        return U.objects.create(
+        from stapel_auth.accounts import create_account
+
+        return create_account(
             email=attrs['email'],
             is_active=True,
             first_name=attrs.get('first_name', ''),
