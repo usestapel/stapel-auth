@@ -208,3 +208,16 @@ def settings_kwargs(
 # single-module instance derives the same operationIds (see _codegen._configure and
 # the SCHEMA_PATH_PREFIX note above). Uniform across all five pair-backends.
 CODEGEN_SCHEMA_PATH_PREFIX = "/"
+
+
+def enum_name_overrides() -> dict:
+    """drf-spectacular ``ENUM_NAME_OVERRIDES`` for this module's contract.
+
+    The password-OTP ``method`` set shares its field name with other enums, so
+    drf-spectacular falls back to a collision name (``Method204Enum``) that
+    changes with unrelated edits (stapel-schema-lint SCH004). Called after
+    ``django.setup()``.
+    """
+    from stapel_auth.password.serializers import PASSWORD_OTP_METHODS
+
+    return {"PasswordOtpMethodEnum": list(PASSWORD_OTP_METHODS)}

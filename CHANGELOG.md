@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.50.1] — 2026-10-23
+
+0.50.0 was tagged and never published: its CI stopped at the schema lint.
+This release carries 0.50.0 unchanged plus the fix below.
+
+### Fixed — the password-OTP `method` enum in the contract
+
+`PasswordOtpRequestSerializer` / `PasswordOtpVerifySerializer` passed the
+`PasswordMethodType` members as choices, so `docs/schema.json` advertised
+`"PasswordMethodType.EMAIL" | "PasswordMethodType.PHONE"` instead of the wire
+values `"email" | "phone"`, under drf-spectacular's collision name
+`Method204Enum` (stapel-schema-lint SCH004). The choices are the values now,
+and the component is pinned as `PasswordOtpMethodEnum`
+(`_codegen_settings.enum_name_overrides`). The endpoints accepted `"email"`
+and `"phone"` before and after; the react pair's generated type changes at
+its next regen.
+
 ## [0.50.0] — 2026-10-23
 
 ### Added — `stapel_auth.testing`, the test contract a consuming project registers

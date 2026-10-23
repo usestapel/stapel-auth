@@ -70,16 +70,17 @@ class PasswordChangeDirectSerializer(serializers.Serializer):
         return value
 
 
+#: The wire values (``"email"``, ``"phone"``). Enum members as choices put
+#: ``str(member)`` (``PasswordMethodType.EMAIL``) into the OpenAPI enum.
+PASSWORD_OTP_METHODS = [PasswordMethodType.EMAIL.value, PasswordMethodType.PHONE.value]
+
+
 class PasswordOtpRequestSerializer(serializers.Serializer):
-    method = serializers.ChoiceField(
-        choices=[PasswordMethodType.EMAIL, PasswordMethodType.PHONE]
-    )
+    method = serializers.ChoiceField(choices=PASSWORD_OTP_METHODS)
 
 
 class PasswordOtpVerifySerializer(serializers.Serializer):
-    method = serializers.ChoiceField(
-        choices=[PasswordMethodType.EMAIL, PasswordMethodType.PHONE]
-    )
+    method = serializers.ChoiceField(choices=PASSWORD_OTP_METHODS)
     code = serializers.CharField(max_length=OTP_CODE_LENGTH)
     new_password = serializers.CharField(min_length=8)
 

@@ -8342,14 +8342,6 @@
           "message"
         ]
       },
-      "Method204Enum": {
-        "enum": [
-          "PasswordMethodType.EMAIL",
-          "PasswordMethodType.PHONE"
-        ],
-        "type": "string",
-        "description": "* `PasswordMethodType.EMAIL` - PasswordMethodType.EMAIL\n* `PasswordMethodType.PHONE` - PasswordMethodType.PHONE"
-      },
       "MfaEnrollExchange": {
         "type": "object",
         "properties": {
@@ -8726,11 +8718,19 @@
           }
         }
       },
+      "PasswordOtpMethodEnum": {
+        "enum": [
+          "email",
+          "phone"
+        ],
+        "type": "string",
+        "description": "* `email` - email\n* `phone` - phone"
+      },
       "PasswordOtpRequest": {
         "type": "object",
         "properties": {
           "method": {
-            "$ref": "#/components/schemas/Method204Enum"
+            "$ref": "#/components/schemas/PasswordOtpMethodEnum"
           }
         },
         "required": [
@@ -8741,7 +8741,7 @@
         "type": "object",
         "properties": {
           "method": {
-            "$ref": "#/components/schemas/Method204Enum"
+            "$ref": "#/components/schemas/PasswordOtpMethodEnum"
           },
           "code": {
             "type": "string",

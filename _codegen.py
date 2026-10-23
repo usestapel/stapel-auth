@@ -75,6 +75,14 @@ def _configure() -> None:
 
     spectacular_settings.SCHEMA_PATH_PREFIX = CODEGEN_SCHEMA_PATH_PREFIX
 
+    # Stable enum component names (stapel-schema-lint SCH004).
+    from drf_spectacular.plumbing import _load_enum_name_overrides
+
+    from stapel_auth._codegen_settings import enum_name_overrides
+
+    spectacular_settings.ENUM_NAME_OVERRIDES = enum_name_overrides()
+    _load_enum_name_overrides.cache_clear()
+
     # SERVE_PERMISSIONS is the second knob, and unlike the rest of
     # SPECTACULAR_SETTINGS it is NOT frozen at import: drf-spectacular reads it
     # when `SpectacularAPIView.as_view()` runs, i.e. when the urlconf loads,
