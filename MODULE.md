@@ -641,6 +641,24 @@ def signup_consent(request):
 STAPEL_AUTH = {"AUTH_SIGNUP_CONSENT_RESOLVER": "acme.consent.signup_consent"}
 ```
 
+### Test helpers for a consuming project (`testing.py`, 0.50.0)
+
+`stapel_auth.testing` is a pytest plugin a project registers explicitly in its
+root `conftest.py` (`pytest_plugins = ["stapel_auth.testing"]`; there is no
+`pytest11` entry point, so nothing loads uninvited). Needs pytest-django.
+
+| Name | What |
+|---|---|
+| `unique_phone()` | A fresh valid E.164 phone per call (fictional NANP 555-01XX), self-checked through `normalize_phone` |
+| `unique_email()` | A fresh `@example.com` address per call |
+| `signed_in_client` | Fixture, a factory: `signed_in_client(phone=None)` runs `phone_request` → `phone_verify` with the SMS mock on for the test and returns an `APIClient` carrying the session cookies (`.user`, `.phone`) |
+| `otp_limiter_off` | Opt-in fixture (never autouse): `OTP_RATE_LIMIT_PER_HOUR=0`, `OTP_RESEND_COOLDOWN=0`, cache cleared |
+
+The OTP limiter lives in the cache, which a project suite rarely clears: a
+fixed test phone fails from its fourth sign-in in an hour. Use `unique_phone()`
+and keep the limiter on; reach for `otp_limiter_off` only in a test about
+repeated sends to one identifier.
+
 ### Signals
 
 | Signal | Sender/args | When |

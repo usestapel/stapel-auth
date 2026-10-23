@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.50.0] — 2026-10-23
+
+### Added — `stapel_auth.testing`, the test contract a consuming project registers
+
+A pytest plugin with `unique_phone()` (a fresh valid E.164 number per call,
+self-checked through `normalize_phone`), `unique_email()`, the fixture
+`signed_in_client(phone=None)` (the real `phone_request` → `phone_verify`
+flow with the SMS mock on for the test; returns an `APIClient` carrying the
+session cookies) and the opt-in fixture `otp_limiter_off`
+(`OTP_RATE_LIMIT_PER_HOUR=0`, `OTP_RESEND_COOLDOWN=0`, cache cleared; never
+autouse, the limiter stays on by default). A project registers it with
+`pytest_plugins = ["stapel_auth.testing"]` in its root `conftest.py`; there is
+no `pytest11` entry point.
+
 ## [0.49.0] — 2026-10-22
 
 Minor (pre-1.0: a minor is breaking): password registration no longer marks
