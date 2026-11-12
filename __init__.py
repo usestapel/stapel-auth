@@ -26,6 +26,8 @@ _LAZY_EXPORTS = {
     "assign_staff_role": (".staff_roles", "assign_staff_role"),
     "revoke_staff_role": (".staff_roles", "revoke_staff_role"),
     "staff_roles_for": (".staff_roles", "staff_roles_for"),
+    # Fictional contact data for seeders and tests (no pytest, no Django).
+    "fictional_phone": (".fictional", "fictional_phone"),
     "get_admin_api_urls": (".urls", "get_admin_api_urls"),
     "get_anonymous_urls": (".urls", "get_anonymous_urls"),
     "get_magic_link_urls": (".urls", "get_magic_link_urls"),

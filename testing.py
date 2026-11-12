@@ -23,18 +23,11 @@ import secrets
 
 import pytest
 
+from .fictional import FICTIONAL_PHONE_POOL_SIZE, fictional_phone_at
+
 __all__ = ["otp_limiter_off", "signed_in_client", "unique_email", "unique_phone"]
 
-# NANP 555-0100..0199 is reserved for fiction in every area code: these
-# numbers are valid for libphonenumber and never reach a real subscriber.
-_AREA_CODES = (
-    201, 202, 203, 205, 206, 207, 208, 212, 213, 214, 215, 216, 217, 218, 301,
-    303, 304, 305, 312, 313, 314, 401, 402, 404, 405, 406, 407, 408, 410, 412,
-    415, 503, 504, 505, 512, 602, 617, 702, 713, 801, 802, 808, 812, 816, 901,
-    904, 914, 916, 919, 971,
-)
-_POOL = len(_AREA_CODES) * 100
-_phone_seq = itertools.count(random.SystemRandom().randrange(_POOL))
+_phone_seq = itertools.count(random.SystemRandom().randrange(FICTIONAL_PHONE_POOL_SIZE))
 _email_seq = itertools.count(1)
 _RUN = secrets.token_hex(3)
 
@@ -56,10 +49,11 @@ def _self_check(phone: str) -> str:
 
 
 def unique_phone() -> str:
-    """A fresh valid E.164 phone (a fictional NANP 555-01XX number) per call."""
-    n = next(_phone_seq) % _POOL
-    area, line = _AREA_CODES[n // 100], 100 + n % 100
-    return _self_check(f"+1{area}555{line:04d}")
+    """A fresh valid E.164 phone (a fictional NANP 555-01XX number) per call.
+
+    The pool is :func:`stapel_auth.fictional.fictional_phone`'s, walked in
+    sequence so a run does not repeat a number before the pool is spent."""
+    return _self_check(fictional_phone_at(next(_phone_seq)))
 
 
 def unique_email() -> str:

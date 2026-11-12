@@ -25,6 +25,14 @@ and `revoke_by_jti` blacklisted no access token at all.
 - `tests/test_access_token_recording.py`: each path's token is recorded and
   dead after revoke; an AST roster fails on a new mint call site.
 
+### Added — `fictional_phone(rng=None)`
+
+`stapel_auth.fictional_phone` (module `stapel_auth.fictional`) returns a valid
+E.164 number from the reserved fictional range (NANP 555-0100..0199) without
+importing pytest or Django, for runtime seeders; `rng=random.Random(seed)`
+makes it reproducible. `stapel_auth.testing.unique_phone` draws from the same
+pool.
+
 ## [0.50.1] — 2026-10-23
 
 0.50.0 was tagged and never published: its CI stopped at the schema lint.
