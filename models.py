@@ -112,6 +112,30 @@ class UserSession(models.Model):
         return timezone.now() > self.expires_at
 
 
+class SessionAccessToken(models.Model):
+    """One access token minted for a session, kept until it expires.
+
+    A session's refresh token is one jti at a time, but its access tokens are
+    many: every login, rotation, grace answer and mint-from-refresh issues
+    another, and the earlier ones stay valid until their own ``exp``. Revoking
+    the session revokes every row here that has not expired
+    (``sessions.services.SessionService.record_access`` writes them,
+    ``revoke_session_tokens`` reads them).
+    """
+    session = models.ForeignKey(
+        UserSession, on_delete=models.CASCADE, related_name='access_tokens'
+    )
+    jti = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'user_session_access_tokens'
+
+    def __str__(self):
+        return f"access {self.jti[:8]}… of session {self.session_id}"
+
+
 @access.secret  # TOTP shared secret + hashed backup codes (admin-suite AS-5)
 class TOTPDevice(models.Model):
     """

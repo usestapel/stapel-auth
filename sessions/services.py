@@ -274,6 +274,82 @@ def _blacklist_jti(jti: str, expires_at) -> None:
         logging.getLogger(__name__).exception('_blacklist_jti failed')
 
 
+def _access_claims(access_token: str):
+    """``(jti, expires_at)`` of an access token this process just minted.
+
+    Read without verification on purpose: the token is our own output, handed
+    over by the minting call, not something a client presented.
+    """
+    import datetime as _dt
+
+    from stapel_core.django.jwt.provider import jwt_provider
+
+    payload = jwt_provider.handler.decode_token(access_token, verify=False) or {}
+    jti = str(payload.get('jti') or '')
+    exp = payload.get('exp')
+    if isinstance(exp, (int, float)):
+        return jti, _dt.datetime.fromtimestamp(exp, tz=_dt.timezone.utc)
+    return jti, None
+
+
+def _access_lifetime_bound():
+    """Latest moment an access token minted now can expire — the TTL used
+    when only a jti was handed over."""
+    from stapel_core.django.jwt.provider import jwt_provider
+
+    return timezone.now() + jwt_provider.config.access_token_lifetime
+
+
+def revoke_session_tokens(session_pk, refresh_jti: str, refresh_expires_at,
+                          access_jti: str = '') -> int:
+    """Blacklist every credential a revoked session can still present.
+
+    The refresh jti, and every access token recorded for the session
+    (:meth:`SessionService.record_access`) that has not expired yet — not only
+    the last one. Returns how many access jtis were blacklisted. Called after
+    the transaction that flipped ``is_revoked``: the blacklist is not
+    transactional.
+    """
+    from stapel_auth.models import SessionAccessToken
+
+    _blacklist_jti(refresh_jti, refresh_expires_at)
+    now = timezone.now()
+    live = list(
+        SessionAccessToken.objects.filter(session_id=session_pk, expires_at__gt=now)
+        .values_list('jti', 'expires_at')
+    )
+    for jti, expires_at in live:
+        _blacklist_jti(jti, expires_at)
+    if access_jti and access_jti not in {jti for jti, _ in live}:
+        # Recorded before the ledger existed: bounded by the refresh expiry.
+        _blacklist_jti(access_jti, refresh_expires_at)
+    return len(live)
+
+
+def record_minted_access(refresh_payload: dict, access_token: str) -> None:
+    """stapel-core's access observer: a token minted from a refresh token is
+    recorded on that refresh token's session (registered in ``apps.ready``).
+
+    Covers the paths that mint outside this package — the JWT middleware's
+    expired-token and proactive refresh, the channels re-auth, core's refresh
+    view. A refresh jti that names no current session (untracked, or the
+    previous jti answered inside the rotation grace window) is looked up the
+    same way the refresh check honours it.
+    """
+    from stapel_auth.models import UserSession
+
+    jti = (refresh_payload or {}).get('jti')
+    if not jti:
+        return
+    session = UserSession.objects.filter(jti=jti).first()
+    if session is None:
+        session = SessionService.graced_session(
+            jti, user_id=(refresh_payload or {}).get('user_id')
+        )
+    if session is not None:
+        SessionService.record_access(session, access_token)
+
+
 def _emit_session_revoked(user_id, session_id) -> None:
     """Write the ``user.session_revoked`` outbox row (schemas/emits/).
 
@@ -348,7 +424,11 @@ class SessionService:
     """
 
     @staticmethod
-    def create(user, jti: str, expires_at, request=None, access_jti: str = '') -> 'UserSession':
+    def create(user, jti: str, expires_at, request=None, access_jti: str = '',
+               access_token: str = '') -> 'UserSession':
+        """Register a session; the access token minted with it is recorded
+        through :meth:`record_access` (pass ``access_token``; a bare
+        ``access_jti`` is recorded with the access lifetime as its bound)."""
         from django.db import transaction
 
         from stapel_core.comm import emit
@@ -365,6 +445,8 @@ class SessionService:
             ch_version  = request.META.get('HTTP_SEC_CH_UA_PLATFORM_VERSION', '').strip('"')
             ch_model    = request.META.get('HTTP_SEC_CH_UA_MODEL', '').strip('"')
         parsed = _parse_ua(ua, ch_platform=ch_platform, ch_version=ch_version, ch_model=ch_model)
+        if access_token:
+            access_jti = _access_claims(access_token)[0] or access_jti
         with transaction.atomic():
             session = UserSession.objects.create(
                 user=user,
@@ -392,7 +474,34 @@ class SessionService:
                 key=str(user.pk),
                 service='auth',
             )
+        if access_token or access_jti:
+            SessionService.record_access(
+                session, access_token, access_jti=access_jti
+            )
         return session
+
+    @staticmethod
+    def create_for_pair(user, access_token: str, refresh_token: str, request=None):
+        """Register the session a freshly minted pair belongs to, or ``None``
+        when the refresh token carries no jti. For mint paths that sit outside
+        the admission gate but still hand out a full pair."""
+        import datetime as _dt
+
+        from stapel_core.django.jwt.provider import jwt_provider
+
+        payload = jwt_provider.handler.decode_token(refresh_token, verify=False) or {}
+        jti = payload.get('jti')
+        if not jti:
+            return None
+        exp = payload.get('exp')
+        expires_at = (
+            _dt.datetime.fromtimestamp(exp, tz=_dt.timezone.utc)
+            if isinstance(exp, (int, float))
+            else timezone.now() + timedelta(days=7)
+        )
+        return SessionService.create(
+            user, jti, expires_at, request=request, access_token=access_token
+        )
 
     @staticmethod
     def rotate(
@@ -402,6 +511,7 @@ class SessionService:
         user_id=None,
         new_access_jti: str = '',
         new_refresh_token: str = '',
+        new_access_token: str = '',
     ):
         """
         Swap jti on a session (normal token rotation).
@@ -456,10 +566,11 @@ class SessionService:
             session.jti = new_jti
             session.expires_at = new_expires_at
             session.last_used_at = now
-            if new_access_jti:
-                session.access_jti = new_access_jti
-                update_fields.append('access_jti')
             session.save(update_fields=update_fields)
+            if new_access_token or new_access_jti:
+                SessionService.record_access(
+                    session, new_access_token, access_jti=new_access_jti
+                )
             if new_refresh_token:
                 SessionService.remember_rotated_refresh(old_jti, new_refresh_token)
             return True
@@ -582,13 +693,51 @@ class SessionService:
         return cache.get(f'{cls._GRACE_CACHE_PREFIX}{presented_jti}')
 
     @staticmethod
-    def stamp_access_jti(session, access_jti: str) -> None:
-        """Record the access jti minted for a session without rotating it."""
-        if not access_jti or session.access_jti == access_jti:
+    def record_access(session, access_token: str = '', *, access_jti: str = '') -> None:
+        """THE place an access token minted for a session is recorded.
+
+        Every mint path ends here — :meth:`create`, :meth:`rotate`, the grace
+        answer, and stapel-core's mint-from-refresh through
+        :func:`record_minted_access` — so revoking the session reaches every
+        access token it ever handed out (:func:`revoke_session_tokens`), not
+        only the last one. ``tests/test_access_token_recording.py`` holds the
+        mint call sites against this.
+
+        Pass the minted ``access_token``; a bare ``access_jti`` is recorded
+        with the access lifetime as its expiry bound. A session that is
+        already revoked gets the token blacklisted on the spot: the mint raced
+        the revocation, and the revocation wins.
+        """
+        from stapel_auth.models import SessionAccessToken, UserSession
+
+        expires_at = None
+        if access_token:
+            jti, expires_at = _access_claims(access_token)
+            access_jti = jti or access_jti
+        if not access_jti:
             return
+        if expires_at is None:
+            expires_at = _access_lifetime_bound()
+        now = timezone.now()
+        SessionAccessToken.objects.get_or_create(
+            jti=access_jti,
+            defaults={'session_id': session.pk, 'expires_at': expires_at},
+        )
+        SessionAccessToken.objects.filter(
+            session_id=session.pk, expires_at__lte=now
+        ).delete()
+        UserSession.objects.filter(pk=session.pk).update(
+            access_jti=access_jti, last_used_at=now
+        )
         session.access_jti = access_jti
-        session.last_used_at = timezone.now()
-        session.save(update_fields=['access_jti', 'last_used_at'])
+        session.last_used_at = now
+        if UserSession.objects.filter(pk=session.pk, is_revoked=True).exists():
+            _blacklist_jti(access_jti, expires_at)
+
+    @staticmethod
+    def stamp_access_jti(session, access_jti: str) -> None:
+        """Record an access jti minted for a session (see :meth:`record_access`)."""
+        SessionService.record_access(session, access_jti=access_jti)
 
     @staticmethod
     def revoke_by_jti(jti: str) -> bool:
@@ -602,7 +751,7 @@ class SessionService:
         with transaction.atomic():
             session = (
                 UserSession.objects.filter(jti=jti)
-                .values('pk', 'user_id', 'is_revoked')
+                .values('pk', 'user_id', 'is_revoked', 'jti', 'access_jti', 'expires_at')
                 .first()
             )
             if session is None:
@@ -610,20 +759,28 @@ class SessionService:
             if not session['is_revoked']:
                 UserSession.objects.filter(pk=session['pk']).update(is_revoked=True)
                 _emit_session_revoked(session['user_id'], session['pk'])
+        revoke_session_tokens(
+            session['pk'], session['jti'], session['expires_at'], session['access_jti']
+        )
         return True
 
     @staticmethod
     def revoke_session(session) -> None:
         """Revoke one concrete session row (the per-device "revoke this
-        session" surface). No-op if already revoked; emits atomically with
-        the flag flip."""
+        session" surface). Emits atomically with the flag flip (once), then
+        blacklists the refresh jti and every live access token recorded for
+        the session."""
         from django.db import transaction
         with transaction.atomic():
-            if session.is_revoked:
-                return
-            session.is_revoked = True
-            session.save(update_fields=['is_revoked'])
-            _emit_session_revoked(session.user_id, session.pk)
+            if not session.is_revoked:
+                session.is_revoked = True
+                session.save(update_fields=['is_revoked'])
+                _emit_session_revoked(session.user_id, session.pk)
+        # Every credential the session can still present, the access tokens
+        # it handed out included — idempotent, so a repeat revoke re-asserts.
+        revoke_session_tokens(
+            session.pk, session.jti, session.expires_at, session.access_jti
+        )
 
     @staticmethod
     def revoke_all(user, except_jti: str = None):
@@ -640,8 +797,7 @@ class SessionService:
                 _emit_session_revoked(user.pk, s['pk'])
         # Redis blacklisting is non-transactional — outside the atomic block.
         for s in sessions:
-            _blacklist_jti(s['jti'], s['expires_at'])
-            _blacklist_jti(s['access_jti'], s['expires_at'])
+            revoke_session_tokens(s['pk'], s['jti'], s['expires_at'], s['access_jti'])
 
     @staticmethod
     def get_active(user):

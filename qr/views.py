@@ -216,7 +216,6 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
                     _rt = data.get("refresh_token", "")
                     _rt_pl = _jwt.handler.decode_token(_rt, verify=False) or {}
-                    _at_pl = _jwt.handler.decode_token(access_token, verify=False) or {}
                     _jti = _rt_pl.get("jti", "")
                     _exp = datetime.fromtimestamp(_rt_pl.get("exp", 0), tz=_tz.utc)
                     _user = _gum().objects.filter(pk=data["fulfilled_user_id"]).first()
@@ -226,7 +225,7 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                             _jti,
                             _exp,
                             request=request,
-                            access_jti=_at_pl.get("jti", ""),
+                            access_token=access_token,
                         )
                         AuditService.log(
                             "login_success",

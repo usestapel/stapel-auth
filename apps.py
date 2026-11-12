@@ -34,6 +34,11 @@ class StapelAuthConfig(AppConfig):
         from stapel_core.django.jwt.provider import register_refresh_check
         from .sessions.services import refresh_is_honoured
         register_refresh_check(refresh_is_honoured)
+        # ...and every access token such a mint produces is recorded on the
+        # refresh token's session, so revoking the session revokes it too.
+        from stapel_core.django.jwt.provider import register_access_observer
+        from .sessions.services import record_minted_access
+        register_access_observer(record_minted_access)
 
         # comm Function providers (auth.verification.policy). Importing the
         # module runs the @function decorators; re-imports are no-ops and

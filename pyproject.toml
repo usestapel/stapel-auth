@@ -49,7 +49,10 @@ dependencies = [
     # Earlier floor: 0.35.0 ships stapel_core.gdpr.register_gdpr_owner — the erasure
     # protocol (erase + receipt + owner probe) this module registers with in
     # apps.ready() instead of hand-writing a fifth copy of it.
-    "stapel-core>=0.91.0,<1.0",
+    # 0.96.0: register_access_observer — every access token core mints from a
+    # refresh token is recorded on its session (sessions.services.
+    # record_minted_access), so a per-device revoke reaches it.
+    "stapel-core>=0.96.0,<1.0",
     "pyotp>=2.10",
     "webauthn>=2.8",
     "phonenumbers>=8.13",

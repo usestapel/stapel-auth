@@ -363,10 +363,7 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
             grace_access = jwt_provider.refresh_access_token(current_refresh, load_user_data)
             if not grace_access:
                 return StapelErrorResponse(401, ERR_401_REFRESH_INVALID)
-            at_payload = (
-                jwt_provider.handler.decode_token(grace_access, verify=False) or {}
-            )
-            SessionService.stamp_access_jti(graced, at_payload.get("jti", ""))
+            SessionService.record_access(graced, grace_access)
             logger.info(
                 "refresh_grace_reuse: session %s answered a superseded refresh "
                 "jti presented inside the rotation grace window (user %s)",
@@ -443,15 +440,12 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
                 if exp
                 else timezone.now() + datetime.timedelta(days=7)
             )
-            at_payload = (
-                jwt_provider.handler.decode_token(new_access_token, verify=False) or {}
-            )
             rotated = SessionService.rotate(
                 old_jti,
                 new_jti,
                 expires_at,
                 user_id=_uid,
-                new_access_jti=at_payload.get("jti", ""),
+                new_access_token=new_access_token,
                 # Cached by rotate() itself, before it releases the row lock,
                 # so a racing loser (below) can find it the instant it's
                 # unblocked — see remember_rotated_refresh.
@@ -565,7 +559,6 @@ def _issue_session_tokens(
 
     access_token, refresh_token = create_tokens_for_user(user)
     rt_payload = jwt_provider.handler.decode_token(refresh_token, verify=False) or {}
-    at_payload = jwt_provider.handler.decode_token(access_token, verify=False) or {}
     jti = rt_payload.get("jti", "")
     exp = rt_payload.get("exp")
     expires_at = (
@@ -576,7 +569,7 @@ def _issue_session_tokens(
     session = None
     if jti:
         session = SessionService.create(
-            user, jti, expires_at, request=request, access_jti=at_payload.get("jti", "")
+            user, jti, expires_at, request=request, access_token=access_token
         )
     # Django's own last_login stamp rides on the user_logged_in signal, which
     # no JWT path sends — so it happens here, at the choke point, and a login
@@ -657,13 +650,13 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             session = UserSession.objects.get(id=session_id, user=request.user)
         except UserSession.DoesNotExist:
             return StapelErrorResponse(404, ERR_404_NOT_FOUND)
-        from .services import SessionService, _blacklist_jti
+        from .services import SessionService
 
         # Flips is_revoked + writes the user.session_revoked outbox row
         # atomically (no-op if already revoked).
+        # Blacklists the refresh jti and every live access token the session
+        # handed out (sessions.services.revoke_session_tokens).
         SessionService.revoke_session(session)
-        _blacklist_jti(session.jti, session.expires_at)
-        _blacklist_jti(session.access_jti, session.expires_at)
         from stapel_auth.dto import SimpleStatusResponse
 
         return StapelResponse(

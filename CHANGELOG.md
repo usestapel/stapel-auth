@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased (proposed 0.51.0)
+
+### Fixed — a per-device revoke kills every access token of the session at once
+
+A session remembered one access jti, written by some mint paths only. Tokens
+minted by stapel-core's mint-from-refresh (the JWT middleware's expired-token
+and proactive refresh, the channels re-auth), tokens superseded by a later
+rotation, and the pair minted after a guest promotion were unknown to the
+session, so revoking it left them valid until they expired; reuse detection
+and `revoke_by_jti` blacklisted no access token at all.
+
+- `SessionAccessToken` (migration `0029`) records every access token minted
+  for a session; `SessionService.record_access` is the one writer, reached
+  from `create`, `rotate`, the grace answer, the new `create_for_pair`, and
+  `record_minted_access`, registered with stapel-core's
+  `register_access_observer` (floor `stapel-core>=0.96.0`).
+- `revoke_session_tokens` blacklists the refresh jti and every unexpired
+  recorded access token; `revoke_session`, `revoke_by_jti`, `revoke_all`, the
+  per-device `DELETE /sessions/<id>/` and reuse detection all go through it.
+  A token recorded on an already-revoked session is blacklisted on the spot.
+- The guest-promotion re-mint in `POST /password/change/otp/verify/` now gets a
+  session row like any login.
+- `tests/test_access_token_recording.py`: each path's token is recorded and
+  dead after revoke; an AST roster fails on a new mint call site.
+
 ## [0.50.1] — 2026-10-23
 
 0.50.0 was tagged and never published: its CI stopped at the schema lint.

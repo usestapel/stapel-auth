@@ -404,10 +404,15 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         from stapel_auth.sessions.services import stamp_last_login
         from stapel_auth.staff_roles import create_tokens_for_user
 
+        from stapel_auth.sessions.services import SessionService
+
         access_token, refresh_token = create_tokens_for_user(user)
         # Mints around the choke point (see the bypass roster in
         # tests/test_session_issuance_gate.py), so it stamps for itself: the
         # promoted account is authenticating as a registered user right here.
+        # The pair gets its session row like any login, so it is listed, can
+        # be refreshed, and a per-device revoke reaches its access token.
+        SessionService.create_for_pair(user, access_token, refresh_token, request=request)
         stamp_last_login(user)
         dto = AuthResponse(
             status=AuthStatus.REGISTERED,
