@@ -1,6 +1,6 @@
 # Errors — English
 
-`144` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
+`145` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
 
 | Code | Status | Params | Remediation | Text |
 |---|---|---|---|---|
@@ -56,6 +56,7 @@
 | `error.400.qr_expired` | 400 | — | `retry` | QR code has expired. |
 | `error.400.qr_fulfilled` | 400 | — | `retry` | QR code has already been used. |
 | `error.400.qr_type_required` | 400 | — | `fix_input` | QR type is required (session_share or login_request). |
+| `error.400.signup_context_invalid` | 400 | — | `fix_input` | The signup_context object is malformed. Expected at most 16 keys of letters, digits and _ . : -, each with a short text, number, true/false or null value, at most 2048 bytes in all. |
 | `error.400.sso_invalid_response` | 400 | — | `retry` | Invalid SSO response from identity provider. |
 | `error.400.sso_not_configured` | 400 | — | `contact_support` | SSO is not configured for this organization. |
 | `error.400.staff_role_target_not_staff` | 400 | — | `fix_input` | Staff roles can only be assigned to staff accounts. Make the user staff first. |

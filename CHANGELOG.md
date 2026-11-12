@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — proposed 0.51.0
+
+Minor (new request field, additive fact field). No migration.
+
+### Added — `signup_context`, an opaque object carried into `user.signed_up`
+
+Every sign-up door (email/phone OTP verify, OAuth login and the redirect flow,
+password register, the guest promotion in `password/change/otp/verify/`)
+accepts an optional `signup_context` object and copies it verbatim into the
+`user.signed_up` fact (new optional field), so another module — a referral
+code — needs no second client call after the sign-up. Auth never interprets
+it. Bounded as untrusted input (16 scalar keys, 2048 bytes); a malformed body
+field refuses with the new `error.400.signup_context_invalid` (en/ru/es),
+a malformed redirect query parameter is dropped with a warning.
+`notify_user_signed_up` takes `signup_context=`.
+
 ## [0.50.1] — 2026-10-23
 
 0.50.0 was tagged and never published: its CI stopped at the schema lint.

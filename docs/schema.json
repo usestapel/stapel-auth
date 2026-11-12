@@ -7539,6 +7539,27 @@
             ],
             "nullable": true,
             "description": "Optional advertising attribution captured by the client on the landing page: {click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|ttclid, captured_at, utm?, landing_ref?}. The click identifier may be omitted when utm.source or landing_ref names the channel (an email or aggregator landing carries no click id); an identifier without its type, and a record carrying none of the three, are malformed. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored; a malformed object is dropped (logged server-side) and never refuses the request, and an invalid landing_ref is dropped on its own."
+          },
+          "signup_context": {
+            "type": "object",
+            "maxProperties": 16,
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ],
+              "nullable": true
+            },
+            "nullable": true,
+            "description": "Optional opaque object copied verbatim into the user.signed_up fact (e.g. a referral code another module reads). Auth never interprets it. At most 16 keys of [A-Za-z0-9_.:-] (max 64 characters), scalar values only (string up to 256 characters, bool, number, null), at most 2048 bytes as JSON. Anything else refuses the request with error.400.signup_context_invalid."
           }
         },
         "required": [
@@ -8411,6 +8432,27 @@
             ],
             "nullable": true,
             "description": "Optional advertising attribution captured by the client on the landing page: {click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|ttclid, captured_at, utm?, landing_ref?}. The click identifier may be omitted when utm.source or landing_ref names the channel (an email or aggregator landing carries no click id); an identifier without its type, and a record carrying none of the three, are malformed. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored; a malformed object is dropped (logged server-side) and never refuses the request, and an invalid landing_ref is dropped on its own."
+          },
+          "signup_context": {
+            "type": "object",
+            "maxProperties": 16,
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ],
+              "nullable": true
+            },
+            "nullable": true,
+            "description": "Optional opaque object copied verbatim into the user.signed_up fact (e.g. a referral code another module reads). Auth never interprets it. At most 16 keys of [A-Za-z0-9_.:-] (max 64 characters), scalar values only (string up to 256 characters, bool, number, null), at most 2048 bytes as JSON. Anything else refuses the request with error.400.signup_context_invalid."
           }
         },
         "required": [
@@ -8750,6 +8792,27 @@
           "new_password": {
             "type": "string",
             "minLength": 8
+          },
+          "signup_context": {
+            "type": "object",
+            "maxProperties": 16,
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ],
+              "nullable": true
+            },
+            "nullable": true,
+            "description": "Used only when this verification promotes a guest session (a sign-up); see the sign-up endpoints."
           }
         },
         "required": [
@@ -8782,6 +8845,27 @@
           },
           "captcha_token": {
             "type": "string"
+          },
+          "signup_context": {
+            "type": "object",
+            "maxProperties": 16,
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ],
+              "nullable": true
+            },
+            "nullable": true,
+            "description": "Optional opaque object copied verbatim into the user.signed_up fact (e.g. a referral code another module reads). Auth never interprets it. At most 16 keys of [A-Za-z0-9_.:-] (max 64 characters), scalar values only (string up to 256 characters, bool, number, null), at most 2048 bytes as JSON. Anything else refuses the request with error.400.signup_context_invalid."
           }
         },
         "required": [
@@ -9084,6 +9168,27 @@
             ],
             "nullable": true,
             "description": "Optional advertising attribution captured by the client on the landing page: {click_id?, click_id_type?: gclid|gbraid|wbraid|yclid|fbclid|ttclid, captured_at, utm?, landing_ref?}. The click identifier may be omitted when utm.source or landing_ref names the channel (an email or aggregator landing carries no click id); an identifier without its type, and a record carrying none of the three, are malformed. Stored against the account only when this call registers it; ignored on a login. Unknown keys are ignored; a malformed object is dropped (logged server-side) and never refuses the request, and an invalid landing_ref is dropped on its own."
+          },
+          "signup_context": {
+            "type": "object",
+            "maxProperties": 16,
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ],
+              "nullable": true
+            },
+            "nullable": true,
+            "description": "Optional opaque object copied verbatim into the user.signed_up fact (e.g. a referral code another module reads). Auth never interprets it. At most 16 keys of [A-Za-z0-9_.:-] (max 64 characters), scalar values only (string up to 256 characters, bool, number, null), at most 2048 bytes as JSON. Anything else refuses the request with error.400.signup_context_invalid."
           }
         },
         "required": [

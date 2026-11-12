@@ -11,7 +11,17 @@
     "was_guest":      { "type": "boolean" },
     "is_staff":       { "type": "boolean" },
     "ad_consent":     { "type": "string", "enum": ["granted", "denied", "unknown"] },
-    "consent_source": { "type": "string", "description": "What decided ad_consent: the host resolver's own label, or no_resolver / no_request / resolver_error." }
+    "consent_source": { "type": "string", "description": "What decided ad_consent: the host resolver's own label, or no_resolver / no_request / resolver_error." },
+    "signup_context": {
+      "type": "object",
+      "description": "The opaque object the sign-up request carried (e.g. a referral code another module reads), copied verbatim; auth never interprets it. Absent when the request sent none. At most 16 keys of [A-Za-z0-9_.:-], scalar values, 2048 bytes as JSON.",
+      "maxProperties": 16,
+      "propertyNames": { "pattern": "^[A-Za-z0-9_.:-]{1,64}$" },
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"],
+        "maxLength": 256
+      }
+    }
   },
   "additionalProperties": false
 }

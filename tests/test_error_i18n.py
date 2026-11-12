@@ -115,6 +115,10 @@ _MACHINE_RU = {
         "а также либо click_id вместе с click_id_type "
         "(gclid|gbraid|wbraid|yclid|fbclid|ttclid), либо объект utm с "
         "заполненным source.",
+    "error.400.signup_context_invalid":
+        "Объект signup_context имеет неверный формат. Допускается не более 16 "
+        "ключей из латинских букв, цифр и _ . : -, у каждого — короткий текст, "
+        "число, true/false или null, всего не более 2048 байт.",
 }
 
 _MACHINE_ES = {
@@ -173,6 +177,10 @@ _MACHINE_ES = {
         "{captured_at} y, además, un click_id junto con su click_id_type "
         "(gclid|gbraid|wbraid|yclid|fbclid|ttclid) o bien un objeto utm que "
         "indique un source.",
+    "error.400.signup_context_invalid":
+        "El objeto signup_context tiene un formato incorrecto. Se admiten como "
+        "máximo 16 claves de letras, dígitos y _ . : -, cada una con un texto "
+        "corto, un número, true/false o null, y 2048 bytes en total.",
 }
 
 #: language -> machine-translation table, consulted for the keys the

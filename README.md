@@ -30,7 +30,7 @@ pip install stapel-auth
 | Config axes | 32 |
 | Usage surface | 18 |
 | Extension points | 7 |
-| Error codes | 144 |
+| Error codes | 145 |
 | Documented flows | 4 |
 | Fleet dependencies | [`stapel-core`](https://github.com/usestapel/stapel-core) · [`stapel-gdpr`](https://github.com/usestapel/stapel-gdpr) (optional) · [`stapel-notifications`](https://github.com/usestapel/stapel-notifications) (optional) |
 

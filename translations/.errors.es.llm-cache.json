@@ -15,6 +15,10 @@
     "hash": "006fa6cd06586563",
     "text": "La concesión de inicio de sesión no es válida, ya se ha utilizado o ha caducado."
   },
+  "error.400.signup_context_invalid": {
+    "hash": "9ee20a4230c7d93c",
+    "text": "El objeto signup_context tiene un formato incorrecto. Se admiten como máximo 16 claves de letras, dígitos y _ . : -, cada una con un texto corto, un número, true/false o null, y 2048 bytes en total."
+  },
   "error.400.staff_role_target_not_staff": {
     "hash": "3a93727b6e7d8f44",
     "text": "Los roles de personal solo pueden asignarse a cuentas de personal. Concede primero al usuario la condición de personal."

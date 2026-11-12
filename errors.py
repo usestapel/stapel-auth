@@ -111,6 +111,8 @@ ERR_403_CHANGE_REQUIRES_CURRENT = 'error.403.change_requires_current'
 # `attribution.parse_signup_attribution` for a direct caller; a request field
 # drops the object with a warning instead, so no endpoint answers it.
 ERR_400_ATTRIBUTION_INVALID = 'error.400.attribution_invalid'
+# The opaque signup_context object breaks its bounds (signup_context.py).
+ERR_400_SIGNUP_CONTEXT_INVALID = 'error.400.signup_context_invalid'
 
 AUTH_ERRORS = {
     ERR_401_INVALID_CREDENTIALS: 'Invalid credentials',
@@ -223,6 +225,7 @@ AUTH_ERRORS = {
     # Authenticator rewrite without proof of the current authenticator
     ERR_403_CHANGE_REQUIRES_CURRENT: 'Changing a verified email or phone needs a code sent to the current one. Start the change flow instead.',
     ERR_400_ATTRIBUTION_INVALID: 'The attribution object is malformed. Expected {captured_at} plus either a click_id with its click_id_type (gclid|gbraid|wbraid|yclid|fbclid|ttclid) or a utm object naming a source.',
+    ERR_400_SIGNUP_CONTEXT_INVALID: 'The signup_context object is malformed. Expected at most 16 keys of letters, digits and _ . : -, each with a short text, number, true/false or null value, at most 2048 bytes in all.',
 }
 
 # Machine-readable recovery hints (remediation) — the canonical "what to do"
@@ -358,6 +361,7 @@ AUTH_REMEDIATION = {
     ERR_403_CHANGE_REQUIRES_CURRENT: 'verify',
     # A malformed attribution mapping is the caller's own bug to fix.
     ERR_400_ATTRIBUTION_INVALID: 'fix_input',
+    ERR_400_SIGNUP_CONTEXT_INVALID: 'fix_input',
 }
 
 register_service_errors(AUTH_ERRORS, remediation=AUTH_REMEDIATION)

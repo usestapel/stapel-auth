@@ -2,6 +2,7 @@
 from rest_framework import serializers
 from stapel_core.django.api.serializers import StapelDataclassSerializer
 from stapel_auth.attribution import ATTRIBUTION_HELP, SignupAttributionSerializer
+from stapel_auth.signup_context import SignupContextField
 from stapel_auth.oauth.dto import (
     OAuthProviderInfo,
     RegistrationCapabilities,
@@ -23,6 +24,7 @@ class OAuthSerializer(serializers.Serializer):
     attribution = SignupAttributionSerializer(
         required=False, allow_null=True, help_text=ATTRIBUTION_HELP
     )
+    signup_context = SignupContextField()
 
 
 class OAuthProviderInfoSerializer(StapelDataclassSerializer):

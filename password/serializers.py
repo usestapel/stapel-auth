@@ -12,6 +12,7 @@ from stapel_auth.errors import (
     ERR_400_PHONE_TOO_LONG,
 )
 from stapel_auth.otp.constants import OTP_CODE_LENGTH
+from stapel_auth.signup_context import SignupContextField
 from stapel_auth.password.dto import (
     FirstLoginChallengeResponse,
     PasswordMethod,
@@ -83,6 +84,10 @@ class PasswordOtpVerifySerializer(serializers.Serializer):
     method = serializers.ChoiceField(choices=PASSWORD_OTP_METHODS)
     code = serializers.CharField(max_length=OTP_CODE_LENGTH)
     new_password = serializers.CharField(min_length=8)
+    signup_context = SignupContextField(
+        help_text="Used only when this verification promotes a guest session "
+        "(a sign-up); see the sign-up endpoints."
+    )
 
     def validate_new_password(self, value):
         from django.contrib.auth.password_validation import validate_password
@@ -153,6 +158,7 @@ class PasswordRegisterSerializer(CaptchaMixin, serializers.Serializer):
     phone = serializers.CharField(required=False, allow_null=True, default=None)
     username = serializers.CharField(required=False, allow_null=True, default=None)
     captcha_token = serializers.CharField(required=False, allow_blank=True)
+    signup_context = SignupContextField()
 
     def validate(self, attrs):
         if not any([attrs.get("email"), attrs.get("phone"), attrs.get("username")]):

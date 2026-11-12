@@ -446,6 +446,14 @@
     "owner": "stapel_auth"
   },
   {
+    "code": "error.400.signup_context_invalid",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "The signup_context object is malformed. Expected at most 16 keys of letters, digits and _ . : -, each with a short text, number, true/false or null value, at most 2048 bytes in all.",
+    "owner": "stapel_auth"
+  },
+  {
     "code": "error.400.sso_invalid_response",
     "status": 400,
     "params": [],

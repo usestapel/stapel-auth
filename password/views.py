@@ -381,7 +381,10 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if was_anonymous and not user.is_anonymous:
             from stapel_auth.signup import notify_user_signed_up
 
-            notify_user_signed_up(user, request=request, was_guest=True)
+            notify_user_signed_up(
+                user, request=request, was_guest=True,
+                signup_context=serializer.validated_data.get("signup_context"),
+            )
 
         if not was_anonymous:
             from stapel_auth.dto import SimpleStatusResponse
@@ -692,7 +695,10 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         if signed_up:
             from stapel_auth.signup import notify_user_signed_up
 
-            notify_user_signed_up(user, request=request, was_guest=was_guest)
+            notify_user_signed_up(
+                user, request=request, was_guest=was_guest,
+                signup_context=data.get("signup_context"),
+            )
 
         access_token, refresh_token = _issue_session_tokens(user, request, path=SessionPath.PASSWORD_REGISTER)
         dto = AuthResponse(

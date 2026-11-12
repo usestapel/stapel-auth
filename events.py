@@ -89,6 +89,8 @@ class UserSignedUpPayload:
             ``AUTH_SIGNUP_CONSENT_RESOLVER`` read the request; ``"unknown"``
             with no resolver or no request, ``"denied"`` when it raised.
         consent_source: What decided ``ad_consent``.
+        signup_context: The opaque object the sign-up request carried
+            (``stapel_auth.signup_context``), verbatim; absent when none.
     """
     user_id: str
     auth_type: str
@@ -97,6 +99,7 @@ class UserSignedUpPayload:
     is_staff: bool
     ad_consent: str
     consent_source: str
+    signup_context: dict | None = None
 
 
 @dataclass
