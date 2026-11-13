@@ -107,6 +107,7 @@ from stapel_auth.sessions.serializers import (
     UserSerializer,
 )
 from stapel_auth.signup import notify_user_signed_up
+from stapel_auth.signup_context import signup_context_from_body, signup_context_from_query
 from stapel_auth.accounts import (
     claim_by_proof,
     create_account,
@@ -714,6 +715,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             email = serializer.validated_data["email"]
             code = serializer.validated_data["code"]
             attribution = serializer.validated_data.get("attribution")
+            signup_context = serializer.validated_data.get("signup_context")
 
             # Progressive lockout across verification records (same pattern
             # as password login) — blocks unbounded OTP guessing via
@@ -818,7 +820,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     request_user.is_email_verified = True
                     promote_anonymous_session(request_user, auth_type="email")
                     request_user.save()
-                    notify_user_signed_up(request_user, request=request, was_guest=True)
+                    notify_user_signed_up(
+                        request_user, request=request, was_guest=True,
+                        signup_context=signup_context,
+                    )
                     user = request_user
                     auth_status = AuthStatus.REGISTERED
                     record_signup_attribution(user, attribution)
@@ -842,7 +847,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                         ),
                         email=email, auth_type="email", is_email_verified=True,
                     )
-                    notify_user_signed_up(user, request=request, was_guest=False)
+                    notify_user_signed_up(
+                        user, request=request, was_guest=False,
+                        signup_context=signup_context,
+                    )
                     auth_status = AuthStatus.REGISTERED
                     record_signup_attribution(user, attribution)
 
@@ -1095,6 +1103,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             phone = serializer.validated_data["phone"]
             code = serializer.validated_data["code"]
             attribution = serializer.validated_data.get("attribution")
+            signup_context = serializer.validated_data.get("signup_context")
 
             # Progressive lockout across verification records (same pattern
             # as password login) — blocks unbounded OTP guessing via
@@ -1198,7 +1207,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     request_user.is_phone_verified = True
                     promote_anonymous_session(request_user, auth_type="phone")
                     request_user.save()
-                    notify_user_signed_up(request_user, request=request, was_guest=True)
+                    notify_user_signed_up(
+                        request_user, request=request, was_guest=True,
+                        signup_context=signup_context,
+                    )
                     user = request_user
                     auth_status = AuthStatus.REGISTERED
                     record_signup_attribution(user, attribution)
@@ -1220,7 +1232,10 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                         request=request,
                         phone=phone, auth_type="phone", is_phone_verified=True,
                     )
-                    notify_user_signed_up(user, request=request, was_guest=False)
+                    notify_user_signed_up(
+                        user, request=request, was_guest=False,
+                        signup_context=signup_context,
+                    )
                     auth_status = AuthStatus.REGISTERED
                     record_signup_attribution(user, attribution)
 
@@ -1399,6 +1414,9 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         # serializer, so the optional attribution object is validated on its
         # own; a malformed one is dropped with a warning, never a 400.
         attribution = lenient_signup_attribution(request.data.get("attribution"))
+        # Unlike the attribution, a malformed signup_context refuses: it is
+        # checked before the provider is asked anything.
+        signup_context = signup_context_from_body(request.data)
 
         ocore = OAuthService()
         user_data = ocore.get_user_data(provider, access_token)
@@ -1409,7 +1427,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         request_user = request.user if request.user.is_authenticated else None
         try:
             user, auth_status = self._resolve_oauth_user(
-                provider, user_data, request_user=request_user, request=request
+                provider, user_data, request_user=request_user, request=request,
+                signup_context=signup_context,
             )
         except OAuthEmailNotVerified:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
@@ -1519,6 +1538,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     else None
                 ),
                 "attribution": attribution_to_state(attribution),
+                "signup_context": signup_context_from_query(request.query_params),
             },
             timeout=_OAUTH_STATE_TTL,
         )
@@ -1615,7 +1635,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             request_user = None
         try:
             user, auth_status = self._resolve_oauth_user(
-                provider, user_data, request_user=request_user, request=request
+                provider, user_data, request_user=request_user, request=request,
+                signup_context=state_data.get("signup_context"),
             )
         except OAuthEmailNotVerified:
             return StapelErrorResponse(400, ERR_400_OAUTH_FAILED)
@@ -1709,7 +1730,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         set_auth_hint_cookie(response)
         return response
 
-    def _resolve_oauth_user(self, provider, user_data, request_user=None, request=None):
+    def _resolve_oauth_user(self, provider, user_data, request_user=None, request=None,
+                            signup_context=None):
         """Find or create a user for an OAuth sign-in.
 
         Returns ``(user, AuthStatus)`` — the caller reports the outcome, which
@@ -1822,7 +1844,9 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             guest.is_email_verified = email_verified
             promote_anonymous_session(guest, auth_type="oauth")
             guest.save()
-            notify_user_signed_up(guest, request=request, was_guest=True)
+            notify_user_signed_up(
+                guest, request=request, was_guest=True, signup_context=signup_context
+            )
             return guest, AuthStatus.REGISTERED
 
         # 4. Brand-new user — the OAuth creation site (#86). No oracle to
@@ -1838,7 +1862,9 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             avatar=avatar,
             is_email_verified=email_verified,
         )
-        notify_user_signed_up(user, request=request, was_guest=False)
+        notify_user_signed_up(
+            user, request=request, was_guest=False, signup_context=signup_context
+        )
         return user, AuthStatus.REGISTERED
 
     def _publish_user_registered(self, user, request=None) -> None:

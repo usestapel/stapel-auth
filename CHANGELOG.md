@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased (proposed 0.51.0)
+## [0.51.0] — 2026-11-13
+
+Minor. Migration `0029` (new table). Requires stapel-core 0.96.0
+(`register_access_observer`); on an older core the app does not boot.
 
 ### Fixed — a per-device revoke kills every access token of the session at once
 
@@ -32,6 +35,18 @@ E.164 number from the reserved fictional range (NANP 555-0100..0199) without
 importing pytest or Django, for runtime seeders; `rng=random.Random(seed)`
 makes it reproducible. `stapel_auth.testing.unique_phone` draws from the same
 pool.
+
+### Added — `signup_context`, an opaque object carried into `user.signed_up`
+
+Every sign-up door (email/phone OTP verify, OAuth login and the redirect flow,
+password register, the guest promotion in `password/change/otp/verify/`)
+accepts an optional `signup_context` object and copies it verbatim into the
+`user.signed_up` fact (new optional field), so another module — a referral
+code — needs no second client call after the sign-up. Auth never interprets
+it. Bounded as untrusted input (16 scalar keys, 2048 bytes); a malformed body
+field refuses with the new `error.400.signup_context_invalid` (en/ru/es),
+a malformed redirect query parameter is dropped with a warning.
+`notify_user_signed_up` takes `signup_context=`.
 
 ## [0.50.1] — 2026-10-23
 

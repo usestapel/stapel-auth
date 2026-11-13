@@ -33,6 +33,7 @@
   "error.400.qr_expired": "El código QR ha caducado.",
   "error.400.qr_fulfilled": "El código QR ya se ha utilizado.",
   "error.400.qr_type_required": "Se requiere el tipo de QR (session_share o login_request).",
+  "error.400.signup_context_invalid": "El objeto signup_context tiene un formato incorrecto. Se admiten como máximo 16 claves de letras, dígitos y _ . : -, cada una con un texto corto, un número, true/false o null, y 2048 bytes en total.",
   "error.400.sso_invalid_response": "Respuesta SSO no válida del proveedor de identidad.",
   "error.400.sso_not_configured": "El SSO no está configurado para esta organización.",
   "error.400.staff_role_target_not_staff": "Los roles de personal solo pueden asignarse a cuentas de personal. Concede primero al usuario la condición de personal.",

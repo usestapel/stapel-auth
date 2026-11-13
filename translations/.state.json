@@ -136,6 +136,10 @@
       "hash": "8340b934edad0444",
       "origin": "seed:stapel-builtin"
     },
+    "error.400.signup_context_invalid": {
+      "hash": "9ee20a4230c7d93c",
+      "origin": "llm"
+    },
     "error.400.sso_invalid_response": {
       "hash": "bfac80909731ee42",
       "origin": "seed:stapel-builtin"
@@ -473,6 +477,10 @@
     "error.400.qr_type_required": {
       "hash": "8340b934edad0444",
       "origin": "seed:stapel-builtin"
+    },
+    "error.400.signup_context_invalid": {
+      "hash": "9ee20a4230c7d93c",
+      "origin": "llm"
     },
     "error.400.sso_invalid_response": {
       "hash": "bfac80909731ee42",

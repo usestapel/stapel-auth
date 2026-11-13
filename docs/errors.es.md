@@ -1,6 +1,6 @@
 # Errors — Español
 
-`144` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
+`145` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
 
 | Código | Estado | Parámetros | Acción | Texto |
 |---|---|---|---|---|
@@ -56,6 +56,7 @@
 | `error.400.qr_expired` | 400 | — | `retry` | El código QR ha caducado. |
 | `error.400.qr_fulfilled` | 400 | — | `retry` | El código QR ya se ha utilizado. |
 | `error.400.qr_type_required` | 400 | — | `fix_input` | Se requiere el tipo de QR (session_share o login_request). |
+| `error.400.signup_context_invalid` | 400 | — | `fix_input` | El objeto signup_context tiene un formato incorrecto. Se admiten como máximo 16 claves de letras, dígitos y _ . : -, cada una con un texto corto, un número, true/false o null, y 2048 bytes en total. |
 | `error.400.sso_invalid_response` | 400 | — | `retry` | Respuesta SSO no válida del proveedor de identidad. |
 | `error.400.sso_not_configured` | 400 | — | `contact_support` | El SSO no está configurado para esta organización. |
 | `error.400.staff_role_target_not_staff` | 400 | — | `fix_input` | Los roles de personal solo pueden asignarse a cuentas de personal. Concede primero al usuario la condición de personal. |

@@ -14,6 +14,10 @@ Not a sign-up: the guest enrolment itself, org provisioning
 accounts, and every LOGGED_IN / MERGED / MODIFIED answer.
 ``tests/test_user_signed_up.py`` holds the door list against the code.
 
+Signup context: a door passes the request's validated ``signup_context``
+(``stapel_auth.signup_context``) and it is copied verbatim into the payload —
+an opaque object for other modules (a referral code), never read here.
+
 Consent: the payload carries the visitor's advertising consent as the HOST
 reads it, through ``AUTH_SIGNUP_CONSENT_RESOLVER``. The library ships no
 reader — which cookie or header means what is the deployment's own business.
@@ -85,7 +89,7 @@ def resolve_signup_consent(request) -> SignupConsent:
         return RESOLVER_ERROR
 
 
-def notify_user_signed_up(user, *, request=None, was_guest: bool) -> None:
+def notify_user_signed_up(user, *, request=None, was_guest: bool, signup_context=None) -> None:
     """Emit ``user.signed_up`` for *user* unless the account already has one.
 
     Called by a door after the save that made the account a signed-up one.
@@ -102,6 +106,16 @@ def notify_user_signed_up(user, *, request=None, was_guest: bool) -> None:
 
     try:
         consent = resolve_signup_consent(request)
+        payload = {
+            "user_id": str(user.pk),
+            "auth_type": getattr(user, "auth_type", None) or "unknown",
+            "was_guest": bool(was_guest),
+            "is_staff": bool(getattr(user, "is_staff", False)),
+            "ad_consent": consent.ad_consent,
+            "consent_source": consent.source,
+        }
+        if signup_context:
+            payload["signup_context"] = dict(signup_context)
         registered_at = timezone.now().astimezone(datetime.timezone.utc)
         with transaction.atomic():
             _, created = UserSignup.objects.get_or_create(
@@ -112,15 +126,7 @@ def notify_user_signed_up(user, *, request=None, was_guest: bool) -> None:
                 return
             emit(  # emit-check: ok — the marker row above is this emit's mutation, both inside one savepoint; the swallow below keeps a broker/schema failure from failing registration
                 EVENT_USER_SIGNED_UP,
-                {
-                    "user_id": str(user.pk),
-                    "auth_type": getattr(user, "auth_type", None) or "unknown",
-                    "registered_at": registered_at.isoformat().replace("+00:00", "Z"),
-                    "was_guest": bool(was_guest),
-                    "is_staff": bool(getattr(user, "is_staff", False)),
-                    "ad_consent": consent.ad_consent,
-                    "consent_source": consent.source,
-                },
+                {**payload, "registered_at": registered_at.isoformat().replace("+00:00", "Z")},
                 key=str(user.pk),
                 service="auth",
             )

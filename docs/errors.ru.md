@@ -1,6 +1,6 @@
 # Errors — Русский
 
-`144` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
+`145` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
 
 | Код | Статус | Параметры | Действие | Текст |
 |---|---|---|---|---|
@@ -56,6 +56,7 @@
 | `error.400.qr_expired` | 400 | — | `retry` | Срок действия QR-кода истёк. |
 | `error.400.qr_fulfilled` | 400 | — | `retry` | QR-код уже был использован. |
 | `error.400.qr_type_required` | 400 | — | `fix_input` | Необходимо указать тип QR-кода (session_share или login_request). |
+| `error.400.signup_context_invalid` | 400 | — | `fix_input` | Объект signup_context имеет неверный формат. Допускается не более 16 ключей из латинских букв, цифр и _ . : -, у каждого — короткий текст, число, true/false или null, всего не более 2048 байт. |
 | `error.400.sso_invalid_response` | 400 | — | `retry` | Недействительный ответ SSO от провайдера идентификации. |
 | `error.400.sso_not_configured` | 400 | — | `contact_support` | SSO не настроен для этой организации. |
 | `error.400.staff_role_target_not_staff` | 400 | — | `fix_input` | Служебные роли можно назначать только служебным учётным записям. Сначала сделайте пользователя сотрудником. |
