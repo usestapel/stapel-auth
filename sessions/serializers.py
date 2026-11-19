@@ -135,15 +135,27 @@ class SimpleStatusSerializer(StapelDataclassSerializer):
         dataclass = SimpleStatusResponse
 
 
+class PasswordChangedResponseSerializer(serializers.Serializer):
+    """A password change that issued no new session.
+
+    The body is a ``SimpleStatusResponse`` with one possible ``status``; this
+    declaration names that value so the union below can be keyed by it.
+    """
+
+    status = serializers.ChoiceField(
+        choices=["password_changed"], help_text="Always password_changed"
+    )
+
+
 # Polymorphic union: PasswordViewSet.change_otp_verify returns either a plain
-# SimpleStatusResponse (ordinary password change — no promotion, no user
-# change) or a full User-bearing AuthResponse (the caller was an anonymous
+# SimpleStatusResponse with status=password_changed (ordinary password change
+# — no promotion, no user change) or a full User-bearing AuthResponse (the caller was an anonymous
 # guest session and the contact OTP verification promoted it — the client's
 # session.adopt() needs the `user` to flip anon -> registered). See
 # password/services.py PasswordService.change_via_otp and
 # password/views.py PasswordViewSet.change_otp_verify.
 PasswordOtpChangeResponseSerializer = PolymorphicProxySerializer(
     component_name='PasswordOtpChangeResponse',
-    serializers=[AuthResponseSerializer, SimpleStatusSerializer],
+    serializers=[AuthResponseSerializer, PasswordChangedResponseSerializer],
     resource_type_field_name='status',
 )

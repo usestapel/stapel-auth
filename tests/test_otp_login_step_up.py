@@ -21,7 +21,7 @@ from stapel_auth.models import TOTPDevice
 pytestmark = pytest.mark.django_db
 
 User = get_user_model()
-SECRET = "JBSWY3DPEHPK3PXP"
+SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"  # 160 bits: pyotp>=2.12 refuses <112
 
 
 @pytest.fixture(autouse=True)

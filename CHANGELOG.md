@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.52.0] — 2026-11-19
+
+Minor, additive. No migration. Requires stapel-core 0.97.0; contract emission
+(`make contract`, `tests/test_contract.py`) requires stapel-tools 0.81.1 (0.81.0 was never published).
+
+### Added — `docs/schema.v2.json`, the contract in profile 2
+
+The same 122 operations as `docs/schema.json`, emitted in stapel-tools'
+contract profile 2 for native client generators. `docs/schema.json` stays
+profile 1: it is what stapel-react's generators read and what the
+monolith-identity gate compares.
+
+- `JWTBearerAuth` declared next to the cookie on every secured operation.
+- Public operations by the running permission gate: the OTP, password,
+  OAuth and anonymous sign-in operations and `token/refresh/` now carry the
+  anonymous alternative (43 operations, was 33). `GET /me/` does not — its
+  handler answers `error.401.unauthorized` itself.
+- `LoginResponse`, `PasswordOtpChangeResponse` and `TOTPDisableRequest`
+  discriminators keyed by wire values (`LOGGED_IN`, `TOTP_REQUIRED`, …,
+  `password_changed`, `totp`/`backup`/`otp`).
+- `x-stapel-errors` on 115 of 122 operations (594 code bindings), derived
+  from the views' code; `x-stapel-flows` (12), `x-stapel-verification` (1),
+  `x-stapel-captcha` (7), `x-stapel-pagination` (2).
+
+### Fixed — nine success responses had no body schema
+
+In both files: `POST /totp/challenge/verify/` → `LoginResponse` (it mints a
+session, or answers the first-login challenge), `POST
+/passkey/authenticate/complete/` → `AuthResponse`, `POST /password/change/`
+→ `PasswordChangedResponse`, `POST /totp/disable/` and both `DELETE
+/sessions…` → `SimpleStatusResponse`, `POST /totp/disable-otp/request/` →
+`OtpSentResponse` (what it returns), SAML metadata → `application/xml`
+string, `GET /site/` → `SiteBootstrap` (stapel-core 0.97.0).
+`PasswordOtpChangeResponse`'s plain variant is now `PasswordChangedResponse`
+(`status: "password_changed"`, the one value it carries) instead of the
+generic `SimpleStatusResponse`; the wire body is unchanged.
+`tests/test_contract_wire.py` drives all nine against their declared schema.
+
+### Tests
+
+- `test_otp_login_step_up.py` uses a 160-bit TOTP secret: pyotp 2.12
+  refuses secrets under 112 bits, which turned the old 80-bit fixture red.
+
 ## [0.51.0] — 2026-11-13
 
 Minor. Migration `0029` (new table). Requires stapel-core 0.96.0

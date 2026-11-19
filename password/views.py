@@ -50,6 +50,7 @@ from stapel_auth.otp.serializers import OtpSentResponseSerializer
 from stapel_auth.sessions.serializers import (
     AuthResponseSerializer,
     LoginResponseSerializer,
+    PasswordChangedResponseSerializer,
     PasswordOtpChangeResponseSerializer,
     SimpleStatusSerializer,
 )
@@ -281,7 +282,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     @extend_schema(
         description="Change password by providing the current password.",
         request=PasswordChangeDirectSerializer,
-        responses={200: None, 400: StapelErrorSerializer},
+        responses={200: PasswordChangedResponseSerializer, 400: StapelErrorSerializer},
     )
     @action(
         detail=False,

@@ -1049,6 +1049,96 @@ def _token_refresh_get(call):
     return call(client)
 
 
+# ── the nine success bodies declared in 0.52.0 (schema.json had none) ────────
+
+
+def _totp_user_with_backup_codes():
+    """TOTP enrolled through the real service; returns (user, backup codes)."""
+    import pyotp
+
+    from stapel_auth.mfa.services import TOTPService
+
+    user = make_user()
+    secret = TOTPService.setup(user)["secret"]
+    codes = TOTPService.confirm(
+        user, pyotp.TOTP(secret, digits=TOTPService.CODE_LENGTH).now()
+    )
+    assert codes, "TOTP confirm returned no backup codes"
+    return user, codes
+
+
+@recipe("POST", "/totp/challenge/verify/")
+def _totp_challenge_verify(call):
+    with password_on():
+        user, codes = _totp_user_with_backup_codes()
+        login = anonymous().post(
+            f"{V1}/password/login/",
+            {"login": user.username, "password": PASSWORD},
+            format="json",
+        )
+        assert login.status_code == 200, login.content
+        assert login.json()["status"] == "TOTP_REQUIRED", login.content
+        return call(
+            anonymous(),
+            data={"challenge_token": login.json()["challenge_token"], "backup_code": codes[0]},
+        )
+
+
+@recipe("POST", "/passkey/authenticate/complete/")
+def _passkey_authenticate_complete(call):
+    """The assertion's signature is mocked; the session it mints is real."""
+    user = make_user()
+    credential = make_passkey(user)
+    with patch(
+        "stapel_auth.mfa.services.PasskeyService.authentication_complete",
+        return_value=(user, credential),
+    ):
+        return call(anonymous(), data={"session_key": "wire", "credential": {"id": "abc"}})
+
+
+@recipe("POST", "/password/change/")
+def _password_change(call):
+    with password_on():
+        return call(
+            client_for(make_user()),
+            data={"old_password": PASSWORD, "new_password": "another-wire-password-9"},
+        )
+
+
+@recipe("POST", "/totp/disable/")
+def _totp_disable(call):
+    user, codes = _totp_user_with_backup_codes()
+    return call(client_for(user), data={"method": "backup", "backup_code": codes[0]})
+
+
+@recipe("POST", "/totp/disable-otp/request/")
+def _totp_disable_otp_request(call):
+    user, _codes = _totp_user_with_backup_codes()
+    user.phone = "+12025556003"
+    user.is_phone_verified = True
+    user.save(update_fields=["phone", "is_phone_verified"])
+    return call(client_for(user))
+
+
+@recipe("DELETE", "/sessions/")
+def _sessions_revoke_all(call):
+    user = make_user()
+    make_session(user)
+    return call(client_for(user))
+
+
+@recipe("DELETE", "/sessions/{session_id}/")
+def _session_revoke_one(call):
+    user = make_user()
+    session = make_session(user)
+    return call(client_for(user), params={"session_id": session.id})
+
+
+@recipe("GET", "/site/")
+def _site_bootstrap(call):
+    return call(anonymous())
+
+
 # ── sso ──────────────────────────────────────────────────────────────────────
 
 

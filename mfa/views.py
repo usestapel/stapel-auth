@@ -51,6 +51,7 @@ from stapel_auth.otp.serializers import (
 from stapel_auth.sessions.guard import SessionPath
 from stapel_auth.sessions.serializers import (
     AuthResponseSerializer,
+    LoginResponseSerializer,
     SimpleStatusSerializer,
 )
 from stapel_auth.utils import SerializerSeamsMixin
@@ -226,7 +227,7 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             "Use when the user lost access to their authenticator and has no backup codes."
         ),
         request=None,
-        responses={200: None, 400: StapelErrorSerializer},
+        responses={200: OtpSentResponseSerializer, 400: StapelErrorSerializer},
     )
     @action(
         detail=False,
@@ -260,7 +261,7 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             "`totp` → 6-digit code, `backup` → backup code, `otp` → SMS code from /totp/disable-otp/request/."
         ),
         request=TOTPDisableSerializer,
-        responses={200: None, 400: StapelErrorSerializer},
+        responses={200: SimpleStatusSerializer, 400: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="disable")
     def disable(self, request):  # noqa: R007
@@ -308,7 +309,7 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     @extend_schema(
         description="Verify TOTP challenge after password/OAuth login when TOTP is enabled. Issues JWT cookies on success.",
         request=TOTPChallengeVerifySerializer,
-        responses={200: None, 400: StapelErrorSerializer},
+        responses={200: LoginResponseSerializer, 400: StapelErrorSerializer},
     )
     @action(detail=False, methods=["post"], url_path="challenge/verify")
     def challenge_verify(self, request):  # noqa: R007
@@ -734,7 +735,7 @@ class PasskeyViewSet(SerializerSeamsMixin, ViewSet):
     @extend_schema(
         summary="Complete passkey authentication and issue session",
         request=_PasskeyAuthCompleteBodySerializer,
-        responses={200: None},
+        responses={200: AuthResponseSerializer},
     )
     def auth_complete(self, request):
         from stapel_auth.mfa.services import PasskeyService

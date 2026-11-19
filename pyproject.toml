@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-auth"
-version = "0.51.0"
+version = "0.52.0"
 description = "Full-featured authentication Django app for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -52,7 +52,9 @@ dependencies = [
     # 0.96.0: register_access_observer — every access token core mints from a
     # refresh token is recorded on its session (sessions.services.
     # record_minted_access), so a per-device revoke reaches it.
-    "stapel-core>=0.96.0,<1.0",
+    # 0.97.0: contract profile 2 (docs/schema.v2.json) and the declared body
+    # of GET .../site/ (SiteBootstrapSerializer).
+    "stapel-core>=0.97.0,<1.0",
     "pyotp>=2.10",
     "webauthn>=2.8",
     "phonenumbers>=8.13",

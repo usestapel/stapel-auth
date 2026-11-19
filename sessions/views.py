@@ -641,7 +641,7 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
     @extend_schema(
         description="Revoke a specific session by ID.",
-        responses={200: None, 404: StapelErrorSerializer},
+        responses={200: SimpleStatusSerializer, 404: StapelErrorSerializer},
     )
     @action(detail=False, methods=["delete"], url_path=r"(?P<session_id>[^/.]+)")
     def revoke_one(self, request, session_id=None):  # noqa: R007
@@ -691,7 +691,7 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
 
     @extend_schema(
         description="Revoke all sessions except the current one.",
-        responses={200: None},
+        responses={200: SimpleStatusSerializer},
     )
     @action(detail=False, methods=["delete"], url_path="")
     def revoke_all(self, request):  # noqa: R007

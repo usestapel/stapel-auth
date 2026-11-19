@@ -2569,7 +2569,21 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                },
+                "examples": {
+                  "AuthResponse": {
+                    "value": {
+                      "status": "LOGGED_IN"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
           }
         }
       }
@@ -2692,7 +2706,14 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordChangedResponse"
+                }
+              }
+            },
+            "description": ""
           },
           "400": {
             "content": {
@@ -4732,7 +4753,21 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleStatusResponse"
+                },
+                "examples": {
+                  "SimpleStatusResponse": {
+                    "value": {
+                      "status": "ok"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
           }
         }
       }
@@ -4761,7 +4796,21 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleStatusResponse"
+                },
+                "examples": {
+                  "SimpleStatusResponse": {
+                    "value": {
+                      "status": "ok"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
           },
           "404": {
             "content": {
@@ -4841,7 +4890,14 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteBootstrap"
+                }
+              }
+            },
+            "description": ""
           }
         }
       }
@@ -4986,7 +5042,14 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
           }
         },
         "description": "**Permissions:** `AllowAny`"
@@ -5685,7 +5748,14 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            },
+            "description": ""
           },
           "400": {
             "content": {
@@ -5902,7 +5972,21 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleStatusResponse"
+                },
+                "examples": {
+                  "SimpleStatusResponse": {
+                    "value": {
+                      "status": "ok"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
           },
           "400": {
             "content": {
@@ -5931,7 +6015,22 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OtpSentResponse"
+                },
+                "examples": {
+                  "OtpSentResponse": {
+                    "value": {
+                      "message": "Verification code sent",
+                      "target": "u***@example.com"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
           },
           "400": {
             "content": {
@@ -8671,6 +8770,30 @@
           "old_password"
         ]
       },
+      "PasswordChangedResponse": {
+        "type": "object",
+        "description": "A password change that issued no new session.\n\nThe body is a ``SimpleStatusResponse`` with one possible ``status``; this\ndeclaration names that value so the union below can be keyed by it.",
+        "properties": {
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PasswordChangedResponseStatusEnum"
+              }
+            ],
+            "description": "Always password_changed\n\n* `password_changed` - password_changed"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "PasswordChangedResponseStatusEnum": {
+        "enum": [
+          "password_changed"
+        ],
+        "type": "string",
+        "description": "* `password_changed` - password_changed"
+      },
       "PasswordLogin": {
         "type": "object",
         "properties": {
@@ -8749,14 +8872,14 @@
             "$ref": "#/components/schemas/AuthResponse"
           },
           {
-            "$ref": "#/components/schemas/SimpleStatusResponse"
+            "$ref": "#/components/schemas/PasswordChangedResponse"
           }
         ],
         "discriminator": {
           "propertyName": "status",
           "mapping": {
             "AuthResponse": "#/components/schemas/AuthResponse",
-            "None": "#/components/schemas/SimpleStatusResponse"
+            "null": "#/components/schemas/PasswordChangedResponse"
           }
         }
       },
@@ -9793,6 +9916,107 @@
         },
         "required": [
           "status"
+        ]
+      },
+      "SiteBootstrap": {
+        "type": "object",
+        "description": "Declaration of :func:`site_payload` for the contract; never used to render.",
+        "properties": {
+          "host": {
+            "type": "string",
+            "description": "The matched site's host (or the request host)"
+          },
+          "matched": {
+            "type": "boolean",
+            "description": "The request host is a declared site or alias"
+          },
+          "primary": {
+            "type": "boolean",
+            "description": "The answering site is the primary one"
+          },
+          "locale": {
+            "type": "string",
+            "description": "The site's locale; may be empty"
+          },
+          "brand": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SiteBrand"
+              }
+            ],
+            "nullable": true,
+            "description": "null when the deployment declares no sites"
+          },
+          "seo": {
+            "$ref": "#/components/schemas/SiteSeo"
+          }
+        },
+        "required": [
+          "brand",
+          "host",
+          "locale",
+          "matched",
+          "primary",
+          "seo"
+        ]
+      },
+      "SiteBrand": {
+        "type": "object",
+        "description": "What the storefront paints on this host (``stapel_core.sites.Brand``).",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Stable brand key"
+          },
+          "name": {
+            "type": "string",
+            "description": "Brand name"
+          },
+          "title": {
+            "type": "string",
+            "description": "Document title; may be empty"
+          },
+          "logo": {
+            "type": "string",
+            "description": "Logo URL or asset path; may be empty"
+          },
+          "theme": {
+            "type": "string",
+            "description": "Theme key; may be empty"
+          },
+          "legal": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Legal texts/links by key"
+          }
+        },
+        "required": [
+          "key",
+          "legal",
+          "logo",
+          "name",
+          "theme",
+          "title"
+        ]
+      },
+      "SiteSeo": {
+        "type": "object",
+        "description": "Indexing hints; a site may declare further keys, passed through as-is.",
+        "properties": {
+          "index": {
+            "type": "boolean",
+            "description": "Whether crawlers may index this host"
+          },
+          "canonical_host": {
+            "type": "string",
+            "description": "Host canonical URLs point at"
+          }
+        },
+        "required": [
+          "canonical_host",
+          "index"
         ]
       },
       "StaffRoleAssignRequest": {

@@ -61,7 +61,9 @@ TRIAD = ("schema.json", "flows.json", "errors.json")
 # owner's call: raise the ceiling to 8000 for this module, do not shorten
 # intent/summary lines to fit. The budget stays enforced (8200 since 0.48.0:
 # the OTP_LOGIN_STEP_UP security axis).
-ARTIFACTS = TRIAD + ("capabilities.json", "llms.txt")
+# schema.v2.json: the same surface in contract profile 2 (stapel-tools
+# codegen), next to the profile-1 schema.json existing consumers pin.
+ARTIFACTS = TRIAD + ("schema.v2.json", "capabilities.json", "llms.txt")
 LLMS_TXT_BUDGET = "8200"
 
 

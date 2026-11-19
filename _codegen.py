@@ -5,6 +5,10 @@ Emits the module's own contract triad into ``docs/`` from a single-module
 prefix:
 
   docs/schema.json   drf-spectacular OpenAPI, this module only, canonical prefix
+  docs/schema.v2.json  the same surface in contract profile 2 (stapel_tools.codegen):
+                     bearer scheme, public operations from the running gate,
+                     wire-value discriminators, x-stapel-errors per response,
+                     flows/verification/captcha/pagination extensions
   docs/flows.json    generate_flow_docs machine artifact, canonical-prefix paths
   docs/errors.json   generate_error_keys registry (already the etalon)
 
@@ -156,6 +160,9 @@ def main(argv: list[str] | None = None) -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     paths = emit_schema(out / "schema.json")
+    # Profile 2 goes to its own file: docs/schema.json is what stapel-react's
+    # generators and the monolith-identity gate read, and stays profile 1.
+    emit_schema(out / "schema.v2.json", contract_profile=2)
     flows = emit_flows(out / "flows.json")
     errors = emit_errors(out / "errors.json")
 

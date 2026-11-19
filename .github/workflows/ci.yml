@@ -27,7 +27,7 @@ jobs:
         run: pip install -e ".[all]"
 
       - name: Install test dependencies
-        run: pip install pytest pytest-django pytest-cov python3-openid "stapel-tools>=0.9.1,<1"
+        run: pip install pytest pytest-django pytest-cov python3-openid "stapel-tools>=0.81.1,<1"
 
       - name: Lint
         run: |
@@ -39,7 +39,7 @@ jobs:
 
       - name: migration-lint (expand/contract gate, release-management.md §3)
         run: |
-          pip install "stapel-tools>=0.9.1,<1" --quiet
+          pip install "stapel-tools>=0.81.1,<1" --quiet
           stapel-migration-lint . --strict
 
       # SCH001 at ERROR, not warning. The gate ships at warning fleet-wide
@@ -154,7 +154,7 @@ jobs:
         run: pip install -e ".[all]"
 
       - name: Install test dependencies
-        run: pip install pytest pytest-django pytest-cov python3-openid "stapel-tools>=0.9.1,<1"
+        run: pip install pytest pytest-django pytest-cov python3-openid "stapel-tools>=0.81.1,<1"
 
       - name: Lint
         run: |
@@ -166,7 +166,7 @@ jobs:
 
       - name: migration-lint (expand/contract gate, release-management.md §3)
         run: |
-          pip install "stapel-tools>=0.9.1,<1" --quiet
+          pip install "stapel-tools>=0.81.1,<1" --quiet
           stapel-migration-lint . --strict
 
       - name: Import check

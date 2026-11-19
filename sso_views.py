@@ -143,7 +143,7 @@ class SAMLMetadataView(APIView):
     @extend_schema(
         summary="SAML SP metadata XML — register this with your IdP",
         tags=["SSO"],
-        responses={200: None},
+        responses={(200, "application/xml"): OpenApiTypes.STR},
     )
     def get(self, request: Request, slug: str):  # noqa: R007
         org = _get_org(slug)
