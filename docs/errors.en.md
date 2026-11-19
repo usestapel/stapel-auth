@@ -135,14 +135,14 @@
 | `error.410.gone` | 410 | — | `retry` | Resource has been permanently removed |
 | `error.413.payload_too_large` | 413 | — | `retry` | Request body is too large |
 | `error.415.unsupported_media_type` | 415 | — | `retry` | Unsupported media type |
-| `error.422.blocked` | 422 | `retry_after_minutes` | `wait_and_retry` | Account temporarily blocked. Try again in {retry_after_minutes} minutes. |
+| `error.422.blocked` | 422 | `retry_after_display`, `retry_after`, `retry_after_minutes` | `wait_and_retry` | Account temporarily blocked. Try again in {retry_after_display} ({retry_after} s, about {retry_after_minutes} min). |
 | `error.422.unprocessable_entity` | 422 | — | `wait_and_retry` | Unprocessable entity |
-| `error.423.account_locked` | 423 | `retry_after_minutes` | `wait_and_retry` | Account temporarily locked due to too many failed attempts. Try again in {retry_after_minutes} minutes. |
+| `error.423.account_locked` | 423 | `retry_after_display`, `retry_after`, `retry_after_minutes` | `wait_and_retry` | Account temporarily locked due to too many failed attempts. Try again in {retry_after_display} ({retry_after} s, about {retry_after_minutes} min). |
 | `error.423.locked` | 423 | — | `wait_and_retry` | Resource is locked |
 | `error.423.verification_locked` | 423 | — | `wait_and_retry` | Too many failed attempts — verification locked |
 | `error.425.gdpr.export_not_ready` | 425 | — | `retry` | Export is still being prepared. |
 | `error.429.magic_link_rate` | 429 | — | `wait_and_retry` | Too many magic link requests. Please try again later. |
-| `error.429.rate_limit` | 429 | `retry_after_minutes` | `wait_and_retry` | Too many attempts. Try again in {retry_after_minutes} minutes. |
+| `error.429.rate_limit` | 429 | `retry_after_display`, `retry_after`, `retry_after_minutes` | `wait_and_retry` | Too many attempts. Try again in {retry_after_display} ({retry_after} s, about {retry_after_minutes} min). |
 | `error.429.too_many_requests` | 429 | — | `wait_and_retry` | Too many requests. Please try again later. |
 | `error.500.internal` | 500 | — | `contact_support` | Something went wrong |
 | `error.500.send_failed` | 500 | — | `retry` | Failed to send verification code |

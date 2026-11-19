@@ -48,7 +48,7 @@ by default only `REMOTE_ADDR` (i.e. the proxy) is trusted:
 ```python
 # ONLY if the edge overwrites this header on every request
 # (nginx: proxy_set_header X-Real-IP $remote_addr)
-STAPEL_NETINTEL = {"TRUSTED_PROXY_HEADER": "HTTP_X_REAL_IP"}
+STAPEL_SECURITY = {"TRUSTED_PROXY_HEADER": "HTTP_X_REAL_IP"}
 ```
 
 `manage.py check` says so too: `stapel_auth.W005` when a proxy is declared but

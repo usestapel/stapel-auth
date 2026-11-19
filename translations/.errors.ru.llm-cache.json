@@ -70,5 +70,13 @@
   "error.409.oauth_already_linked": {
     "hash": "67a730fa6039a26c",
     "text": "Этот провайдер уже привязан к вашей учётной записи."
+  },
+  "error.422.blocked": {
+    "hash": "3d17cf97e3a12739",
+    "text": "Учётная запись временно заблокирована. Повторите попытку через {retry_after_display} ({retry_after} с, около {retry_after_minutes} мин)."
+  },
+  "error.423.account_locked": {
+    "hash": "3a0f64a9dea72d27",
+    "text": "Учётная запись временно заблокирована из-за слишком большого числа неудачных попыток. Повторите попытку через {retry_after_display} ({retry_after} с, около {retry_after_minutes} мин)."
   }
 }

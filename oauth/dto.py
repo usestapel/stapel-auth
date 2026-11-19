@@ -60,8 +60,8 @@ class RegistrationCapabilities:
         email: Email OTP registration enabled. Example: true
         password: Password registration enabled. Example: false
         oauth: Enabled OAuth providers. Example: []
-        sso: SSO/SAML JIT provisioning enabled. Example: true
-        anonymous: Anonymous registration enabled. Example: true
+        sso: SSO/SAML JIT provisioning enabled (AUTH_SSO_REGISTRATION; a channel stays open while its login OR registration axis is on, see stapel_auth.W015). Example: true
+        anonymous: Guest sessions may be minted (POST /anonymous/, AUTH_ANONYMOUS); a guest is not an account until promoted. Example: true
         email_mock: Email OTP delivery is mocked in this environment (the
             code is written to logs instead of actually sent) — purely
             informational, does not affect ``email`` above: a mocked channel

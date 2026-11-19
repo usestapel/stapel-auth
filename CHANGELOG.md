@@ -1,5 +1,80 @@
 # Changelog
 
+## [0.53.0] — 2026-11-19
+
+Minor (pre-1.0: read the Changed list). No migration. Requires stapel-core
+0.98.0. Found by a native client's end-to-end suite running bearer-only
+against a scaffolded backend.
+
+### Fixed — "the caller's own session" for bearer and cookie clients
+
+- `GET /sessions/` never marked the caller `is_current`, and `DELETE
+  /sessions/` ("sign out my other devices") revoked the caller's own session
+  too. Both read a `refresh_jti` claim no access token carries, and only from
+  the `Authorization` header — so cookie clients were affected as well.
+  `sessions.services.current_session(request)` is now the one place this is
+  decided: the access token's jti through the access-token ledger
+  (`SessionAccessToken`, which every mint path records), else the refresh
+  cookie's jti. Both tokens are signature-verified (the previous helper
+  decoded them unverified) and looked up under `request.user`. The password
+  change's "keep this session" reads the same function.
+- `POST /logout/` with no refresh token (body or cookie) now revokes the
+  session the access token belongs to, so its refresh token stops working;
+  before, only the access token was blacklisted.
+
+### Fixed — contract
+
+- 16 of 72 examples did not validate against their own schema
+  (`AuthResponse` with only `status`, a `user` with only `id`/`email`,
+  `"True"` for a boolean, falsy examples dropped by core's docstring reader).
+  Completed from one `sessions.dto.USER_EXAMPLE` / `TOKENS_EXAMPLE`; falsy
+  examples pinned as field metadata. `docs/schema.json` (profile 1) changes
+  in examples and field `example`s only, plus two capability descriptions.
+  Gate: `tests/test_contract_examples.py` validates every example in both
+  files (one foreign exception, stapel-gdpr's `DataOwnerHealthDTO`, listed
+  with its owner and asserted current).
+- `error.429.rate_limit`, `error.422.blocked`, `error.423.account_locked`
+  carry `retry_after` (seconds), `retry_after_display` (`M:SS`) and
+  `retry_after_minutes` (rounded up, never 0) — `errors.json` listed only the
+  minutes. The templates now name all three (the 429 key is re-registered
+  without taking it from core). `error.429.rate_limit` was already bound on
+  the OTP request operations in `schema.v2.json`; `tests/test_rate_limit_contract.py`
+  holds the wire answer to the binding and the params.
+- `me` and `logout` declared `permission_classes=[IsAuthenticated]` on the
+  `@action`, which `as_view({...})` never applies. Removed; behaviour
+  unchanged (the `me` handler answers 401 itself; logout must work with an
+  expired access token). `tests/test_action_declarations.py` fails on any
+  action-level permission its mount does not run.
+
+### Fixed — a sign-in no longer depends on celery
+
+`stapel_auth.tasks` imported celery unconditionally and celery was not a
+declared dependency: a project without it answered every sign-in with 500,
+and with it, a broker that refused the message did the same. Celery is now
+the optional `celery` extra (in `all`): without it the task functions are
+plain callables and the login alert is evaluated in the request; with it, a
+failed enqueue falls back to that. Any error in the alert is logged, never
+raised. New check `stapel_auth.W014` when celery is absent.
+
+### Changed
+
+- SSO closes when both `AUTH_SSO_LOGIN` and `AUTH_SSO_REGISTRATION` are off
+  (403 on `/sso/<slug>/login/`, `?error=sso_disabled` on ACS/OIDC callback,
+  no org on lookup), like email/phone/OAuth. It had no per-request check, and
+  `stapel_auth.urls` mounts every factory.
+- New check `stapel_auth.W015`: a channel with its login axis off and its
+  registration axis on stays open (that is the library's rule), while
+  capabilities report `login.<m>=false`, `registration.<m>=true` — the
+  `--auth-model public` scaffold pair for SSO. `registration.anonymous=true`
+  is correct (guests are minted while `AUTH_ANONYMOUS` is on); its
+  description now says so.
+- W005/W006 read `stapel_core.security.trusted_proxy_header()` and name
+  `STAPEL_SECURITY['TRUSTED_PROXY_HEADER']` (the legacy `STAPEL_NETINTEL` key
+  still counts); `client_ip` imported from `stapel_core.security`. Floor
+  `stapel-core>=0.98.0`.
+- English texts of `error.422.blocked`, `error.423.account_locked`,
+  `error.429.rate_limit` changed (new params named); translations unchanged.
+
 ## [0.52.0] — 2026-11-19
 
 Minor, additive. No migration. Requires stapel-core 0.97.0; contract emission

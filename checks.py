@@ -339,7 +339,7 @@ def check_proxy_trust_declared(app_configs=None, **kwargs):
     (``ANONYMOUS_RATE_LIMIT_PER_HOUR``), the progressive OTP lockout, the
     ``LoginAttempt``/``AuthAuditLog``/``UserSession`` rows the security
     screen shows the user. That IP now comes from one place —
-    ``stapel_core.netintel.client_ip`` — which trusts ``REMOTE_ADDR`` and
+    ``stapel_core.security.client_ip`` — which trusts ``REMOTE_ADDR`` and
     nothing else until the deployment names a header.
 
     Behind a proxy with nothing named, ``REMOTE_ADDR`` is the proxy: every
@@ -360,20 +360,20 @@ def check_proxy_trust_declared(app_configs=None, **kwargs):
     if not declared:
         return []
 
-    from stapel_core.netintel.conf import netintel_settings
+    from stapel_core.security import trusted_proxy_header
 
-    if netintel_settings.TRUSTED_PROXY_HEADER:
+    if trusted_proxy_header():
         return []
 
     return [checks.Warning(
         f"This deployment declares it is behind a proxy ({', '.join(declared)}) "
-        "but STAPEL_NETINTEL['TRUSTED_PROXY_HEADER'] is unset, so every "
+        "but STAPEL_SECURITY['TRUSTED_PROXY_HEADER'] is unset, so every "
         "request's client IP resolves to the proxy's own address. Rate "
         "limits, lockouts and audit/session IPs are all keyed on that value: "
         "they now collapse onto a single shared bucket.",
         hint="Have the edge proxy OVERWRITE a client-IP header on every "
              "request (nginx: proxy_set_header X-Real-IP $remote_addr) and "
-             "point STAPEL_NETINTEL['TRUSTED_PROXY_HEADER'] at its META key "
+             "point STAPEL_SECURITY['TRUSTED_PROXY_HEADER'] at its META key "
              "(e.g. 'HTTP_X_REAL_IP'). Never point it at a header the edge "
              "only appends to — see stapel_auth.W006. If the proxy settings "
              "are inherited but this process is reached directly, silence "
@@ -386,7 +386,7 @@ def check_proxy_trust_declared(app_configs=None, **kwargs):
 def check_trusted_proxy_header_is_overwritten(app_configs=None, **kwargs):
     """W006 — the trusted client-IP header is one proxies usually append to.
 
-    ``stapel_core.netintel.client_ip`` takes the FIRST element of the
+    ``stapel_core.security.client_ip`` takes the FIRST element of the
     trusted header, which is correct only if the edge *replaces* the header
     on every request. The common nginx recipe
     ``proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for`` appends
@@ -401,14 +401,14 @@ def check_trusted_proxy_header_is_overwritten(app_configs=None, **kwargs):
     written-down escape: a deployment whose edge really does overwrite
     ``X-Forwarded-For`` silences it and thereby records that it checked.
     """
-    from stapel_core.netintel.conf import netintel_settings
+    from stapel_core.security import trusted_proxy_header
 
-    header = netintel_settings.TRUSTED_PROXY_HEADER
+    header = trusted_proxy_header()
     if not header or str(header).upper() not in _APPENDING_HEADERS:
         return []
 
     return [checks.Warning(
-        f"STAPEL_NETINTEL['TRUSTED_PROXY_HEADER'] = {header!r}. The first "
+        f"STAPEL_SECURITY['TRUSTED_PROXY_HEADER'] = {header!r}. The first "
         "element of this header is trusted as the client IP, but proxies "
         "conventionally APPEND to X-Forwarded-For (nginx "
         "$proxy_add_x_forwarded_for) rather than replace it — in which case "
@@ -565,3 +565,78 @@ __all__ += [
     "W010_OAUTH_AUDIENCES_NOT_HONOURED",
     "check_oauth_audience_pinning",
 ]
+
+
+W014_NO_TASK_RUNNER = "stapel_auth.W014"
+
+
+@checks.register("stapel_auth")
+def check_task_runner(app_configs=None, **kwargs):
+    """W014 — celery is not installed, so nothing here runs in the background.
+
+    Celery is an optional extra. Without it a sign-in still works: the login
+    alert (new device / unfamiliar network) is evaluated inside the request
+    instead of on a worker. What does NOT happen on its own is the delayed
+    authenticator change — its notifications and the change itself are the
+    three ``tasks.BEAT_SCHEDULE`` entries, which then have to be called by
+    some other scheduler (they are plain functions).
+    """
+    from stapel_auth.tasks import CELERY_AVAILABLE
+
+    if CELERY_AVAILABLE:
+        return []
+    return [checks.Warning(
+        "celery is not installed: login alerts are evaluated synchronously "
+        "inside the sign-in request, and the delayed authenticator-change "
+        "tasks (stapel_auth.tasks.BEAT_SCHEDULE) run only if another "
+        "scheduler calls them.",
+        hint="pip install 'stapel-auth[celery]' and run a worker plus beat "
+             "with BEAT_SCHEDULE merged in; or schedule the three functions "
+             "named there yourself and silence stapel_auth.W014.",
+        id=W014_NO_TASK_RUNNER,
+    )]
+
+
+__all__ += ["W014_NO_TASK_RUNNER", "check_task_runner"]
+
+
+W015_REGISTRATION_WITHOUT_LOGIN = "stapel_auth.W015"
+
+
+@checks.register("stapel_auth")
+def check_registration_without_login(app_configs=None, **kwargs):
+    """W015 — a channel registers new accounts while its login axis is off.
+
+    A sign-in channel is open while its ``AUTH_<M>_LOGIN`` OR its
+    ``AUTH_<M>_REGISTRATION`` is on (the URL gates and the per-request checks
+    share that rule), and a new account additionally needs the registration
+    axis. So "login off, registration on" is not "this channel is off": the
+    door stays open, a stranger registers through it, and an existing account
+    signs in through it too — while ``GET /capabilities/`` reports
+    ``login.<m> = false`` next to ``registration.<m> = true``. Usually the
+    login axis was switched off to remove the channel and the registration
+    axis (default on) was left behind.
+    """
+    from stapel_auth.conf import auth_settings
+    from stapel_auth.registration import REGISTRATION_METHODS
+
+    issues = []
+    for method in REGISTRATION_METHODS:
+        login = getattr(auth_settings, f"AUTH_{method.upper()}_LOGIN", None)
+        registration = getattr(auth_settings, f"AUTH_{method.upper()}_REGISTRATION", None)
+        if login is False and registration:
+            issues.append(checks.Warning(
+                f"AUTH_{method.upper()}_LOGIN is off but "
+                f"AUTH_{method.upper()}_REGISTRATION is on: the {method} channel "
+                "stays open — new accounts register through it and existing "
+                "ones still sign in through it — while capabilities report "
+                f"login.{method}=false, registration.{method}=true.",
+                hint=f"To remove the channel set AUTH_{method.upper()}_REGISTRATION "
+                     "to False as well. If registration-only is intended, "
+                     "silence stapel_auth.W015.",
+                id=W015_REGISTRATION_WITHOUT_LOGIN,
+            ))
+    return issues
+
+
+__all__ += ["W015_REGISTRATION_WITHOUT_LOGIN", "check_registration_without_login"]

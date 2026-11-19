@@ -1081,10 +1081,12 @@
     "code": "error.422.blocked",
     "status": 422,
     "params": [
+      "retry_after_display",
+      "retry_after",
       "retry_after_minutes"
     ],
     "remediation": "wait_and_retry",
-    "en": "Account temporarily blocked. Try again in {retry_after_minutes} minutes.",
+    "en": "Account temporarily blocked. Try again in {retry_after_display} ({retry_after} s, about {retry_after_minutes} min).",
     "owner": "stapel_auth"
   },
   {
@@ -1099,10 +1101,12 @@
     "code": "error.423.account_locked",
     "status": 423,
     "params": [
+      "retry_after_display",
+      "retry_after",
       "retry_after_minutes"
     ],
     "remediation": "wait_and_retry",
-    "en": "Account temporarily locked due to too many failed attempts. Try again in {retry_after_minutes} minutes.",
+    "en": "Account temporarily locked due to too many failed attempts. Try again in {retry_after_display} ({retry_after} s, about {retry_after_minutes} min).",
     "owner": "stapel_auth"
   },
   {
@@ -1141,10 +1145,12 @@
     "code": "error.429.rate_limit",
     "status": 429,
     "params": [
+      "retry_after_display",
+      "retry_after",
       "retry_after_minutes"
     ],
     "remediation": "wait_and_retry",
-    "en": "Too many attempts. Try again in {retry_after_minutes} minutes.",
+    "en": "Too many attempts. Try again in {retry_after_display} ({retry_after} s, about {retry_after_minutes} min).",
     "owner": "stapel_core"
   },
   {

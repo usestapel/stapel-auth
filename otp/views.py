@@ -91,6 +91,8 @@ from stapel_auth.registration import (
     require_registration_open,
 )
 from stapel_auth.sessions.dto import (
+    TOKENS_EXAMPLE,
+    USER_EXAMPLE,
     AuthResponse,
     AuthStatus,
     LogoutResponse,
@@ -433,9 +435,9 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     def get_client_ip(self, request):
         """The caller's IP, as the deployment has declared it can be known.
 
-        Delegates to :func:`stapel_core.netintel.client_ip`: ``REMOTE_ADDR``
+        Delegates to :func:`stapel_core.security.client_ip`: ``REMOTE_ADDR``
         unless the deployment names a proxy-set header in
-        ``STAPEL_NETINTEL["TRUSTED_PROXY_HEADER"]``.
+        ``STAPEL_SECURITY["TRUSTED_PROXY_HEADER"]``.
 
         Never read ``X-Forwarded-For`` by hand here. Any client can send that
         header, and behind an *appending* proxy (nginx
@@ -444,7 +446,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         value keys the anonymous-mint budget, the lockout counters and every
         audit row, so rotating one header reset all three (audit F6).
         """
-        from stapel_core.netintel import client_ip
+        from stapel_core.security import client_ip
 
         return client_ip(request)
 
@@ -661,11 +663,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 "Success - new user registered",
                 value={
                     "status": "REGISTERED",
-                    "user": {
-                        "id": "550e8400-e29b-41d4-a716-446655440000",
-                        "email": "user@example.com",
-                    },
-                    "tokens": {"access": "eyJ...", "refresh": "eyJ..."},
+                    "user": USER_EXAMPLE,
+                    "tokens": TOKENS_EXAMPLE,
                 },
                 response_only=True,
                 status_codes=["200"],
@@ -674,11 +673,8 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 "Success - existing user logged in",
                 value={
                     "status": "LOGGED_IN",
-                    "user": {
-                        "id": "550e8400-e29b-41d4-a716-446655440000",
-                        "email": "user@example.com",
-                    },
-                    "tokens": {"access": "eyJ...", "refresh": "eyJ..."},
+                    "user": USER_EXAMPLE,
+                    "tokens": TOKENS_EXAMPLE,
                 },
                 response_only=True,
                 status_codes=["200"],
@@ -1902,9 +1898,11 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         ),
         responses={200: LogoutResponseSerializer, 400: StapelErrorSerializer},
     )
-    @action(
-        detail=False, methods=["post"], permission_classes=[permissions.IsAuthenticated]
-    )
+    # No IsAuthenticated: a client whose access token already expired logs
+    # out with its refresh token alone (body or cookie), and an anonymous
+    # call is a harmless no-op that clears cookies. The route is mounted with
+    # as_view() in urls_v1, which never applied an @action-level permission.
+    @action(detail=False, methods=["post"])
     def logout(self, request):  # noqa: R007
         """POST endpoint to logout user"""
         return self._logout(request)
@@ -1991,6 +1989,21 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                         _SS.revoke_by_jti(jti)
                 except Exception as e:
                     logger.warning(f"Failed to blacklist refresh token: {e}")
+            else:
+                # A bearer client that sends no refresh token: end the session
+                # its (verified) access token belongs to, so its refresh token
+                # stops working too instead of outliving the logout.
+                from stapel_auth.sessions.services import (
+                    SessionService as _SS,
+                    current_session,
+                )
+
+                try:
+                    session = current_session(request)
+                    if session is not None:
+                        _SS.revoke_session(session)
+                except Exception as e:
+                    logger.warning(f"Failed to revoke the caller's session: {e}")
 
             # Create response
             dto = LogoutResponse(message="Successfully logged out")
@@ -2022,9 +2035,11 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         description="Get current authenticated user information",
         responses={200: UserSerializer, 401: StapelErrorSerializer},
     )
-    @action(
-        detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated]
-    )
+    # The handler is the gate (401 below, with Accept-CH and a diagnostic
+    # log line); the profile-2 contract reads that 401 to mark the operation
+    # credential-bound. The route is mounted with as_view() in urls_v1, which
+    # never applied an @action-level permission, so none is declared here.
+    @action(detail=False, methods=["get"])
     def me(self, request):  # noqa: R007
         """Get current user information"""
         # Check if user is actually authenticated
@@ -2032,7 +2047,7 @@ class AuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
             # Log detailed info about failed authentication
             auth_header = request.headers.get("authorization", "")
             user_agent = request.headers.get("user-agent", "unknown")
-            from stapel_core.netintel import client_ip as _client_ip
+            from stapel_core.security import client_ip as _client_ip
 
             client_ip = _client_ip(request) or "unknown"
 
@@ -2458,7 +2473,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         svc = AuthenticatorChangeService()
         from stapel_auth.utils import mask_value
 
-        from stapel_core.netintel import client_ip
+        from stapel_core.security import client_ip
 
         ip = client_ip(request)
         result = svc.initiate_delayed(
@@ -2537,7 +2552,7 @@ class AuthenticatorChangeViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         svc = AuthenticatorChangeService()
         from stapel_auth.utils import mask_value
 
-        from stapel_core.netintel import client_ip
+        from stapel_core.security import client_ip
 
         ip = client_ip(request)
         result = svc.initiate_delayed(

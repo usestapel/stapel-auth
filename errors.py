@@ -117,7 +117,7 @@ ERR_400_SIGNUP_CONTEXT_INVALID = 'error.400.signup_context_invalid'
 AUTH_ERRORS = {
     ERR_401_INVALID_CREDENTIALS: 'Invalid credentials',
     ERR_401_ACCOUNT_DISABLED: 'User account is disabled',
-    ERR_422_BLOCKED: 'Account temporarily blocked. Try again in {retry_after_minutes} minutes.',
+    ERR_422_BLOCKED: 'Account temporarily blocked. Try again in {retry_after_display} ({retry_after} s, about {retry_after_minutes} min).',
     # Absence, not wrongness: nothing is waiting for this code — it aged out,
     # it was already spent, or the store restarted. The answer is an invitation
     # to start over, never an accusation that the user mistyped.
@@ -183,7 +183,7 @@ AUTH_ERRORS = {
     ),
     ERR_400_TOTP_NOT_ENABLED: 'TOTP is not enabled on this account.',
     # Lockout
-    ERR_423_ACCOUNT_LOCKED: 'Account temporarily locked due to too many failed attempts. Try again in {retry_after_minutes} minutes.',
+    ERR_423_ACCOUNT_LOCKED: 'Account temporarily locked due to too many failed attempts. Try again in {retry_after_display} ({retry_after} s, about {retry_after_minutes} min).',
     ERR_400_INVALID_REDIRECT_URL: 'redirect_url must be a relative path starting with /  — absolute URLs are not allowed.',
     # Magic links
     ERR_400_MAGIC_LINK_INVALID: 'Magic link is invalid or has expired.',
@@ -366,9 +366,25 @@ AUTH_REMEDIATION = {
 
 register_service_errors(AUTH_ERRORS, remediation=AUTH_REMEDIATION)
 
+#: Every answer built by :func:`retry_params` (and core's
+#: ``error_429_rate_limit``, which builds the same three) carries these
+#: params. ``errors.json`` lists a code's params from its English template
+#: only, so each such template names all three.
+RETRY_PARAMS = ('retry_after', 'retry_after_display', 'retry_after_minutes')
+
+# error.429.rate_limit is core's key, answered here with core's helper; core's
+# template names only {retry_after_minutes}, so the two params every answer
+# also carries were undocumented. Re-registered with the full set, without
+# claiming the key (core stays its owner and keeps its catalogs).
+register_service_errors({
+    'error.429.rate_limit': 'Too many attempts. Try again in {retry_after_display} ({retry_after} s, about {retry_after_minutes} min).',
+})
+
 
 def retry_params(retry_after):
-    """Build params with retry_after (seconds), minutes, and display."""
+    """The :data:`RETRY_PARAMS` of a wait: ``retry_after`` in whole seconds,
+    ``retry_after_minutes`` rounded UP (30 s -> 1, never 0) and
+    ``retry_after_display`` as ``M:SS`` / ``H:MM:SS``."""
     import math
     seconds = int(retry_after or 0)
     minutes = max(1, math.ceil(seconds / 60))

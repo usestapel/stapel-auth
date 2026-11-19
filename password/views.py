@@ -519,7 +519,7 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     def reset_phone_request(self, request):  # noqa: R007
         serializer = self.get_reset_phone_request_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
-        from stapel_core.netintel import client_ip
+        from stapel_core.security import client_ip
 
         masked = PasswordService.reset_request(
             phone=serializer.validated_data["phone"], client_ip=client_ip(request)

@@ -119,6 +119,14 @@ _MACHINE_RU = {
         "Объект signup_context имеет неверный формат. Допускается не более 16 "
         "ключей из латинских букв, цифр и _ . : -, у каждого — короткий текст, "
         "число, true/false или null, всего не более 2048 байт.",
+    # The wait answers name all three params they carry (0.53.0).
+    "error.422.blocked":
+        "Учётная запись временно заблокирована. Повторите попытку через "
+        "{retry_after_display} ({retry_after} с, около {retry_after_minutes} мин).",
+    "error.423.account_locked":
+        "Учётная запись временно заблокирована из-за слишком большого числа "
+        "неудачных попыток. Повторите попытку через {retry_after_display} "
+        "({retry_after} с, около {retry_after_minutes} мин).",
 }
 
 _MACHINE_ES = {
@@ -181,6 +189,14 @@ _MACHINE_ES = {
         "El objeto signup_context tiene un formato incorrecto. Se admiten como "
         "máximo 16 claves de letras, dígitos y _ . : -, cada una con un texto "
         "corto, un número, true/false o null, y 2048 bytes en total.",
+    # The wait answers name all three params they carry (0.53.0).
+    "error.422.blocked":
+        "Cuenta bloqueada temporalmente. Inténtalo de nuevo en "
+        "{retry_after_display} ({retry_after} s, unos {retry_after_minutes} min).",
+    "error.423.account_locked":
+        "Cuenta bloqueada temporalmente por demasiados intentos fallidos. "
+        "Inténtalo de nuevo en {retry_after_display} ({retry_after} s, unos "
+        "{retry_after_minutes} min).",
 }
 
 #: language -> machine-translation table, consulted for the keys the
@@ -205,11 +221,18 @@ def _seed_from_fixtures(lang: str) -> dict[str, str]:
     path = _FIXTURES / f"{lang}.json"
     if not path.is_file():
         return {}
+    from stapel_core.i18n.domains import params_of
+
     data = json.loads(path.read_text(encoding="utf-8"))
+    source = source_texts("errors")
+    # A corpus text whose {params} differ from the canon was translated from an
+    # older en; seeding it would mark a stale text fresh. The machine table
+    # (or a missing-key failure) has to answer instead.
     return {
         k: v for k, v in data.items()
         if isinstance(k, str) and k.startswith("error.")
         and isinstance(v, str) and v
+        and (k not in source or set(params_of(v)) == set(params_of(source[k])))
     }
 
 

@@ -1,5 +1,5 @@
 """Data Transfer Objects for the sessions sub-package."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
@@ -20,6 +20,36 @@ class AuthStatus(str, Enum):
     LOGGED_IN = 'LOGGED_IN'
     MERGED = 'MERGED'
     MODIFIED = 'MODIFIED'
+
+
+#: One user as ``UserSerializer`` answers it — the contract examples of every
+#: body that carries a user (AuthResponse, TokenVerifyResponse, LoginResponse)
+#: use it, so an example cannot drop a required field again
+#: (tests/test_contract_examples.py validates every example against its schema).
+USER_EXAMPLE = {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "username": "user_550e8400",
+    "email": "user@example.com",
+    "phone": None,
+    "auth_type": "email",
+    "is_email_verified": True,
+    "is_phone_verified": False,
+    "is_anonymous": False,
+    "is_staff": False,
+    "is_superuser": False,
+    "oauth_provider": None,
+    "avatar": None,
+    "bio": "",
+    "created_at": "2026-06-19T12:00:00Z",
+    "last_login": "2026-06-19T12:00:00Z",
+    "onboarding_completed": False,
+    "profile_completed": False,
+}
+
+TOKENS_EXAMPLE = {
+    "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+}
 
 
 @dataclass
@@ -46,8 +76,8 @@ class AuthResponse:
         tokens: JWT token pair.
     """
     status: AuthStatus
-    user: Any
-    tokens: TokenPairResponse
+    user: Any = field(metadata={'example': USER_EXAMPLE})
+    tokens: TokenPairResponse = field(metadata={'example': TOKENS_EXAMPLE})
 
 
 @dataclass
@@ -60,7 +90,7 @@ class TokenVerifyResponse:
         user: User associated with the token.
     """
     valid: bool
-    user: Any
+    user: Any = field(metadata={'example': USER_EXAMPLE})
 
 
 @dataclass
@@ -98,4 +128,4 @@ class SessionResponse:
     created_at: str
     last_used_at: str
     is_current: bool
-    is_suspicious: bool
+    is_suspicious: bool = field(metadata={'example': False})

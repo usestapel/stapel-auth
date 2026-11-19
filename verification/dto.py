@@ -38,7 +38,7 @@ class VerificationCompleteResponse:
     Successful completion of a verification challenge.
 
     Attributes:
-        verified: Always true on success. Example: True
+        verified: Always true on success. Example: true
         verification_token: Stateless proof of verification — send as X-Verification-Token when retrying the original request (the grant is also stored server-side). Example: vt_abc123
     """
     verified: bool
@@ -55,7 +55,8 @@ class VerificationPreferenceRow:
         enabled: Whether step-up is enabled for this scope — False turns a default_on scope off, True turns an opt_in scope on. Example: false
     """
     scope: str
-    enabled: bool
+    # A falsy docstring example is dropped by core's reader; pinned here.
+    enabled: bool = field(metadata={'example': False})
 
 
 @dataclass

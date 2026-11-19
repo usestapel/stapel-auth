@@ -605,20 +605,12 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["get"], url_path="")
     def list_sessions(self, request):  # noqa: R007
-        from stapel_core.django.jwt.provider import jwt_provider
-
-        from .services import SessionService
-
-        # Determine current session jti from the access token
-        auth_header = request.META.get("HTTP_AUTHORIZATION", "")
-        current_jti = None
-        if auth_header.startswith("Bearer "):
-            payload = (
-                jwt_provider.handler.decode_token(auth_header[7:], verify=False) or {}
-            )
-            current_jti = payload.get("refresh_jti") or payload.get("jti")
-
         from .dto import SessionResponse
+        from .services import SessionService, current_session
+
+        # The caller's own session, by bearer or cookie (services.current_session).
+        current = current_session(request)
+        current_pk = current.pk if current is not None else None
 
         sessions = SessionService.get_active(request.user)
         dtos = [
@@ -630,7 +622,7 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                 ip_address=s.ip_address,
                 created_at=s.created_at.isoformat(),
                 last_used_at=s.last_used_at.isoformat(),
-                is_current=s.jti == current_jti if current_jti else False,
+                is_current=current_pk is not None and s.pk == current_pk,
                 is_suspicious=s.is_suspicious,
             )
             for s in sessions
@@ -695,19 +687,13 @@ class SessionViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["delete"], url_path="")
     def revoke_all(self, request):  # noqa: R007
-        from stapel_core.django.jwt.provider import jwt_provider
+        from .services import SessionService, current_session_jti
 
-        from .services import SessionService
-
-        auth_header = request.META.get("HTTP_AUTHORIZATION", "")
-        current_jti = None
-        if auth_header.startswith("Bearer "):
-            payload = (
-                jwt_provider.handler.decode_token(auth_header[7:], verify=False) or {}
-            )
-            current_jti = payload.get("refresh_jti") or payload.get("jti")
-
-        SessionService.revoke_all(request.user, except_jti=current_jti)
+        # The caller's own session, by bearer or cookie. None (a request that
+        # cannot vouch for a session) spares nothing — never everything.
+        SessionService.revoke_all(
+            request.user, except_jti=current_session_jti(request)
+        )
         from stapel_auth.dto import SimpleStatusResponse
 
         return StapelResponse(

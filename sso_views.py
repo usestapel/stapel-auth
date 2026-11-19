@@ -15,6 +15,7 @@ from rest_framework.viewsets import ViewSet
 from stapel_core.django.api.errors import (
     StapelErrorResponse,
     StapelResponse,
+    error_403_forbidden,
     error_500_internal,
 )
 from stapel_core.django.api.serializers import StapelDataclassSerializer
@@ -34,6 +35,20 @@ logger = logging.getLogger(__name__)
 
 _OIDC_STATE_TTL = 600  # 10 min
 _OIDC_FLOW = "oidc"
+
+
+def _sso_door_closed() -> bool:
+    """Both SSO axes off: the channel is closed, as email/phone/OAuth are.
+
+    The same rule as every other sign-in channel (``otp/views.py``,
+    ``urls_v1._gate``): the door is open while ``AUTH_SSO_LOGIN`` OR
+    ``AUTH_SSO_REGISTRATION`` is on, and a NEW account additionally needs
+    ``AUTH_SSO_REGISTRATION`` (``SSOUserService``). Checked per request
+    because ``stapel_auth.urls`` mounts every factory with ``enabled=True``.
+    """
+    from stapel_auth.conf import auth_settings
+
+    return not auth_settings.AUTH_SSO_LOGIN and not auth_settings.AUTH_SSO_REGISTRATION
 
 
 @dataclass
@@ -109,7 +124,7 @@ class SSODomainLookupView(APIView):
             sso_required=False, org_slug=None, protocol=None
         )
         domain = request.query_params.get("domain", "").strip().lower().lstrip("@")
-        if not domain:
+        if not domain or _sso_door_closed():
             return StapelResponse(SSODomainLookupResponseSerializer(_no_sso))
         org = (
             Organization.objects.filter(domain=domain)
@@ -164,6 +179,8 @@ class SSOLoginView(APIView):
         responses={302: None},
     )
     def get(self, request: Request, slug: str):  # noqa: R007
+        if _sso_door_closed():
+            return error_403_forbidden()
         org = _get_org(slug)
         if not org:
             return StapelErrorResponse(404, ERR_404_SSO_ORG_NOT_FOUND)
@@ -219,6 +236,8 @@ class SAMLACSView(APIView):
         responses={302: None},
     )
     def post(self, request: Request, slug: str):  # noqa: R007
+        if _sso_door_closed():
+            return HttpResponseRedirect(f"{_frontend_url(request)}/login?error=sso_disabled")
         org = _get_org(slug)
         if not org:
             return HttpResponseRedirect(
@@ -286,6 +305,10 @@ class OIDCCallbackView(APIView):
         responses={302: None},
     )
     def get(self, request: Request, slug: str):  # noqa: R007
+        if _sso_door_closed():
+            response = HttpResponseRedirect(f"{_frontend_url(request)}/login?error=sso_disabled")
+            flow_binding.clear(response, _OIDC_FLOW)
+            return response
         response = self._callback(request, slug)
         flow_binding.clear(response, _OIDC_FLOW)
         return response

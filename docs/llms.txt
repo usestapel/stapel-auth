@@ -1,4 +1,4 @@
-# stapel-auth 0.52.0
+# stapel-auth 0.53.0
 
 User authentication and account access: sign-up and sign-in with email or phone one-time codes, passwords, social (OAuth) accounts, corporate SSO (SAML/OIDC), magic links, QR hand-off and passkeys; guest (anonymous) access; two-factor authentication and step-up verification; session and device management with a security audit trail.
 
@@ -449,14 +449,14 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.410.gone [410] retry
 - error.413.payload_too_large [413] retry
 - error.415.unsupported_media_type [415] retry
-- error.422.blocked [422] wait_and_retry {retry_after_minutes}
+- error.422.blocked [422] wait_and_retry {retry_after_display,retry_after,retry_after_minutes}
 - error.422.unprocessable_entity [422] wait_and_retry
-- error.423.account_locked [423] wait_and_retry {retry_after_minutes}
+- error.423.account_locked [423] wait_and_retry {retry_after_display,retry_after,retry_after_minutes}
 - error.423.locked [423] wait_and_retry
 - error.423.verification_locked [423] wait_and_retry
 - error.425.gdpr.export_not_ready [425] retry
 - error.429.magic_link_rate [429] wait_and_retry
-- error.429.rate_limit [429] wait_and_retry {retry_after_minutes}
+- error.429.rate_limit [429] wait_and_retry {retry_after_display,retry_after,retry_after_minutes}
 - error.429.too_many_requests [429] wait_and_retry
 - error.500.internal [500] contact_support
 - error.500.send_failed [500] retry

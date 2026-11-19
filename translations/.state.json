@@ -321,12 +321,12 @@
       "origin": "seed:stapel-builtin"
     },
     "error.422.blocked": {
-      "hash": "e8bd6a6ca58df85b",
-      "origin": "seed:stapel-builtin"
+      "hash": "3d17cf97e3a12739",
+      "origin": "llm"
     },
     "error.423.account_locked": {
-      "hash": "342b24cd81976499",
-      "origin": "seed:stapel-builtin"
+      "hash": "3a0f64a9dea72d27",
+      "origin": "llm"
     },
     "error.429.magic_link_rate": {
       "hash": "31ae7149f12d7546",
@@ -667,12 +667,12 @@
       "origin": "seed:stapel-builtin"
     },
     "error.422.blocked": {
-      "hash": "e8bd6a6ca58df85b",
-      "origin": "seed:stapel-builtin"
+      "hash": "3d17cf97e3a12739",
+      "origin": "llm"
     },
     "error.423.account_locked": {
-      "hash": "342b24cd81976499",
-      "origin": "seed:stapel-builtin"
+      "hash": "3a0f64a9dea72d27",
+      "origin": "llm"
     },
     "error.429.magic_link_rate": {
       "hash": "31ae7149f12d7546",

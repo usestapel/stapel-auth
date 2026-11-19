@@ -37,19 +37,24 @@ def _configure() -> None:
     sys.path[:] = [p for p in sys.path if os.path.abspath(p or os.getcwd()) != repo_root]
 
     # Bootstrap an eager Celery app before Django setup so shared_task decorators
-    # bind to a configured app (mirrors conftest.pytest_configure).
-    from celery import Celery
+    # bind to a configured app (mirrors conftest.pytest_configure). Celery is an
+    # optional extra; without it the tasks are plain functions and need no app.
+    try:
+        from celery import Celery
+    except ImportError:
+        Celery = None
 
-    celery = Celery("stapel_auth_codegen")
-    celery.config_from_object(
-        {
-            "task_always_eager": True,
-            "task_eager_propagates": True,
-            "broker_url": "memory://",
-            "result_backend": "cache+memory://",
-        }
-    )
-    celery.set_default()
+    if Celery is not None:
+        celery = Celery("stapel_auth_codegen")
+        celery.config_from_object(
+            {
+                "task_always_eager": True,
+                "task_eager_propagates": True,
+                "broker_url": "memory://",
+                "result_backend": "cache+memory://",
+            }
+        )
+        celery.set_default()
 
     from django.conf import settings
 

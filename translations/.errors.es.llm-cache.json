@@ -78,5 +78,13 @@
   "error.409.oauth_already_linked": {
     "hash": "67a730fa6039a26c",
     "text": "Este proveedor ya está vinculado a tu cuenta."
+  },
+  "error.422.blocked": {
+    "hash": "3d17cf97e3a12739",
+    "text": "Cuenta bloqueada temporalmente. Inténtalo de nuevo en {retry_after_display} ({retry_after} s, unos {retry_after_minutes} min)."
+  },
+  "error.423.account_locked": {
+    "hash": "3a0f64a9dea72d27",
+    "text": "Cuenta bloqueada temporalmente por demasiados intentos fallidos. Inténtalo de nuevo en {retry_after_display} ({retry_after} s, unos {retry_after_minutes} min)."
   }
 }

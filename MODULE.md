@@ -183,13 +183,14 @@ The warning carries the error's own message plus one sentence: *"Declared postur
 
 `GET /<auth>/api/v1/capabilities/` carries the same fact as `posture.stage` (`"live"` / `"prototype"` / `null`) next to `posture.preset`, so a monitor can tell an unlaunched stand from production without reading its settings.
 
-### Deployment requirement — the client IP behind a proxy (`STAPEL_NETINTEL['TRUSTED_PROXY_HEADER']`)
+### Deployment requirement — the client IP behind a proxy (`STAPEL_SECURITY['TRUSTED_PROXY_HEADER']`)
 
-Everything this module rate-limits, locks out or writes to an audit row is keyed on the caller's IP: the guest-mint budget (`ANONYMOUS_RATE_LIMIT_PER_HOUR`), the progressive OTP lockout, and the `LoginAttempt` / `AuthAuditLog` / `UserSession` rows the user's own security screen shows. **There is exactly one place that value comes from — `stapel_core.netintel.client_ip`** (`otp/views.py: AuthViewSet.get_client_ip`, `sessions/services.py: _get_client_ip`, `mfa/views.py`, the delayed-change initiators). It trusts `REMOTE_ADDR` and nothing else until the deployment says otherwise:
+Everything this module rate-limits, locks out or writes to an audit row is keyed on the caller's IP: the guest-mint budget (`ANONYMOUS_RATE_LIMIT_PER_HOUR`), the progressive OTP lockout, and the `LoginAttempt` / `AuthAuditLog` / `UserSession` rows the user's own security screen shows. **There is exactly one place that value comes from — `stapel_core.security.client_ip`** (`otp/views.py: AuthViewSet.get_client_ip`, `sessions/services.py: _get_client_ip`, `mfa/views.py`, the delayed-change initiators). It trusts `REMOTE_ADDR` and nothing else until the deployment says otherwise:
 
 ```python
 # settings.py — ONLY when the edge proxy overwrites this header on every request
-STAPEL_NETINTEL = {"TRUSTED_PROXY_HEADER": "HTTP_X_REAL_IP"}
+STAPEL_SECURITY = {"TRUSTED_PROXY_HEADER": "HTTP_X_REAL_IP"}
+# (the pre-0.98 core home, STAPEL_NETINTEL, is still honoured; stapel_core.security.W001 asks to move it)
 ```
 
 ```nginx
@@ -202,7 +203,7 @@ Two rules, both load-bearing:
 - **Declare the header, or every caller shares one bucket.** Behind a proxy with nothing declared, `REMOTE_ADDR` is the proxy: one rate-limit budget and one lockout counter for the whole internet, and one address in every audit row. `stapel_auth.W005` fires when the deployment has already declared it is behind a proxy (`SECURE_PROXY_SSL_HEADER`, `USE_X_FORWARDED_HOST`, `USE_X_FORWARDED_PORT`) without naming a client-IP header.
 - **Never point it at a header your edge only appends to.** `client_ip` takes the FIRST element of the trusted header, which is correct only under an overwriting proxy. The common nginx recipe `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for` **appends**, so behind it the first element is client-supplied text and every IP-keyed limit, lockout and audit IP becomes forgeable by rotating one header. `stapel_auth.W006` warns whenever `TRUSTED_PROXY_HEADER` names `HTTP_X_FORWARDED_FOR`; silence it via `SILENCED_SYSTEM_CHECKS` only once you have confirmed the edge replaces the header and no later hop can prepend to it. Depth-counting (trust the Nth element from the right) is deliberately not offered — a wrong depth fails silently and open, whereas an overwritten header cannot.
 
-Pre-0.26 this module read `X-Forwarded-For` by hand and used its leftmost element, which is the spoofable form of exactly this decision. If you extend auth, do not reintroduce it: **read the client IP through `stapel_core.netintel.client_ip`, never from `request.META` / `request.headers` directly.**
+Pre-0.26 this module read `X-Forwarded-For` by hand and used its leftmost element, which is the spoofable form of exactly this decision. If you extend auth, do not reintroduce it: **read the client IP through `stapel_core.security.client_ip`, never from `request.META` / `request.headers` directly.**
 
 ### Changing a verified email or phone requires proving the current one
 
@@ -259,6 +260,8 @@ app.conf.beat_schedule = {
 | `cleanup_expired_requests` | daily | Pure bookkeeping; nothing time-sensitive depends on it running sooner |
 
 The **instant** strategy (old-channel OTP proof, applied synchronously in the request) does not depend on beat at all — only the delayed strategy does.
+
+**Celery is optional** (`pip install 'stapel-auth[celery]'`, included in `all`). Without it the four functions in `tasks.py` are plain callables (schedule the three above with whatever scheduler you run) and the login alert is evaluated inside the sign-in request; `stapel_auth.W014` says so at `manage.py check`. With it, a broker that refuses the enqueue (down, unreachable, an unconfigured default app on a non-main thread) degrades to the same in-request evaluation. Either way a sign-in never fails because of the alert.
 
 ### Swappable models
 
@@ -849,7 +852,7 @@ billing / workspaces — copy this module, 4 steps):
 - **Don't mint a session outside `_issue_session_tokens`.** Calling `create_tokens_for_user` (or `TokenService`) directly in a new login path re-opens the exact hole `sessions/guard.py` closes — an account that is deactivated or owes a first-login step walks straight in. Route it through the minter with a `SessionPath` label. If it genuinely resolves an intermediate, say so on the bypass roster in `tests/test_session_issuance_gate.py`; the roster is what turns "we remember which bypasses are legitimate" into a failing build.
 - **Don't consume `PROVIDER_REGISTRY` mutation as an API.** It is exposed for tests; the supported mutation path is `register_provider` / settings.
 - **Don't reference the concrete user class.** Always `get_user_model()` / `settings.AUTH_USER_MODEL` (the module itself follows this rule everywhere).
-- **Don't read the client IP from `request.META` / `request.headers`.** `X-Forwarded-For` and friends are caller-supplied unless a trusted edge overwrites them, and this module keys rate limits, lockouts and audit rows on that value. Go through `stapel_core.netintel.client_ip`; a deployment declares its proxy once via `STAPEL_NETINTEL['TRUSTED_PROXY_HEADER']` (see above).
+- **Don't read the client IP from `request.META` / `request.headers`.** `X-Forwarded-For` and friends are caller-supplied unless a trusted edge overwrites them, and this module keys rate limits, lockouts and audit rows on that value. Go through `stapel_core.security.client_ip`; a deployment declares its proxy once via `STAPEL_SECURITY['TRUSTED_PROXY_HEADER']` (see above).
 - **Don't resolve an identity from a token you did not mint without pinning its audience.** `OAuthService.get_user_data` runs the check; only the authorization-code callback may pass `token_is_ours=True`, and only because it exchanged the token itself. A new provider that cannot introspect keeps `verifies_audience = False` — looking verified while not being verified is worse than plainly refusing.
 - **Don't set `USE_MOCK_*_OTP` per service.** Since 0.38.0 the posture's stage is the default, so a prototype gets the mock everywhere this module's OTP services run — including services that only consume them. A block copied into a second service is how one deployment ends up with two answers; pin a key only when that channel really has a provider, and expect `stapel_auth.W013` to say so out loud.
 - **Don't silence a mock-channel finding.** `SILENCED_SYSTEM_CHECKS = ["stapel_auth.E004"]` on a stand that runs mock OTP on purpose erases the finding and records nothing about when it stops being true. Declare `stage="prototype"` on the posture instead and get the same finding as a warning that names the reason.

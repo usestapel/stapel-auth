@@ -138,9 +138,9 @@ def stamp_last_login(user) -> bool:
 def _get_client_ip(request) -> str | None:
     """The client IP for a session row / audit entry.
 
-    One seam for the whole module: :func:`stapel_core.netintel.client_ip`,
+    One seam for the whole module: :func:`stapel_core.security.client_ip`,
     i.e. ``REMOTE_ADDR`` unless the deployment names a proxy-set header in
-    ``STAPEL_NETINTEL["TRUSTED_PROXY_HEADER"]``.
+    ``STAPEL_SECURITY["TRUSTED_PROXY_HEADER"]``.
 
     This used to walk ``X-Forwarded-For`` and take the first element that
     did not look private. Any client can write that header, so a session
@@ -151,7 +151,7 @@ def _get_client_ip(request) -> str | None:
     """
     if not request:
         return None
-    from stapel_core.netintel import client_ip
+    from stapel_core.security import client_ip
 
     return client_ip(request)
 
@@ -368,48 +368,80 @@ def _emit_session_revoked(user_id, session_id) -> None:
     )
 
 
-def current_session_jti(request) -> str | None:
-    """The tracked session *request* is authenticated with, or ``None``.
+def _verified_jti(token: str, token_type: str) -> str:
+    """The jti of *token* when it is a *token_type* token WE signed, else ``''``.
 
-    Returned as the ``UserSession.jti`` (the refresh jti), which is the key
-    :meth:`SessionService.revoke_all` excludes on. Both token shapes are
-    accepted because both identify the same row: an access token carries the
-    session in its ``refresh_jti`` claim and its own jti in
-    ``UserSession.access_jti``, a refresh token carries it as ``jti``.
-
-    ``None`` means "this request cannot vouch for any session" — an unsigned
-    caller, or a token whose session row is gone. Callers that spare a
-    session must read that as *spare nothing*, never as *spare everything*.
-
-    The claims are read from an unverified decode on purpose: the request is
-    already authenticated by the DRF layer, and the row is looked up under
-    ``user=request.user`` — so the claim only ever *selects among the
-    caller's own sessions*, it never grants anything.
+    Signature and expiry are checked: the jti selects which session is spared
+    or marked current, so it must come from a credential, not from a string
+    the caller assembled.
     """
-    from django.db.models import Q
     from stapel_core.django.jwt.provider import jwt_provider
+
+    if not token:
+        return ''
+    try:
+        payload = jwt_provider.handler.decode_token(token, verify=True) or {}
+    except Exception:
+        return ''  # unreadable is "vouches for nothing", never an error
+    if payload.get('token_type') != token_type:
+        return ''
+    return str(payload.get('jti') or '')
+
+
+def current_session(request):
+    """The tracked ``UserSession`` *request* is authenticated with, or ``None``.
+
+    THE one place "the caller's own session" is decided — the session list's
+    ``is_current``, "revoke all except current" and the password change's
+    "keep this session" all read it. Two credentials identify a session:
+
+    - the **access token**, for every client. Access tokens carry no session
+      claim; the session is found through the access-token ledger
+      (``SessionAccessToken``), where every mint path records the access jti
+      it handed out (:meth:`SessionService.record_access`). This is the only
+      path a bearer client has — it sends no refresh token on ordinary calls.
+    - the **refresh cookie**, for a browser whose access cookie expired and
+      was re-minted by the middleware on this very request: its jti is the
+      session row's ``jti``.
+
+    Both tokens are signature-verified (:func:`_verified_jti`) and the row is
+    looked up under ``user=request.user``, so a token can only ever select
+    among the caller's own sessions. ``None`` means "this request cannot vouch
+    for any session"; callers that spare a session must read that as *spare
+    nothing*, never as *spare everything*.
+    """
     from stapel_core.django.jwt.utils import extract_jwt_from_request
 
-    from stapel_auth.models import UserSession
+    from stapel_auth.models import SessionAccessToken, UserSession
 
     user = getattr(request, 'user', None)
     if user is None or not getattr(user, 'is_authenticated', False):
         return None
 
     access_token, refresh_token = extract_jwt_from_request(request)
-    candidates = []
-    for token in (access_token, refresh_token):
-        if not token:
-            continue
-        payload = jwt_provider.handler.decode_token(token, verify=False) or {}
-        candidates += [payload.get('refresh_jti'), payload.get('jti')]
-    candidates = [c for c in candidates if c]
-    if not candidates:
-        return None
+    access_jti = _verified_jti(access_token, 'access')
+    if access_jti:
+        ledger = (
+            SessionAccessToken.objects.select_related('session')
+            .filter(jti=access_jti, session__user=user)
+            .first()
+        )
+        if ledger is not None:
+            return ledger.session
+        # A session created before the ledger existed knows only its last one.
+        session = UserSession.objects.filter(access_jti=access_jti, user=user).first()
+        if session is not None:
+            return session
+    refresh_jti = _verified_jti(refresh_token, 'refresh')
+    if refresh_jti:
+        return UserSession.objects.filter(jti=refresh_jti, user=user).first()
+    return None
 
-    session = UserSession.objects.filter(
-        Q(jti__in=candidates) | Q(access_jti__in=candidates), user=user
-    ).first()
+
+def current_session_jti(request) -> str | None:
+    """``UserSession.jti`` of :func:`current_session` — the key
+    :meth:`SessionService.revoke_all` excludes on — or ``None``."""
+    session = current_session(request)
     return session.jti if session else None
 
 
@@ -872,13 +904,36 @@ class LoginNotificationService:
         a task argument. A worker has no ``Host`` header, so a task that read
         ``FRONTEND_URL`` itself would mail every brand's users a link to the
         primary brand's domain — the one place they are not signed in.
+
+        A sign-in never fails because of the alert. Enqueued when celery is
+        installed; when it is not, or the broker refuses the message (down,
+        unreachable, an unconfigured default app on another thread), the
+        alert is evaluated right here instead, and any error in that is
+        logged and swallowed.
         """
-        from stapel_auth.hosts import frontend_url_for
-        from stapel_auth.tasks import evaluate_login_notification
-        evaluate_login_notification.delay(
-            str(user.id), str(session.id),
-            frontend_url=frontend_url_for(request),
-        )
+        log = logger
+        try:
+            from stapel_auth.hosts import frontend_url_for
+            from stapel_auth.tasks import evaluate_login_notification
+
+            args = (str(user.id), str(session.id))
+            kwargs = {'frontend_url': frontend_url_for(request)}
+        except Exception:
+            log.exception('login alert: could not prepare the evaluation; sign-in proceeds')
+            return
+        if hasattr(evaluate_login_notification, 'delay'):
+            try:
+                evaluate_login_notification.delay(*args, **kwargs)
+                return
+            except Exception:
+                log.warning(
+                    'login alert: enqueue failed, evaluating in the request',
+                    exc_info=True,
+                )
+        try:
+            evaluate_login_notification(*args, **kwargs)
+        except Exception:
+            log.exception('login alert: evaluation failed; sign-in proceeds')
 
     @staticmethod
     def _has_login_history(user, session) -> bool:

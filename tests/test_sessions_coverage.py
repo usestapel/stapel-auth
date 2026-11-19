@@ -57,13 +57,19 @@ class SessionViewSetTests(APITestCase):
         self.user = _make_user()
         self.access, self.refresh = jwt_provider.create_tokens(self.user)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.access}")
-        # jti embedded in the current access token (refresh_jti or jti)
-        payload = jwt_provider.handler.decode_token(self.access, verify=False) or {}
-        self.current_jti = payload.get("refresh_jti") or payload.get("jti")
+
+    def _current(self, **kwargs):
+        """The session the bearer belongs to: its access jti is on the
+        session's ledger, exactly as every mint path records it."""
+        from stapel_auth.sessions.services import SessionService
+
+        session = _make_session(self.user, **kwargs)
+        SessionService.record_access(session, self.access)
+        return session
 
     def test_list_sessions_marks_current_and_other(self):
-        # One session that matches the current token -> is_current True
-        _make_session(self.user, jti=self.current_jti, device_name="Current device")
+        # One session that owns the current access token -> is_current True
+        self._current(device_name="Current device")
         # A second, unrelated session -> is_current False
         _make_session(self.user, device_name="Other device", is_suspicious=True)
         resp = self.client.get(reverse("sessions"))
@@ -120,7 +126,7 @@ class SessionViewSetTests(APITestCase):
         self.assertEqual(resp.status_code, 404)
 
     def test_revoke_all_except_current(self):
-        keep = _make_session(self.user, jti=self.current_jti, device_name="keep")
+        keep = self._current(device_name="keep")
         drop = _make_session(self.user, device_name="drop")
         resp = self.client.delete(reverse("sessions"))
         self.assertEqual(resp.status_code, 200)

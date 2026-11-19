@@ -1,9 +1,14 @@
 """
-Celery tasks for authenticator change flows.
+Background tasks: authenticator change flows and the login alert.
+
+Celery is optional (the ``celery`` extra). With it, every function below is a
+``shared_task`` under its usual dotted name; without it they stay plain
+callables a host can run from any scheduler, and the login alert is evaluated
+in the request (``LoginNotificationService.check_and_notify``;
+``stapel_auth.W014`` says so at ``manage.py check``).
 """
 
 import logging
-from celery import shared_task
 from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta
@@ -11,6 +16,19 @@ from datetime import timedelta
 from stapel_core.notifications import request_notification
 
 logger = logging.getLogger(__name__)
+
+try:
+    from celery import shared_task as _shared_task
+except ImportError:  # the celery extra is not installed
+    _shared_task = None
+
+#: Whether the functions below are celery tasks in this process.
+CELERY_AVAILABLE = _shared_task is not None
+
+
+def _task(fn):
+    """``shared_task`` when celery is installed (same default name), else *fn*."""
+    return _shared_task(fn) if _shared_task is not None else fn
 
 # =============================================================================
 # Beat schedule (MODULE.md "Celery beat schedule") — a HOST APP concern, not
@@ -87,7 +105,7 @@ def _masked_new_value_for_request(req) -> str:
     return mask_value(req.new_value, req.change_type)
 
 
-@shared_task
+@_task
 def send_change_notifications():
     """Send notifications for pending delayed authenticator changes (day 1/7/13)."""
     from .models import AuthenticatorChangeRequest, AuthenticatorChangeStatus
@@ -162,7 +180,7 @@ def send_change_notifications():
     return sent_count
 
 
-@shared_task
+@_task
 def execute_pending_changes():
     """Execute authenticator changes that have reached their scheduled time."""
     from .models import AuthenticatorChangeRequest, AuthenticatorChangeStatus
@@ -245,7 +263,7 @@ def execute_pending_changes():
     return executed
 
 
-@shared_task
+@_task
 def cleanup_expired_requests():
     """Mark old pending requests (>30 days) as expired."""
     from .models import AuthenticatorChangeRequest, AuthenticatorChangeStatus
@@ -264,7 +282,7 @@ def cleanup_expired_requests():
 # Login notification tasks
 # =============================================================================
 
-@shared_task
+@_task
 def evaluate_login_notification(user_id: str, session_id: str, frontend_url: str = ""):
     """Check if login is from new/suspicious device and send appropriate email.
 

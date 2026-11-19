@@ -1,5 +1,5 @@
 """DTOs for the password authentication domain."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, List
 
@@ -43,7 +43,10 @@ class PasswordMethodsResponse:
         methods: List of available change methods.
     """
     has_password: bool
-    methods: List[PasswordMethod]
+    methods: List[PasswordMethod] = field(metadata={'example': [
+        {'method': 'password', 'target': None},
+        {'method': 'email', 'target': 'u***@example.com'},
+    ]})
 
 
 class FirstLoginRequirement(str, Enum):

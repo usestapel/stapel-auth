@@ -135,14 +135,14 @@
 | `error.410.gone` | 410 | — | `retry` | Ресурс был безвозвратно удалён |
 | `error.413.payload_too_large` | 413 | — | `retry` | Тело запроса слишком большое |
 | `error.415.unsupported_media_type` | 415 | — | `retry` | Неподдерживаемый тип данных |
-| `error.422.blocked` | 422 | `retry_after_minutes` | `wait_and_retry` | Учётная запись временно заблокирована. Повторите попытку через {retry_after_minutes} мин. |
+| `error.422.blocked` | 422 | `retry_after_display`, `retry_after`, `retry_after_minutes` | `wait_and_retry` | Учётная запись временно заблокирована. Повторите попытку через {retry_after_display} ({retry_after} с, около {retry_after_minutes} мин). |
 | `error.422.unprocessable_entity` | 422 | — | `wait_and_retry` | Невозможно обработать данные запроса |
-| `error.423.account_locked` | 423 | `retry_after_minutes` | `wait_and_retry` | Учётная запись временно заблокирована из-за слишком большого числа неудачных попыток. Повторите попытку через {retry_after_minutes} мин. |
+| `error.423.account_locked` | 423 | `retry_after_display`, `retry_after`, `retry_after_minutes` | `wait_and_retry` | Учётная запись временно заблокирована из-за слишком большого числа неудачных попыток. Повторите попытку через {retry_after_display} ({retry_after} с, около {retry_after_minutes} мин). |
 | `error.423.locked` | 423 | — | `wait_and_retry` | Ресурс заблокирован |
 | `error.423.verification_locked` | 423 | — | `wait_and_retry` | Слишком много неудачных попыток — подтверждение заблокировано |
 | `error.425.gdpr.export_not_ready` | 425 | — | `retry` | Экспорт ещё готовится. |
 | `error.429.magic_link_rate` | 429 | — | `wait_and_retry` | Слишком много запросов ссылки для входа. Пожалуйста, повторите попытку позже. |
-| `error.429.rate_limit` | 429 | `retry_after_minutes` | `wait_and_retry` | Слишком много попыток. Повторите попытку через {retry_after_minutes} мин. |
+| `error.429.rate_limit` | 429 | `retry_after_display`, `retry_after`, `retry_after_minutes` | `wait_and_retry` | Слишком много попыток. Повторите попытку через {retry_after_minutes} мин. |
 | `error.429.too_many_requests` | 429 | — | `wait_and_retry` | Слишком много запросов. Пожалуйста, повторите попытку позже. |
 | `error.500.internal` | 500 | — | `contact_support` | Что-то пошло не так |
 | `error.500.send_failed` | 500 | — | `retry` | Не удалось отправить код подтверждения |

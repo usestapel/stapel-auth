@@ -10,9 +10,9 @@ proxy *appends*, so that element is whatever the client typed: rotating one
 header handed an attacker a fresh rate-limit budget, a clean lockout counter
 and a forged address in the audit trail.
 
-The rule now: one seam, ``stapel_core.netintel.client_ip``, which trusts
+The rule now: one seam, ``stapel_core.security.client_ip``, which trusts
 ``REMOTE_ADDR`` and nothing else until the deployment names a proxy-set
-header in ``STAPEL_NETINTEL["TRUSTED_PROXY_HEADER"]``. Untrusted headers are
+header in ``STAPEL_SECURITY["TRUSTED_PROXY_HEADER"]``. Untrusted headers are
 not consulted at all, so there is nothing to forge; a declared header is
 honoured, so a correctly configured proxy still sees the real client.
 """
@@ -70,7 +70,7 @@ class ClaimedHeadersAreNotTheClientIpTests(TestCase):
         self.assertEqual(self._sessions_ip(req), "172.18.0.5")
         self.assertEqual(self._auth_view().get_client_ip(req), "172.18.0.5")
 
-    @override_settings(STAPEL_NETINTEL=TRUSTS_REAL_IP)
+    @override_settings(STAPEL_SECURITY=TRUSTS_REAL_IP)
     def test_a_declared_header_is_honoured(self):
         req = RequestFactory().get(
             "/", HTTP_X_REAL_IP="198.51.100.7", REMOTE_ADDR="172.18.0.5"
@@ -78,7 +78,7 @@ class ClaimedHeadersAreNotTheClientIpTests(TestCase):
         self.assertEqual(self._auth_view().get_client_ip(req), "198.51.100.7")
         self.assertEqual(self._sessions_ip(req), "198.51.100.7")
 
-    @override_settings(STAPEL_NETINTEL=TRUSTS_REAL_IP)
+    @override_settings(STAPEL_SECURITY=TRUSTS_REAL_IP)
     def test_a_declared_header_does_not_bless_the_others(self):
         req = RequestFactory().get(
             "/",
@@ -88,7 +88,7 @@ class ClaimedHeadersAreNotTheClientIpTests(TestCase):
         )
         self.assertEqual(self._auth_view().get_client_ip(req), "198.51.100.7")
 
-    @override_settings(STAPEL_NETINTEL=TRUSTS_REAL_IP)
+    @override_settings(STAPEL_SECURITY=TRUSTS_REAL_IP)
     def test_a_declared_header_that_is_absent_falls_back(self):
         req = RequestFactory().get("/", REMOTE_ADDR="172.18.0.5")
         self.assertEqual(self._auth_view().get_client_ip(req), "172.18.0.5")
@@ -126,7 +126,7 @@ class TheMintBudgetCannotBeRotatedAwayTests(APITestCase):
         again = self._mint(HTTP_X_FORWARDED_FOR="5.6.7.8")
         self.assertEqual(again.status_code, 429, again.content)
 
-    @override_settings(STAPEL_NETINTEL=TRUSTS_REAL_IP)
+    @override_settings(STAPEL_SECURITY=TRUSTS_REAL_IP)
     def test_a_declared_header_still_separates_real_clients(self):
         """The proxy-set header is the whole point of declaring one."""
         for _ in range(3):
@@ -157,7 +157,7 @@ class ProxyTrustChecksTests(TestCase):
 
     @override_settings(
         SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO", "https"),
-        STAPEL_NETINTEL={},
+        STAPEL_SECURITY={},
     )
     def test_behind_a_proxy_without_a_declared_header_warns(self):
         from stapel_auth.checks import W005_PROXY_TRUST_UNDECLARED
@@ -167,26 +167,26 @@ class ProxyTrustChecksTests(TestCase):
         self.assertEqual(warnings[0].id, W005_PROXY_TRUST_UNDECLARED)
         self.assertIn("SECURE_PROXY_SSL_HEADER", warnings[0].msg)
 
-    @override_settings(USE_X_FORWARDED_HOST=True, STAPEL_NETINTEL={})
+    @override_settings(USE_X_FORWARDED_HOST=True, STAPEL_SECURITY={})
     def test_use_x_forwarded_host_counts_as_behind_a_proxy(self):
         self.assertEqual(len(self._w005()), 1)
 
     @override_settings(
         SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO", "https"),
-        STAPEL_NETINTEL=TRUSTS_REAL_IP,
+        STAPEL_SECURITY=TRUSTS_REAL_IP,
     )
     def test_declaring_the_header_clears_w005(self):
         self.assertEqual(self._w005(), [])
 
-    @override_settings(STAPEL_NETINTEL={})
+    @override_settings(STAPEL_SECURITY={})
     def test_no_trusted_header_is_quiet_for_w006(self):
         self.assertEqual(self._w006(), [])
 
-    @override_settings(STAPEL_NETINTEL=TRUSTS_REAL_IP)
+    @override_settings(STAPEL_SECURITY=TRUSTS_REAL_IP)
     def test_an_overwritten_header_is_quiet_for_w006(self):
         self.assertEqual(self._w006(), [])
 
-    @override_settings(STAPEL_NETINTEL={"TRUSTED_PROXY_HEADER": "HTTP_X_FORWARDED_FOR"})
+    @override_settings(STAPEL_SECURITY={"TRUSTED_PROXY_HEADER": "HTTP_X_FORWARDED_FOR"})
     def test_trusting_an_appending_header_warns(self):
         """Pointing the setting at X-Forwarded-For re-opens F6 one layer down."""
         from stapel_auth.checks import W006_APPENDING_PROXY_HEADER_TRUSTED
@@ -195,6 +195,39 @@ class ProxyTrustChecksTests(TestCase):
         self.assertEqual(len(warnings), 1, warnings)
         self.assertEqual(warnings[0].id, W006_APPENDING_PROXY_HEADER_TRUSTED)
         self.assertIn("X-Real-IP", warnings[0].hint)
+
+    @override_settings(
+        SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO", "https"),
+        STAPEL_SECURITY={},
+    )
+    def test_w005_names_the_current_key(self):
+        warnings = self._w005()
+        self.assertIn("STAPEL_SECURITY['TRUSTED_PROXY_HEADER']", warnings[0].msg)
+        self.assertNotIn("STAPEL_NETINTEL", warnings[0].msg + warnings[0].hint)
+
+    @override_settings(
+        SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO", "https"),
+        STAPEL_SECURITY={},
+        STAPEL_NETINTEL={"TRUSTED_PROXY_HEADER": "HTTP_X_REAL_IP"},
+    )
+    def test_the_legacy_key_still_counts_as_declared(self):
+        """Core still honours STAPEL_NETINTEL (and asks to move it with its own
+        check); the warnings follow the header client_ip() really uses."""
+        self.assertEqual(self._w005(), [])
+
+    @override_settings(
+        STAPEL_SECURITY={},
+        STAPEL_NETINTEL={"TRUSTED_PROXY_HEADER": "HTTP_X_FORWARDED_FOR"},
+    )
+    def test_the_legacy_key_naming_an_appending_header_still_warns(self):
+        self.assertEqual(len(self._w006()), 1)
+
+    @override_settings(
+        STAPEL_SECURITY={"TRUSTED_PROXY_HEADER": "HTTP_X_REAL_IP"},
+        STAPEL_NETINTEL={"TRUSTED_PROXY_HEADER": "HTTP_X_FORWARDED_FOR"},
+    )
+    def test_the_current_key_wins_over_the_legacy_one(self):
+        self.assertEqual(self._w006(), [])
 
     def test_both_are_registered_under_the_stapel_auth_tag(self):
         from django.core.checks import registry

@@ -418,7 +418,7 @@ class TOTPViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         serializer = TOTPDelayedInitiateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        from stapel_core.netintel import client_ip
+        from stapel_core.security import client_ip
 
         ip = client_ip(request)
 

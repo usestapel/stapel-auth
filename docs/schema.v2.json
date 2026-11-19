@@ -214,7 +214,30 @@
                 "examples": {
                   "AuthResponse": {
                     "value": {
-                      "status": "LOGGED_IN"
+                      "status": "LOGGED_IN",
+                      "user": {
+                        "id": "550e8400-e29b-41d4-a716-446655440000",
+                        "username": "user_550e8400",
+                        "email": "user@example.com",
+                        "phone": null,
+                        "auth_type": "email",
+                        "is_email_verified": true,
+                        "is_phone_verified": false,
+                        "is_anonymous": false,
+                        "is_staff": false,
+                        "is_superuser": false,
+                        "oauth_provider": null,
+                        "avatar": null,
+                        "bio": "",
+                        "created_at": "2026-06-19T12:00:00Z",
+                        "last_login": "2026-06-19T12:00:00Z",
+                        "onboarding_completed": false,
+                        "profile_completed": false
+                      },
+                      "tokens": {
+                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      }
                     }
                   }
                 }
@@ -1400,7 +1423,30 @@
                 "examples": {
                   "AuthResponse": {
                     "value": {
-                      "status": "LOGGED_IN"
+                      "status": "LOGGED_IN",
+                      "user": {
+                        "id": "550e8400-e29b-41d4-a716-446655440000",
+                        "username": "user_550e8400",
+                        "email": "user@example.com",
+                        "phone": null,
+                        "auth_type": "email",
+                        "is_email_verified": true,
+                        "is_phone_verified": false,
+                        "is_anonymous": false,
+                        "is_staff": false,
+                        "is_superuser": false,
+                        "oauth_provider": null,
+                        "avatar": null,
+                        "bio": "",
+                        "created_at": "2026-06-19T12:00:00Z",
+                        "last_login": "2026-06-19T12:00:00Z",
+                        "onboarding_completed": false,
+                        "profile_completed": false
+                      },
+                      "tokens": {
+                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      }
                     }
                   }
                 }
@@ -1915,11 +1961,26 @@
                       "status": "REGISTERED",
                       "user": {
                         "id": "550e8400-e29b-41d4-a716-446655440000",
-                        "email": "user@example.com"
+                        "username": "user_550e8400",
+                        "email": "user@example.com",
+                        "phone": null,
+                        "auth_type": "email",
+                        "is_email_verified": true,
+                        "is_phone_verified": false,
+                        "is_anonymous": false,
+                        "is_staff": false,
+                        "is_superuser": false,
+                        "oauth_provider": null,
+                        "avatar": null,
+                        "bio": "",
+                        "created_at": "2026-06-19T12:00:00Z",
+                        "last_login": "2026-06-19T12:00:00Z",
+                        "onboarding_completed": false,
+                        "profile_completed": false
                       },
                       "tokens": {
-                        "access": "eyJ...",
-                        "refresh": "eyJ..."
+                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                       }
                     },
                     "summary": "Success - new user registered"
@@ -1929,11 +1990,26 @@
                       "status": "LOGGED_IN",
                       "user": {
                         "id": "550e8400-e29b-41d4-a716-446655440000",
-                        "email": "user@example.com"
+                        "username": "user_550e8400",
+                        "email": "user@example.com",
+                        "phone": null,
+                        "auth_type": "email",
+                        "is_email_verified": true,
+                        "is_phone_verified": false,
+                        "is_anonymous": false,
+                        "is_staff": false,
+                        "is_superuser": false,
+                        "oauth_provider": null,
+                        "avatar": null,
+                        "bio": "",
+                        "created_at": "2026-06-19T12:00:00Z",
+                        "last_login": "2026-06-19T12:00:00Z",
+                        "onboarding_completed": false,
+                        "profile_completed": false
                       },
                       "tokens": {
-                        "access": "eyJ...",
-                        "refresh": "eyJ..."
+                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                       }
                     },
                     "summary": "Success - existing user logged in"
@@ -2441,7 +2517,30 @@
                 "examples": {
                   "AuthResponse": {
                     "value": {
-                      "status": "LOGGED_IN"
+                      "status": "LOGGED_IN",
+                      "user": {
+                        "id": "550e8400-e29b-41d4-a716-446655440000",
+                        "username": "user_550e8400",
+                        "email": "user@example.com",
+                        "phone": null,
+                        "auth_type": "email",
+                        "is_email_verified": true,
+                        "is_phone_verified": false,
+                        "is_anonymous": false,
+                        "is_staff": false,
+                        "is_superuser": false,
+                        "oauth_provider": null,
+                        "avatar": null,
+                        "bio": "",
+                        "created_at": "2026-06-19T12:00:00Z",
+                        "last_login": "2026-06-19T12:00:00Z",
+                        "onboarding_completed": false,
+                        "profile_completed": false
+                      },
+                      "tokens": {
+                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      }
                     }
                   }
                 }
@@ -3927,7 +4026,30 @@
                 "examples": {
                   "AuthResponse": {
                     "value": {
-                      "status": "LOGGED_IN"
+                      "status": "LOGGED_IN",
+                      "user": {
+                        "id": "550e8400-e29b-41d4-a716-446655440000",
+                        "username": "user_550e8400",
+                        "email": "user@example.com",
+                        "phone": null,
+                        "auth_type": "email",
+                        "is_email_verified": true,
+                        "is_phone_verified": false,
+                        "is_anonymous": false,
+                        "is_staff": false,
+                        "is_superuser": false,
+                        "oauth_provider": null,
+                        "avatar": null,
+                        "bio": "",
+                        "created_at": "2026-06-19T12:00:00Z",
+                        "last_login": "2026-06-19T12:00:00Z",
+                        "onboarding_completed": false,
+                        "profile_completed": false
+                      },
+                      "tokens": {
+                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      }
                     }
                   }
                 }
@@ -4726,7 +4848,17 @@
                 "examples": {
                   "PasswordMethodsResponse": {
                     "value": {
-                      "has_password": true
+                      "has_password": true,
+                      "methods": [
+                        {
+                          "method": "password",
+                          "target": null
+                        },
+                        {
+                          "method": "email",
+                          "target": "u***@example.com"
+                        }
+                      ]
                     }
                   }
                 }
@@ -4796,7 +4928,30 @@
                 "examples": {
                   "AuthResponse": {
                     "value": {
-                      "status": "LOGGED_IN"
+                      "status": "LOGGED_IN",
+                      "user": {
+                        "id": "550e8400-e29b-41d4-a716-446655440000",
+                        "username": "user_550e8400",
+                        "email": "user@example.com",
+                        "phone": null,
+                        "auth_type": "email",
+                        "is_email_verified": true,
+                        "is_phone_verified": false,
+                        "is_anonymous": false,
+                        "is_staff": false,
+                        "is_superuser": false,
+                        "oauth_provider": null,
+                        "avatar": null,
+                        "bio": "",
+                        "created_at": "2026-06-19T12:00:00Z",
+                        "last_login": "2026-06-19T12:00:00Z",
+                        "onboarding_completed": false,
+                        "profile_completed": false
+                      },
+                      "tokens": {
+                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      }
                     }
                   }
                 }
@@ -5082,7 +5237,30 @@
                 "examples": {
                   "AuthResponse": {
                     "value": {
-                      "status": "LOGGED_IN"
+                      "status": "LOGGED_IN",
+                      "user": {
+                        "id": "550e8400-e29b-41d4-a716-446655440000",
+                        "username": "user_550e8400",
+                        "email": "user@example.com",
+                        "phone": null,
+                        "auth_type": "email",
+                        "is_email_verified": true,
+                        "is_phone_verified": false,
+                        "is_anonymous": false,
+                        "is_staff": false,
+                        "is_superuser": false,
+                        "oauth_provider": null,
+                        "avatar": null,
+                        "bio": "",
+                        "created_at": "2026-06-19T12:00:00Z",
+                        "last_login": "2026-06-19T12:00:00Z",
+                        "onboarding_completed": false,
+                        "profile_completed": false
+                      },
+                      "tokens": {
+                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      }
                     }
                   }
                 }
@@ -5412,7 +5590,30 @@
                 "examples": {
                   "AuthResponse": {
                     "value": {
-                      "status": "LOGGED_IN"
+                      "status": "LOGGED_IN",
+                      "user": {
+                        "id": "550e8400-e29b-41d4-a716-446655440000",
+                        "username": "user_550e8400",
+                        "email": "user@example.com",
+                        "phone": null,
+                        "auth_type": "email",
+                        "is_email_verified": true,
+                        "is_phone_verified": false,
+                        "is_anonymous": false,
+                        "is_staff": false,
+                        "is_superuser": false,
+                        "oauth_provider": null,
+                        "avatar": null,
+                        "bio": "",
+                        "created_at": "2026-06-19T12:00:00Z",
+                        "last_login": "2026-06-19T12:00:00Z",
+                        "onboarding_completed": false,
+                        "profile_completed": false
+                      },
+                      "tokens": {
+                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      }
                     }
                   }
                 }
@@ -6277,7 +6478,30 @@
                 "examples": {
                   "AuthResponse": {
                     "value": {
-                      "status": "LOGGED_IN"
+                      "status": "LOGGED_IN",
+                      "user": {
+                        "id": "550e8400-e29b-41d4-a716-446655440000",
+                        "username": "user_550e8400",
+                        "email": "user@example.com",
+                        "phone": null,
+                        "auth_type": "email",
+                        "is_email_verified": true,
+                        "is_phone_verified": false,
+                        "is_anonymous": false,
+                        "is_staff": false,
+                        "is_superuser": false,
+                        "oauth_provider": null,
+                        "avatar": null,
+                        "bio": "",
+                        "created_at": "2026-06-19T12:00:00Z",
+                        "last_login": "2026-06-19T12:00:00Z",
+                        "onboarding_completed": false,
+                        "profile_completed": false
+                      },
+                      "tokens": {
+                        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      }
                     }
                   }
                 }
@@ -7820,7 +8044,8 @@
                         "ip_address": "95.24.17.5",
                         "created_at": "2026-06-19T12:00:00Z",
                         "last_used_at": "2026-06-19T12:00:00Z",
-                        "is_current": true
+                        "is_current": true,
+                        "is_suspicious": false
                       }
                     ]
                   }
@@ -8102,6 +8327,19 @@
             "description": "Bad Request",
             "x-stapel-errors": [
               "error.400.sso_not_configured"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.forbidden"
             ]
           },
           "404": {
@@ -10610,7 +10848,7 @@
                 "examples": {
                   "VerificationCompleteResponse": {
                     "value": {
-                      "verified": "True",
+                      "verified": true,
                       "verification_token": "vt_abc123"
                     }
                   }
@@ -10890,7 +11128,8 @@
                 "examples": {
                   "VerificationPreferenceRow": {
                     "value": {
-                      "scope": "wallet.withdraw"
+                      "scope": "wallet.withdraw",
+                      "enabled": false
                     }
                   }
                 }
@@ -10981,7 +11220,26 @@
                 "examples": {
                   "TokenVerifyResponse": {
                     "value": {
-                      "valid": true
+                      "valid": true,
+                      "user": {
+                        "id": "550e8400-e29b-41d4-a716-446655440000",
+                        "username": "user_550e8400",
+                        "email": "user@example.com",
+                        "phone": null,
+                        "auth_type": "email",
+                        "is_email_verified": true,
+                        "is_phone_verified": false,
+                        "is_anonymous": false,
+                        "is_staff": false,
+                        "is_superuser": false,
+                        "oauth_provider": null,
+                        "avatar": null,
+                        "bio": "",
+                        "created_at": "2026-06-19T12:00:00Z",
+                        "last_login": "2026-06-19T12:00:00Z",
+                        "onboarding_completed": false,
+                        "profile_completed": false
+                      }
                     }
                   }
                 }
@@ -11309,7 +11567,26 @@
               }
             ],
             "readOnly": true,
-            "description": "Authenticated user object"
+            "description": "Authenticated user object",
+            "example": {
+              "id": "550e8400-e29b-41d4-a716-446655440000",
+              "username": "user_550e8400",
+              "email": "user@example.com",
+              "phone": null,
+              "auth_type": "email",
+              "is_email_verified": true,
+              "is_phone_verified": false,
+              "is_anonymous": false,
+              "is_staff": false,
+              "is_superuser": false,
+              "oauth_provider": null,
+              "avatar": null,
+              "bio": "",
+              "created_at": "2026-06-19T12:00:00Z",
+              "last_login": "2026-06-19T12:00:00Z",
+              "onboarding_completed": false,
+              "profile_completed": false
+            }
           },
           "status": {
             "allOf": [
@@ -11326,7 +11603,11 @@
                 "$ref": "#/components/schemas/TokenPairResponse"
               }
             ],
-            "description": "JWT token pair"
+            "description": "JWT token pair",
+            "example": {
+              "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+              "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            }
           }
         },
         "required": [
@@ -12938,7 +13219,17 @@
             "items": {
               "$ref": "#/components/schemas/PasswordMethod"
             },
-            "description": "List of available change methods"
+            "description": "List of available change methods",
+            "example": [
+              {
+                "method": "password",
+                "target": null
+              },
+              {
+                "method": "email",
+                "target": "u***@example.com"
+              }
+            ]
           },
           "has_password": {
             "type": "boolean",
@@ -13587,12 +13878,12 @@
           },
           "sso": {
             "type": "boolean",
-            "description": "SSO/SAML JIT provisioning enabled",
+            "description": "SSO/SAML JIT provisioning enabled (AUTH_SSO_REGISTRATION; a channel stays open while its login OR registration axis is on, see stapel_auth.W015)",
             "example": true
           },
           "anonymous": {
             "type": "boolean",
-            "description": "Anonymous registration enabled",
+            "description": "Guest sessions may be minted (POST /anonymous/, AUTH_ANONYMOUS); a guest is not an account until promoted",
             "example": true
           },
           "email_mock": {
@@ -13910,7 +14201,8 @@
           },
           "is_suspicious": {
             "type": "boolean",
-            "description": "Whether login was flagged as suspicious"
+            "description": "Whether login was flagged as suspicious",
+            "example": false
           }
         },
         "required": [
@@ -14530,7 +14822,26 @@
                 "$ref": "#/components/schemas/User"
               }
             ],
-            "description": "User associated with the token"
+            "description": "User associated with the token",
+            "example": {
+              "id": "550e8400-e29b-41d4-a716-446655440000",
+              "username": "user_550e8400",
+              "email": "user@example.com",
+              "phone": null,
+              "auth_type": "email",
+              "is_email_verified": true,
+              "is_phone_verified": false,
+              "is_anonymous": false,
+              "is_staff": false,
+              "is_superuser": false,
+              "oauth_provider": null,
+              "avatar": null,
+              "bio": "",
+              "created_at": "2026-06-19T12:00:00Z",
+              "last_login": "2026-06-19T12:00:00Z",
+              "onboarding_completed": false,
+              "profile_completed": false
+            }
           },
           "valid": {
             "type": "boolean",
@@ -14735,7 +15046,7 @@
           "verified": {
             "type": "boolean",
             "description": "Always true on success",
-            "example": "True"
+            "example": true
           },
           "verification_token": {
             "type": "string",
@@ -14813,7 +15124,8 @@
           },
           "enabled": {
             "type": "boolean",
-            "description": "Whether step-up is enabled for this scope — False turns a default_on scope off, True turns an opt_in scope on"
+            "description": "Whether step-up is enabled for this scope — False turns a default_on scope off, True turns an opt_in scope on",
+            "example": false
           }
         },
         "required": [
