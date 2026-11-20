@@ -1,4 +1,5 @@
 from rest_framework import permissions
+from stapel_core.django.openapi.contract import Credential
 from django.utils import timezone
 from .models import ServiceAPIKey
 import logging
@@ -71,6 +72,33 @@ class DenyEnrollOnly(permissions.BasePermission):
         from .errors import ERR_403_MFA_ENROLLMENT_REQUIRED
 
         raise StapelServiceError(403, ERR_403_MFA_ENROLLMENT_REQUIRED)
+
+
+def _refresh_cookie_scheme() -> dict:
+    from stapel_core.django.jwt.utils import jwt_cookie_names
+
+    return {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": jwt_cookie_names()[1],
+        "description": "Refresh token cookie set by login and by every refresh.",
+    }
+
+
+#: The refresh cookie as an OpenAPI security scheme. Token refresh reads it in
+#: the view body; no authenticator sees it, and an access token does not do.
+REFRESH_COOKIE_CREDENTIAL = Credential("JWTRefreshCookieAuth", _refresh_cookie_scheme)
+
+#: A service API key (``X-API-KEY``), checked by :class:`IsServiceAPIKey`.
+SERVICE_API_KEY_CREDENTIAL = Credential(
+    "ServiceAPIKeyAuth",
+    {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-KEY",
+        "description": "Service-to-service API key (ServiceAPIKey).",
+    },
+)
 
 
 class IsServiceAPIKey(permissions.BasePermission):

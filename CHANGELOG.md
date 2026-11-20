@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.54.1] — 2026-11-20
+
+Patch. No migration. Requires stapel-core 0.99.5.
+
+### Fixed — the schema names the credential each open-at-DRF operation checks
+
+Found by the caller-state wire gate (`AuthStateReplay`, adopted here in
+`tests/test_contract_wire.py`): three operations answered differently from
+what `security` declared.
+
+- `GET token/refresh/` was declared open (`{}`, plus the access-token
+  schemes) and answers 401 without the refresh cookie. It now declares
+  `JWTRefreshCookieAuth` (apiKey, cookie, the deployment's
+  `JWT_REFRESH_COOKIE_NAME`) and nothing else; an access token never
+  refreshed anything. `POST token/refresh/` declares the same cookie and keeps
+  `{}`, because the refresh token may travel in the body instead.
+- `POST oauth2/introspect/` was declared open and answers 401 without a
+  service key. It now declares `ServiceAPIKeyAuth` (apiKey, header
+  `X-API-KEY`, what `IsServiceAPIKey` reads).
+- `GET user/account/close/status` (stapel-gdpr, mounted here) serves a
+  caller with no session that presents the `X-Closure-Token` from the
+  closure's 202 — by design; with neither credential it is 401. The schema
+  now lists `ClosureTokenAuth` next to the session (stapel-gdpr 0.9.4).
+
 ## [0.54.0] — 2026-11-20
 
 Minor. Migration `0030` (nullable column + partial index on `user_sessions`).

@@ -2399,6 +2399,11 @@
           },
           "required": true
         },
+        "security": [
+          {
+            "ServiceAPIKeyAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -5847,9 +5852,8 @@
         ],
         "security": [
           {
-            "JWTCookieAuth": []
-          },
-          {}
+            "JWTRefreshCookieAuth": []
+          }
         ],
         "responses": {
           "200": {
@@ -5909,7 +5913,7 @@
         },
         "security": [
           {
-            "JWTCookieAuth": []
+            "JWTRefreshCookieAuth": []
           },
           {}
         ],
@@ -6419,7 +6423,9 @@
           {
             "JWTCookieAuth": []
           },
-          {}
+          {
+            "ClosureTokenAuth": []
+          }
         ],
         "responses": {
           "200": {
@@ -6554,7 +6560,9 @@
           {
             "JWTCookieAuth": []
           },
-          {}
+          {
+            "ClosureTokenAuth": []
+          }
         ],
         "responses": {
           "200": {
@@ -11350,11 +11358,29 @@
       }
     },
     "securitySchemes": {
+      "ClosureTokenAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Closure-Token",
+        "description": "The `closure_token` returned with the closure's 202, standing in for the session that closure revoked. Scoped to that one closure and expiring with its grace period."
+      },
       "JWTCookieAuth": {
         "type": "apiKey",
         "in": "cookie",
         "name": "stapel_jwt",
         "description": "JWT token stored in cookie. Login via /auth/admin/ to get the cookie."
+      },
+      "JWTRefreshCookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "stapel_refresh_jwt",
+        "description": "Refresh token cookie set by login and by every refresh."
+      },
+      "ServiceAPIKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-KEY",
+        "description": "Service-to-service API key (ServiceAPIKey)."
       }
     }
   }

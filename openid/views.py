@@ -10,7 +10,10 @@ from rest_framework.decorators import action
 from stapel_auth.utils import SerializerSeamsMixin
 from rest_framework.views import APIView
 from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
+from stapel_core.django.openapi.contract import accepts_credentials
 from stapel_core.django.openapi.schemas import StapelErrorSerializer
+
+from stapel_auth.permissions import SERVICE_API_KEY_CREDENTIAL
 
 from stapel_auth.errors import ERR_401_TOKEN_INVALID
 
@@ -237,6 +240,7 @@ class TokenIntrospectView(APIView):
         },
         tags=["OpenID"],
     )
+    @accepts_credentials(SERVICE_API_KEY_CREDENTIAL, session=False)
     def post(self, request):  # noqa: R007
         from stapel_auth.permissions import IsServiceAPIKey
 

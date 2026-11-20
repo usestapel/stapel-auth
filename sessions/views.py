@@ -13,6 +13,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from stapel_core.django.api.permissions import ANONYMOUS_ALLOWED
+from stapel_core.django.openapi.contract import accepts_credentials
 from stapel_core.django.errors import (
     StapelErrorResponse,
     StapelResponse,
@@ -48,7 +49,7 @@ User = get_user_model()
 
 # ── Sub-package cross-imports ─────────────────────────────────────────────────
 from stapel_auth.models import UserSession
-from stapel_auth.permissions import DenyEnrollOnly
+from stapel_auth.permissions import REFRESH_COOKIE_CREDENTIAL, DenyEnrollOnly
 
 
 @extend_schema(
@@ -234,6 +235,7 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
         ),
         responses={200: TokenPairSerializer, 401: StapelErrorSerializer},
     )
+    @accepts_credentials(REFRESH_COOKIE_CREDENTIAL, session=False, anonymous=True)
     @action(detail=False, methods=["post"], url_path="")
     def refresh_post(self, request):  # noqa: R007
         """POST endpoint to refresh access token"""
@@ -243,6 +245,7 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
         description="Refresh access token using refresh token from cookies",
         responses={200: TokenPairSerializer, 401: StapelErrorSerializer},
     )
+    @accepts_credentials(REFRESH_COOKIE_CREDENTIAL, session=False)
     @action(detail=False, methods=["get"], url_path="")
     def refresh_get(self, request):  # noqa: R007
         """GET endpoint to refresh access token"""

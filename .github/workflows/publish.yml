@@ -111,7 +111,7 @@ jobs:
         run: pip install -e ".[all]"
 
       - name: Install test dependencies
-        run: pip install pytest pytest-django pytest-cov python3-openid "stapel-tools>=0.81.1,<1"
+        run: pip install pytest pytest-django pytest-cov python3-openid "stapel-tools>=0.86.1,<1"
 
       - name: Lint
         run: |

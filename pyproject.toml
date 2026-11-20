@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-auth"
-version = "0.54.0"
+version = "0.54.1"
 description = "Full-featured authentication Django app for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -57,7 +57,7 @@ dependencies = [
     # 0.98.0: stapel_core.security — client_ip() and trusted_proxy_header()
     # (STAPEL_SECURITY['TRUSTED_PROXY_HEADER']) that every IP-keyed limit,
     # lockout and audit row here reads, and checks W005/W006 judge.
-    "stapel-core>=0.99.4,<1.0",
+    "stapel-core>=0.99.5,<1.0",
     "pyotp>=2.10",
     "webauthn>=2.8",
     "phonenumbers>=8.13",
