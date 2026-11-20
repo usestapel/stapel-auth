@@ -4,9 +4,8 @@
    ``docs/schema.v2.json``) validates against the schema it illustrates. A
    native client's suite found 16 of 72 that did not: an ``AuthResponse``
    example carrying only ``status``, a ``user`` with only ``id`` and
-   ``email``, the string ``"True"`` for a boolean — and core's docstring
-   reader drops every falsy example (``false``, ``[]``), so a field
-   documented "Example: false" silently vanished from the object.
+   ``email``, the string ``"True"`` for a boolean, and fields documented
+   "Example: false" that core's docstring reader dropped before 0.99.0.
 2. Every param an answer carries is listed in ``errors.json``: the wait
    params (``retry_after``, ``retry_after_display``, ``retry_after_minutes``)
    rode on 429/422/423 answers while the registry named only the minutes.
@@ -27,11 +26,7 @@ DOCS = Path(__file__).resolve().parent.parent / "docs"
 
 #: Examples this module emits but does not own, with the owner who must fix
 #: them. The gate fails when one of them starts validating (stale entry).
-FOREIGN = {
-    # stapel-gdpr's DataOwnerHealthDTO: `alive: false` is dropped by core's
-    # docstring reader (falsy example), so its example lacks a required field.
-    ("get", "/auth/api/v1/owners/health", "200", "DataOwnerHealthDTO"): "stapel-gdpr",
-}
+FOREIGN: dict = {}
 
 
 def _openapi30_to_jsonschema(node):

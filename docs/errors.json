@@ -850,7 +850,7 @@
     "status": 404,
     "params": [],
     "remediation": "retry",
-    "en": "Not found.",
+    "en": "Requested resource not found",
     "owner": "stapel_core"
   },
   {
@@ -1087,7 +1087,12 @@
     ],
     "remediation": "wait_and_retry",
     "en": "Account temporarily blocked. Try again in {retry_after_display} ({retry_after} s, about {retry_after_minutes} min).",
-    "owner": "stapel_auth"
+    "owner": "stapel_auth",
+    "param_types": {
+      "retry_after": "integer",
+      "retry_after_display": "string",
+      "retry_after_minutes": "integer"
+    }
   },
   {
     "code": "error.422.unprocessable_entity",
@@ -1107,7 +1112,12 @@
     ],
     "remediation": "wait_and_retry",
     "en": "Account temporarily locked due to too many failed attempts. Try again in {retry_after_display} ({retry_after} s, about {retry_after_minutes} min).",
-    "owner": "stapel_auth"
+    "owner": "stapel_auth",
+    "param_types": {
+      "retry_after": "integer",
+      "retry_after_display": "string",
+      "retry_after_minutes": "integer"
+    }
   },
   {
     "code": "error.423.locked",
@@ -1151,7 +1161,12 @@
     ],
     "remediation": "wait_and_retry",
     "en": "Too many attempts. Try again in {retry_after_display} ({retry_after} s, about {retry_after_minutes} min).",
-    "owner": "stapel_core"
+    "owner": "stapel_core",
+    "param_types": {
+      "retry_after": "integer",
+      "retry_after_display": "string",
+      "retry_after_minutes": "integer"
+    }
   },
   {
     "code": "error.429.too_many_requests",

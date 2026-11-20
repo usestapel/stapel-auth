@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.53.1] — 2026-11-20
+
+Patch. No migration. Requires stapel-core 0.99.0.
+
+### Fixed — no core key is reworded here any more
+
+- `error.404.not_found` was re-registered with "Not found." and
+  `error.429.rate_limit` with a three-param template, both owned by core
+  without claiming them, so core's ru/es (translated from core's en) lagged
+  the en this module served — the ru 429 named only the minutes. Core 0.99.0
+  owns the three-param 429 wording and its translations, and its pairing gate
+  now fails an emission that rewords a key its owner translates. Both
+  re-registrations are gone; the 404 keeps its `retry` hint without a copy of
+  the text.
+- `error.422.blocked` and `error.423.account_locked` declare their params'
+  types (`retry_after` / `retry_after_minutes` integer, `retry_after_display`
+  string): `docs/errors.json` carries `param_types`, which a generated client
+  types the wait by. `RETRY_PARAMS` is core's `RETRY_PARAM_TYPES`.
+- Contract examples: stapel-gdpr's `DataOwnerHealthDTO` example validates now
+  that core keeps falsy examples; its exception entry is removed.
+  `docs/schema.json` / `schema.v2.json` change in examples only.
+
 ## [0.53.0] — 2026-11-19
 
 Minor (pre-1.0: read the Changed list). No migration. Requires stapel-core

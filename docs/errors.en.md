@@ -106,7 +106,7 @@
 | `error.404.gdpr.erasure_not_found` | 404 | — | `retry` | Erasure request not found. |
 | `error.404.gdpr.export_not_found` | 404 | — | `retry` | Export request not found. |
 | `error.404.gdpr.no_active_closure` | 404 | — | `fix_input` | No pending account closure found. |
-| `error.404.not_found` | 404 | — | `retry` | Not found. |
+| `error.404.not_found` | 404 | — | `retry` | Requested resource not found |
 | `error.404.oauth_link_not_found` | 404 | — | `retry` | No linked account found for this provider. |
 | `error.404.passkey_not_found` | 404 | — | `retry` | Passkey not found. |
 | `error.404.qr_not_found` | 404 | — | `retry` | QR code not found or expired. |

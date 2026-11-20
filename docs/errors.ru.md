@@ -142,7 +142,7 @@
 | `error.423.verification_locked` | 423 | — | `wait_and_retry` | Слишком много неудачных попыток — подтверждение заблокировано |
 | `error.425.gdpr.export_not_ready` | 425 | — | `retry` | Экспорт ещё готовится. |
 | `error.429.magic_link_rate` | 429 | — | `wait_and_retry` | Слишком много запросов ссылки для входа. Пожалуйста, повторите попытку позже. |
-| `error.429.rate_limit` | 429 | `retry_after_display`, `retry_after`, `retry_after_minutes` | `wait_and_retry` | Слишком много попыток. Повторите попытку через {retry_after_minutes} мин. |
+| `error.429.rate_limit` | 429 | `retry_after_display`, `retry_after`, `retry_after_minutes` | `wait_and_retry` | Слишком много попыток. Повторите попытку через {retry_after_display} ({retry_after} с, около {retry_after_minutes} мин). |
 | `error.429.too_many_requests` | 429 | — | `wait_and_retry` | Слишком много запросов. Пожалуйста, повторите попытку позже. |
 | `error.500.internal` | 500 | — | `contact_support` | Что-то пошло не так |
 | `error.500.send_failed` | 500 | — | `retry` | Не удалось отправить код подтверждения |

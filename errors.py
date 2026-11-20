@@ -1,6 +1,11 @@
 """Custom error keys for the auth service."""
 
-from stapel_core.django.api.errors import ErrorKeysView, register_service_errors, format_duration
+from stapel_core.django.api.errors import (
+    RETRY_PARAM_TYPES,
+    ErrorKeysView,
+    format_duration,
+    register_service_errors,
+)
 
 ERR_401_INVALID_CREDENTIALS = 'error.401.invalid_credentials'
 ERR_401_ACCOUNT_DISABLED = 'error.401.account_disabled'
@@ -171,8 +176,6 @@ AUTH_ERRORS = {
     ERR_409_QR_ACCOUNT_CONFLICT: 'A different account is already signed in on this device.',
     ERR_403_QR_DEVICE_MISMATCH: 'This QR code belongs to another device.',
     ERR_403_QR_UNAUTH_SCAN: 'This QR code cannot be scanned by an unauthenticated device.',
-    # Sessions
-    ERR_404_NOT_FOUND: 'Not found.',
     # TOTP
     ERR_400_CODE_REQUIRED: 'A verification code is required.',
     ERR_400_TOTP_NOT_PENDING: 'No pending TOTP setup. Call /totp/setup/ first.',
@@ -364,21 +367,20 @@ AUTH_REMEDIATION = {
     ERR_400_SIGNUP_CONTEXT_INVALID: 'fix_input',
 }
 
-register_service_errors(AUTH_ERRORS, remediation=AUTH_REMEDIATION)
-
 #: Every answer built by :func:`retry_params` (and core's
-#: ``error_429_rate_limit``, which builds the same three) carries these
-#: params. ``errors.json`` lists a code's params from its English template
-#: only, so each such template names all three.
-RETRY_PARAMS = ('retry_after', 'retry_after_display', 'retry_after_minutes')
+#: ``error_429_rate_limit``, which builds the same three) carries these params.
+RETRY_PARAMS = tuple(RETRY_PARAM_TYPES)
 
-# error.429.rate_limit is core's key, answered here with core's helper; core's
-# template names only {retry_after_minutes}, so the two params every answer
-# also carries were undocumented. Re-registered with the full set, without
-# claiming the key (core stays its owner and keeps its catalogs).
-register_service_errors({
-    'error.429.rate_limit': 'Too many attempts. Try again in {retry_after_display} ({retry_after} s, about {retry_after_minutes} min).',
-})
+# error.404.not_found is core's key (its text and catalogs); only the hint is
+# declared here. error.429.rate_limit is core's too, params declared by core.
+register_service_errors(
+    AUTH_ERRORS,
+    remediation=AUTH_REMEDIATION,
+    param_types={
+        ERR_422_BLOCKED: dict(RETRY_PARAM_TYPES),
+        ERR_423_ACCOUNT_LOCKED: dict(RETRY_PARAM_TYPES),
+    },
+)
 
 
 def retry_params(retry_after):
