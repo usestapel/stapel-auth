@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.54.0] — 2026-11-20
+
+Minor. Migration `0030` (nullable column + partial index on `user_sessions`).
+Requires stapel-core 0.99.4.
+
+### Added — tokens carry their session (`sid`)
+
+- Every pair minted for a session carries the session's id as the `sid` claim,
+  in the access and the refresh token: all sign-in methods and guests (the
+  `_issue_session_tokens` choke point), the QR login-request pair and the
+  pair re-minted after a guest promotion. The id is generated before the mint
+  (`sessions.services.new_session_id`); `create_tokens_for_user(user,
+  session_id=...)` and `SessionService.create(..., session_id=...)` take it.
+- Refresh keeps it: rotation stamps the row's id into the new pair, so a pair
+  issued before this release gains the claim on its first rotation; the grace
+  answer and core's mint-from-refresh copy it from the refresh token.
+  Tokens without the claim keep working everywhere.
+- Other services read the caller's session with stapel-core's
+  `stapel_core.django.jwt.claims.request_session_id(request)` — verified, no
+  stapel-auth import, works with mirrored users. `current_session(request)`
+  reads the claim first (only among the caller's own sessions) and falls back
+  to the access-token ledger.
+- `tests/test_session_claim.py` holds a roster: a `create_tokens_for_user`
+  call without `session_id=` fails the build unless listed with its reason.
+
+### Added — `user.session_expired`
+
+- A session that reaches `expires_at` unrevoked used to end silently; state
+  bound to it elsewhere (a push device row) lived on. The sweep
+  `SessionService.announce_expired(limit=500)` — task
+  `stapel_auth.tasks.sweep_expired_sessions`, in `BEAT_SCHEDULE` every 10
+  minutes — emits `user.session_expired {user_id, session_id, expired_at}`
+  once per session: oldest expiry first, bounded per run, claimed by a
+  conditional update of the new `UserSession.expiry_announced_at` in the same
+  transaction as the outbox row. Revoked sessions are not announced again.
+- A sibling of `user.session_revoked`, not the same event with a reason:
+  revocation is a security signal expiry is not, and consumers' copies of the
+  revoked schema are `additionalProperties: false`. Subscribe to both.
+
+### Contract
+
+- Regenerated against core 0.99.4: profile 2 binds `error.404.not_found` on
+  the detail operations that reach the generic lookup (core 0.99.3), and
+  `docs/errors.json` lists core's `error.400.too_many_ids` (core 0.99.2).
+
 ## [0.53.1] — 2026-11-20
 
 Patch. No migration. Requires stapel-core 0.99.0.

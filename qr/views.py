@@ -220,12 +220,15 @@ class QRAuthViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
                     _exp = datetime.fromtimestamp(_rt_pl.get("exp", 0), tz=_tz.utc)
                     _user = _gum().objects.filter(pk=data["fulfilled_user_id"]).first()
                     if _user and _jti:
+                        from stapel_auth.sessions.services import session_claim
+
                         _session = SessionService.create(
                             _user,
                             _jti,
                             _exp,
                             request=request,
                             access_token=access_token,
+                            session_id=session_claim(_rt_pl),
                         )
                         AuditService.log(
                             "login_success",
@@ -433,7 +436,13 @@ Issues tokens for the waiting device. The device polling `/status` will receive 
         if data["type"] != QRType.LOGIN_REQUEST:
             return StapelErrorResponse(400, ERR_400_QR_TYPE_REQUIRED)
 
-        access_token, refresh_token = create_tokens_for_user(request.user)
+        from stapel_auth.sessions.services import new_session_id
+
+        # The waiting device's session row is created when it polls; the
+        # pair already carries the id that row will get.
+        access_token, refresh_token = create_tokens_for_user(
+            request.user, session_id=new_session_id()
+        )
         # Mints around the choke point (bypass roster): the scanner is handing
         # the waiting device a session on this account, so this account is
         # logging in — on the other device — right now.

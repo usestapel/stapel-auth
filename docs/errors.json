@@ -486,6 +486,21 @@
     "owner": "stapel_auth"
   },
   {
+    "code": "error.400.too_many_ids",
+    "status": 400,
+    "params": [
+      "requested",
+      "limit"
+    ],
+    "remediation": "fix_input",
+    "en": "Too many ids: {requested} requested, at most {limit} per batch request",
+    "owner": "stapel_core",
+    "param_types": {
+      "limit": "integer",
+      "requested": "integer"
+    }
+  },
+  {
     "code": "error.400.totp_not_enabled",
     "status": 400,
     "params": [],

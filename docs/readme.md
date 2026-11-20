@@ -168,6 +168,7 @@ and only if your transaction commits):
 |---|---|---|
 | `user.session_created` | [schema](https://github.com/usestapel/stapel-auth/blob/main/schemas/emits/user.session_created.json) | A user authenticated and a session was created |
 | `user.session_revoked` | [schema](https://github.com/usestapel/stapel-auth/blob/main/schemas/emits/user.session_revoked.json) | A session was revoked (logout or admin action) |
+| `user.session_expired` | [schema](https://github.com/usestapel/stapel-auth/blob/main/schemas/emits/user.session_expired.json) | A session reached its expiry unrevoked (expiry sweep, once per session) |
 | `user.signed_up` | [schema](https://github.com/usestapel/stapel-auth/blob/main/schemas/emits/user.signed_up.json) | A self-serve sign-up completed (fresh or promoted guest), once per account |
 
 ## Extension points

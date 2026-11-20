@@ -24,13 +24,13 @@ pip install stapel-auth
 
 | Fact | Value |
 |---|---|
-| Version | `0.53.1` |
+| Version | `0.54.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | HTTP operations | 122 |
 | Config axes | 32 |
 | Usage surface | 18 |
 | Extension points | 7 |
-| Error codes | 145 |
+| Error codes | 146 |
 | Documented flows | 4 |
 | Fleet dependencies | [`stapel-core`](https://github.com/usestapel/stapel-core) · [`stapel-gdpr`](https://github.com/usestapel/stapel-gdpr) (optional) · [`stapel-notifications`](https://github.com/usestapel/stapel-notifications) (optional) |
 
@@ -208,6 +208,7 @@ and only if your transaction commits):
 |---|---|---|
 | `user.session_created` | [schema](https://github.com/usestapel/stapel-auth/blob/main/schemas/emits/user.session_created.json) | A user authenticated and a session was created |
 | `user.session_revoked` | [schema](https://github.com/usestapel/stapel-auth/blob/main/schemas/emits/user.session_revoked.json) | A session was revoked (logout or admin action) |
+| `user.session_expired` | [schema](https://github.com/usestapel/stapel-auth/blob/main/schemas/emits/user.session_expired.json) | A session reached its expiry unrevoked (expiry sweep, once per session) |
 | `user.signed_up` | [schema](https://github.com/usestapel/stapel-auth/blob/main/schemas/emits/user.signed_up.json) | A self-serve sign-up completed (fresh or promoted guest), once per account |
 
 ## Extension points

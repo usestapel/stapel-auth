@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "user.session_expired",
+  "description": "A session reached its expiry without being revoked: its refresh token can no longer be used, so the session has ended. Emitted once per session by the expiry sweep (stapel_auth.tasks.sweep_expired_sessions), some time after expires_at. Sibling of user.session_revoked, which is reserved for sessions ended by an action (sign-out, revoke, admin, reuse detection); a consumer that cleans up per-session state subscribes to both.",
+  "type": "object",
+  "required": ["user_id", "session_id", "expired_at"],
+  "properties": {
+    "user_id":    { "type": "string", "format": "uuid" },
+    "session_id": { "type": "string" },
+    "expired_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

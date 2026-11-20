@@ -408,9 +408,11 @@ class PasswordViewSet(SerializerSeamsMixin, viewsets.GenericViewSet):
         from stapel_auth.sessions.services import stamp_last_login
         from stapel_auth.staff_roles import create_tokens_for_user
 
-        from stapel_auth.sessions.services import SessionService
+        from stapel_auth.sessions.services import SessionService, new_session_id
 
-        access_token, refresh_token = create_tokens_for_user(user)
+        access_token, refresh_token = create_tokens_for_user(
+            user, session_id=new_session_id()
+        )
         # Mints around the choke point (see the bypass roster in
         # tests/test_session_issuance_gate.py), so it stamps for itself: the
         # promoted account is authenticating as a registered user right here.

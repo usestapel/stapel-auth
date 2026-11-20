@@ -216,16 +216,26 @@ def serialize_user_to_jwt_data(user) -> dict:
     return data
 
 
-def create_tokens_for_user(user) -> tuple[str, str]:
+def create_tokens_for_user(user, *, session_id=None) -> tuple[str, str]:
     """``(access, refresh)`` token pair carrying the staff_roles claim.
 
     Drop-in replacement for ``jwt_provider.create_tokens(user)`` — every
     token-issuance path in stapel-auth goes through here so the claim can
     never be forgotten on a new login flow.
+
+    ``session_id`` is the id of the ``UserSession`` row the pair belongs to;
+    both tokens carry it as the ``sid`` claim (``stapel_core``'s
+    ``SESSION_CLAIM``), which any service reads with
+    ``stapel_core.django.jwt.claims.request_session_id``. Paths that mint
+    outside a session (enroll-only, intermediate steps) pass nothing.
     """
+    from stapel_core.core.jwt_handler import SESSION_CLAIM
     from stapel_core.django.jwt.provider import jwt_provider
 
-    return jwt_provider.create_tokens_from_data(serialize_user_to_jwt_data(user))
+    data = serialize_user_to_jwt_data(user)
+    if session_id is not None:
+        data[SESSION_CLAIM] = str(session_id)
+    return jwt_provider.create_tokens_from_data(data)
 
 
 def assignment_roles(user) -> list[str] | None:

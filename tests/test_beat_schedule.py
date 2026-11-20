@@ -3,19 +3,26 @@
 this into its own `CELERY_BEAT_SCHEDULE`, the delayed (14-day) authenticator-
 change strategy's day-1/7/13 notifications and the change itself never fire —
 a `PENDING` request just sits there forever. This is a discoverability
-contract: the schedule must name the three real tasks with sane intervals,
+contract: the schedule must name the real tasks with sane intervals,
 and it must be importable from both the lazy public API and the module it's
 defined in (same object, not a copy).
 """
 
 from datetime import timedelta
 
-from stapel_auth.tasks import BEAT_SCHEDULE, cleanup_expired_requests, execute_pending_changes, send_change_notifications
+from stapel_auth.tasks import (
+    BEAT_SCHEDULE,
+    cleanup_expired_requests,
+    execute_pending_changes,
+    send_change_notifications,
+    sweep_expired_sessions,
+)
 
 EXPECTED_TASKS = {
     "send_change_notifications": send_change_notifications,
     "execute_pending_changes": execute_pending_changes,
     "cleanup_expired_requests": cleanup_expired_requests,
+    "sweep_expired_sessions": sweep_expired_sessions,
 }
 
 
@@ -25,7 +32,7 @@ def test_beat_schedule_is_reachable_from_the_public_api():
     assert stapel_auth.BEAT_SCHEDULE is BEAT_SCHEDULE
 
 
-def test_beat_schedule_names_exactly_the_three_delayed_change_tasks():
+def test_beat_schedule_names_exactly_the_expected_tasks():
     scheduled_task_names = {entry["task"] for entry in BEAT_SCHEDULE.values()}
     expected_dotted_names = {f"stapel_auth.tasks.{name}" for name in EXPECTED_TASKS}
     assert scheduled_task_names == expected_dotted_names
@@ -60,6 +67,9 @@ def test_beat_schedule_intervals_are_sane():
     assert timedelta(minutes=1) <= intervals["execute_pending_changes"] <= timedelta(minutes=30)
     assert timedelta(minutes=30) <= intervals["send_change_notifications"] <= timedelta(hours=6)
     assert timedelta(hours=6) <= intervals["cleanup_expired_requests"] <= timedelta(hours=24)
+    # The expiry sweep bounds how long state bound to an expired session
+    # lives on elsewhere: minutes, not hours.
+    assert timedelta(minutes=1) <= intervals["sweep_expired_sessions"] <= timedelta(minutes=30)
 
 
 def test_beat_schedule_entry_names_are_namespaced():

@@ -96,12 +96,21 @@ class UserSession(models.Model):
     expires_at = models.DateTimeField()
     is_revoked    = models.BooleanField(default=False, db_index=True)
     is_suspicious = models.BooleanField(default=False)
+    # When ``user.session_expired`` was written for this row
+    # (``SessionService.announce_expired``); NULL until then. The sweep's
+    # idempotency key: a row is announced at most once.
+    expiry_announced_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'user_sessions'
         ordering = ['-last_used_at']
         indexes = [
             models.Index(fields=['user', 'is_revoked']),
+            models.Index(
+                fields=['expires_at'],
+                name='user_sessions_unannounced_exp',
+                condition=models.Q(is_revoked=False, expiry_announced_at__isnull=True),
+            ),
         ]
 
     def __str__(self):

@@ -1,6 +1,6 @@
 # Errors — Русский
 
-`145` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
+`146` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.ru.json`.
 
 | Код | Статус | Параметры | Действие | Текст |
 |---|---|---|---|---|
@@ -61,6 +61,7 @@
 | `error.400.sso_not_configured` | 400 | — | `contact_support` | SSO не настроен для этой организации. |
 | `error.400.staff_role_target_not_staff` | 400 | — | `fix_input` | Служебные роли можно назначать только служебным учётным записям. Сначала сделайте пользователя сотрудником. |
 | `error.400.token_required` | 400 | — | `fix_input` | Требуется токен |
+| `error.400.too_many_ids` | 400 | `requested`, `limit` | `fix_input` | Слишком много идентификаторов: запрошено {requested}, максимум {limit} за один запрос |
 | `error.400.totp_not_enabled` | 400 | — | `fix_input` | TOTP не включён для этой учётной записи. |
 | `error.400.totp_not_pending` | 400 | — | `retry` | Нет незавершённой настройки TOTP. Сначала вызовите /totp/setup/. |
 | `error.400.totp_proof_required` | 400 | — | `verify` | На этой учётной записи уже настроен TOTP. Укажите текущий код или резервный код, чтобы заменить его, либо используйте отложенную смену, если аутентификатор утерян. |

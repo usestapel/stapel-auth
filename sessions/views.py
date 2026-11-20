@@ -410,6 +410,13 @@ class CustomTokenRefreshView(SerializerSeamsMixin, viewsets.GenericViewSet):
             user_data = load_user_data(_uid)
             if not user_data:
                 return StapelErrorResponse(401, ERR_401_REFRESH_INVALID)
+            if session is not None:
+                # The rotated pair belongs to the same session: its id comes
+                # from the row, so a pair minted before the claim existed
+                # gains it on its first rotation.
+                from stapel_core.core.jwt_handler import SESSION_CLAIM
+
+                user_data[SESSION_CLAIM] = str(session.pk)
             new_access_token, new_refresh_token = jwt_provider.create_tokens_from_data(
                 user_data
             )
@@ -543,6 +550,7 @@ def _issue_session_tokens(
         AuditService,
         LoginNotificationService,
         SessionService,
+        new_session_id,
         stamp_last_login,
     )
 
@@ -557,7 +565,8 @@ def _issue_session_tokens(
         )
         raise denied
 
-    access_token, refresh_token = create_tokens_for_user(user)
+    session_id = new_session_id()
+    access_token, refresh_token = create_tokens_for_user(user, session_id=session_id)
     rt_payload = jwt_provider.handler.decode_token(refresh_token, verify=False) or {}
     jti = rt_payload.get("jti", "")
     exp = rt_payload.get("exp")
@@ -569,7 +578,8 @@ def _issue_session_tokens(
     session = None
     if jti:
         session = SessionService.create(
-            user, jti, expires_at, request=request, access_token=access_token
+            user, jti, expires_at, request=request, access_token=access_token,
+            session_id=session_id,
         )
     # Django's own last_login stamp rides on the user_logged_in signal, which
     # no JWT path sends — so it happens here, at the choke point, and a login

@@ -1,6 +1,6 @@
 # Errors — English
 
-`145` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
+`146` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.en.json`.
 
 | Code | Status | Params | Remediation | Text |
 |---|---|---|---|---|
@@ -61,6 +61,7 @@
 | `error.400.sso_not_configured` | 400 | — | `contact_support` | SSO is not configured for this organization. |
 | `error.400.staff_role_target_not_staff` | 400 | — | `fix_input` | Staff roles can only be assigned to staff accounts. Make the user staff first. |
 | `error.400.token_required` | 400 | — | `fix_input` | Token is required |
+| `error.400.too_many_ids` | 400 | `requested`, `limit` | `fix_input` | Too many ids: {requested} requested, at most {limit} per batch request |
 | `error.400.totp_not_enabled` | 400 | — | `fix_input` | TOTP is not enabled on this account. |
 | `error.400.totp_not_pending` | 400 | — | `retry` | No pending TOTP setup. Call /totp/setup/ first. |
 | `error.400.totp_proof_required` | 400 | — | `verify` | A TOTP already exists on this account. Provide the current code or a backup code to replace it, or use the delayed change flow if you lost your authenticator. |

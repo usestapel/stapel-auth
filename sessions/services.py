@@ -5,6 +5,7 @@ Service classes for authentication operations
 from django.utils import timezone
 from datetime import timedelta
 import logging
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -257,6 +258,31 @@ def _parse_device_name(user_agent: str) -> str:
     return _parse_ua(user_agent)['name']
 
 
+def new_session_id() -> uuid.UUID:
+    """The id of a session about to be created, generated before its tokens
+    are minted so the pair can carry it (``sid``) from the first request."""
+    return uuid.uuid4()
+
+
+def session_claim(payload: dict):
+    """The ``sid`` claim of a token payload THIS process just minted, as a
+    UUID, or ``None`` (absent or not a UUID). Never applied to a token a
+    client presented: those are read through the verified claim reader."""
+    from stapel_core.core.jwt_handler import SESSION_CLAIM
+
+    return _session_uuid((payload or {}).get(SESSION_CLAIM))
+
+
+def _session_uuid(value):
+    """*value* as a session id (UUID), or ``None``."""
+    if not value:
+        return None
+    try:
+        return uuid.UUID(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
 def _blacklist_jti(jti: str, expires_at) -> None:
     """Put a JTI into Redis blacklist. expires_at is datetime or unix timestamp."""
     if not jti:
@@ -395,11 +421,13 @@ def current_session(request):
     ``is_current``, "revoke all except current" and the password change's
     "keep this session" all read it. Two credentials identify a session:
 
-    - the **access token**, for every client. Access tokens carry no session
-      claim; the session is found through the access-token ledger
-      (``SessionAccessToken``), where every mint path records the access jti
-      it handed out (:meth:`SessionService.record_access`). This is the only
-      path a bearer client has — it sends no refresh token on ordinary calls.
+    - the **access token**, for every client. Its ``sid`` claim names the
+      session directly (read through stapel-core's verified claim reader,
+      ``request_session_id``); a token minted before the claim existed is
+      found through the access-token ledger (``SessionAccessToken``), where
+      every mint path records the access jti it handed out
+      (:meth:`SessionService.record_access`). This is the only path a bearer
+      client has — it sends no refresh token on ordinary calls.
     - the **refresh cookie**, for a browser whose access cookie expired and
       was re-minted by the middleware on this very request: its jti is the
       session row's ``jti``.
@@ -410,6 +438,7 @@ def current_session(request):
     for any session"; callers that spare a session must read that as *spare
     nothing*, never as *spare everything*.
     """
+    from stapel_core.django.jwt.claims import request_session_id
     from stapel_core.django.jwt.utils import extract_jwt_from_request
 
     from stapel_auth.models import SessionAccessToken, UserSession
@@ -417,6 +446,12 @@ def current_session(request):
     user = getattr(request, 'user', None)
     if user is None or not getattr(user, 'is_authenticated', False):
         return None
+
+    sid = _session_uuid(request_session_id(request))
+    if sid is not None:
+        session = UserSession.objects.filter(pk=sid, user=user).first()
+        if session is not None:
+            return session
 
     access_token, refresh_token = extract_jwt_from_request(request)
     access_jti = _verified_jti(access_token, 'access')
@@ -457,10 +492,14 @@ class SessionService:
 
     @staticmethod
     def create(user, jti: str, expires_at, request=None, access_jti: str = '',
-               access_token: str = '') -> 'UserSession':
+               access_token: str = '', session_id=None) -> 'UserSession':
         """Register a session; the access token minted with it is recorded
         through :meth:`record_access` (pass ``access_token``; a bare
-        ``access_jti`` is recorded with the access lifetime as its bound)."""
+        ``access_jti`` is recorded with the access lifetime as its bound).
+
+        ``session_id`` is the row's id when the pair was minted before the
+        row existed and already carries it as its ``sid`` claim
+        (:func:`new_session_id`); otherwise a fresh one is generated."""
         from django.db import transaction
 
         from stapel_core.comm import emit
@@ -481,6 +520,7 @@ class SessionService:
             access_jti = _access_claims(access_token)[0] or access_jti
         with transaction.atomic():
             session = UserSession.objects.create(
+                id=session_id or uuid.uuid4(),
                 user=user,
                 jti=jti,
                 access_jti=access_jti,
@@ -532,7 +572,8 @@ class SessionService:
             else timezone.now() + timedelta(days=7)
         )
         return SessionService.create(
-            user, jti, expires_at, request=request, access_token=access_token
+            user, jti, expires_at, request=request, access_token=access_token,
+            session_id=session_claim(payload),
         )
 
     @staticmethod
@@ -830,6 +871,59 @@ class SessionService:
         # Redis blacklisting is non-transactional — outside the atomic block.
         for s in sessions:
             revoke_session_tokens(s['pk'], s['jti'], s['expires_at'], s['access_jti'])
+
+    @staticmethod
+    def announce_expired(limit: int = 500, now=None) -> int:
+        """Emit ``user.session_expired`` for sessions that ran out unrevoked.
+
+        A session ends two ways: by an action (sign-out, revoke, admin,
+        reuse detection — ``user.session_revoked``) or by its refresh token
+        expiring, which writes nothing anywhere. Without an event for the
+        second, per-session state elsewhere (a push device row bound to the
+        session) outlives the session until something unrelated removes it.
+
+        Bounded: at most ``limit`` rows per call, oldest expiry first; a
+        backlog drains over successive runs. Idempotent: each row is claimed
+        by a conditional update of ``expiry_announced_at`` and the event is
+        written in the same transaction, so two concurrent sweeps — or a
+        re-run — announce a row exactly once, and only if the claim commits.
+        Revoked sessions are skipped: they were announced as revoked.
+        Returns how many sessions were announced.
+        """
+        from django.db import transaction
+
+        from stapel_core.comm import emit
+
+        from stapel_auth.events import EVENT_USER_SESSION_EXPIRED
+        from stapel_auth.models import UserSession
+
+        now = now or timezone.now()
+        due = UserSession.objects.filter(
+            is_revoked=False,
+            expiry_announced_at__isnull=True,
+            expires_at__lte=now,
+        )
+        candidates = list(
+            due.order_by('expires_at').values('pk', 'user_id', 'expires_at')[:max(0, limit)]
+        )
+        announced = 0
+        for row in candidates:
+            with transaction.atomic():
+                claimed = due.filter(pk=row['pk']).update(expiry_announced_at=now)
+                if not claimed:
+                    continue
+                emit(
+                    EVENT_USER_SESSION_EXPIRED,
+                    {
+                        'user_id': str(row['user_id']),
+                        'session_id': str(row['pk']),
+                        'expired_at': row['expires_at'].isoformat(),
+                    },
+                    key=str(row['user_id']),
+                    service='auth',
+                )
+            announced += 1
+        return announced
 
     @staticmethod
     def get_active(user):

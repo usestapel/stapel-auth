@@ -7826,6 +7826,19 @@
             "x-stapel-errors": [
               "error.403.mfa_enrollment_required"
             ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.not_found"
+            ]
           }
         }
       },
@@ -7897,6 +7910,19 @@
             "x-stapel-errors": [
               "error.403.mfa_enrollment_required"
             ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.not_found"
+            ]
           }
         }
       },
@@ -7967,6 +7993,19 @@
             "x-stapel-errors": [
               "error.403.mfa_enrollment_required"
             ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.not_found"
+            ]
           }
         }
       },
@@ -8010,6 +8049,19 @@
             "description": "Forbidden",
             "x-stapel-errors": [
               "error.403.mfa_enrollment_required"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.not_found"
             ]
           }
         }

@@ -57,6 +57,12 @@ BEAT_SCHEDULE = {
         # applied-but-not-yet-executed for up to a full schedule tick.
         "schedule": timedelta(minutes=5),
     },
+    "stapel-auth-sweep-expired-sessions": {
+        "task": "stapel_auth.tasks.sweep_expired_sessions",
+        # Every 10 minutes: bounds how long a session's per-session state
+        # elsewhere (push device rows) outlives its expiry.
+        "schedule": timedelta(minutes=10),
+    },
     "stapel-auth-cleanup-expired-requests": {
         "task": "stapel_auth.tasks.cleanup_expired_requests",
         # Daily: pure bookkeeping (marks >30-day-old abandoned requests
@@ -276,6 +282,21 @@ def cleanup_expired_requests():
 
     logger.info(f"Marked {expired} requests as expired")
     return expired
+
+
+@_task
+def sweep_expired_sessions(limit: int = 500):
+    """Announce sessions that expired unrevoked (``user.session_expired``).
+
+    One bounded batch per run (``SessionService.announce_expired``); safe to
+    run concurrently and to re-run.
+    """
+    from .sessions.services import SessionService
+
+    announced = SessionService.announce_expired(limit=limit)
+    if announced:
+        logger.info("Announced %d expired session(s)", announced)
+    return announced
 
 
 # =============================================================================

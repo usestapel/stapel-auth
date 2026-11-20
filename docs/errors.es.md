@@ -1,6 +1,6 @@
 # Errors — Español
 
-`145` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
+`146` error keys. Canonical texts live in the code (`register_service_errors`); localized texts in `translations/errors.es.json`.
 
 | Código | Estado | Parámetros | Acción | Texto |
 |---|---|---|---|---|
@@ -61,6 +61,7 @@
 | `error.400.sso_not_configured` | 400 | — | `contact_support` | El SSO no está configurado para esta organización. |
 | `error.400.staff_role_target_not_staff` | 400 | — | `fix_input` | Los roles de personal solo pueden asignarse a cuentas de personal. Concede primero al usuario la condición de personal. |
 | `error.400.token_required` | 400 | — | `fix_input` | Se requiere un token |
+| `error.400.too_many_ids` | 400 | `requested`, `limit` | `fix_input` | Demasiados identificadores: {requested} solicitados, como máximo {limit} por solicitud por lotes |
 | `error.400.totp_not_enabled` | 400 | — | `fix_input` | TOTP no está activado en esta cuenta. |
 | `error.400.totp_not_pending` | 400 | — | `retry` | No hay ninguna configuración TOTP pendiente. Llama primero a /totp/setup/. |
 | `error.400.totp_proof_required` | 400 | — | `verify` | Ya existe un TOTP en esta cuenta. Introduce el código actual o un código de respaldo para sustituirlo, o utiliza el flujo de cambio diferido si has perdido tu autenticador. |
